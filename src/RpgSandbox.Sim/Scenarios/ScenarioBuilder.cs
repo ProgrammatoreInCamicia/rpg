@@ -13,12 +13,14 @@ public sealed class Scenario
         IReadOnlyList<LocationDefinition> locations,
         IReadOnlyList<RouteDefinition> routes,
         IReadOnlyList<ActorDefinition> actors,
+        IReadOnlyList<StoreDefinition> stores,
         ActorId player)
     {
         Areas = areas;
         Locations = locations;
         Routes = routes;
         Actors = actors;
+        Stores = stores;
         Player = player;
     }
 
@@ -26,13 +28,15 @@ public sealed class Scenario
     internal IReadOnlyList<LocationDefinition> Locations { get; }
     internal IReadOnlyList<RouteDefinition> Routes { get; }
     internal IReadOnlyList<ActorDefinition> Actors { get; }
+    internal IReadOnlyList<StoreDefinition> Stores { get; }
     internal ActorId Player { get; }
 }
 
 internal sealed record AreaDefinition(AreaId Id, string Name);
 internal sealed record LocationDefinition(LocationId Id, string Name, AreaId Area);
 internal sealed record RouteDefinition(LocationId A, LocationId B, Duration TravelTime);
-internal sealed record ActorDefinition(ActorId Id, string Name, LocationId Location, bool IsPlayer);
+internal sealed record ActorDefinition(ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food);
+internal sealed record StoreDefinition(StoreId Id, string Name, LocationId Location, int Food);
 
 /// <summary>Builds a <see cref="Scenario"/> in C#. Validates references when <see cref="Build"/> is called.</summary>
 public sealed class ScenarioBuilder
@@ -41,6 +45,7 @@ public sealed class ScenarioBuilder
     private readonly List<LocationDefinition> _locations = new();
     private readonly List<RouteDefinition> _routes = new();
     private readonly List<ActorDefinition> _actors = new();
+    private readonly List<StoreDefinition> _stores = new();
 
     public ScenarioBuilder AddArea(string id, string name)
     {
@@ -61,9 +66,15 @@ public sealed class ScenarioBuilder
         return this;
     }
 
-    public ScenarioBuilder AddActor(string id, string name, string locationId, bool isPlayer = false)
+    public ScenarioBuilder AddActor(string id, string name, string locationId, bool isPlayer = false, int food = 0)
     {
-        _actors.Add(new ActorDefinition(new ActorId(id), name, new LocationId(locationId), isPlayer));
+        _actors.Add(new ActorDefinition(new ActorId(id), name, new LocationId(locationId), isPlayer, food));
+        return this;
+    }
+
+    public ScenarioBuilder AddStore(string id, string name, string locationId, int food)
+    {
+        _stores.Add(new StoreDefinition(new StoreId(id), name, new LocationId(locationId), food));
         return this;
     }
 
@@ -95,14 +106,27 @@ public sealed class ScenarioBuilder
         }
 
         foreach (var actor in _actors)
+        {
             if (!locationIds.Contains(actor.Location))
                 throw new InvalidOperationException($"Actor '{actor.Id}' starts at unknown location '{actor.Location}'.");
+            if (actor.Food < 0)
+                throw new InvalidOperationException($"Actor '{actor.Id}' starts with negative food.");
+        }
+
+        RequireUnique(_stores.Select(s => s.Id.Value), "store");
+        foreach (var store in _stores)
+        {
+            if (!locationIds.Contains(store.Location))
+                throw new InvalidOperationException($"Store '{store.Id}' is at unknown location '{store.Location}'.");
+            if (store.Food < 0)
+                throw new InvalidOperationException($"Store '{store.Id}' starts with negative food.");
+        }
 
         var players = _actors.Where(a => a.IsPlayer).ToList();
         if (players.Count != 1)
             throw new InvalidOperationException($"A scenario needs exactly one player actor, found {players.Count}.");
 
-        return new Scenario(_areas.ToArray(), _locations.ToArray(), _routes.ToArray(), _actors.ToArray(), players[0].Id);
+        return new Scenario(_areas.ToArray(), _locations.ToArray(), _routes.ToArray(), _actors.ToArray(), _stores.ToArray(), players[0].Id);
     }
 
     private static void RequireUnique(IEnumerable<string> ids, string kind)

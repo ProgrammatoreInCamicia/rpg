@@ -41,6 +41,14 @@ public partial class SmokeRunner : Node
 		await Frames(2);
 		Capture("3-arrived.png");
 
+		_main.DepositViaUi(4);
+		await Frames(5);
+		Capture("4-depositing.png");
+		while (_main.IsBusy)
+			await Frames(1);
+		await Frames(2);
+		Capture("5-deposited.png");
+
 		GD.Print("SMOKE OK");
 		GetTree().Quit();
 	}

@@ -1052,3 +1052,47 @@ Verifiche:
 Limiti noti: grafica segnaposto; il layout dei Luoghi sulla griglia è un dizionario nel client (presentazione),
 da rivedere quando i Luoghi saranno più numerosi.
 Codex, al tuo ritorno: review D4 di game/ e ripresa della proprietà dal checkpoint 1.
+
+============================================================
+[CLAUDE — Checkpoint 1: annuncio del contratto (prima dell'implementazione)]
+============================================================
+L'utente ha provato il checkpoint 0 (funziona avviando il gioco fuori dall'editor incorporato) e chiede il checkpoint 1.
+Codex è ancora fermo: continuo io anche su game/, con la stessa regola di prima (review e ripresa al suo ritorno).
+
+Contratto (solo AGGIUNTE: nessuna rinomina né rimozione):
+  - StoreId(string): un deposito di cibo situato in un Luogo. Il cibo è un intero (razioni).
+  - Il cibo trasportato da un attore è una proprietà dell'attore. Nessun sistema generico di oggetti o inventari.
+  - DepositFoodCommand { Actor, Store, Amount }: l'attore consegna razioni proprie a un deposito.
+      Validazione all'avvio: attore esistente e libero, deposito esistente, attore NEL Luogo del deposito,
+      Amount > 0, Amount <= cibo dell'attore. Durata fissa: 2 minuti (costante delle regole).
+      Il trasferimento avviene al COMPLETAMENTO, con precondizioni ricontrollate. Se falliscono:
+      nessuna modifica e fatto "FoodDepositFailed". In caso di successo: fatto "FoodDeposited".
+      Il cibo non viene mai creato né distrutto: la somma attore + deposito resta costante (verificato dai test).
+  - Nuovi RejectionReason (aggiunti in coda all'enum): StoreNotFound, NotAtStore, InvalidAmount, InsufficientFood.
+  - Viste:
+      ActorView.Food (int);
+      ActorView.Action: ActionView? { Id, Kind ("Travel" | "DepositFood"), StartedAt, CompletesAt, Description },
+        che descrive qualunque azione in corso (Travel resta per i dati specifici del viaggio);
+      WorldView.Stores: IReadOnlyList<StoreView>, con StoreView { Id, Name, Location, Food }.
+  - Scenario: deposito "granary_store" (Scorte del granaio) al Granaio con 40 razioni; il Protagonista porta 10 razioni.
+  - "Take"/prelievo NON entra ora: arriva con il furto dei banditi (checkpoint 2), insieme alla proprietà dei depositi.
+Client: scorte mostrate sull'edificio, razioni del giocatore nel pannello, controlli "Consegna" (quantità + pulsante)
+solo quando il giocatore è nel Luogo di un deposito, riproduzione del tempo come per il viaggio, motivo dei rifiuti mostrato.
+
+============================================================
+[CLAUDE — Checkpoint 1: completato (Sim + client, Codex ancora fermo)]
+============================================================
+Implementato come annunciato sopra. Sim: StoreId, Store, Actor.Food, DepositFoodCommand (2 min, trasferimento al
+completamento con precondizioni ricontrollate, fatto FoodDeposited/FoodDepositFailed), nuovi RejectionReason,
+ActionView/StoreView/ActorView.Food, scenario con 40 razioni al granaio e 10 al Protagonista. Rules.cs raccoglie le costanti.
+Test: 31/31 (+11: conservazione del cibo su più consegne, quantità 0/negativa/eccessiva, consegna di tutto,
+luogo sbagliato, deposito sconosciuto, attore impegnato o in viaggio, nessun effetto parziale nei rifiuti).
+Limite: il ramo FoodDepositFailed al completamento non è ancora raggiungibile (nessun altro può cambiare le razioni
+dell'attore durante la consegna); diventerà testabile con il furto del checkpoint 2.
+Client: scorte sull'edificio, "Razioni con te", riga "Consegna" (quantità + pulsante) visibile solo dove c'è un
+deposito, stato "Consegna di N razioni… termina alle", riproduzione del tempo comune a tutte le azioni.
+Smoke reale: clic vero sul Granaio -> viaggio -> consegna di 4 -> scorte 40->44, razioni 10->6, fatto in cronaca. OK.
+CORREZIONE AL MIO MESSAGGIO PRECEDENTE: il commit d0c77d0 non compilava (ScreenPointOf mancante: il mio sed
+cercava spazi, ma l'editor aveva convertito il file in tabulazioni). Lo smoke di allora girò sulla DLL precedente,
+quindi NON aveva verificato il clic reale. Ora è corretto e verificato su una build pulita. Lezione: prima di ogni
+smoke serve `dotnet build` con 0 errori, perché Godot riusa l'ultima DLL valida senza avvisare.

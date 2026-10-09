@@ -5,7 +5,7 @@ using RpgSandbox.Sim.Scenarios;
 namespace RpgSandbox.Game;
 
 /// <summary>
-/// Checkpoint 0 client: isometric placeholder map, click a place to travel, clock and arrival visible.
+/// Slice client: isometric placeholder map, travel between places, deliver food to stores, clock and timeline.
 /// All rules live in Sim; this node only sends commands, advances time while an action plays out,
 /// and draws the current <see cref="WorldView"/>.
 /// </summary>
@@ -42,6 +42,10 @@ public partial class Main : Node2D
 	private Label _statusLabel = null!;
 	private Label _factsLabel = null!;
 	private Button _waitButton = null!;
+	private Label _foodLabel = null!;
+	private HBoxContainer _depositRow = null!;
+	private SpinBox _depositAmount = null!;
+	private readonly Dictionary<StoreId, Label> _storeLabels = new();
 
 	private ActionId? _runningAction;
 	private double _pendingGameSeconds;
@@ -112,12 +116,32 @@ public partial class Main : Node2D
 
 	public bool IsBusy => _runningAction is not null;
 
-	public void TravelTo(LocationId destination)
+	public void TravelTo(LocationId destination) =>
+		StartAction(new TravelCommand { Actor = _sim.Player, Destination = destination });
+
+	/// <summary>Used by the smoke runner: same path as the UI controls.</summary>
+	public void DepositViaUi(int amount)
+	{
+		_depositAmount.Value = amount;
+		DepositFood();
+	}
+
+	private void DepositFood()
+	{
+		var player = _view.Actors.Single(a => a.Id == _view.Player);
+		var store = _view.Stores.FirstOrDefault(s => s.Location == player.Location);
+		if (store is null)
+			return;
+		StartAction(new DepositFoodCommand { Actor = _sim.Player, Store = store.Id, Amount = (int)_depositAmount.Value });
+	}
+
+	/// <summary>Sends a command; if it starts an action, time plays out in _Process until it completes.</summary>
+	private void StartAction(Command command)
 	{
 		if (_runningAction is not null)
 			return;
 
-		var result = _sim.Execute(new TravelCommand { Actor = _sim.Player, Destination = destination });
+		var result = _sim.Execute(command);
 		if (result.Success)
 			_runningAction = result.Action;
 		Refresh(result.Success ? null : result.Message);
@@ -148,6 +172,10 @@ public partial class Main : Node2D
 			_statusLabel.Text = $"In viaggio verso {LocationName(travel.Destination)} — arrivo alle " +
 								$"{travel.ArrivesAt.Hour:00}:{travel.ArrivesAt.Minute:00}";
 		}
+		else if (player.Action is { } action)
+		{
+			_statusLabel.Text = $"{action.Description} — termina alle {action.CompletesAt.Hour:00}:{action.CompletesAt.Minute:00}";
+		}
 		else
 		{
 			_statusLabel.Text = $"Ti trovi a: {LocationName(player.Location!.Value)}.\nClicca un luogo per viaggiare.";
@@ -155,7 +183,17 @@ public partial class Main : Node2D
 		if (rejection is not null)
 			_statusLabel.Text += $"\n⚠ {rejection}";
 
-		_waitButton.Disabled = _runningAction is not null;
+		var busy = _runningAction is not null;
+		_waitButton.Disabled = busy;
+		_foodLabel.Text = $"Razioni con te: {player.Food}";
+
+		// Deposit controls only where there is a store; the core still validates every request.
+		var storeHere = _view.Stores.FirstOrDefault(s => s.Location == player.Location);
+		_depositRow.Visible = storeHere is not null && player.Food > 0;
+		_depositAmount.MaxValue = Math.Max(1, player.Food);
+		_depositAmount.Editable = !busy;
+		foreach (var store in _view.Stores)
+			_storeLabels[store.Id].Text = $"{store.Name}: {store.Food}";
 
 		var facts = _view.RecentFacts.TakeLast(8)
 			.Select(f => $"[{f.At.Hour:00}:{f.At.Minute:00}] {f.Description}");
@@ -177,6 +215,9 @@ public partial class Main : Node2D
 	/// <summary>Where characters stand at a place: in front of its building.</summary>
 	private static Vector2 StandPoint(LocationId location) =>
 		Iso.CellToScreen(LocationCells[location] + new Vector2(0.9f, 0.9f));
+
+	/// <summary>World position of a place (used by the smoke runner to aim the mouse).</summary>
+	public Vector2 ScreenPointOf(LocationId location) => Iso.CellToScreen(LocationCells[location]);
 
 	private string LocationName(LocationId id) => _view.Locations.Single(l => l.Id == id).Name;
 
@@ -248,6 +289,15 @@ public partial class Main : Node2D
 			building.AddChild(new Polygon2D { Polygon = right, Color = baseColor.Darkened(0.15f) });
 			building.AddChild(new Polygon2D { Polygon = top, Color = baseColor.Lightened(0.15f) });
 			building.AddChild(MakeLabel(location.Name, new Vector2(-40, -130), 18));
+			var storeOffset = 0f;
+			foreach (var store in _view.Stores.Where(s => s.Location == location.Id))
+			{
+				var label = MakeLabel("", new Vector2(88, -16 + storeOffset), 15);
+				label.AddThemeColorOverride("font_color", new Color(1f, 0.92f, 0.6f));
+				building.AddChild(label);
+				_storeLabels[store.Id] = label;
+				storeOffset += 20;
+			}
 			_sorted.AddChild(building);
 		}
 	}
@@ -302,6 +352,18 @@ public partial class Main : Node2D
 
 		_statusLabel = new Label { CustomMinimumSize = new Vector2(360, 0), AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		box.AddChild(_statusLabel);
+
+		_foodLabel = new Label();
+		box.AddChild(_foodLabel);
+
+		_depositRow = new HBoxContainer();
+		_depositRow.AddThemeConstantOverride("separation", 8);
+		_depositAmount = new SpinBox { MinValue = 1, MaxValue = 1, Value = 1, Step = 1, CustomMinimumSize = new Vector2(90, 0) };
+		_depositRow.AddChild(_depositAmount);
+		var depositButton = new Button { Text = "Consegna razioni al deposito", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		depositButton.Pressed += DepositFood;
+		_depositRow.AddChild(depositButton);
+		box.AddChild(_depositRow);
 
 		_waitButton = new Button { Text = "Attendi 1 ora" };
 		_waitButton.Pressed += Wait;

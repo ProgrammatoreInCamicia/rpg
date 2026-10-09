@@ -12,6 +12,13 @@ public sealed record TravelCommand : Command
     public required LocationId Destination { get; init; }
 }
 
+/// <summary>Hand over some of the actor's own rations to a store in the actor's current location.</summary>
+public sealed record DepositFoodCommand : Command
+{
+    public required StoreId Store { get; init; }
+    public required int Amount { get; init; }
+}
+
 public enum RejectionReason
 {
     None = 0,
@@ -21,6 +28,10 @@ public enum RejectionReason
     AlreadyThere,
     RouteNotFound,
     UnknownCommand,
+    StoreNotFound,
+    NotAtStore,
+    InvalidAmount,
+    InsufficientFood,
 }
 
 public sealed record CommandResult

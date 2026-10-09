@@ -28,8 +28,21 @@ internal sealed class Actor
     /// <summary>Null while the actor is travelling.</summary>
     public LocationId? Location { get; set; }
 
+    /// <summary>Rations carried. Never negative.</summary>
+    public int Food { get; set; }
+
     /// <summary>At most one action at a time.</summary>
     public PendingAction? CurrentAction { get; set; }
+}
+
+internal sealed class Store
+{
+    public required StoreId Id { get; init; }
+    public required string Name { get; init; }
+    public required LocationId Location { get; init; }
+
+    /// <summary>Rations stored. Never negative.</summary>
+    public int Food { get; set; }
 }
 
 internal abstract class PendingAction
@@ -38,12 +51,22 @@ internal abstract class PendingAction
     public required ActorId Actor { get; init; }
     public required GameTime StartedAt { get; init; }
     public required GameTime CompletesAt { get; init; }
+    public required string Description { get; init; }
+    public abstract string Kind { get; }
 }
 
 internal sealed class TravelAction : PendingAction
 {
+    public override string Kind => "Travel";
     public required LocationId Origin { get; init; }
     public required LocationId Destination { get; init; }
+}
+
+internal sealed class DepositFoodAction : PendingAction
+{
+    public override string Kind => "DepositFood";
+    public required StoreId Store { get; init; }
+    public required int Amount { get; init; }
 }
 
 internal sealed class Fact
@@ -64,6 +87,7 @@ internal sealed class WorldState
     public SortedDictionary<AreaId, Area> Areas { get; } = new();
     public SortedDictionary<LocationId, Location> Locations { get; } = new();
     public SortedDictionary<ActorId, Actor> Actors { get; } = new();
+    public SortedDictionary<StoreId, Store> Stores { get; } = new();
 
     /// <summary>Keyed by (from, to); both directions are stored.</summary>
     public SortedDictionary<(LocationId From, LocationId To), Duration> Routes { get; } = new();
@@ -89,7 +113,9 @@ internal sealed class WorldState
             world.Routes.Add((r.B, r.A), r.TravelTime);
         }
         foreach (var a in scenario.Actors)
-            world.Actors.Add(a.Id, new Actor { Id = a.Id, Name = a.Name, IsPlayer = a.IsPlayer, Location = a.Location });
+            world.Actors.Add(a.Id, new Actor { Id = a.Id, Name = a.Name, IsPlayer = a.IsPlayer, Location = a.Location, Food = a.Food });
+        foreach (var s in scenario.Stores)
+            world.Stores.Add(s.Id, new Store { Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food });
         return world;
     }
 

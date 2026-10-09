@@ -44,7 +44,34 @@ public sealed record ActorView
     /// <summary>Where the actor is. Null while travelling: a traveller is at neither end of the route.</summary>
     public LocationId? Location { get; init; }
 
+    /// <summary>Rations carried.</summary>
+    public int Food { get; init; }
+
+    /// <summary>The action in progress, of any kind. Null when the actor is free.</summary>
+    public ActionView? Action { get; init; }
+
+    /// <summary>Travel-specific details, set only while travelling.</summary>
     public TravelView? Travel { get; init; }
+}
+
+public sealed record ActionView
+{
+    public required ActionId Id { get; init; }
+
+    /// <summary>"Travel" or "DepositFood". New kinds are announced before they appear.</summary>
+    public required string Kind { get; init; }
+
+    public required GameTime StartedAt { get; init; }
+    public required GameTime CompletesAt { get; init; }
+    public required string Description { get; init; }
+}
+
+public sealed record StoreView
+{
+    public required StoreId Id { get; init; }
+    public required string Name { get; init; }
+    public required LocationId Location { get; init; }
+    public required int Food { get; init; }
 }
 
 /// <summary>A fact recorded in the world history, as shown on the debug timeline.</summary>
@@ -68,6 +95,7 @@ public sealed record WorldView
     public required IReadOnlyList<LocationView> Locations { get; init; }
     public required IReadOnlyList<RouteView> Routes { get; init; }
     public required IReadOnlyList<ActorView> Actors { get; init; }
+    public required IReadOnlyList<StoreView> Stores { get; init; }
 
     /// <summary>Most recent facts, oldest first.</summary>
     public required IReadOnlyList<FactView> RecentFacts { get; init; }

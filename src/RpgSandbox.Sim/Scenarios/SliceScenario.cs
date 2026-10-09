@@ -2,7 +2,7 @@ using RpgSandbox.Sim.Api;
 
 namespace RpgSandbox.Sim.Scenarios;
 
-/// <summary>The vertical-slice scenario. Grows with each increment; increment 0 has two connected places.</summary>
+/// <summary>The vertical-slice scenario. Grows with each increment.</summary>
 public static class SliceScenario
 {
     public static class Ids
@@ -11,6 +11,7 @@ public static class SliceScenario
         public static readonly LocationId Inn = new("inn");
         public static readonly LocationId Granary = new("granary");
         public static readonly ActorId Player = new("player");
+        public static readonly StoreId GranaryStore = new("granary_store");
     }
 
     public static Scenario Create() =>
@@ -19,6 +20,7 @@ public static class SliceScenario
             .AddLocation(Ids.Inn.Value, "Locanda", Ids.Village.Value)
             .AddLocation(Ids.Granary.Value, "Granaio", Ids.Village.Value)
             .AddRoute(Ids.Inn.Value, Ids.Granary.Value, Duration.FromMinutes(5))
-            .AddActor(Ids.Player.Value, "Protagonista", Ids.Inn.Value, isPlayer: true)
+            .AddStore(Ids.GranaryStore.Value, "Scorte del granaio", Ids.Granary.Value, food: 40)
+            .AddActor(Ids.Player.Value, "Protagonista", Ids.Inn.Value, isPlayer: true, food: 10)
             .Build();
 }

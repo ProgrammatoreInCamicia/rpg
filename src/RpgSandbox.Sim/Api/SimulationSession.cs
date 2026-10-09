@@ -28,6 +28,7 @@ public sealed class SimulationSession
         return command switch
         {
             TravelCommand travel => StartTravel(travel),
+            DepositFoodCommand deposit => StartDeposit(deposit),
             _ => CommandResult.Rejected(RejectionReason.UnknownCommand, $"Comando non supportato: {command.GetType().Name}."),
         };
     }
@@ -72,6 +73,7 @@ public sealed class SimulationSession
             Locations = Freeze(w.Locations.Values.Select(l => new LocationView { Id = l.Id, Name = l.Name, Area = l.Area })),
             Routes = Freeze(w.Routes.Select(r => new RouteView { From = r.Key.From, To = r.Key.To, TravelTime = r.Value })),
             Actors = Freeze(w.Actors.Values.Select(ToView)),
+            Stores = Freeze(w.Stores.Values.Select(s => new StoreView { Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food })),
             RecentFacts = Freeze(w.RecentFacts.Select(f => new FactView { Id = f.Id, At = f.At, Kind = f.Kind, Description = f.Description })),
         };
     }
@@ -82,6 +84,10 @@ public sealed class SimulationSession
         Name = actor.Name,
         IsPlayer = actor.IsPlayer,
         Location = actor.Location,
+        Food = actor.Food,
+        Action = actor.CurrentAction is { } a
+            ? new ActionView { Id = a.Id, Kind = a.Kind, StartedAt = a.StartedAt, CompletesAt = a.CompletesAt, Description = a.Description }
+            : null,
         Travel = actor.CurrentAction is TravelAction t
             ? new TravelView { Action = t.Id, Origin = t.Origin, Destination = t.Destination, DepartedAt = t.StartedAt, ArrivesAt = t.CompletesAt }
             : null,
@@ -138,7 +144,68 @@ public sealed class SimulationSession
                 _world.RecordFact("TravelCompleted",
                     $"{actor.Name} arriva a {_world.Locations[travel.Destination].Name}.");
                 break;
+
+            case DepositFoodAction deposit:
+                actor.CurrentAction = null;
+                CompleteDeposit(actor, deposit);
+                break;
         }
+    }
+
+    private void CompleteDeposit(Actor actor, DepositFoodAction deposit)
+    {
+        // Preconditions are checked again: the world may have changed since the action started.
+        var store = _world.Stores[deposit.Store];
+        var failure =
+            actor.Location != store.Location ? "non è più presso il deposito" :
+            actor.Food < deposit.Amount ? "non ha più abbastanza razioni" :
+            null;
+        if (failure is not null)
+        {
+            _world.RecordFact("FoodDepositFailed",
+                $"{actor.Name} non riesce a consegnare {deposit.Amount} razioni a {store.Name}: {failure}.");
+            return;
+        }
+
+        actor.Food -= deposit.Amount;
+        store.Food += deposit.Amount;
+        _world.RecordFact("FoodDeposited",
+            $"{actor.Name} consegna {deposit.Amount} razioni a {store.Name} (ora {store.Food}).");
+    }
+
+    private CommandResult StartDeposit(DepositFoodCommand command)
+    {
+        // Validate everything before mutating anything.
+        if (!_world.Actors.TryGetValue(command.Actor, out var actor))
+            return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {command.Actor}.");
+        if (!_world.Stores.TryGetValue(command.Store, out var store))
+            return CommandResult.Rejected(RejectionReason.StoreNotFound, $"Deposito sconosciuto: {command.Store}.");
+        if (actor.CurrentAction is not null)
+            return CommandResult.Rejected(RejectionReason.ActorBusy, $"{actor.Name} è già impegnato.");
+        if (actor.Location != store.Location)
+            return CommandResult.Rejected(RejectionReason.NotAtStore,
+                $"{actor.Name} deve trovarsi a {_world.Locations[store.Location].Name} per consegnare a {store.Name}.");
+        if (command.Amount <= 0)
+            return CommandResult.Rejected(RejectionReason.InvalidAmount, "La quantità deve essere almeno 1.");
+        if (command.Amount > actor.Food)
+            return CommandResult.Rejected(RejectionReason.InsufficientFood,
+                $"{actor.Name} ha solo {actor.Food} razioni.");
+
+        var deposit = new DepositFoodAction
+        {
+            Id = _world.AllocateActionId(),
+            Actor = actor.Id,
+            StartedAt = _world.Now,
+            CompletesAt = _world.Now.Plus(Rules.DepositFoodDuration),
+            Store = store.Id,
+            Amount = command.Amount,
+            Description = $"Consegna di {command.Amount} razioni a {store.Name}",
+        };
+        actor.CurrentAction = deposit;
+        _world.Scheduler.Schedule(deposit.CompletesAt, deposit.Id);
+
+        return CommandResult.Started(deposit.Id, deposit.CompletesAt,
+            $"{actor.Name} inizia a consegnare {command.Amount} razioni.");
     }
 
     private CommandResult StartTravel(TravelCommand command)
@@ -165,6 +232,7 @@ public sealed class SimulationSession
             CompletesAt = _world.Now.Plus(travelTime),
             Origin = origin,
             Destination = destination.Id,
+            Description = $"In viaggio verso {destination.Name}",
         };
         actor.Location = null;
         actor.CurrentAction = travel;
