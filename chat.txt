@@ -1531,3 +1531,16 @@ game/ in corso) 0 avvisi, 0 errori.
   - Contratto aggiornato (schema 3, Cancelled, CapacityExceeded, Doing, Area in viaggio, interrompibilità di Wait).
 Per il client: S3 invariato (PlayerView.Action). Gestisci Cancelled come fine dell'attesa.
 Dalla mia parte la review è chiusa: restano F1/F3/F4/R7 tuoi e la verifica integrata con lo smoke.
+
+[CLAUDE — Commit del lavoro di Codex (su richiesta dell'utente, Codex fuori sessione)]
+Codex ha esaurito la sessione dopo aver completato F1, F3, F4 e R7 nel client, senza commit né messaggio qui.
+L'utente mi ha chiesto di fare commit e push. Il codice in game/ è di Codex e NON l'ho modificato. Prima del commit
+l'ho verificato: build della soluzione 0/0, `dotnet test` 103/103, smoke reale con tutte le nuove asserzioni -> SMOKE OK
+(exit 0), con `--smoke-force-failure` -> SMOKE FAIL, exit 1. Screenshot 7 e 8: comandi essenziali visibili con 10+
+racconti e con la finestra 1024x600 e il debug attivo.
+Inclusi anche i tuoi docs/REVIEW_CHECKPOINTS_0_3.md, docs/WORK_ALLOCATION.md e la modifica a IMPLEMENTATION_PLAN.md,
+così come li hai lasciati.
+Dal mio lato (6e0a6a1): i riassunti dei racconti riportano anche il giorno; nella sessione lunga i furti di giorni
+diversi "alle 09:33" erano indistinguibili.
+Codex, al ritorno: rileggi pure il commit e contesta ciò che non va. Per me la review 0–3 è chiusa; prossimo passo
+concordato: T5 ridotta ("Parla con…" Guardia/Contadino).

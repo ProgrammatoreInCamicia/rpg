@@ -47,7 +47,7 @@ public partial class Main : Node2D
 	private SimulationSession _sim = null!;
 	private WorldView _world = null!;
 	private PlayerView _player = null!;
-	private bool _debug = true;
+	private bool _debug;
 
 	private Node2D _sorted = null!; // Y-sorted layer: buildings and characters
 	private Camera2D _camera = null!;
@@ -135,8 +135,10 @@ public partial class Main : Node2D
 
 		switch (mouse.ButtonIndex)
 		{
-			case MouseButton.Left when _hovered is { } target:
-				TravelTo(target);
+			case MouseButton.Left:
+				var point = GetGlobalTransformWithCanvas().AffineInverse() * mouse.Position;
+				if (LocationAt(point) is { } target)
+					TravelTo(target);
 				break;
 			case MouseButton.WheelUp:
 				_camera.Zoom = (_camera.Zoom * 1.1f).Clamp(new Vector2(0.4f, 0.4f), new Vector2(2.5f, 2.5f));
@@ -150,6 +152,11 @@ public partial class Main : Node2D
 	// ---------------------------------------------------------------- player actions
 
 	public bool IsBusy => _runningAction is not null;
+	internal PlayerView PlayerState => _player;
+	internal WorldView WorldState => _world;
+	internal bool DebugEnabled => _debug;
+	internal bool EssentialControlsVisible => new[] { _waitButton, _saveButton, _loadButton }
+		.All(b => b.IsVisibleInTree() && GetViewportRect().Encloses(b.GetGlobalRect()));
 
 	public void TravelTo(LocationId destination) =>
 		StartAction(new TravelCommand { Actor = _sim.Player, Destination = destination });
@@ -210,9 +217,7 @@ public partial class Main : Node2D
 		var result = _sim.Execute(command);
 		if (result.Success)
 		{
-			_runningAction = result.Action;
-			var duration = result.CompletesAt!.Value.Since(_sim.Now).Seconds;
-			_playbackSpeed = Math.Max(MinGameSecondsPerRealSecond, duration / MaxPlaybackRealSeconds);
+			RestorePlayback();
 		}
 		Refresh(result.Success ? null : result.Message);
 	}
@@ -241,11 +246,13 @@ public partial class Main : Node2D
 	}
 
 	public void LoadGame()
+		=> LoadGameFromPath(ProjectSettings.GlobalizePath(SavePath));
+
+	internal void LoadGameFromPath(string path)
 	{
 		if (_runningAction is not null)
 			return;
 
-		var path = ProjectSettings.GlobalizePath(SavePath);
 		if (!File.Exists(path))
 		{
 			ShowMessage("Nessun salvataggio da caricare.");
@@ -271,8 +278,19 @@ public partial class Main : Node2D
 			return;
 		}
 		_sim = result.Session!;
+		RestorePlayback();
 		Refresh();
 		ShowMessage($"Partita caricata ({Clock(_player.Now)}).");
+	}
+
+	private void RestorePlayback()
+	{
+		var action = _sim.GetPlayerView().Action;
+		_runningAction = action?.Id;
+		_pendingGameSeconds = 0;
+		_playbackSpeed = action is null ? MinGameSecondsPerRealSecond
+			: Math.Max(MinGameSecondsPerRealSecond,
+				action.CompletesAt.Since(action.StartedAt).Seconds / MaxPlaybackRealSeconds);
 	}
 
 	private void ShowMessage(string text) => _messageLabel.Text = text;
@@ -471,20 +489,21 @@ public partial class Main : Node2D
 
 	private void UpdateHover()
 	{
-		var mouse = GetGlobalMousePosition();
-		LocationId? hovered = null;
-		foreach (var (id, platform) in _platforms)
-		{
-			var local = mouse - platform.GlobalPosition;
-			if (Geometry2D.IsPointInPolygon(local, platform.Polygon))
-				hovered = id;
-		}
+		var hovered = LocationAt(GetGlobalMousePosition());
 
 		if (hovered == _hovered)
 			return;
 		_hovered = hovered;
 		foreach (var (id, platform) in _platforms)
 			platform.Color = id == hovered ? PlatformHover : Platform;
+	}
+
+	private LocationId? LocationAt(Vector2 point)
+	{
+		foreach (var (id, platform) in _platforms)
+			if (Geometry2D.IsPointInPolygon(point - platform.GlobalPosition, platform.Polygon))
+				return id;
+		return null;
 	}
 
 	// ---------------------------------------------------------------- scene construction
@@ -604,9 +623,12 @@ public partial class Main : Node2D
 		AddChild(ui);
 
 		// Player panel (left).
-		var panel = new PanelContainer { Position = new Vector2(16, 16) };
+		var panel = new PanelContainer
+		{
+			OffsetLeft = 16, OffsetRight = 396, OffsetTop = 16, AnchorBottom = 1, OffsetBottom = -16,
+		};
 		ui.AddChild(panel);
-		var box = new VBoxContainer { CustomMinimumSize = new Vector2(380, 0) };
+		var box = new VBoxContainer();
 		box.AddThemeConstantOverride("separation", 8);
 		panel.AddChild(box);
 
@@ -628,9 +650,6 @@ public partial class Main : Node2D
 		depositButton.Pressed += DepositFood;
 		_depositRow.AddChild(depositButton);
 		box.AddChild(_depositRow);
-
-		_reportBox = new VBoxContainer();
-		box.AddChild(_reportBox);
 
 		_waitButton = new Button { Text = "Attendi 1 ora" };
 		_waitButton.Pressed += WaitOneHour;
@@ -658,11 +677,21 @@ public partial class Main : Node2D
 		_messageLabel.AddThemeFontSizeOverride("font_size", 13);
 		box.AddChild(_messageLabel);
 
-		box.AddChild(new HSeparator());
-		box.AddChild(SmallLabel("Diario"));
+		var scroll = new ScrollContainer
+		{
+			HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
+			SizeFlagsVertical = Control.SizeFlags.ExpandFill,
+		};
+		box.AddChild(scroll);
+		var details = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		scroll.AddChild(details);
+		_reportBox = new VBoxContainer();
+		details.AddChild(_reportBox);
+		details.AddChild(new HSeparator());
+		details.AddChild(SmallLabel("Diario"));
 		_journalLabel = SmallLabel("");
 		_journalLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		box.AddChild(_journalLabel);
+		details.AddChild(_journalLabel);
 
 		var facts = new VBoxContainer();
 		facts.AddChild(new HSeparator());
@@ -670,17 +699,20 @@ public partial class Main : Node2D
 		_factsLabel = SmallLabel("");
 		_factsLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		facts.AddChild(_factsLabel);
-		box.AddChild(facts);
+		details.AddChild(facts);
 		_factsSection = facts;
 
 		// Debug panel (right): omniscient, separate from what the player knows.
 		var debugPanel = new PanelContainer
 		{
-			AnchorLeft = 1, AnchorRight = 1, OffsetLeft = -436, OffsetRight = -16, OffsetTop = 16,
+			AnchorLeft = 1, AnchorRight = 1, AnchorBottom = 1,
+			OffsetLeft = -436, OffsetRight = -16, OffsetTop = 16, OffsetBottom = -16,
 		};
 		ui.AddChild(debugPanel);
-		var debugBox = new VBoxContainer { CustomMinimumSize = new Vector2(420, 0) };
-		debugPanel.AddChild(debugBox);
+		var debugScroll = new ScrollContainer { HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
+		debugPanel.AddChild(debugScroll);
+		var debugBox = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		debugScroll.AddChild(debugBox);
 		debugBox.AddChild(SmallLabel("Debug — perché succede"));
 		_debugLabel = SmallLabel("");
 		_debugLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;

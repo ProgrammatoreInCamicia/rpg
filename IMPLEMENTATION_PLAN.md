@@ -187,6 +187,12 @@ Le cartelle nascono quando contengono codice necessario. Dipendenze:
 
 ## Incrementi e criteri di uscita
 
+Divisione concordata nel Round 5: **Claude implementa Sim e Tests; Codex il
+client Godot in `game/`**. Claude mantiene anche solution/configurazione root
+e pubblica il contratto API prima di ogni incremento. Collegamento e review
+incrociata a ogni consegna, non soltanto alla fine della slice. Dettagli e
+criteri di verifica in [WORK_ALLOCATION.md](docs/WORK_ALLOCATION.md).
+
 | Incremento | Risultato giocabile | Verifica necessaria |
 | --- | --- | --- |
 | 0 — collegamento | Godot mostra due luoghi in isometrico con segnaposto; il giocatore viaggia usando Sim | Build/avvio, selezione e sovrapposizioni; arrivo e tempo in secondi verificati nel core |
