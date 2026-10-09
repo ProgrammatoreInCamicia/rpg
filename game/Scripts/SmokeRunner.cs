@@ -71,7 +71,19 @@ public partial class SmokeRunner : Node
 		_main.TravelTo(SliceScenario.Ids.Inn);
 		await UntilIdle();
 		Require(_main.PlayerState.Location == SliceScenario.Ids.Inn, "Player did not return to inn");
-		Capture("3-at-inn-report-options.png");
+		// Talk through the real input path: click on the farmer standing at the inn.
+		var farmerPoint = _main.ScreenPointOfActor(SliceScenario.Ids.Farmer);
+		Require(farmerPoint is not null, "Farmer is not drawn at the inn");
+		var farmerScreen = _main.GetViewport().GetCanvasTransform() * farmerPoint!.Value;
+		Input.WarpMouse(farmerScreen);
+		await Frames(3);
+		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true, Position = farmerScreen, GlobalPosition = farmerScreen });
+		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = farmerScreen, GlobalPosition = farmerScreen });
+		await Frames(3);
+		Require(_main.TalkingTo == SliceScenario.Ids.Farmer, "Clicking the farmer did not open the conversation");
+		Require(_main.PlayerState.PeopleHere.Single(p => p.Id == SliceScenario.Ids.Farmer).Topics.Count == 1, "Farmer has no topic to tell");
+		Require(!_main.IsBusy, "Opening a conversation must not take time");
+		Capture("3-at-inn-talk-to-farmer.png");
 
 		Require(_main.ReportViaUi(SliceScenario.Ids.Guard) && _main.IsBusy, "No accepted report to guard");
 		await UntilIdle();
@@ -116,6 +128,9 @@ public partial class SmokeRunner : Node
 		_main.SetDebug(false);
 		await Frames(5);
 		Require(_main.PlayerState.ReportOptions.Count >= 10, "Long-session fixture has too few report options");
+		Require(_main.OpenTalk(SliceScenario.Ids.Farmer), "Cannot talk to the farmer in the long session");
+		Require(_main.PlayerState.PeopleHere.Single(p => p.Id == SliceScenario.Ids.Farmer).Topics.Count >= 5, "Too few topics for the farmer");
+		await Frames(3);
 		Require(_main.EssentialControlsVisible, "Reports pushed essential controls off screen");
 		Capture("7-many-reports.png");
 		_main.SetDebug(true);

@@ -60,7 +60,8 @@ public partial class Main : Node2D
 	private Label _foodLabel = null!;
 	private HBoxContainer _depositRow = null!;
 	private SpinBox _depositAmount = null!;
-	private VBoxContainer _reportBox = null!;
+	private HFlowContainer _peopleRow = null!;
+	private VBoxContainer _talkBox = null!;
 	private Button _waitButton = null!;
 	private Button _saveButton = null!;
 	private Button _loadButton = null!;
@@ -77,7 +78,8 @@ public partial class Main : Node2D
 	private double _playbackSpeed = MinGameSecondsPerRealSecond;
 	private double _pendingGameSeconds;
 	private LocationId? _hovered;
-	private string _reportOptionsKey = "";
+	private ActorId? _talkingTo;
+	private string _talkKey = "";
 
 	public override void _Ready()
 	{
@@ -136,8 +138,11 @@ public partial class Main : Node2D
 		switch (mouse.ButtonIndex)
 		{
 			case MouseButton.Left:
+				// People stand on top of places: a click on someone means "talk", anywhere else on a place means "go".
 				var point = GetGlobalTransformWithCanvas().AffineInverse() * mouse.Position;
-				if (LocationAt(point) is { } target)
+				if (PersonAt(point) is { } person)
+					OpenTalk(person);
+				else if (LocationAt(point) is { } target)
 					TravelTo(target);
 				break;
 			case MouseButton.WheelUp:
@@ -170,14 +175,41 @@ public partial class Main : Node2D
 
 	public void WaitOneHour() => StartAction(new WaitCommand { Actor = _sim.Player, Duration = Duration.FromHours(1) });
 
-	/// <summary>Used by the smoke runner: presses the first "tell" button offered for this recipient.</summary>
+	/// <summary>Used by the smoke runner: opens the conversation and picks the first thing to tell, like the UI.</summary>
 	public bool ReportViaUi(ActorId recipient)
 	{
-		var option = _player.ReportOptions.FirstOrDefault(o => o.Recipient == recipient);
-		if (option is null)
+		if (!OpenTalk(recipient))
 			return false;
-		Report(option);
+		var topic = _player.PeopleHere.Single(p => p.Id == recipient).Topics.FirstOrDefault();
+		if (topic is null)
+			return false;
+		Tell(recipient, topic);
 		return true;
+	}
+
+	internal ActorId? TalkingTo => _talkingTo;
+
+	/// <summary>
+	/// Opens "Parla con…" for someone standing here. Talking to someone elsewhere is not possible: the player is
+	/// told to go there. Returns whether the conversation is open.
+	/// </summary>
+	public bool OpenTalk(ActorId person)
+	{
+		if (_player.PeopleHere.All(p => p.Id != person))
+		{
+			var name = _player.VisibleActors.FirstOrDefault(a => a.Id == person)?.Name ?? "Quella persona";
+			ShowMessage($"{name} non è qui: avvicinati per parlargli.");
+			return false;
+		}
+		_talkingTo = person;
+		Refresh();
+		return true;
+	}
+
+	private void CloseTalk()
+	{
+		_talkingTo = null;
+		Refresh();
 	}
 
 	public void SetDebug(bool on)
@@ -205,8 +237,8 @@ public partial class Main : Node2D
 		StartAction(new DepositFoodCommand { Actor = _sim.Player, Store = store.Id, Amount = (int)_depositAmount.Value });
 	}
 
-	private void Report(ReportOptionView option) =>
-		StartAction(new ReportCommand { Actor = _sim.Player, Recipient = option.Recipient, Observation = option.Observation });
+	private void Tell(ActorId recipient, TopicView topic) =>
+		StartAction(new ReportCommand { Actor = _sim.Player, Recipient = recipient, Observation = topic.Observation });
 
 	/// <summary>Sends a command; if it starts an action, time plays out in _Process until it completes.</summary>
 	private void StartAction(Command command)
@@ -312,7 +344,7 @@ public partial class Main : Node2D
 		else if (_player.Action is { } action)
 			_statusLabel.Text = $"{action.Description} — fino alle {Clock(action.CompletesAt)}";
 		else
-			_statusLabel.Text = $"Ti trovi a: {LocationName(_player.Location!.Value)}.\nClicca un luogo per viaggiare.";
+			_statusLabel.Text = $"Ti trovi a: {LocationName(_player.Location!.Value)}.\nClicca un luogo per viaggiare, una persona per parlarle.";
 		if (rejection is not null)
 			_statusLabel.Text += $"\n⚠ {rejection}";
 
@@ -331,7 +363,7 @@ public partial class Main : Node2D
 		_depositAmount.MaxValue = Math.Max(1, _player.Food);
 		_depositAmount.Editable = !busy;
 
-		RefreshReportButtons(busy);
+		RefreshTalk(busy);
 
 		// Store contents: what the player can see, or everything in debug mode.
 		var stores = _debug ? _world.Stores : _player.VisibleStores;
@@ -362,29 +394,57 @@ public partial class Main : Node2D
 		return $"• Giorno {o.ObservedAt.Day + 1} {Clock(o.ObservedAt)}: {who} ha rubato {o.Amount} razioni da {o.StoreName} ({how}).{told}";
 	}
 
-	/// <summary>Rebuilds the "tell" buttons only when the options change, so clicks are not lost.</summary>
-	private void RefreshReportButtons(bool busy)
+	/// <summary>
+	/// "Parla con…": one button per person here, and the open conversation with what the player could tell.
+	/// Controls are rebuilt only when their content changes, so clicks are not lost between frames.
+	/// </summary>
+	private void RefreshTalk(bool busy)
 	{
-		var options = _player.ReportOptions;
-		var key = string.Join("|", options.Select(o => $"{o.Recipient}:{o.Observation}"));
-		if (key != _reportOptionsKey)
+		var people = _player.PeopleHere;
+		var person = people.FirstOrDefault(p => p.Id == _talkingTo);
+		if (_talkingTo is not null && person is null)
+			_talkingTo = null; // they left, or the player did
+
+		var key = string.Join("|", people.Select(p => p.Id)) + "#" + _talkingTo + "#" +
+				  string.Join("|", person?.Topics.Select(t => t.Observation) ?? Array.Empty<ObservationId>()) + "#" + person?.Doing;
+		if (key != _talkKey)
 		{
-			_reportOptionsKey = key;
-			foreach (var child in _reportBox.GetChildren())
+			_talkKey = key;
+			foreach (var child in _peopleRow.GetChildren())
 				child.QueueFree();
-			foreach (var option in options)
+			foreach (var other in people)
 			{
-				var button = new Button
+				var id = other.Id;
+				var button = new Button { Text = $"Parla con {other.Name}", ToggleMode = true, ButtonPressed = id == _talkingTo };
+				button.Pressed += () => { if (_talkingTo == id) CloseTalk(); else OpenTalk(id); };
+				_peopleRow.AddChild(button);
+			}
+
+			foreach (var child in _talkBox.GetChildren())
+				child.QueueFree();
+			if (person is not null)
+			{
+				var title = new Label { Text = $"Parli con {person.Name}" + (person.Doing is { } doing ? $" ({doing})" : "") };
+				title.AddThemeFontSizeOverride("font_size", 15);
+				_talkBox.AddChild(title);
+				if (person.Topics.Count == 0)
+					_talkBox.AddChild(SmallLabel("Non hai niente di nuovo da raccontargli."));
+				foreach (var topic in person.Topics)
 				{
-					Text = $"Riferisci a {option.RecipientName}: {option.Summary}",
-					AutowrapMode = TextServer.AutowrapMode.WordSmart,
-				};
-				button.Pressed += () => Report(option);
-				_reportBox.AddChild(button);
+					var recipient = person.Id;
+					var tell = new Button { Text = $"Racconta: {topic.Summary}", AutowrapMode = TextServer.AutowrapMode.WordSmart };
+					tell.Pressed += () => Tell(recipient, topic);
+					_talkBox.AddChild(tell);
+				}
+				var close = new Button { Text = "Chiudi" };
+				close.Pressed += CloseTalk;
+				_talkBox.AddChild(close);
 			}
 		}
-		_reportBox.Visible = options.Count > 0;
-		foreach (var child in _reportBox.GetChildren())
+
+		_peopleRow.Visible = people.Count > 0;
+		_talkBox.Visible = person is not null;
+		foreach (var child in _talkBox.GetChildren().Concat(_peopleRow.GetChildren()))
 			if (child is Button b)
 				b.Disabled = busy;
 	}
@@ -497,6 +557,22 @@ public partial class Main : Node2D
 		foreach (var (id, platform) in _platforms)
 			platform.Color = id == hovered ? PlatformHover : Platform;
 	}
+
+	/// <summary>The visible character under <paramref name="point"/>, if any (the player's own figure excluded).</summary>
+	private ActorId? PersonAt(Vector2 point)
+	{
+		// Placeholder figures stand on their feet at the token origin: body and head span about 28×56 pixels.
+		var hit = new Rect2(-14, -52, 28, 56);
+		return _tokens
+			.Where(t => t.Value.Visible && t.Key != _player.Id && hit.HasPoint(point - t.Value.GlobalPosition))
+			.OrderByDescending(t => t.Value.GlobalPosition.Y) // the one in front wins
+			.Select(t => (ActorId?)t.Key)
+			.FirstOrDefault();
+	}
+
+	/// <summary>World position of a character (used by the smoke runner to click on people).</summary>
+	public Vector2? ScreenPointOfActor(ActorId actor) =>
+		_tokens.TryGetValue(actor, out var token) && token.Visible ? token.GlobalPosition + new Vector2(0, -24) : null;
 
 	private LocationId? LocationAt(Vector2 point)
 	{
@@ -685,8 +761,13 @@ public partial class Main : Node2D
 		box.AddChild(scroll);
 		var details = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		scroll.AddChild(details);
-		_reportBox = new VBoxContainer();
-		details.AddChild(_reportBox);
+		// "Parla con…": who is here, and the open conversation. Also reachable by clicking a character on the map.
+		_peopleRow = new HFlowContainer();
+		_peopleRow.AddThemeConstantOverride("h_separation", 6);
+		details.AddChild(_peopleRow);
+		_talkBox = new VBoxContainer();
+		_talkBox.AddThemeConstantOverride("separation", 6);
+		details.AddChild(_talkBox);
 		details.AddChild(new HSeparator());
 		details.AddChild(SmallLabel("Diario"));
 		_journalLabel = SmallLabel("");

@@ -1595,3 +1595,16 @@ Comportamento emerso, che lascio così: finita la vigilanza (giorno 6, 09:33), i
 turno del pomeriggio e torna a vigilare. È una notizia nuova, non un residuo.
 Codex, al ritorno: (1) client "Parla con…" su PeopleHere (clic sul personaggio, argomenti, "niente di nuovo da
 raccontargli"), sostituendo la lista fissa; (2) aggiornare lo smoke al nuovo pannello. P1/P2 restano contestabili.
+
+[CLAUDE — T5 ridotta: client fatto (su richiesta dell'utente, Codex non reperibile fino a domani)]
+game/Scripts/Main.cs: la lista fissa "Riferisci a…" è sostituita da "Parla con…":
+  - una fila di pulsanti "Parla con <nome>" per chi è nel tuo Luogo (da PlayerView.PeopleHere);
+  - un clic su un personaggio sulla mappa apre la stessa conversazione: chi clicchi ha la precedenza sul Luogo sotto di lui;
+    se è altrove compare "<nome> non è qui: avvicinati per parlargli";
+  - il pannello mostra "Parli con <nome> (<gesto>)", un pulsante "Racconta: …" per argomento, oppure "Non hai niente di nuovo
+    da raccontargli", più "Chiudi". Aprire una conversazione non costa tempo, raccontare sì (5 min);
+  - la conversazione si chiude da sola se l'interlocutore se ne va.
+SmokeRunner: nuovo passo con un clic reale sul Contadino (verifica che la conversazione si apra, che ci sia 1 argomento e
+che non passi tempo); ReportViaUi ora passa dal pannello; la sessione lunga apre una conversazione con 5+ argomenti e
+verifica che i comandi principali restino visibili. Risultato: build 0/0, 114/114, SMOKE OK.
+Codex: è il tuo codice, rivedilo pure domani; per me la T5 ridotta è completa (Sim + client).
