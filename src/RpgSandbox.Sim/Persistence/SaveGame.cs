@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using RpgSandbox.Sim.Api;
+using RpgSandbox.Sim.Rules;
 
 namespace RpgSandbox.Sim.Persistence;
 
@@ -13,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 4;
+    public const int SchemaVersion = 5;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -96,6 +97,8 @@ internal static class SaveGame
                 Required(g.Store, $"deposito sorvegliato da '{a.Id}'");
             if (a.Vigil is { } v)
                 Required(v.Store, $"deposito tenuto d'occhio da '{a.Id}'");
+            Check(a.Sheet is not null && a.Sheet.SkillProficiencies is not null && !string.IsNullOrEmpty(a.Sheet.Title),
+                $"scheda di '{a.Id}' mancante o incompleta");
             CheckDecision(a.LastDecision, a.Id);
         }
         foreach (var f in d.Facts) { Required(f.Kind, "tipo di un fatto"); Check(f.Description is not null, "descrizione di un fatto mancante"); }
@@ -117,6 +120,8 @@ internal static class SaveGame
         NextFactId = w.NextFactId,
         NextSequence = w.Scheduler.NextSequence,
         NextObservationId = w.NextObservationId,
+        RngAlgorithm = SplitMix64.Algorithm,
+        RngState = w.Rng.State,
         Areas = w.Areas.Values.Select(a => new AreaDto { Id = a.Id.Value, Name = a.Name }).ToList(),
         Locations = w.Locations.Values.Select(l => new LocationDto { Id = l.Id.Value, Name = l.Name, Area = l.Area.Value }).ToList(),
         Routes = w.Routes.Select(r => new RouteDto { From = r.Key.From.Value, To = r.Key.To.Value, Seconds = r.Value.Seconds }).ToList(),
@@ -157,6 +162,7 @@ internal static class SaveGame
             ArrivedAt = a.ArrivedAt.Seconds,
             GuardDuty = a.GuardDuty is { } g ? new GuardDutyDto { Store = g.Store.Value, Since = g.Since.Seconds, Until = g.Until.Seconds } : null,
             Vigil = a.Vigil is { } v ? new VigilDto { Store = v.Store.Value, Until = v.Until.Seconds } : null,
+            Sheet = ToDto(a.Sheet),
             Knowledge = a.Knowledge.Select(ToDto).ToList(),
             ActedOn = a.ActedOn.Select(o => o.Value).ToList(),
         }).ToList(),
@@ -179,6 +185,25 @@ internal static class SaveGame
             Faction = e.Job switch { FactionUpkeep u => u.Faction.Value, EvaluateFaction v => v.Faction.Value, _ => null },
         }).ToList(),
         Facts = w.RecentFacts.Select(f => new FactDto { Id = f.Id.Value, At = f.At.Seconds, Kind = f.Kind, Description = f.Description }).ToList(),
+    };
+
+    private static SheetDto ToDto(CharacterSheet s) => new()
+    {
+        Title = s.Title, Strength = s.Strength, Dexterity = s.Dexterity, Constitution = s.Constitution,
+        Intelligence = s.Intelligence, Wisdom = s.Wisdom, Charisma = s.Charisma, ProficiencyBonus = s.ProficiencyBonus,
+        SkillProficiencies = s.SkillProficiencies.Select(k => k.ToString()).ToList(), ArmorClass = s.ArmorClass,
+        StealthDisadvantage = s.StealthDisadvantage,
+    };
+
+    private static CharacterSheet FromDto(SheetDto s) => new()
+    {
+        Title = s.Title, Strength = s.Strength, Dexterity = s.Dexterity, Constitution = s.Constitution,
+        Intelligence = s.Intelligence, Wisdom = s.Wisdom, Charisma = s.Charisma, ProficiencyBonus = s.ProficiencyBonus,
+        SkillProficiencies = s.SkillProficiencies
+            .Select(k => Enum.TryParse<Skill>(k, out var skill) && Enum.IsDefined(skill) ? skill : throw new InvalidDataException($"abilità sconosciuta '{k}'"))
+            .ToArray(),
+        ArmorClass = s.ArmorClass,
+        StealthDisadvantage = s.StealthDisadvantage,
     };
 
     private static ObservationDto ToDto(Observation o) => new()
@@ -223,6 +248,8 @@ internal static class SaveGame
         w.NextActionId = d.NextActionId;
         w.NextFactId = d.NextFactId;
         w.NextObservationId = d.NextObservationId;
+        Check(d.RngAlgorithm == SplitMix64.Algorithm, $"generatore casuale sconosciuto '{d.RngAlgorithm}'");
+        w.Rng = new SplitMix64(d.RngState);
 
         foreach (var a in d.Areas)
             AddUnique(w.Areas, new AreaId(a.Id), new Area { Id = new AreaId(a.Id), Name = a.Name }, "area");
@@ -303,6 +330,7 @@ internal static class SaveGame
                     ? new GuardDuty { Store = new StoreId(g.Store), Since = new GameTime(g.Since), Until = new GameTime(g.Until) }
                     : null,
                 Vigil = a.Vigil is { } v ? new Vigil { Store = new StoreId(v.Store), Until = new GameTime(v.Until) } : null,
+                Sheet = FromDto(a.Sheet!),
             };
             foreach (var o in a.Knowledge)
                 actor.Knowledge.Add(FromDto(o));
@@ -392,6 +420,7 @@ internal static class SaveGame
 
     private static void ValidateActor(WorldState w, Actor a)
     {
+        Check(Invariants.Sheet(a.Id.Value, a.Sheet));
         if (a.Shift is { } shift)
             Check(Invariants.Shift(a.Id.Value, a.IsPlayer, shift.Start, shift.End));
         Check(a.Home is null || w.Locations.ContainsKey(a.Home.Value), $"attore '{a.Id}' con casa sconosciuta");

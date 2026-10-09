@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace RpgSandbox.Sim.Persistence;
 
-// Plain serialization shapes for the save file (schema version 4). Times are seconds since the
+// Plain serialization shapes for the save file (schema version 5). Times are seconds since the
 // scenario start; ids are their string/number values. Kept separate from the domain on purpose:
 // the domain can change shape while the file format changes only deliberately.
 
@@ -15,6 +15,8 @@ internal sealed class SaveDto
     public long NextFactId { get; set; }
     public long NextSequence { get; set; }
     public long NextObservationId { get; set; }
+    public string RngAlgorithm { get; set; } = "";
+    public ulong RngState { get; set; }
     public List<AreaDto> Areas { get; set; } = new();
     public List<LocationDto> Locations { get; set; } = new();
     public List<RouteDto> Routes { get; set; } = new();
@@ -82,6 +84,7 @@ internal sealed class ActorDto
     public long ArrivedAt { get; set; }
     public GuardDutyDto? GuardDuty { get; set; }
     public VigilDto? Vigil { get; set; }
+    public SheetDto? Sheet { get; set; }
     public List<ObservationDto> Knowledge { get; set; } = new();
     public List<long> ActedOn { get; set; } = new();
 }
@@ -221,4 +224,19 @@ internal sealed class VigilDto
 {
     public string Store { get; set; } = "";
     public long Until { get; set; }
+}
+
+internal sealed class SheetDto
+{
+    public string Title { get; set; } = "";
+    public int Strength { get; set; }
+    public int Dexterity { get; set; }
+    public int Constitution { get; set; }
+    public int Intelligence { get; set; }
+    public int Wisdom { get; set; }
+    public int Charisma { get; set; }
+    public int ProficiencyBonus { get; set; }
+    public List<string> SkillProficiencies { get; set; } = new();
+    public int ArmorClass { get; set; }
+    public bool StealthDisadvantage { get; set; }
 }

@@ -2,7 +2,7 @@
 
 Sandbox RPG con mondo persistente e simulato: Godot 4 .NET + C#.
 Visione: `RPG_SANDBOX_CONTEXT.md`. Decisioni: `docs/ARCHITECTURE_DECISIONS.md`. Piano: `IMPLEMENTATION_PLAN.md`.
-Contratto Sim ↔ Godot: `docs/INTEGRATION_CONTRACT.md`. Discussione tra assistenti: `chat.txt`.
+Contratto Sim ↔ Godot: `docs/INTEGRATION_CONTRACT.md`. Discussione tra assistenti: `chat.txt`. Crediti e licenza SRD: `CREDITS.md`.
 
 ## Struttura
 

@@ -148,6 +148,7 @@ public sealed class SimulationSession
         Knowledge = Freeze(actor.Knowledge.Select(o => ToView(o, w))),
         GuardDuty = actor.GuardDuty is { } g ? new GuardDutyView { Store = g.Store, Since = g.Since, Until = g.Until } : null,
         Vigil = actor.Vigil is { } v ? new VigilView { Store = v.Store, Until = v.Until } : null,
+        Sheet = actor.Sheet,
     };
 
     /// <summary>
@@ -186,6 +187,7 @@ public sealed class SimulationSession
             Id = player.Id,
             Location = player.Location,
             Food = player.Food,
+            Sheet = player.Sheet,
             Action = player.CurrentAction is { } a
                 ? new ActionView { Id = a.Id, Kind = a.Kind, StartedAt = a.StartedAt, CompletesAt = a.CompletesAt, Description = a.Description }
                 : null,

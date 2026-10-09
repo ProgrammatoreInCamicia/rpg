@@ -30,6 +30,18 @@ internal static class Invariants
         return null;
     }
 
+    public static string? Sheet(string actorId, Rules.CharacterSheet sheet)
+    {
+        foreach (var ability in Enum.GetValues<Rules.Ability>())
+            if (sheet.Score(ability) is < 1 or > 30)
+                return $"la caratteristica {ability} di '{actorId}' è fuori dall'intervallo 1–30";
+        if (sheet.ProficiencyBonus is < 0 or > 6)
+            return $"il bonus di competenza di '{actorId}' non è valido";
+        if (sheet.ArmorClass is < 1 or > 30)
+            return $"la classe armatura di '{actorId}' non è valida";
+        return null;
+    }
+
     public static string? Shift(string actorId, bool isPlayer, Duration start, Duration end)
     {
         if (isPlayer)

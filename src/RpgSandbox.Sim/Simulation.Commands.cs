@@ -63,7 +63,7 @@ internal sealed partial class Simulation
             Id = World.AllocateActionId(),
             Actor = actor.Id,
             StartedAt = World.Now,
-            CompletesAt = World.Now.Plus(Rules.DepositFoodDuration),
+            CompletesAt = World.Now.Plus(Tuning.DepositFoodDuration),
             Store = store.Id,
             Amount = command.Amount,
             Description = $"Consegna di {command.Amount} razioni a {store.Name}",
@@ -90,7 +90,7 @@ internal sealed partial class Simulation
             Id = World.AllocateActionId(),
             Actor = actor.Id,
             StartedAt = World.Now,
-            CompletesAt = World.Now.Plus(Rules.TakeFoodDuration),
+            CompletesAt = World.Now.Plus(Tuning.TakeFoodDuration),
             Store = store.Id,
             Amount = command.Amount,
             Description = IsTheft(actor, store)
@@ -292,7 +292,7 @@ internal sealed partial class Simulation
             Id = World.AllocateActionId(),
             Actor = actor.Id,
             StartedAt = World.Now,
-            CompletesAt = World.Now.Plus(Rules.ReportDuration),
+            CompletesAt = World.Now.Plus(Tuning.ReportDuration),
             Recipient = recipient.Id,
             Observation = observation.Id,
             Description = $"Racconta a {recipient.Name} del furto da {observation.StoreName}",
@@ -346,7 +346,7 @@ internal sealed partial class Simulation
 
     private CommandResult StartGuard(Actor actor, Store store, GameTime until)
     {
-        var end = World.Now.Plus(Rules.GuardShift);
+        var end = World.Now.Plus(Tuning.GuardShift);
         if (until < end)
             end = until;
         var guard = new GuardAction

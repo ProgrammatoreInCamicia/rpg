@@ -1608,3 +1608,43 @@ SmokeRunner: nuovo passo con un clic reale sul Contadino (verifica che la conver
 che non passi tempo); ReportViaUi ora passa dal pannello; la sessione lunga apre una conversazione con 5+ argomenti e
 verifica che i comandi principali restino visibili. Risultato: build 0/0, 114/114, SMOKE OK.
 Codex: è il tuo codice, rivedilo pure domani; per me la T5 ridotta è completa (Sim + client).
+
+============================================================
+[CLAUDE — T4 "Il personaggio e i primi dadi": piano adattato (Codex fuori sessione; l'utente approva, review dopo)]
+============================================================
+SCELTA DELL'UTENTE: Protagonista PALADINO. Verificato su SRD 5.2.1:
+  - Core Paladin Traits: primarie For e Car, d10, TS Sag e Car, 2 abilità fra Atletica/Intuizione/Intimidire/Medicina/
+    Persuasione/Religione, armature leggere/medie/pesanti + scudi; equipaggiamento A: Chain Mail, Shield, Longsword…
+  - Chain Mail: CA 16, For 13, Furtività con SVANTAGGIO.
+  - Standard Array per Paladino: For 15, Des 10, Cos 13, Int 8, Sag 12, Car 14. Background: +2/+1 (o +1/+1/+1) tra le
+    tre caratteristiche indicate.
+  Scheda proposta (livello 1): background Accolito (+2 Car, +1 Sag; Intuizione e Religione), abilità di classe Atletica e
+  Persuasione -> For 15, Des 10, Cos 13, Int 8, Sag 13, Car 16; competenza +2; Percezione passiva 11; Furtività +0 con
+  svantaggio; CA 18 (cotta + scudo). Talento d'origine, incantesimi, Imposizione delle mani: NON ora (nessun uso nel loop).
+  Conseguenza voluta: un paladino corazzato che prova a rubare di nascosto è in svantaggio. È una scelta con un costo.
+
+Applico le risposte di Codex dalla review (C2, C3, C5) e la proposta T4 già discussa, in incrementi con commit separati:
+4a REGOLE E DADI (Sim/Rules): RNG SplitMix64 con stato e versione nel salvataggio (schema 5), vettori noti, conversione a
+   intervallo senza bias (rifiuto); un unico flusso per la simulazione; nessun test statistico come gate.
+   Prove d20 (vantaggio/svantaggio non cumulativi, riuscita se totale >= CD), modificatori, competenza, Percezione
+   passiva 10 + bonus (+5/-5 con vantaggio/svantaggio, da SRD). Schede: Protagonista come sopra; NPC con schede minime
+   ORIGINALI (non mostri dello SRD): Razziatore furtivo, Guardia e Contadino attenti.
+   Ogni tiro diventa un fatto con il dettaglio (debug) e si salva.
+4b LUCE E PERCEZIONE (adattamento dichiarato): luce per ora del giorno (07–19 piena, 06–07 e 19–20 fioca, altrimenti buio).
+   Un furto fa UNA prova di Furtività all'inizio (C3), memorizzata per tutta l'azione. Per ogni testimone (C2: accorgersi,
+   vedere l'attore, riconoscerlo sono livelli distinti):
+     - luce piena: chi è presente vede il gesto, senza prova (non ci si nasconde alla luce sotto gli occhi di qualcuno,
+       coerente con Hide che richiede oscurità o copertura);
+     - luce fioca: nota il furto se Percezione passiva (-5, svantaggio su ciò che si basa sulla vista) >= totale di Furtività;
+     - buio: può solo SENTIRE: nota "qualcuno sta rubando" se la Percezione passiva >= totale di Furtività, ma non vede
+       l'attore, quindi l'autore resta ignoto.
+     Riconoscere l'autore richiede di averlo visto (luce piena o fioca) e di essere stato presente dall'inizio, come oggi.
+4c IL GIOCATORE CHE RUBA (C4): azione "Prendi razioni" (furto se il deposito non è tuo, con avviso). Se un abitante ti
+   riconosce, lo riferisce di persona alla Guardia; la Guardia "Cerca il colpevole" passando per i luoghi del villaggio e,
+   quando ti trova, CONFISCA fino alla quantità rubata che hai ancora con te, e la riporta al deposito. Nessun recupero
+   a distanza; se nel frattempo hai consegnato o perso le razioni, esito esplicito ("non hai più quelle razioni").
+4d CLIENT: scheda del personaggio, "Prendi razioni", il tuo tiro di Furtività (lo conosci) ma non chi ti ha visto
+   (non lo sai), giorno/notte visibile sulla mappa, tiri completi nel debug.
+FUORI: ammanco scoperto contando le scorte, razzie notturne scelte dai banditi, reputazione generale, combattimento.
+Da notare per Codex: con le razzie alle 09:00 (luce piena) gli esiti T3/T5 restano invariati; i dadi pesano di notte e
+sul giocatore-ladro. Se vorremo razzie notturne sarà una decisione di bilanciamento separata.

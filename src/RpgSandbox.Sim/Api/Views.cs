@@ -1,3 +1,5 @@
+using RpgSandbox.Sim.Rules;
+
 namespace RpgSandbox.Sim.Api;
 
 // Read-only copies of simulation state for the client.
@@ -74,6 +76,9 @@ public sealed record ActorView
 
     /// <summary>Set while the actor keeps an eye on a robbed store (debug).</summary>
     public VigilView? Vigil { get; init; }
+
+    /// <summary>What the rules know about the actor (debug for NPCs; the player sees its own in <see cref="PlayerView"/>).</summary>
+    public CharacterSheet? Sheet { get; init; }
 }
 
 public sealed record VigilView

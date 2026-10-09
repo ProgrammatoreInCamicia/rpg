@@ -42,7 +42,7 @@ internal sealed partial class Simulation
             // since a free NPC with no deadline would never be asked to decide again.
             if (result is null)
                 reason += " Nessuna azione possibile.";
-            StartWait(npc.Id, Rules.DecisionRetryDelay, interruptible: true, description: "Esita");
+            StartWait(npc.Id, Tuning.DecisionRetryDelay, interruptible: true, description: "Esita");
         }
         npc.LastDecision = new DecisionTrace(World.Now, plan.Rule, reason, inputs.ToArray());
     }
@@ -65,7 +65,7 @@ internal sealed partial class Simulation
 
             // Only now, back home, does the faction learn that the target is guarded.
             var faction = World.Factions[raid.Faction];
-            faction.AvoidUntil[target.Id] = World.Now.Plus(Rules.AvoidGuardedTarget);
+            faction.AvoidUntil[target.Id] = World.Now.Plus(Tuning.AvoidGuardedTarget);
             npc.Assignment = null;
             World.RecordFact("RaidAborted", $"{npc.Name} torna e riferisce ai {faction.Name}: {target.Name} è sorvegliato.");
             var next = Routine(npc);
@@ -139,7 +139,7 @@ internal sealed partial class Simulation
             return null;
 
         npc.ActedOn.Add(news.Origin);
-        var until = World.Now.Plus(Rules.GuardDutyLength);
+        var until = World.Now.Plus(Tuning.GuardDutyLength);
         if (npc.GuardDuty is { } current && current.Store == news.Store)
         {
             npc.GuardDuty = new GuardDuty { Store = current.Store, Since = current.Since, Until = until };
@@ -225,7 +225,7 @@ internal sealed partial class Simulation
                      .ToList())
         {
             npc.ActedOn.Add(news.Origin);
-            var until = World.Now.Plus(Rules.VigilLength);
+            var until = World.Now.Plus(Tuning.VigilLength);
             if (npc.Vigil is null)
                 World.RecordFact("VigilStarted", $"{npc.Name} decide di tenere d'occhio {news.StoreName}.");
             npc.Vigil = new Vigil { Store = news.Store, Until = until };
@@ -247,14 +247,14 @@ internal sealed partial class Simulation
         }
 
         var tod = World.Now.Seconds % SecondsPerDay;
-        if (tod < Rules.VigilStart.Seconds || tod >= Rules.VigilEnd.Seconds)
+        if (tod < Tuning.VigilStart.Seconds || tod >= Tuning.VigilEnd.Seconds)
             return null;
 
         var store = World.Stores[vigil.Store];
         inputs.Add($"Vigila su {store.Name} fino al giorno {vigil.Until.Day + 1} {Clock(vigil.Until)}");
         if (npc.Location != store.Location)
             return Go("Vigila", $"Va a tenere d'occhio {store.Name}.", npc, store.Location);
-        var end = TodayAt(Rules.VigilEnd);
+        var end = TodayAt(Tuning.VigilEnd);
         if (vigil.Until < end)
             end = vigil.Until;
         return Rest("Vigila", $"Tiene d'occhio {store.Name}.", npc, "Vigila", end);
@@ -278,7 +278,7 @@ internal sealed partial class Simulation
 
         // Wake up exactly when the next commitment starts: the work shift or, while vigilant, the watch.
         var nextShift = npc.Shift is { } s ? NextTimeOfDay(s.Start) : (GameTime?)null;
-        var nextWatch = npc.Vigil is not null ? NextTimeOfDay(Rules.VigilStart) : (GameTime?)null;
+        var nextWatch = npc.Vigil is not null ? NextTimeOfDay(Tuning.VigilStart) : (GameTime?)null;
         var wake = nextShift is null ? nextWatch
             : nextWatch is null ? nextShift
             : nextShift < nextWatch ? nextShift : nextWatch;
@@ -288,7 +288,7 @@ internal sealed partial class Simulation
     /// <summary>An interruptible wait of at most an hour, cut at <paramref name="boundary"/> so schedules stay exact.</summary>
     private Plan Rest(string rule, string reason, Actor npc, string description, GameTime? boundary)
     {
-        var length = Rules.IdleRestDuration;
+        var length = Tuning.IdleRestDuration;
         if (boundary is { } b && b > World.Now && b.Since(World.Now).Seconds < length.Seconds)
             length = b.Since(World.Now);
         return new Plan(rule, reason, () => StartWait(npc.Id, length, interruptible: true, description: description));

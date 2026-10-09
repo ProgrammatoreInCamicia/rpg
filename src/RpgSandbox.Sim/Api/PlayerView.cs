@@ -1,3 +1,5 @@
+using RpgSandbox.Sim.Rules;
+
 namespace RpgSandbox.Sim.Api;
 
 /// <summary>
@@ -13,6 +15,10 @@ public sealed record PlayerView
     public required ActorId Id { get; init; }
     public LocationId? Location { get; init; }
     public required int Food { get; init; }
+
+    /// <summary>The player's character sheet.</summary>
+    public required CharacterSheet Sheet { get; init; }
+
     public ActionView? Action { get; init; }
     public TravelView? Travel { get; init; }
 

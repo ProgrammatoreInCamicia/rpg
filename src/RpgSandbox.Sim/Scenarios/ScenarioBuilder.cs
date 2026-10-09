@@ -1,4 +1,5 @@
 using RpgSandbox.Sim.Api;
+using RpgSandbox.Sim.Rules;
 
 namespace RpgSandbox.Sim.Scenarios;
 
@@ -15,8 +16,10 @@ public sealed class Scenario
         IReadOnlyList<FactionDefinition> factions,
         IReadOnlyList<ActorDefinition> actors,
         IReadOnlyList<StoreDefinition> stores,
-        ActorId player)
+        ActorId player,
+        ulong seed)
     {
+        Seed = seed;
         Areas = areas;
         Locations = locations;
         Routes = routes;
@@ -33,13 +36,17 @@ public sealed class Scenario
     internal IReadOnlyList<ActorDefinition> Actors { get; }
     internal IReadOnlyList<StoreDefinition> Stores { get; }
     internal ActorId Player { get; }
+
+    /// <summary>Initial state of the random number generator: same scenario and seed, same game.</summary>
+    internal ulong Seed { get; }
 }
 
 internal sealed record AreaDefinition(AreaId Id, string Name);
 internal sealed record LocationDefinition(LocationId Id, string Name, AreaId Area);
 internal sealed record RouteDefinition(LocationId A, LocationId B, Duration TravelTime);
 internal sealed record ActorDefinition(
-    ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food, FactionId? Faction, WorkShift? Shift);
+    ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food, FactionId? Faction, WorkShift? Shift,
+    CharacterSheet Sheet);
 internal sealed record StoreDefinition(StoreId Id, string Name, LocationId Location, int Food, FactionId? Owner);
 internal sealed record FactionDefinition(
     FactionId Id, string Name, StoreId? HomeStore, int DailyUpkeep, Duration UpkeepTimeOfDay, RaidPolicy? Policy,
@@ -54,6 +61,14 @@ public sealed class ScenarioBuilder
     private readonly List<FactionDefinition> _factions = new();
     private readonly List<ActorDefinition> _actors = new();
     private readonly List<StoreDefinition> _stores = new();
+    private ulong _seed = 0x5EED_2026_1009UL;
+
+    /// <summary>Sets the random seed. Scenarios have a fixed default, so tests and new games are reproducible.</summary>
+    public ScenarioBuilder WithSeed(ulong seed)
+    {
+        _seed = seed;
+        return this;
+    }
 
     public ScenarioBuilder AddArea(string id, string name)
     {
@@ -97,10 +112,12 @@ public sealed class ScenarioBuilder
     /// <paramref name="workLocationId"/> between <paramref name="shiftStart"/> and <paramref name="shiftEnd"/> (times of day).
     /// </summary>
     public ScenarioBuilder AddActor(string id, string name, string locationId, bool isPlayer = false, int food = 0,
-        string? factionId = null, string? workLocationId = null, Duration shiftStart = default, Duration shiftEnd = default)
+        string? factionId = null, string? workLocationId = null, Duration shiftStart = default, Duration shiftEnd = default,
+        CharacterSheet? sheet = null)
     {
         var shift = workLocationId is null ? null : new WorkShift(new LocationId(workLocationId), shiftStart, shiftEnd);
-        _actors.Add(new ActorDefinition(new ActorId(id), name, new LocationId(locationId), isPlayer, food, ToFaction(factionId), shift));
+        _actors.Add(new ActorDefinition(new ActorId(id), name, new LocationId(locationId), isPlayer, food, ToFaction(factionId), shift,
+            sheet ?? CharacterSheet.Commoner()));
         return this;
     }
 
@@ -143,6 +160,7 @@ public sealed class ScenarioBuilder
             Require(actor.Food >= 0, $"Actor '{actor.Id}' starts with negative food.");
             Require(actor.Faction is null || factionIds.Contains(actor.Faction.Value),
                 $"Actor '{actor.Id}' belongs to unknown faction '{actor.Faction}'.");
+            Require(Invariants.Sheet(actor.Id.Value, actor.Sheet));
             if (actor.Shift is { } shift)
             {
                 Require(Invariants.Shift(actor.Id.Value, actor.IsPlayer, shift.Start, shift.End));
@@ -176,7 +194,7 @@ public sealed class ScenarioBuilder
         Require(players.Count == 1, $"A scenario needs exactly one player actor, found {players.Count}.");
 
         return new Scenario(_areas.ToArray(), _locations.ToArray(), _routes.ToArray(), _factions.ToArray(),
-            _actors.ToArray(), _stores.ToArray(), players[0].Id);
+            _actors.ToArray(), _stores.ToArray(), players[0].Id, _seed);
     }
 
     private static FactionId? ToFaction(string? id) => id is null ? null : new FactionId(id);

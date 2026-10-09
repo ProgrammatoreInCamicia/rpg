@@ -2,8 +2,8 @@ using RpgSandbox.Sim.Api;
 
 namespace RpgSandbox.Sim;
 
-/// <summary>Tunable rule constants. Kept together so playtesting can adjust them in one place.</summary>
-internal static class Rules
+/// <summary>Tunable constants (durations, lengths, windows). Kept together so playtesting can adjust them in one place.</summary>
+internal static class Tuning
 {
     public static readonly Duration DepositFoodDuration = Duration.FromMinutes(2);
     public static readonly Duration TakeFoodDuration = Duration.FromMinutes(3);

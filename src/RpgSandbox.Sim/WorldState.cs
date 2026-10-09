@@ -1,4 +1,5 @@
 using RpgSandbox.Sim.Api;
+using RpgSandbox.Sim.Rules;
 using RpgSandbox.Sim.Scenarios;
 
 namespace RpgSandbox.Sim;
@@ -25,6 +26,9 @@ internal sealed class Actor
     public required string Name { get; init; }
     public required bool IsPlayer { get; init; }
     public FactionId? Faction { get; init; }
+
+    /// <summary>What the rules know about the actor (abilities, skills, armor).</summary>
+    public CharacterSheet Sheet { get; init; } = CharacterSheet.Commoner();
 
     /// <summary>Where the actor lives; routine brings NPCs back here outside work hours.</summary>
     public LocationId? Home { get; init; }
@@ -249,6 +253,9 @@ internal sealed class WorldState
 
     public Scheduler Scheduler { get; set; } = new();
 
+    /// <summary>The only randomness of the simulation; its state is part of the save.</summary>
+    public SplitMix64 Rng { get; set; } = new(0);
+
     /// <summary>Bounded history, oldest first. Memories will keep their own copies, so pruning is safe.</summary>
     public LinkedList<Fact> RecentFacts { get; } = new();
 
@@ -258,7 +265,7 @@ internal sealed class WorldState
 
     public static WorldState FromScenario(Scenario scenario)
     {
-        var world = new WorldState { Player = scenario.Player };
+        var world = new WorldState { Player = scenario.Player, Rng = new SplitMix64(scenario.Seed) };
         foreach (var a in scenario.Areas)
             world.Areas.Add(a.Id, new Area { Id = a.Id, Name = a.Name });
         foreach (var l in scenario.Locations)
@@ -281,7 +288,7 @@ internal sealed class WorldState
             world.Actors.Add(a.Id, new Actor
             {
                 Id = a.Id, Name = a.Name, IsPlayer = a.IsPlayer, Faction = a.Faction, Location = a.Location, Food = a.Food,
-                Home = a.IsPlayer ? null : a.Location, Shift = a.Shift, ArrivedAt = GameTime.Start,
+                Home = a.IsPlayer ? null : a.Location, Shift = a.Shift, ArrivedAt = GameTime.Start, Sheet = a.Sheet,
             });
         }
         foreach (var s in scenario.Stores)

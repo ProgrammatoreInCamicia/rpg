@@ -1,4 +1,5 @@
 using RpgSandbox.Sim.Api;
+using RpgSandbox.Sim.Rules;
 
 namespace RpgSandbox.Sim.Scenarios;
 
@@ -46,10 +47,10 @@ public static class SliceScenario
                 foodThreshold: 10, raidAmount: 8, evaluationInterval: Duration.FromHours(3))
             .AddStore(Ids.GranaryStore.Value, "Scorte del granaio", Ids.Granary.Value, food: granaryFood, ownerFactionId: Ids.VillageFaction.Value)
             .AddStore(Ids.CampStore.Value, "Scorte del campo", Ids.BanditCamp.Value, food: 14, ownerFactionId: Ids.Bandits.Value)
-            .AddActor(Ids.Player.Value, "Protagonista", Ids.Inn.Value, isPlayer: true, food: 10)
-            .AddActor(Ids.Raider.Value, "Razziatore", Ids.BanditCamp.Value, factionId: Ids.Bandits.Value)
+            .AddActor(Ids.Player.Value, "Protagonista", Ids.Inn.Value, isPlayer: true, food: 10, sheet: Sheets.Paladin())
+            .AddActor(Ids.Raider.Value, "Razziatore", Ids.BanditCamp.Value, factionId: Ids.Bandits.Value, sheet: Sheets.Raider())
             .AddActor(Ids.Farmer.Value, "Contadino", Ids.Inn.Value, factionId: Ids.VillageFaction.Value,
-                workLocationId: Ids.Granary.Value, shiftStart: farmerShiftStart, shiftEnd: farmerShiftEnd)
-            .AddActor(Ids.Guard.Value, "Guardia", Ids.Inn.Value, factionId: Ids.VillageFaction.Value)
+                workLocationId: Ids.Granary.Value, shiftStart: farmerShiftStart, shiftEnd: farmerShiftEnd, sheet: Sheets.Farmer())
+            .AddActor(Ids.Guard.Value, "Guardia", Ids.Inn.Value, factionId: Ids.VillageFaction.Value, sheet: Sheets.VillageGuard())
             .Build();
 }
