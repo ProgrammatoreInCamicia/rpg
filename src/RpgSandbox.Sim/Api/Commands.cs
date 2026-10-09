@@ -1,0 +1,61 @@
+namespace RpgSandbox.Sim.Api;
+
+/// <summary>A request from the player or the UI. Commands start actions; they never advance time.</summary>
+public abstract record Command
+{
+    public required ActorId Actor { get; init; }
+}
+
+/// <summary>Travel from the actor's current location to a directly connected location.</summary>
+public sealed record TravelCommand : Command
+{
+    public required LocationId Destination { get; init; }
+}
+
+public enum RejectionReason
+{
+    None = 0,
+    ActorNotFound,
+    DestinationNotFound,
+    ActorBusy,
+    AlreadyThere,
+    RouteNotFound,
+    UnknownCommand,
+}
+
+public sealed record CommandResult
+{
+    public bool Success => Rejection == RejectionReason.None;
+    public RejectionReason Rejection { get; init; }
+
+    /// <summary>The action started by the command, when it succeeded.</summary>
+    public ActionId? Action { get; init; }
+
+    /// <summary>When the started action is due to complete, when it succeeded.</summary>
+    public GameTime? CompletesAt { get; init; }
+
+    /// <summary>Human readable text for the UI. Client logic must rely on <see cref="Rejection"/>, not on this text.</summary>
+    public string Message { get; init; } = "";
+
+    internal static CommandResult Started(ActionId action, GameTime completesAt, string message) =>
+        new() { Action = action, CompletesAt = completesAt, Message = message };
+
+    internal static CommandResult Rejected(RejectionReason reason, string message) =>
+        new() { Rejection = reason, Message = message };
+}
+
+public enum AdvanceOutcome
+{
+    /// <summary>The awaited action completed (successfully or not).</summary>
+    Completed,
+    /// <summary>The time limit was reached before the action completed.</summary>
+    TimeLimitReached,
+    /// <summary>No pending action with that id exists (unknown or already completed before the call).</summary>
+    NotPending,
+}
+
+public sealed record AdvanceResult
+{
+    public required AdvanceOutcome Outcome { get; init; }
+    public required GameTime Now { get; init; }
+}
