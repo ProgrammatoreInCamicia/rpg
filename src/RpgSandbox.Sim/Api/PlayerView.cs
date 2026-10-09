@@ -47,6 +47,9 @@ public sealed record PlayerView
     /// Present even with no topics, so the client can offer "Parla con…" and say there is nothing new to tell.
     /// </summary>
     public IReadOnlyList<PersonView> PeopleHere { get; init; } = Array.Empty<PersonView>();
+
+    /// <summary>Recent facts the player took part in (oldest first): what happened to the player, as the player knows it.</summary>
+    public IReadOnlyList<FactView> RecentEvents { get; init; } = Array.Empty<FactView>();
 }
 
 /// <summary>Another actor as seen from outside: where it is and what it is visibly doing. No intentions, no knowledge.</summary>

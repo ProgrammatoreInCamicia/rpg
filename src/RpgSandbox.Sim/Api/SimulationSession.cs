@@ -149,6 +149,7 @@ public sealed class SimulationSession
         GuardDuty = actor.GuardDuty is { } g ? new GuardDutyView { Store = g.Store, Since = g.Since, Until = g.Until } : null,
         Vigil = actor.Vigil is { } v ? new VigilView { Store = v.Store, Until = v.Until } : null,
         Sheet = actor.Sheet,
+        Claims = Freeze(actor.Claims.Select(c => new ClaimView { Thief = c.Thief, Store = c.Store, Owed = c.Owed })),
     };
 
     /// <summary>
@@ -215,6 +216,8 @@ public sealed class SimulationSession
             })),
             Observations = Freeze(player.Knowledge.Select(o => ToView(o, w))),
             ReportOptions = Freeze(options),
+            RecentEvents = Freeze(w.RecentFacts.Where(f => f.Participants.Contains(player.Id)).TakeLast(10)
+                .Select(f => new FactView { Id = f.Id, At = f.At, Kind = f.Kind, Description = f.Description })),
             PeopleHere = Freeze(present.Select(p => new PersonView
             {
                 Id = p.Id,
@@ -238,6 +241,7 @@ public sealed class SimulationSession
         DepositFoodAction or TakeFoodAction => "armeggia con le scorte",
         ReportAction r => $"parla con {w.Actors[r.Recipient].Name}",
         GuardAction => "sorveglia il deposito",
+        ConfiscateAction c => $"parla con {w.Actors[c.Target].Name}",
         WaitAction wait => wait.Description switch
         {
             "Lavora" => "lavora",

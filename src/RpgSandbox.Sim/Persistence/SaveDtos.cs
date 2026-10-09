@@ -85,6 +85,7 @@ internal sealed class ActorDto
     public GuardDutyDto? GuardDuty { get; set; }
     public VigilDto? Vigil { get; set; }
     public SheetDto? Sheet { get; set; }
+    public List<ClaimDto> Claims { get; set; } = new();
     public List<ObservationDto> Knowledge { get; set; } = new();
     public List<long> ActedOn { get; set; } = new();
 }
@@ -124,6 +125,7 @@ internal sealed class DecisionDto
 [JsonDerivedType(typeof(WaitActionDto), "Wait")]
 [JsonDerivedType(typeof(ReportActionDto), "Report")]
 [JsonDerivedType(typeof(GuardActionDto), "Guard")]
+[JsonDerivedType(typeof(ConfiscateActionDto), "Confiscate")]
 internal abstract class ActionDto
 {
     public long Id { get; set; }
@@ -171,6 +173,7 @@ internal sealed class FactDto
     public long At { get; set; }
     public string Kind { get; set; } = "";
     public string Description { get; set; } = "";
+    public List<string> Participants { get; set; } = new();
 }
 
 internal sealed class ReportActionDto : ActionDto
@@ -240,4 +243,18 @@ internal sealed class SheetDto
     public List<string> SkillProficiencies { get; set; } = new();
     public int ArmorClass { get; set; }
     public bool StealthDisadvantage { get; set; }
+}
+
+internal sealed class ConfiscateActionDto : ActionDto
+{
+    public string Target { get; set; } = "";
+    public string Store { get; set; } = "";
+}
+
+internal sealed class ClaimDto
+{
+    public string Thief { get; set; } = "";
+    public string Store { get; set; } = "";
+    public long Origin { get; set; }
+    public int Owed { get; set; }
 }

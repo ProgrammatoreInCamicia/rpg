@@ -57,6 +57,9 @@ internal sealed class Actor
     /// <summary>Set while the actor keeps an eye on a robbed store of its faction (not a guard: it deters nothing).</summary>
     public Vigil? Vigil { get; set; }
 
+    /// <summary>Thefts this authority wants to make good: known thief, robbed store, rations still owed.</summary>
+    public List<Claim> Claims { get; } = new();
+
     /// <summary>What the actor knows: its own observations and what others told it. One entry per origin.</summary>
     public List<Observation> Knowledge { get; } = new();
 
@@ -75,6 +78,15 @@ internal sealed record WorkShift(LocationId Location, Duration Start, Duration E
         var tod = t.Seconds % 86_400;
         return tod >= Start.Seconds && tod < End.Seconds;
     }
+}
+
+/// <summary>What a known thief still owes to a robbed store, as far as the authority knows.</summary>
+internal sealed class Claim
+{
+    public required ActorId Thief { get; init; }
+    public required StoreId Store { get; init; }
+    public required ObservationId Origin { get; init; }
+    public required int Owed { get; set; }
 }
 
 internal sealed class Vigil
@@ -216,6 +228,13 @@ internal sealed class ReportAction : PendingAction
     public required ObservationId Observation { get; init; }
 }
 
+internal sealed class ConfiscateAction : PendingAction
+{
+    public override string Kind => "Confiscate";
+    public required ActorId Target { get; init; }
+    public required StoreId Store { get; init; }
+}
+
 internal sealed class GuardAction : PendingAction
 {
     public override string Kind => "Guard";
@@ -236,6 +255,9 @@ internal sealed class Fact
     public required GameTime At { get; init; }
     public required string Kind { get; init; }
     public required string Description { get; init; }
+
+    /// <summary>Who took part: they know it happened (used to show the player what concerns them).</summary>
+    public IReadOnlyList<ActorId> Participants { get; init; } = Array.Empty<ActorId>();
 }
 
 internal sealed class WorldState
@@ -303,10 +325,10 @@ internal sealed class WorldState
 
     public IEnumerable<Actor> MembersOf(FactionId faction) => Actors.Values.Where(a => a.Faction == faction);
 
-    public FactId RecordFact(string kind, string description)
+    public FactId RecordFact(string kind, string description, params ActorId[] participants)
     {
         var id = new FactId(NextFactId++);
-        RecentFacts.AddLast(new Fact { Id = id, At = Now, Kind = kind, Description = description });
+        RecentFacts.AddLast(new Fact { Id = id, At = Now, Kind = kind, Description = description, Participants = participants.Distinct().ToArray() });
         while (RecentFacts.Count > RecentFactCapacity)
             RecentFacts.RemoveFirst();
         return id;

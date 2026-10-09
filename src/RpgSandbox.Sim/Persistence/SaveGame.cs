@@ -101,7 +101,7 @@ internal static class SaveGame
                 $"scheda di '{a.Id}' mancante o incompleta");
             CheckDecision(a.LastDecision, a.Id);
         }
-        foreach (var f in d.Facts) { Required(f.Kind, "tipo di un fatto"); Check(f.Description is not null, "descrizione di un fatto mancante"); }
+        foreach (var f in d.Facts) { Required(f.Kind, "tipo di un fatto"); Check(f.Description is not null, "descrizione di un fatto mancante"); Check(f.Participants is not null && f.Participants.All(p => !string.IsNullOrEmpty(p)), "partecipanti di un fatto non validi"); }
         foreach (var e in d.Schedule) Required(e.Job, "tipo di una scadenza");
     }
 
@@ -163,6 +163,7 @@ internal static class SaveGame
             GuardDuty = a.GuardDuty is { } g ? new GuardDutyDto { Store = g.Store.Value, Since = g.Since.Seconds, Until = g.Until.Seconds } : null,
             Vigil = a.Vigil is { } v ? new VigilDto { Store = v.Store.Value, Until = v.Until.Seconds } : null,
             Sheet = ToDto(a.Sheet),
+            Claims = a.Claims.Select(c => new ClaimDto { Thief = c.Thief.Value, Store = c.Store.Value, Origin = c.Origin.Value, Owed = c.Owed }).ToList(),
             Knowledge = a.Knowledge.Select(ToDto).ToList(),
             ActedOn = a.ActedOn.Select(o => o.Value).ToList(),
         }).ToList(),
@@ -184,7 +185,7 @@ internal static class SaveGame
             Action = (e.Job as CompleteAction)?.Action.Value,
             Faction = e.Job switch { FactionUpkeep u => u.Faction.Value, EvaluateFaction v => v.Faction.Value, _ => null },
         }).ToList(),
-        Facts = w.RecentFacts.Select(f => new FactDto { Id = f.Id.Value, At = f.At.Seconds, Kind = f.Kind, Description = f.Description }).ToList(),
+        Facts = w.RecentFacts.Select(f => new FactDto { Id = f.Id.Value, At = f.At.Seconds, Kind = f.Kind, Description = f.Description, Participants = f.Participants.Select(p => p.Value).ToList() }).ToList(),
     };
 
     private static SheetDto ToDto(CharacterSheet s) => new()
@@ -229,6 +230,7 @@ internal static class SaveGame
             WaitAction wa => new WaitActionDto { Interruptible = wa.Interruptible },
             ReportAction rep => new ReportActionDto { Recipient = rep.Recipient.Value, Observation = rep.Observation.Value },
             GuardAction ga => new GuardActionDto { Store = ga.Store.Value },
+            ConfiscateAction ca => new ConfiscateActionDto { Target = ca.Target.Value, Store = ca.Store.Value },
             _ => throw new InvalidOperationException($"Unknown action {action.GetType().Name}"),
         };
         if (dto is null)
@@ -334,6 +336,8 @@ internal static class SaveGame
             };
             foreach (var o in a.Knowledge)
                 actor.Knowledge.Add(FromDto(o));
+            foreach (var c in a.Claims ?? throw new InvalidDataException($"debiti di '{a.Id}' mancanti"))
+                actor.Claims.Add(new Claim { Thief = new ActorId(Required(c?.Thief, "ladro di un debito")), Store = new StoreId(Required(c!.Store, "deposito di un debito")), Origin = new ObservationId(c.Origin), Owed = c.Owed });
             foreach (var origin in a.ActedOn)
                 actor.ActedOn.Add(new ObservationId(origin));
             ValidateActor(w, actor);
@@ -393,7 +397,7 @@ internal static class SaveGame
             "scadenza di un'azione che non è in corso");
 
         foreach (var f in d.Facts)
-            w.RecentFacts.AddLast(new Fact { Id = new FactId(f.Id), At = new GameTime(f.At), Kind = f.Kind, Description = f.Description });
+            w.RecentFacts.AddLast(new Fact { Id = new FactId(f.Id), At = new GameTime(f.At), Kind = f.Kind, Description = f.Description, Participants = f.Participants.Select(p => new ActorId(p)).ToArray() });
         Check(w.RecentFacts.All(f => f.Id.Value < w.NextFactId), "contatore dei fatti incoerente");
 
         return w;
@@ -411,6 +415,10 @@ internal static class SaveGame
             Check(o.Id.Value < w.NextObservationId && o.Origin.Value < w.NextObservationId, "contatore delle osservazioni incoerente");
         }
         Check(a.Knowledge.Select(o => o.Origin).Distinct().Count() == a.Knowledge.Count, $"conoscenze duplicate per '{a.Id}'");
+        foreach (var c in a.Claims)
+            Check(w.Actors.ContainsKey(c.Thief), $"debito di '{a.Id}' verso un ladro sconosciuto");
+        if (a.CurrentAction is ConfiscateAction confiscate)
+            Check(w.Actors.ContainsKey(confiscate.Target), $"confisca di '{a.Id}' verso uno sconosciuto");
         if (a.CurrentAction is ReportAction report)
         {
             Check(w.Actors.ContainsKey(report.Recipient), $"rapporto di '{a.Id}' a destinatario sconosciuto");
@@ -427,6 +435,10 @@ internal static class SaveGame
         Check(a.Shift is null || w.Locations.ContainsKey(a.Shift.Location), $"attore '{a.Id}' con lavoro sconosciuto");
         Check(a.GuardDuty is null || w.Stores.ContainsKey(a.GuardDuty.Store), $"attore '{a.Id}' sorveglia un deposito sconosciuto");
         Check(a.Vigil is null || w.Stores.ContainsKey(a.Vigil.Store), $"attore '{a.Id}' vigila su un deposito sconosciuto");
+        if (a.CurrentAction is ConfiscateAction ca)
+            Check(w.Stores.ContainsKey(ca.Store), $"confisca di '{a.Id}' per un deposito sconosciuto");
+        foreach (var c in a.Claims)
+            Check(w.Stores.ContainsKey(c.Store) && c.Owed > 0, $"debito non valido per '{a.Id}'");
         if (a.CurrentAction is GuardAction guard)
             Check(w.Stores.ContainsKey(guard.Store), $"sorveglianza di '{a.Id}' su deposito sconosciuto");
         Check(a.Food >= 0, $"attore '{a.Id}' con razioni negative");
@@ -482,6 +494,11 @@ internal static class SaveGame
             {
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
                 Recipient = new ActorId(rep.Recipient), Observation = new ObservationId(rep.Observation),
+            },
+            ConfiscateActionDto ca => new ConfiscateAction
+            {
+                Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
+                Target = new ActorId(Required(ca.Target, "bersaglio della confisca")), Store = new StoreId(Required(ca.Store, "deposito della confisca")),
             },
             GuardActionDto guard => new GuardAction
             {

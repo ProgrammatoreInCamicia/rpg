@@ -26,6 +26,8 @@ internal sealed partial class Simulation
 
         UpdateVigil(npc, inputs);
         var plan = RaidStep(npc, inputs)
+                   ?? ConfiscateStep(npc, inputs)
+                   ?? ReturnStep(npc, inputs)
                    ?? OrganiseGuard(npc, inputs)
                    ?? GuardStep(npc, inputs)
                    ?? ReportStep(npc, inputs)
@@ -139,6 +141,9 @@ internal sealed partial class Simulation
             return null;
 
         npc.ActedOn.Add(news.Origin);
+        // A recognised thief owes the stolen rations: the authority will ask for them when it meets him.
+        if (news.Thief is { } culprit && culprit != npc.Id && npc.Claims.All(c => c.Origin != news.Origin))
+            npc.Claims.Add(new Claim { Thief = culprit, Store = news.Store, Origin = news.Origin, Owed = news.Amount });
         var until = World.Now.Plus(Tuning.GuardDutyLength);
         if (npc.GuardDuty is { } current && current.Store == news.Store)
         {
@@ -159,6 +164,36 @@ internal sealed partial class Simulation
             Rule = "Organizza il presidio",
             Reason = $"Furto ai danni del villaggio: sorveglia {news.StoreName} fino a {Clock(until)} del giorno {until.Day + 1}. {step.Reason}",
         };
+    }
+
+    /// <summary>A known thief standing in front of the authority, still carrying rations: stop him and take them back.</summary>
+    private Plan? ConfiscateStep(Actor npc, List<string> inputs)
+    {
+        if (npc.Location is not { } here)
+            return null;
+        foreach (var claim in npc.Claims)
+        {
+            var thief = World.Actors[claim.Thief];
+            if (thief.Location != here || thief.Food == 0)
+                continue;
+            inputs.Add($"{thief.Name} è qui, ha {thief.Food} razioni e ne deve {claim.Owed} a {World.Stores[claim.Store].Name}");
+            return new Plan("Ferma il ladro", $"Si fa restituire da {thief.Name} le razioni rubate.",
+                () => StartConfiscate(npc, thief, claim));
+        }
+        return null;
+    }
+
+    /// <summary>The authority carries confiscated rations back to its faction's store.</summary>
+    private Plan? ReturnStep(Actor npc, List<string> inputs)
+    {
+        if (npc.Food == 0 || npc.Faction is not { } factionId || World.Factions[factionId].HomeStore is not { } homeId)
+            return null;
+        var home = World.Stores[homeId];
+        inputs.Add($"Ha con sé {npc.Food} razioni recuperate");
+        if (npc.Location != home.Location)
+            return Go("Riporta le razioni", $"Riporta {npc.Food} razioni a {home.Name}.", npc, home.Location);
+        return Do("Riporta le razioni", $"Restituisce {npc.Food} razioni a {home.Name}.",
+            new DepositFoodCommand { Actor = npc.Id, Store = home.Id, Amount = npc.Food });
     }
 
     private Plan? GuardStep(Actor npc, List<string> inputs)

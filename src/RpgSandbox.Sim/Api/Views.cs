@@ -79,6 +79,16 @@ public sealed record ActorView
 
     /// <summary>What the rules know about the actor (debug for NPCs; the player sees its own in <see cref="PlayerView"/>).</summary>
     public CharacterSheet? Sheet { get; init; }
+
+    /// <summary>Thefts this authority wants made good (debug).</summary>
+    public IReadOnlyList<ClaimView> Claims { get; init; } = Array.Empty<ClaimView>();
+}
+
+public sealed record ClaimView
+{
+    public required ActorId Thief { get; init; }
+    public required StoreId Store { get; init; }
+    public required int Owed { get; init; }
 }
 
 public sealed record VigilView

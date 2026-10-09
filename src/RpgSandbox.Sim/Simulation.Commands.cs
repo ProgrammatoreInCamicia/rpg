@@ -44,7 +44,7 @@ internal sealed partial class Simulation
         };
         actor.Location = null;
         Begin(actor, travel);
-        World.RecordFact("TravelStarted", $"{actor.Name} parte da {World.Locations[origin].Name} verso {destination.Name}.");
+        World.RecordFact("TravelStarted", $"{actor.Name} parte da {World.Locations[origin].Name} verso {destination.Name}.", actor.Id);
         return CommandResult.Started(travel.Id, travel.CompletesAt, $"{actor.Name} si incammina verso {destination.Name}.");
     }
 
@@ -93,7 +93,7 @@ internal sealed partial class Simulation
         if (theft)
         {
             stealth = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Stealth), disadvantage: actor.Sheet.StealthDisadvantage);
-            World.RecordFact("Roll", $"{actor.Name}, Furtività: {stealth.Describe()} ({Perception.Describe(Perception.LightAt(World.Now))}).");
+            World.RecordFact("Roll", $"{actor.Name}, Furtività: {stealth.Describe()} ({Perception.Describe(Perception.LightAt(World.Now))}).", actor.Id);
         }
 
         var take = new TakeFoodAction
@@ -178,7 +178,7 @@ internal sealed partial class Simulation
             case TravelAction travel:
                 actor.Location = travel.Destination;
                 actor.ArrivedAt = World.Now;
-                World.RecordFact("TravelCompleted", $"{actor.Name} arriva a {World.Locations[travel.Destination].Name}.");
+                World.RecordFact("TravelCompleted", $"{actor.Name} arriva a {World.Locations[travel.Destination].Name}.", actor.Id);
                 break;
             case DepositFoodAction deposit:
                 CompleteDeposit(actor, deposit);
@@ -188,6 +188,9 @@ internal sealed partial class Simulation
                 break;
             case ReportAction report:
                 CompleteReport(actor, report);
+                break;
+            case ConfiscateAction confiscate:
+                CompleteConfiscate(actor, confiscate);
                 break;
             case GuardAction:
             case WaitAction:
@@ -207,13 +210,13 @@ internal sealed partial class Simulation
         if (failure is not null)
         {
             World.RecordFact("FoodDepositFailed",
-                $"{actor.Name} non riesce a consegnare {deposit.Amount} razioni a {store.Name}: {failure}.");
+                $"{actor.Name} non riesce a consegnare {deposit.Amount} razioni a {store.Name}: {failure}.", actor.Id);
             return;
         }
 
         actor.Food -= deposit.Amount;
         store.Food += deposit.Amount;
-        World.RecordFact("FoodDeposited", $"{actor.Name} consegna {deposit.Amount} razioni a {store.Name} (ora {store.Food}).");
+        World.RecordFact("FoodDeposited", $"{actor.Name} consegna {deposit.Amount} razioni a {store.Name} (ora {store.Food}).", actor.Id);
     }
 
     private void CompleteTake(Actor actor, TakeFoodAction take)
@@ -225,7 +228,7 @@ internal sealed partial class Simulation
         var theft = IsTheft(actor, store);
         if (theft && IsGuarded(store))
         {
-            World.RecordFact("FoodTakeFailed", $"{actor.Name} rinuncia: {store.Name} ora è sorvegliato.");
+            World.RecordFact("FoodTakeFailed", $"{actor.Name} rinuncia: {store.Name} ora è sorvegliato.", actor.Id);
             return;
         }
 
@@ -233,7 +236,7 @@ internal sealed partial class Simulation
         var taken = actor.Location == store.Location ? Math.Min(Math.Min(take.Amount, store.Food), int.MaxValue - actor.Food) : 0;
         if (taken == 0)
         {
-            World.RecordFact("FoodTakeFailed", $"{actor.Name} non trova razioni da prendere in {store.Name}.");
+            World.RecordFact("FoodTakeFailed", $"{actor.Name} non trova razioni da prendere in {store.Name}.", actor.Id);
             return;
         }
 
@@ -241,11 +244,11 @@ internal sealed partial class Simulation
         actor.Food += taken;
         if (!theft)
         {
-            World.RecordFact("FoodTaken", $"{actor.Name} prende {taken} razioni da {store.Name} (restano {store.Food}).");
+            World.RecordFact("FoodTaken", $"{actor.Name} prende {taken} razioni da {store.Name} (restano {store.Food}).", actor.Id);
             return;
         }
 
-        var fact = World.RecordFact("FoodStolen", $"{actor.Name} ruba {taken} razioni da {store.Name} (restano {store.Food}).");
+        var fact = World.RecordFact("FoodStolen", $"{actor.Name} ruba {taken} razioni da {store.Name} (restano {store.Food}).", actor.Id);
         PerceiveTheft(actor, take, store, taken, fact);
     }
 
@@ -330,7 +333,7 @@ internal sealed partial class Simulation
         var recipient = World.Actors[report.Recipient];
         if (recipient.Location is null || recipient.Location != reporter.Location)
         {
-            World.RecordFact("ReportFailed", $"{reporter.Name} non trova più {recipient.Name} per parlargli.");
+            World.RecordFact("ReportFailed", $"{reporter.Name} non trova più {recipient.Name} per parlargli.", reporter.Id, recipient.Id);
             return;
         }
 
@@ -341,7 +344,7 @@ internal sealed partial class Simulation
         // A rumour that comes back is not a second piece of evidence.
         if (recipient.Knowledge.Any(o => o.Origin == told.Origin))
         {
-            World.RecordFact("InformationShared", $"{reporter.Name} racconta a {recipient.Name} del furto, ma lo sapeva già.");
+            World.RecordFact("InformationShared", $"{reporter.Name} racconta a {recipient.Name} del furto, ma lo sapeva già.", reporter.Id, recipient.Id);
             return;
         }
 
@@ -362,8 +365,57 @@ internal sealed partial class Simulation
         });
         World.RecordFact("InformationShared",
             $"{reporter.Name} racconta a {recipient.Name} del furto da {told.StoreName}" +
-            (told.ThiefName is { } thief ? $" ({thief})." : " (ladro sconosciuto)."));
+            (told.ThiefName is { } thief ? $" ({thief})." : " (ladro sconosciuto)."), reporter.Id, recipient.Id);
         InterruptRoutine(recipient);
+    }
+
+    // ---------------------------------------------------------------- confiscation
+
+    /// <summary>The authority asks a known thief, standing in front of it, to hand back what is owed.</summary>
+    private CommandResult StartConfiscate(Actor authority, Actor thief, Claim claim)
+    {
+        var confiscate = new ConfiscateAction
+        {
+            Id = World.AllocateActionId(),
+            Actor = authority.Id,
+            StartedAt = World.Now,
+            CompletesAt = World.Now.Plus(Tuning.ConfiscateDuration),
+            Target = thief.Id,
+            Store = claim.Store,
+            Description = $"Si fa restituire da {thief.Name} le razioni rubate",
+        };
+        Begin(authority, confiscate);
+        return CommandResult.Started(confiscate.Id, confiscate.CompletesAt, $"{authority.Name} ferma {thief.Name}.");
+    }
+
+    /// <summary>
+    /// Takes back at most what is still owed and what the thief still carries: never more, never from afar.
+    /// </summary>
+    private void CompleteConfiscate(Actor authority, ConfiscateAction confiscate)
+    {
+        var thief = World.Actors[confiscate.Target];
+        var claim = authority.Claims.FirstOrDefault(c => c.Thief == thief.Id && c.Store == confiscate.Store);
+        if (claim is null || thief.Location is null || thief.Location != authority.Location)
+        {
+            World.RecordFact("ConfiscationFailed", $"{authority.Name} non riesce a fermare {thief.Name}.", authority.Id, thief.Id);
+            return;
+        }
+
+        var taken = Math.Min(Math.Min(claim.Owed, thief.Food), int.MaxValue - authority.Food);
+        if (taken == 0)
+        {
+            World.RecordFact("ConfiscationFailed", $"{thief.Name} non ha più le razioni rubate.", authority.Id, thief.Id);
+            return;
+        }
+
+        thief.Food -= taken;
+        authority.Food += taken;
+        claim.Owed -= taken;
+        if (claim.Owed == 0)
+            authority.Claims.Remove(claim);
+        World.RecordFact("FoodConfiscated",
+            $"{authority.Name} si fa restituire da {thief.Name} {taken} razioni rubate" +
+            (claim.Owed > 0 ? $" (ne mancano {claim.Owed})." : "."), authority.Id, thief.Id);
     }
 
     // ---------------------------------------------------------------- guarding
