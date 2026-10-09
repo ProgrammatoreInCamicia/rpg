@@ -38,3 +38,9 @@ public readonly record struct StoreId(string Value) : IComparable<StoreId>
     public int CompareTo(StoreId other) => string.CompareOrdinal(Value, other.Value);
     public override string ToString() => Value;
 }
+
+public readonly record struct FactionId(string Value) : IComparable<FactionId>
+{
+    public int CompareTo(FactionId other) => string.CompareOrdinal(Value, other.Value);
+    public override string ToString() => Value;
+}

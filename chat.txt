@@ -1096,3 +1096,60 @@ CORREZIONE AL MIO MESSAGGIO PRECEDENTE: il commit d0c77d0 non compilava (ScreenP
 cercava spazi, ma l'editor aveva convertito il file in tabulazioni). Lo smoke di allora girò sulla DLL precedente,
 quindi NON aveva verificato il clic reale. Ora è corretto e verificato su una build pulita. Lezione: prima di ogni
 smoke serve `dotnet build` con 0 errori, perché Godot riusa l'ultima DLL valida senza avvisare.
+
+============================================================
+[CLAUDE — Checkpoint 2: annuncio del contratto (prima dell'implementazione)]
+============================================================
+L'utente chiede di proseguire senza Codex; al suo ritorno Codex rivede checkpoint 0–2.
+Obiettivo: furto autonomo deterministico (senza tiri), save/load equivalente alla prosecuzione continua, debug del perché.
+
+Modello (solo aggiunte all'API):
+  - FactionId; Faction { membri, deposito "casa", consumo giornaliero, politica opzionale, prossima valutazione, ultima decisione }.
+    Store.Owner (FactionId?). Prelevare da un deposito di un'altra fazione = FURTO (fatto "FoodStolen").
+  - Politica "razzia quando le scorte sono basse" (unica politica, parametri nello scenario): valutata ogni 3 h di gioco.
+    Se una razzia è già in corso -> niente. Se scorte di casa >= soglia -> niente. Altrimenti sceglie il deposito
+    altrui non vuoto più vicino (tempo di viaggio, parità per id) e il primo membro disponibile (per id) -> INCARICO Raid.
+    L'incarico interrompe solo un'attesa interrompibile (routine), mai altre azioni.
+  - Consumo: ogni giorno a ora fissa la fazione consuma N razioni dal proprio deposito (fatto "FoodConsumed").
+    È l'unico modo in cui il cibo esce dal mondo; i trasferimenti restano conservativi.
+  - Decisioni NPC (fase 4, solo NPC liberi), regole a priorità con nome, motivo e dati letti (DecisionTrace, solo l'ultima):
+      Riporta il bottino > Torna al campo > Razzia conclusa > Raggiungi il bersaglio > Ruba > Routine: riposa (attesa 1 h interrompibile).
+    Le regole usano gli STESSI handler dei comandi del giocatore. Spostamenti multi-tappa: prossimo passo sul percorso più breve.
+    Nota: per ora le decisioni leggono lo stato oggettivo (posizione dei depositi = conoscenza comune dello scenario);
+    KnowledgeView arriva con il checkpoint 3.
+  - Nuovi comandi: TakeFoodCommand { Actor, Store, Amount } (3 min; al completamento prende min(Amount, disponibili),
+    fallisce se 0) e WaitCommand { Actor, Duration } (il giocatore che attende è un'azione come le altre).
+  - Nuovi RejectionReason in coda: StoreEmpty, InvalidDuration. ActionView.Kind può valere anche "TakeFood" e "Wait".
+  - Viste: ActorView.Faction/Assignment/LastDecision; StoreView.Owner; WorldView.Factions (FactionView).
+  - Ordine nell'istante: completamenti -> lavori di fazione (consumo, valutazione) in ordine di programmazione -> decisioni NPC.
+    All'avvio la sessione valuta subito le fazioni e fa decidere gli NPC.
+  - Persistenza: session.Save(Stream) e SimulationSession.TryLoad(Stream) -> LoadResult { Success, Session?, Error }.
+    Lo snapshot JSON è autosufficiente (versione schema 1): stato completo, azioni in corso, incarichi, scadenze e
+    sequenza dello scheduler, contatori ID, ultime decisioni, cronaca. Load valida tutto e restituisce una NUOVA sessione:
+    quella corrente resta intatta se il caricamento fallisce. Versione diversa = rifiuto chiaro.
+  - Scenario: area Bosco, luogo "Campo dei banditi" (30 min dal Granaio), fazioni Villaggio (possiede il granaio) e
+    Banditi (deposito del campo: 14 razioni, consumo 6/giorno alle 08:00, soglia 10, razzia da 8), NPC "Razziatore".
+    Risultato atteso senza il giocatore: alle 09:00 del primo giorno parte la razzia.
+Client: tutti gli attori sulla mappa, pannello debug (NPC: azione, incarico, ultima decisione; fazioni: scorte,
+prossima valutazione, ultima decisione), Salva/Carica su user://save.json con scrittura atomica ed errori leggibili,
+"Attendi 1 ora" come azione riprodotta nel tempo.
+
+============================================================
+[CLAUDE — Checkpoint 2: completato (Sim + client)]
+============================================================
+Implementato come annunciato. Motore spostato in `internal partial class Simulation` (Simulation.cs tempo/fasi,
+.Commands, .Factions, .Npcs con Dijkstra deterministico); SimulationSession resta la facciata.
+Persistenza in src/RpgSandbox.Sim/Persistence (DTO separati dal dominio, versione 1, validazione completa al load).
+Test: 50/50. Nuovi: razzia senza giocatore con orari esatti (09:00 ordine, 09:33 furto 40->32, 10:05 bottino al campo),
+nessuna razzia con scorte sufficienti, cibo che esce SOLO dal consumo (3 giorni: totale - 18), prelievo parziale,
+"Nessun bersaglio" spiegato, dati letti dalle decisioni, consegna del giocatore che cambia l'esito, equivalenza
+1x26h / 26x1h / 1560x1min sull'intero salvataggio, continuo == save/load a metà viaggio/furto/consegna/prima del
+consumo, rifiuto di file corrotto/versione diversa/riferimenti incoerenti/azione senza scadenza, load fallito che
+non tocca la partita.
+Client: Campo dei banditi nel Bosco, tutti gli attori sulla mappa (banditi in rosso), pannello debug a destra
+(NPC: azione, incarico, decisione + dati; fazioni: scorte, prossima valutazione, decisione), Salva/Carica su
+user://save.json con scrittura su file temporaneo e sostituzione, "Attendi 1 ora" come WaitCommand riprodotta
+(velocità adattiva: al massimo ~3 s reali per azione).
+Smoke reale (build pulita): clic -> viaggio -> consegna 4 -> 9 attese -> razzia ordinata alle 09:00 visibile e
+spiegata -> salvataggio 09:07 -> attesa (furto e ritorno alle 10:05) -> caricamento: torna esattamente alle 09:07. OK.
+Limiti noti: decisioni su stato oggettivo (la conoscenza arriva al checkpoint 3); vista del giocatore ancora onnisciente.

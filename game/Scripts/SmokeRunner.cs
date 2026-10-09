@@ -4,8 +4,8 @@ using RpgSandbox.Sim.Scenarios;
 namespace RpgSandbox.Game;
 
 /// <summary>
-/// Development aid, enabled only by the `--smoke=&lt;dir&gt;` user argument: drives a trip through the
-/// real UI path and saves screenshots before, during and after it, then quits.
+/// Development aid, enabled only by the `--smoke=&lt;dir&gt;` user argument: plays a scripted session
+/// through the real UI paths, saves screenshots along the way, then quits.
 /// </summary>
 public partial class SmokeRunner : Node
 {
@@ -35,22 +35,39 @@ public partial class SmokeRunner : Node
 		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = target, GlobalPosition = target });
 		await Seconds(1.0);
 		Capture("2-travelling.png");
-
-		while (_main.IsBusy)
-			await Frames(1);
-		await Frames(2);
-		Capture("3-arrived.png");
+		await UntilIdle();
 
 		_main.DepositViaUi(4);
-		await Frames(5);
-		Capture("4-depositing.png");
-		while (_main.IsBusy)
-			await Frames(1);
-		await Frames(2);
-		Capture("5-deposited.png");
+		await UntilIdle();
+		Capture("3-deposited.png");
+
+		// Wait until the bandits' raid is under way (it starts at 09:00).
+		for (var hour = 0; hour < 9; hour++)
+		{
+			_main.WaitOneHour();
+			await UntilIdle();
+		}
+		Capture("4-raid-ordered.png");
+
+		_main.SaveGame();
+		_main.WaitOneHour();
+		await UntilIdle();
+		Capture("5-after-raid.png");
+
+		_main.LoadGame();
+		await Frames(3);
+		Capture("6-reloaded.png");
 
 		GD.Print("SMOKE OK");
 		GetTree().Quit();
+	}
+
+	private async Task UntilIdle()
+	{
+		await Frames(1);
+		while (_main.IsBusy)
+			await Frames(1);
+		await Frames(2);
 	}
 
 	private void Capture(string name)

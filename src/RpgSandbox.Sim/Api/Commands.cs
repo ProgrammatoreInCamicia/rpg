@@ -19,6 +19,22 @@ public sealed record DepositFoodCommand : Command
     public required int Amount { get; init; }
 }
 
+/// <summary>
+/// Take up to <see cref="Amount"/> rations from a store in the actor's current location. Taking from a
+/// store owned by another faction is theft. The amount actually taken is decided at completion.
+/// </summary>
+public sealed record TakeFoodCommand : Command
+{
+    public required StoreId Store { get; init; }
+    public required int Amount { get; init; }
+}
+
+/// <summary>Let time pass. Waiting is an action like any other.</summary>
+public sealed record WaitCommand : Command
+{
+    public required Duration Duration { get; init; }
+}
+
 public enum RejectionReason
 {
     None = 0,
@@ -32,6 +48,8 @@ public enum RejectionReason
     NotAtStore,
     InvalidAmount,
     InsufficientFood,
+    StoreEmpty,
+    InvalidDuration,
 }
 
 public sealed record CommandResult

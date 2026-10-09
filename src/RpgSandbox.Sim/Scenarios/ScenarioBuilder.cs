@@ -12,6 +12,7 @@ public sealed class Scenario
         IReadOnlyList<AreaDefinition> areas,
         IReadOnlyList<LocationDefinition> locations,
         IReadOnlyList<RouteDefinition> routes,
+        IReadOnlyList<FactionDefinition> factions,
         IReadOnlyList<ActorDefinition> actors,
         IReadOnlyList<StoreDefinition> stores,
         ActorId player)
@@ -19,6 +20,7 @@ public sealed class Scenario
         Areas = areas;
         Locations = locations;
         Routes = routes;
+        Factions = factions;
         Actors = actors;
         Stores = stores;
         Player = player;
@@ -27,6 +29,7 @@ public sealed class Scenario
     internal IReadOnlyList<AreaDefinition> Areas { get; }
     internal IReadOnlyList<LocationDefinition> Locations { get; }
     internal IReadOnlyList<RouteDefinition> Routes { get; }
+    internal IReadOnlyList<FactionDefinition> Factions { get; }
     internal IReadOnlyList<ActorDefinition> Actors { get; }
     internal IReadOnlyList<StoreDefinition> Stores { get; }
     internal ActorId Player { get; }
@@ -35,8 +38,10 @@ public sealed class Scenario
 internal sealed record AreaDefinition(AreaId Id, string Name);
 internal sealed record LocationDefinition(LocationId Id, string Name, AreaId Area);
 internal sealed record RouteDefinition(LocationId A, LocationId B, Duration TravelTime);
-internal sealed record ActorDefinition(ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food);
-internal sealed record StoreDefinition(StoreId Id, string Name, LocationId Location, int Food);
+internal sealed record ActorDefinition(ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food, FactionId? Faction);
+internal sealed record StoreDefinition(StoreId Id, string Name, LocationId Location, int Food, FactionId? Owner);
+internal sealed record FactionDefinition(
+    FactionId Id, string Name, StoreId? HomeStore, int DailyUpkeep, Duration UpkeepTimeOfDay, RaidPolicy? Policy);
 
 /// <summary>Builds a <see cref="Scenario"/> in C#. Validates references when <see cref="Build"/> is called.</summary>
 public sealed class ScenarioBuilder
@@ -44,6 +49,7 @@ public sealed class ScenarioBuilder
     private readonly List<AreaDefinition> _areas = new();
     private readonly List<LocationDefinition> _locations = new();
     private readonly List<RouteDefinition> _routes = new();
+    private readonly List<FactionDefinition> _factions = new();
     private readonly List<ActorDefinition> _actors = new();
     private readonly List<StoreDefinition> _stores = new();
 
@@ -66,15 +72,33 @@ public sealed class ScenarioBuilder
         return this;
     }
 
-    public ScenarioBuilder AddActor(string id, string name, string locationId, bool isPlayer = false, int food = 0)
+    /// <summary>A faction without a policy: it owns things and has members, but takes no initiative.</summary>
+    public ScenarioBuilder AddFaction(string id, string name, string? homeStoreId = null,
+        int dailyUpkeep = 0, Duration upkeepTimeOfDay = default)
     {
-        _actors.Add(new ActorDefinition(new ActorId(id), name, new LocationId(locationId), isPlayer, food));
+        _factions.Add(new FactionDefinition(new FactionId(id), name, ToStore(homeStoreId), dailyUpkeep, upkeepTimeOfDay, null));
         return this;
     }
 
-    public ScenarioBuilder AddStore(string id, string name, string locationId, int food)
+    /// <summary>A faction that raids other factions' stores when its home store falls below a threshold.</summary>
+    public ScenarioBuilder AddRaidingFaction(string id, string name, string homeStoreId,
+        int dailyUpkeep, Duration upkeepTimeOfDay, int foodThreshold, int raidAmount, Duration evaluationInterval)
     {
-        _stores.Add(new StoreDefinition(new StoreId(id), name, new LocationId(locationId), food));
+        var policy = new RaidPolicy(foodThreshold, raidAmount, evaluationInterval);
+        _factions.Add(new FactionDefinition(new FactionId(id), name, new StoreId(homeStoreId), dailyUpkeep, upkeepTimeOfDay, policy));
+        return this;
+    }
+
+    public ScenarioBuilder AddActor(string id, string name, string locationId, bool isPlayer = false, int food = 0,
+        string? factionId = null)
+    {
+        _actors.Add(new ActorDefinition(new ActorId(id), name, new LocationId(locationId), isPlayer, food, ToFaction(factionId)));
+        return this;
+    }
+
+    public ScenarioBuilder AddStore(string id, string name, string locationId, int food, string? ownerFactionId = null)
+    {
+        _stores.Add(new StoreDefinition(new StoreId(id), name, new LocationId(locationId), food, ToFaction(ownerFactionId)));
         return this;
     }
 
@@ -83,50 +107,76 @@ public sealed class ScenarioBuilder
         RequireUnique(_areas.Select(a => a.Id.Value), "area");
         RequireUnique(_locations.Select(l => l.Id.Value), "location");
         RequireUnique(_actors.Select(a => a.Id.Value), "actor");
+        RequireUnique(_stores.Select(s => s.Id.Value), "store");
+        RequireUnique(_factions.Select(f => f.Id.Value), "faction");
 
         var areaIds = _areas.Select(a => a.Id).ToHashSet();
         var locationIds = _locations.Select(l => l.Id).ToHashSet();
+        var factionIds = _factions.Select(f => f.Id).ToHashSet();
+        var storeIds = _stores.Select(s => s.Id).ToHashSet();
 
         foreach (var location in _locations)
-            if (!areaIds.Contains(location.Area))
-                throw new InvalidOperationException($"Location '{location.Id}' references unknown area '{location.Area}'.");
+            Require(areaIds.Contains(location.Area), $"Location '{location.Id}' references unknown area '{location.Area}'.");
 
         var routePairs = new HashSet<(LocationId, LocationId)>();
         foreach (var route in _routes)
         {
-            if (!locationIds.Contains(route.A) || !locationIds.Contains(route.B))
-                throw new InvalidOperationException($"Route '{route.A}'-'{route.B}' references an unknown location.");
-            if (route.A == route.B)
-                throw new InvalidOperationException($"Route from '{route.A}' to itself.");
-            if (route.TravelTime.Seconds <= 0)
-                throw new InvalidOperationException($"Route '{route.A}'-'{route.B}' must take positive time.");
+            Require(locationIds.Contains(route.A) && locationIds.Contains(route.B),
+                $"Route '{route.A}'-'{route.B}' references an unknown location.");
+            Require(route.A != route.B, $"Route from '{route.A}' to itself.");
+            Require(route.TravelTime.Seconds > 0, $"Route '{route.A}'-'{route.B}' must take positive time.");
             var key = route.A.CompareTo(route.B) < 0 ? (route.A, route.B) : (route.B, route.A);
-            if (!routePairs.Add(key))
-                throw new InvalidOperationException($"Duplicate route '{route.A}'-'{route.B}'.");
+            Require(routePairs.Add(key), $"Duplicate route '{route.A}'-'{route.B}'.");
         }
 
         foreach (var actor in _actors)
         {
-            if (!locationIds.Contains(actor.Location))
-                throw new InvalidOperationException($"Actor '{actor.Id}' starts at unknown location '{actor.Location}'.");
-            if (actor.Food < 0)
-                throw new InvalidOperationException($"Actor '{actor.Id}' starts with negative food.");
+            Require(locationIds.Contains(actor.Location), $"Actor '{actor.Id}' starts at unknown location '{actor.Location}'.");
+            Require(actor.Food >= 0, $"Actor '{actor.Id}' starts with negative food.");
+            Require(actor.Faction is null || factionIds.Contains(actor.Faction.Value),
+                $"Actor '{actor.Id}' belongs to unknown faction '{actor.Faction}'.");
         }
 
-        RequireUnique(_stores.Select(s => s.Id.Value), "store");
         foreach (var store in _stores)
         {
-            if (!locationIds.Contains(store.Location))
-                throw new InvalidOperationException($"Store '{store.Id}' is at unknown location '{store.Location}'.");
-            if (store.Food < 0)
-                throw new InvalidOperationException($"Store '{store.Id}' starts with negative food.");
+            Require(locationIds.Contains(store.Location), $"Store '{store.Id}' is at unknown location '{store.Location}'.");
+            Require(store.Food >= 0, $"Store '{store.Id}' starts with negative food.");
+            Require(store.Owner is null || factionIds.Contains(store.Owner.Value),
+                $"Store '{store.Id}' is owned by unknown faction '{store.Owner}'.");
+        }
+
+        foreach (var faction in _factions)
+        {
+            Require(faction.HomeStore is null || storeIds.Contains(faction.HomeStore.Value),
+                $"Faction '{faction.Id}' has unknown home store '{faction.HomeStore}'.");
+            Require(faction.DailyUpkeep >= 0, $"Faction '{faction.Id}' has negative upkeep.");
+            Require(faction.DailyUpkeep == 0 || faction.HomeStore is not null,
+                $"Faction '{faction.Id}' consumes food but has no home store.");
+            Require(faction.UpkeepTimeOfDay.Seconds is >= 0 and < 86_400,
+                $"Faction '{faction.Id}' upkeep time must be within a day.");
+            if (faction.Policy is { } policy)
+            {
+                Require(policy.EvaluationInterval.Seconds > 0, $"Faction '{faction.Id}' evaluation interval must be positive.");
+                Require(policy.RaidAmount > 0, $"Faction '{faction.Id}' raid amount must be positive.");
+                Require(_stores.Any(s => s.Id == faction.HomeStore && s.Owner == faction.Id),
+                    $"Raiding faction '{faction.Id}' must own its home store.");
+            }
         }
 
         var players = _actors.Where(a => a.IsPlayer).ToList();
-        if (players.Count != 1)
-            throw new InvalidOperationException($"A scenario needs exactly one player actor, found {players.Count}.");
+        Require(players.Count == 1, $"A scenario needs exactly one player actor, found {players.Count}.");
 
-        return new Scenario(_areas.ToArray(), _locations.ToArray(), _routes.ToArray(), _actors.ToArray(), _stores.ToArray(), players[0].Id);
+        return new Scenario(_areas.ToArray(), _locations.ToArray(), _routes.ToArray(), _factions.ToArray(),
+            _actors.ToArray(), _stores.ToArray(), players[0].Id);
+    }
+
+    private static FactionId? ToFaction(string? id) => id is null ? null : new FactionId(id);
+    private static StoreId? ToStore(string? id) => id is null ? null : new StoreId(id);
+
+    private static void Require(bool condition, string message)
+    {
+        if (!condition)
+            throw new InvalidOperationException(message);
     }
 
     private static void RequireUnique(IEnumerable<string> ids, string kind)
@@ -134,10 +184,8 @@ public sealed class ScenarioBuilder
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var id in ids)
         {
-            if (string.IsNullOrWhiteSpace(id))
-                throw new InvalidOperationException($"Empty {kind} id.");
-            if (!seen.Add(id))
-                throw new InvalidOperationException($"Duplicate {kind} id '{id}'.");
+            Require(!string.IsNullOrWhiteSpace(id), $"Empty {kind} id.");
+            Require(seen.Add(id), $"Duplicate {kind} id '{id}'.");
         }
     }
 }

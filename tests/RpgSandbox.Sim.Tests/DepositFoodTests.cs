@@ -143,7 +143,7 @@ public class DepositFoodTests
     [Fact]
     public void Stores_appear_in_the_world_view()
     {
-        var store = SimulationSession.Create(SliceScenario.Create()).GetWorldView().Stores.Single();
+        var store = SimulationSession.Create(SliceScenario.Create()).GetWorldView().Stores.Single(x => x.Id == GranaryStore);
 
         Assert.Equal(GranaryStore, store.Id);
         Assert.Equal(Granary, store.Location);

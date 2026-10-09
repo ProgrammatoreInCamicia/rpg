@@ -16,9 +16,10 @@ public class ScenarioBuilderTests
     {
         var view = SimulationSession.Create(SliceScenario.Create()).GetWorldView();
 
-        Assert.Equal(2, view.Locations.Count);
-        Assert.Equal(2, view.Routes.Count); // one per direction
+        Assert.Equal(3, view.Locations.Count);
+        Assert.Equal(4, view.Routes.Count); // two routes, one entry per direction
         Assert.Single(view.Actors, a => a.IsPlayer);
+        Assert.Equal(2, view.Factions.Count);
     }
 
     [Fact]

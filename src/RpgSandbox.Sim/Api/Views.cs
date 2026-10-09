@@ -52,13 +52,55 @@ public sealed record ActorView
 
     /// <summary>Travel-specific details, set only while travelling.</summary>
     public TravelView? Travel { get; init; }
+
+    public FactionId? Faction { get; init; }
+
+    /// <summary>The faction assignment being carried out, if any (NPCs only).</summary>
+    public AssignmentView? Assignment { get; init; }
+
+    /// <summary>Why the NPC is doing what it does (debug). Null for the player.</summary>
+    public DecisionView? LastDecision { get; init; }
+}
+
+public sealed record AssignmentView
+{
+    /// <summary>"Raid" for now. New kinds are announced before they appear.</summary>
+    public required string Kind { get; init; }
+    public required FactionId Faction { get; init; }
+    public required StoreId Target { get; init; }
+    public required StoreId Home { get; init; }
+    public required int Amount { get; init; }
+    public required GameTime AssignedAt { get; init; }
+    public required bool TakeAttempted { get; init; }
+}
+
+/// <summary>A recorded decision: which rule fired, why, and the data it read.</summary>
+public sealed record DecisionView
+{
+    public required GameTime At { get; init; }
+    public required string Rule { get; init; }
+    public required string Reason { get; init; }
+    public required IReadOnlyList<string> Inputs { get; init; }
+}
+
+public sealed record FactionView
+{
+    public required FactionId Id { get; init; }
+    public required string Name { get; init; }
+    public StoreId? HomeStore { get; init; }
+    public required int DailyUpkeep { get; init; }
+    public required IReadOnlyList<ActorId> Members { get; init; }
+
+    /// <summary>Null for factions without a policy.</summary>
+    public GameTime? NextEvaluation { get; init; }
+    public DecisionView? LastDecision { get; init; }
 }
 
 public sealed record ActionView
 {
     public required ActionId Id { get; init; }
 
-    /// <summary>"Travel" or "DepositFood". New kinds are announced before they appear.</summary>
+    /// <summary>"Travel", "DepositFood", "TakeFood" or "Wait". New kinds are announced before they appear.</summary>
     public required string Kind { get; init; }
 
     public required GameTime StartedAt { get; init; }
@@ -72,6 +114,7 @@ public sealed record StoreView
     public required string Name { get; init; }
     public required LocationId Location { get; init; }
     public required int Food { get; init; }
+    public FactionId? Owner { get; init; }
 }
 
 /// <summary>A fact recorded in the world history, as shown on the debug timeline.</summary>
@@ -96,6 +139,7 @@ public sealed record WorldView
     public required IReadOnlyList<RouteView> Routes { get; init; }
     public required IReadOnlyList<ActorView> Actors { get; init; }
     public required IReadOnlyList<StoreView> Stores { get; init; }
+    public required IReadOnlyList<FactionView> Factions { get; init; }
 
     /// <summary>Most recent facts, oldest first.</summary>
     public required IReadOnlyList<FactView> RecentFacts { get; init; }
