@@ -27,7 +27,7 @@ dotnet test                          # test della simulazione
 
 # editor
 tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64.exe --path game --editor
-# avvio diretto del gioco
+# avvio diretto del gioco (oppure doppio clic su gioca.cmd)
 tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64.exe --path game
 # prova automatica: viaggio scriptato con screenshot in <dir>
 tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64_console.exe --path game -- --smoke=<dir>
