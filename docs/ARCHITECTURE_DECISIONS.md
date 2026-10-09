@@ -107,7 +107,7 @@ tests/RpgSandbox.Sim.Tests/  # xUnit: scenari e invarianti
 
 - **Scenario costruito in C#** (`ScenarioBuilder`), separato dallo stato mutabile. JSON, content pack e behavior registry arriveranno solo con un'esigenza concreta.
 - **Regolamento: D&D 5e, solo tramite SRD** (CC-BY-4.0, con l'attribuzione richiesta).
-  - Riferimento provvisorio: **SRD 5.2.1**. L'utente deve ancora confermare se intende le regole 2014 (SRD 5.1) o quelle 2024 (SRD 5.2). Non si mescolano versioni.
+  - **SRD 5.2.1 (regole 2024)**, confermato dall'utente il 2026-10-09. Non si mescolano versioni.
   - Contenuti originali (ambientazione, creature, nomi) sono permessi. Contenuti D&D esterni allo SRD e il marchio come nome del prodotto no.
   - Il testo dell'attribuzione e le condizioni per gli adattamenti vanno verificati sul materiale effettivamente incorporato.
 - Il modulo `Rules` in Sim nasce **solo quando serve la prima regola**: si prevede una meccanica di furtività giocabile dopo la slice. In quel momento entrano anche dadi, prove d20 e l'RNG serializzabile (§5). I riposi aspettano che esistano risorse da recuperare.
@@ -154,7 +154,7 @@ tests/RpgSandbox.Sim.Tests/  # xUnit: scenari e invarianti
 | Combattimento | A turni, con interesse per la "via di mezzo" di BG1/BG2 | Prima implementazione a turni 5e (iniziativa, round da 6 s), dentro Sim ed eseguibile anche fuori schermo. Il tempo reale con pausa **non** è considerato solo una modalità di presentazione: se servirà, si rivaluterà nel dominio. Si parte da un sottoinsieme esplicito delle regole, non dalla 5e completa. |
 | Personaggio | Protagonista singolo con compagni reclutabili nel mondo | Un compagno è un NPC normale, con obiettivi e memoria propri. L'**appartenenza al gruppo è una relazione persistente**, distinta dal comportamento "seguire" e dall'azione `Travel`. Primo esperimento: reclutamento consensuale e viaggio insieme. Rifiuto, abbandono e controllo diretto non sono ancora requisiti. |
 | Grafica | Isometrica | Segnaposto isometrici già dall'incremento 0 (§4). |
-| Regole | D&D 5e | Solo SRD (§9). Versione 2014 o 2024 da confermare. |
+| Regole | D&D 5e (regole 2024) | Solo SRD 5.2.1, con attribuzione CC-BY-4.0 (§9). |
 
 **Candidati dopo la slice** (non sono milestone fissate):
 
@@ -164,5 +164,6 @@ tests/RpgSandbox.Sim.Tests/  # xUnit: scenari e invarianti
 
 **Domande ancora aperte per l'utente:**
 
-- SRD 5.1 (regole 2014) o SRD 5.2.1 (regole 2024)?
+- ~~SRD 5.1 o 5.2.1?~~ Deciso: SRD 5.2.1 (regole 2024).
+- Raccontare le informazioni: deciso "Parla con…" con reazioni diverse per ascoltatore (soluzione C), come tappa successiva. Proposta delle tappe 4 e 5 in `chat.txt`.
 - Combattimento: turni puri, oppure in futuro anche una modalità alla BG (turni risolti automaticamente con pausa, o tempo reale con pausa vero e proprio)?

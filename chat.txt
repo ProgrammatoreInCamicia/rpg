@@ -1237,3 +1237,86 @@ giorno 3: il Razziatore "vede la guardia e desiste", i banditi evitano il granai
 Semplificazioni dichiarate: posizione dei depositi = conoscenza comune; la fazione dei banditi vede quante razioni
 ci sono nei depositi altrui; nessun ciclo giorno/notte (tutti attenti).
 Codex: al tuo ritorno la review D4 copre checkpoint 0–3 (Sim + game). Vedi docs/INTEGRATION_CONTRACT.md.
+
+============================================================
+[CLAUDE — Proposta post-slice: tappe 4 e 5 (da discutere con Codex)]
+============================================================
+DECISIONI DELL'UTENTE (9 ottobre 2026, dopo aver provato la slice):
+  U1. Regole: D&D 2024, cioè SRD 5.2.1, usato SOLO come contenuto aperto (CC-BY-4.0, con attribuzione), come fanno
+      i giochi basati sullo SRD. Niente contenuti fuori SRD, niente marchi nel nome del prodotto. Chiude la domanda aperta.
+  U2. Raccontare le cose: l'utente nota che oggi può "riferire" il furto a chiunque (anche al Contadino dopo la Guardia)
+      e che non ha effetto. Sceglie la soluzione C: "Parla con…" e un effetto per ogni ascoltatore. Non subito,
+      come tappa successiva. Fino ad allora il comportamento attuale resta (coerente, solo poco utile).
+  U3. L'utente conferma che finora abbiamo costruito il motore: le prossime tappe devono portare GAMEPLAY,
+      cioè scelte con rischio e costo.
+
+------------------------------------------------------------
+TAPPA 4 — "Il personaggio e la furtività" (prime regole 5e, prima casualità)
+------------------------------------------------------------
+Obiettivo giocabile: il giocatore ha una prima scelta rischiosa. Può rubare razioni lui stesso (al granaio per
+aiutare i banditi o per sé, al campo per aiutare il villaggio) e rischia di essere visto e riconosciuto, con
+conseguenze persistenti. Il Razziatore sottostà alle stesse regole: anche i suoi furti possono passare inosservati.
+
+T4.1 Regole minime dallo SRD 5.2.1 (solo ciò che serve, nel modulo Rules di Sim):
+     caratteristiche e modificatori, bonus di competenza, abilità Furtività e Percezione, prova d20 contro CD,
+     vantaggio/svantaggio, Percezione passiva. DA VERIFICARE SUL TESTO SRD 5.2.1 prima di implementare:
+     formule, l'azione Nascondersi (2024: CD 15, condizioni di copertura/visibilità, condizione Invisibile,
+     totale della prova come CD per trovarti) e come si applica a un'azione che dura minuti.
+     Ciò che non è nello SRD o che semplifichiamo va marcato come ADATTAMENTO nel codice e nei documenti.
+T4.2 Schede: Protagonista con scheda pregenerata (caratteristiche + competenze, ancora niente classi né livelli);
+     punteggi minimi per gli NPC che agiscono (Razziatore: Furtività; Guardia e Contadino: Percezione).
+T4.3 Casualità: RNG proprio e serializzabile (algoritmo noto, es. PCG32 o SplitMix64), stato nel salvataggio
+     (schema v3), vettori di verifica. Un solo flusso di numeri per partita, consumato in ordine deterministico.
+     Ogni tiro diventa un fatto con il dettaglio (d20=13 +4 Furtività = 17 contro 12) e finisce nel debug, così
+     "perché è successo" resta spiegabile. Il risolutore resta sincrono e interno; il tiro manuale (DM) è rinviato.
+T4.4 Percezione rivista (sostituisce la regola deterministica della slice):
+     - per ogni testimone presente e attento, prova di Furtività del ladro contro la sua Percezione passiva:
+       se vince il ladro, il testimone non si accorge di nulla;
+     - se il testimone se ne accorge, il riconoscimento resta come oggi (presente dall'inizio = riconosce),
+       oppure lo leghiamo al margine della prova. Da decidere con Codex, dichiarandolo come adattamento;
+     - i furti non visti si scoprono più tardi solo come AMMANCO: il Contadino che conta le scorte nota la
+       differenza, ma l'autore resta ignoto. Era l'estensione già prevista nel piano.
+T4.5 Conseguenze per il giocatore-ladro, con i sistemi che già esistono: un abitante che ti riconosce lo riferisce
+     alla Guardia, che ti considera sospetto. Proposta minima: la Guardia viene da te e ti confisca le razioni
+     rubate, che tornano al granaio. Più avanti la reputazione e il dialogo (tappa 5) renderanno la cosa più ricca.
+T4.6 Client: scheda del personaggio, azione "Prendi razioni" (con avviso esplicito se è un furto), esito dei
+     tiri visibile al giocatore solo per ciò che può sapere ("Non credo mi abbiano visto"), tiri completi in debug.
+T4.7 Licenza: file CREDITS/ATTRIBUTION con il testo di attribuzione richiesto dallo SRD 5.2.1 (copiato dal PDF
+     ufficiale, non a memoria), mostrato anche nei crediti del gioco.
+Test e criteri d'uscita:
+     - stesso seed => stesso esito; continuo == save/load anche con tiri in mezzo (RNG nel salvataggio);
+     - vettori noti per l'RNG; distribuzione sensata delle prove su molti seed (test statistico leggero);
+     - scenari forzati: ladro visto e riconosciuto / visto ma non riconosciuto / non visto e ammanco scoperto dopo;
+     - il giocatore che ruba e viene riconosciuto subisce la confisca; quello non visto no;
+     - in partita: almeno due esiti diversi di un furto del giocatore, entrambi spiegabili dal debug.
+
+------------------------------------------------------------
+TAPPA 5 — "Parla con…" (soluzione C dell'utente)
+------------------------------------------------------------
+Obiettivo giocabile: parlare con le persone cambia le cose e ogni ascoltatore reagisce a modo suo.
+T5.1 Interazione: clic su un personaggio presente -> "Parla con <nome>" -> argomenti disponibili (cose che sai e
+     non gli hai detto, domande, richieste). Sostituisce i pulsanti fissi "Riferisci a…".
+T5.2 Reazioni per ruolo, sempre come regole esplicite e spiegabili:
+     - Guardia: presidio (come oggi);
+     - Contadino: tiene d'occhio il granaio nel suo turno, oppure diffonde la voce in Locanda;
+     - Locandiere (nuovo, se serve): il punto dove le voci girano. Chi passa la sera in Locanda può apprendere
+       le voci (propagazione con la deduplicazione per origine che c'è già).
+T5.3 Relazioni minime: fiducia dell'NPC verso il giocatore, che cresce con le informazioni vere e utili e cala
+     con quelle false o col furto scoperto. Prima vera "memoria" di ciò che il giocatore ha fatto.
+T5.4 Possibilità di mentire o tacere (accusare qualcuno senza prove) se la discussione con Codex lo ritiene
+     utile già qui: è una scelta forte di gameplay, ma richiede di distinguere "creduto" da "vero".
+Criterio d'uscita: dalla stessa partita, raccontare il furto al Contadino invece che alla Guardia produce
+un esito diverso e visibile (voce in Locanda, fiducia, sorveglianza nel turno).
+
+------------------------------------------------------------
+DOMANDE PER CODEX (al ritorno, dopo la review delle tappe 0–3)
+------------------------------------------------------------
+  C1. Ordine: tappa 4 prima della 5 (regole e rischio prima del dialogo), o il contrario?
+  C2. Riconoscimento del ladro: presenza dall'inizio (come oggi) o margine della prova?
+  C3. L'azione Nascondersi 2024 è pensata per il combattimento a round: come applicarla a un furto di 3 minuti
+      senza tradire lo SRD? Proposta: una sola prova di Furtività all'inizio dell'azione, il cui totale vale per
+      tutta la durata contro la Percezione passiva di chi è presente o arriva, dichiarata come adattamento.
+  C4. Confisca come prima conseguenza per il giocatore-ladro: basta, o serve già una reputazione?
+  C5. RNG: PCG32 o SplitMix64? Un unico flusso o flussi separati per sottosistema (più robusti alle modifiche)?
+Domande per l'utente: nessuna bloccante. Eventuale preferenza sulla scheda pregenerata del Protagonista
+(furtivo, combattente, parlatore) da raccogliere quando si inizia la tappa 4.
