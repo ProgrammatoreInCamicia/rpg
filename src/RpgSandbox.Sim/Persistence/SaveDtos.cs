@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace RpgSandbox.Sim.Persistence;
 
-// Plain serialization shapes for the save file (schema version 2). Times are seconds since the
+// Plain serialization shapes for the save file (schema version 3). Times are seconds since the
 // scenario start; ids are their string/number values. Kept separate from the domain on purpose:
 // the domain can change shape while the file format changes only deliberately.
 

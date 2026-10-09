@@ -15,6 +15,9 @@ public sealed class SimulationSession
 
     private WorldState World => _sim.World;
 
+    /// <summary>For engine-level tests only.</summary>
+    internal Simulation Engine => _sim;
+
     public static SimulationSession Create(Scenario scenario)
     {
         ArgumentNullException.ThrowIfNull(scenario);
@@ -45,18 +48,19 @@ public sealed class SimulationSession
     }
 
     /// <summary>
-    /// Advances time until <paramref name="action"/> completes, processing every deadline in between
-    /// (other actors keep acting). Stops at the end of the instant in which the action completes, or
-    /// after <paramref name="maxWait"/>, whichever comes first.
+    /// Advances time until <paramref name="action"/> ends, processing every deadline in between
+    /// (other actors keep acting). Stops at the end of the instant in which the action completes
+    /// (<see cref="AdvanceOutcome.Completed"/>) or is cancelled (<see cref="AdvanceOutcome.Cancelled"/>),
+    /// or after <paramref name="maxWait"/>, whichever comes first.
     /// </summary>
     public AdvanceResult AdvanceUntilCompleted(ActionId action, Duration maxWait)
     {
         var limit = _sim.TargetAfter(maxWait);
-        if (!World.Scheduler.Contains(action) || !World.Actors.Values.Any(a => a.CurrentAction?.Id == action))
+        if (!_sim.IsActive(action))
             return new AdvanceResult { Outcome = AdvanceOutcome.NotPending, Now = World.Now };
 
-        if (_sim.ProcessUntil(limit, stopAfter: action))
-            return new AdvanceResult { Outcome = AdvanceOutcome.Completed, Now = World.Now };
+        if (_sim.ProcessUntil(limit, stopAfter: action) is { } ended)
+            return new AdvanceResult { Outcome = ended, Now = World.Now };
 
         World.Now = limit;
         return new AdvanceResult { Outcome = AdvanceOutcome.TimeLimitReached, Now = World.Now };
@@ -154,7 +158,8 @@ public sealed class SimulationSession
         var w = World;
         var player = w.Actors[w.Player];
         var travel = player.CurrentAction as TravelAction;
-        var area = w.Locations[player.Location ?? travel!.Destination].Area;
+        // While travelling the player is still "on the road" from where it left: the origin's area until arrival.
+        var area = w.Locations[player.Location ?? travel!.Origin].Area;
 
         bool InArea(LocationId? location) => location is { } l && w.Locations[l].Area == area;
         bool Visible(Actor a) => InArea(a.Location) ||
@@ -199,7 +204,7 @@ public sealed class SimulationSession
                 Travel = x.CurrentAction is TravelAction t
                     ? new TravelView { Action = t.Id, Origin = t.Origin, Destination = t.Destination, DepartedAt = t.StartedAt, ArrivesAt = t.CompletesAt }
                     : null,
-                Doing = x.CurrentAction?.Description,
+                Doing = player.Location is { } here && x.Location == here ? OutwardDoing(x, w) : null,
             })),
             VisibleStores = Freeze(w.Stores.Values.Where(s => InArea(s.Location)).Select(s => new StoreView
             {
@@ -209,6 +214,26 @@ public sealed class SimulationSession
             ReportOptions = Freeze(options),
         };
     }
+
+    /// <summary>
+    /// What an onlooker in the same place sees someone doing: the gesture, never its meaning. A theft looks like
+    /// handling the stores; a conversation shows who talks, not what about. Knowing more takes perception.
+    /// </summary>
+    private static string? OutwardDoing(Actor actor, WorldState w) => actor.CurrentAction switch
+    {
+        null => null,
+        TravelAction => "è in cammino",
+        DepositFoodAction or TakeFoodAction => "armeggia con le scorte",
+        ReportAction r => $"parla con {w.Actors[r.Recipient].Name}",
+        GuardAction => "sorveglia il deposito",
+        WaitAction wait => wait.Description switch
+        {
+            "Lavora" => "lavora",
+            "Riposa" => "riposa",
+            _ => "sta fermo",
+        },
+        _ => "è occupato",
+    };
 
     private static string Summary(Observation o) =>
         $"furto di {o.Amount} razioni da {o.StoreName} alle {o.ObservedAt.Hour:00}:{o.ObservedAt.Minute:00}" +

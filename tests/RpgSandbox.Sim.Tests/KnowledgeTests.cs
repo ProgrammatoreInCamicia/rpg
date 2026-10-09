@@ -300,15 +300,17 @@ public class KnowledgeTests
         Assert.Equal(continuous.SaveToString(), reloaded.SaveToString());
     }
 
-    [Fact]
-    public void Version_1_saves_are_rejected()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)] // v3 forbids leftover deadlines of cancelled actions, which v2 allowed
+    public void Older_save_versions_are_rejected(int version)
     {
         var json = JsonNode.Parse(NewSession().SaveToString())!;
-        json["Version"] = 1;
+        json["Version"] = version;
 
         var result = LoadFromString(json.ToJsonString());
 
         Assert.False(result.Success);
-        Assert.Contains("Versione del salvataggio non supportata: 1", result.Error);
+        Assert.Contains($"Versione del salvataggio non supportata: {version}", result.Error);
     }
 }

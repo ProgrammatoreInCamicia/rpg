@@ -37,30 +37,32 @@ internal sealed partial class Simulation
         return World.Now.Plus(duration);
     }
 
+    public bool IsActive(ActionId action) => World.Actors.Values.Any(a => a.CurrentAction?.Id == action);
+
     /// <summary>
     /// Processes deadlines up to and including <paramref name="target"/>, one instant at a time.
-    /// Returns true if it stopped because <paramref name="stopAfter"/> completed.
+    /// If <paramref name="stopAfter"/> is given, stops at the end of the instant in which that action
+    /// completed or was cancelled, and says which. Returns null when <paramref name="target"/> was reached.
     /// </summary>
-    public bool ProcessUntil(GameTime target, ActionId? stopAfter)
+    public AdvanceOutcome? ProcessUntil(GameTime target, ActionId? stopAfter)
     {
         while (World.Scheduler.NextDue is { } due && due <= target)
         {
             World.Now = due;
             var entries = World.Scheduler.TakeDueAt(due);
 
-            // Phase 1: action completions, in (due, sequence) order.
+            // Phase 1: action completions, in (due, sequence) order, perception included.
+            // An entry whose action was cancelled earlier in this same batch completes nothing.
             var completedAwaited = false;
             foreach (var entry in entries)
             {
                 if (entry.Job is not CompleteAction complete)
                     continue;
-                CompleteActionJob(complete.Action);
-                completedAwaited |= complete.Action == stopAfter;
+                var completed = CompleteActionJob(complete.Action);
+                completedAwaited |= completed && complete.Action == stopAfter;
             }
 
-            // Phase 2 (perception) arrives with increment 3.
-
-            // Phase 3: faction jobs due now, in scheduling order.
+            // Phase 2: faction jobs due now, in scheduling order.
             foreach (var entry in entries)
             {
                 switch (entry.Job)
@@ -74,12 +76,15 @@ internal sealed partial class Simulation
                 }
             }
 
-            // Phase 4: free NPCs decide what to do next.
+            // Phase 3: free NPCs decide what to do next.
             DecideForFreeNpcs();
 
             if (completedAwaited)
-                return true;
+                return AdvanceOutcome.Completed;
+            // Not completed yet no longer active: it was cancelled during this instant.
+            if (stopAfter is { } awaited && !IsActive(awaited))
+                return AdvanceOutcome.Cancelled;
         }
-        return false;
+        return null;
     }
 }

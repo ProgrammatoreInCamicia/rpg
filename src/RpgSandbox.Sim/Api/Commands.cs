@@ -95,6 +95,9 @@ public enum AdvanceOutcome
     TimeLimitReached,
     /// <summary>No pending action with that id exists (unknown or already completed before the call).</summary>
     NotPending,
+
+    /// <summary>The awaited action was cancelled (e.g. an NPC's routine wait interrupted). It did not succeed.</summary>
+    Cancelled,
 }
 
 public sealed record AdvanceResult

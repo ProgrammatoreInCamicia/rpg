@@ -101,7 +101,7 @@ internal sealed partial class Simulation
         return CommandResult.Started(take.Id, take.CompletesAt, $"{actor.Name} inizia a prendere razioni da {store.Name}.");
     }
 
-    private CommandResult StartWait(ActorId actorId, Duration duration, bool interruptible, string? description)
+    internal CommandResult StartWait(ActorId actorId, Duration duration, bool interruptible, string? description)
     {
         if (!World.Actors.TryGetValue(actorId, out var actor))
             return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {actorId}.");
@@ -149,11 +149,15 @@ internal sealed partial class Simulation
 
     // ---------------------------------------------------------------- completions
 
-    private void CompleteActionJob(ActionId actionId)
+    /// <summary>
+    /// Completes the action if it is still active. Returns false when it was cancelled earlier in the same
+    /// instant: the batch of due entries was taken from the scheduler before the cancellation.
+    /// </summary>
+    private bool CompleteActionJob(ActionId actionId)
     {
         var actor = World.Actors.Values.FirstOrDefault(a => a.CurrentAction?.Id == actionId);
         if (actor is null)
-            return; // Cancelled action: nothing to complete.
+            return false;
 
         var action = actor.CurrentAction!;
         actor.CurrentAction = null;
@@ -177,6 +181,7 @@ internal sealed partial class Simulation
             case WaitAction:
                 break;
         }
+        return true;
     }
 
     private void CompleteDeposit(Actor actor, DepositFoodAction deposit)
@@ -362,9 +367,18 @@ internal sealed partial class Simulation
         World.Actors.Values.Any(a => a.Location == store.Location && a.GuardDuty is { } duty && duty.Store == store.Id);
 
     /// <summary>Something new happened to this actor: cut a routine wait short so it decides now.</summary>
-    private static void InterruptRoutine(Actor actor)
+    private void InterruptRoutine(Actor actor)
     {
         if (actor.CurrentAction is WaitAction { Interruptible: true })
-            actor.CurrentAction = null;
+            CancelAction(actor);
+    }
+
+    /// <summary>Stops the actor's action without completing it, and removes its deadline: nothing is left behind.</summary>
+    internal void CancelAction(Actor actor)
+    {
+        if (actor.CurrentAction is not { } action)
+            return;
+        World.Scheduler.Remove(action.Id);
+        actor.CurrentAction = null;
     }
 }

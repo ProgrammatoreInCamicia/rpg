@@ -13,7 +13,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 2;
+    public const int SchemaVersion = 3;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -344,16 +344,21 @@ internal static class SaveGame
                 Check(evaluations.Count == 0, $"valutazione programmata per '{faction.Id}', che non ha una politica");
         }
 
-        // Every action in progress must still be due, or the actor would be stuck forever.
-        foreach (var actor in w.Actors.Values)
+        // Actions and completions match one to one: cancelling an action removes its deadline (schema v3),
+        // so every completion belongs to exactly one active action, and every active action is due.
+        var active = w.Actors.Values.Where(a => a.CurrentAction is not null).Select(a => a.CurrentAction!).ToList();
+        Check(active.Select(a => a.Id).Distinct().Count() == active.Count, "due azioni in corso con lo stesso ID");
+        var completions = entries.Where(e => e.Job is CompleteAction).ToList();
+        Check(completions.Select(e => ((CompleteAction)e.Job).Action).Distinct().Count() == completions.Count,
+            "due scadenze per la stessa azione");
+        foreach (var action in active)
         {
-            if (actor.CurrentAction is { } action)
-            {
-                Check(entries.Any(e => e.Job is CompleteAction c && c.Action == action.Id && e.Due == action.CompletesAt),
-                    $"azione di '{actor.Id}' senza scadenza");
-                Check(action.Id.Value < w.NextActionId, "contatore delle azioni incoerente");
-            }
+            Check(completions.Any(e => ((CompleteAction)e.Job).Action == action.Id && e.Due == action.CompletesAt),
+                $"azione di '{action.Actor}' senza scadenza");
+            Check(action.Id.Value < w.NextActionId, "contatore delle azioni incoerente");
         }
+        Check(completions.All(e => active.Any(a => a.Id == ((CompleteAction)e.Job).Action)),
+            "scadenza di un'azione che non è in corso");
 
         foreach (var f in d.Facts)
             w.RecentFacts.AddLast(new Fact { Id = new FactId(f.Id), At = new GameTime(f.At), Kind = f.Kind, Description = f.Description });

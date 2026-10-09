@@ -16,7 +16,7 @@ public sealed record PlayerView
     public ActionView? Action { get; init; }
     public TravelView? Travel { get; init; }
 
-    /// <summary>The area the player is in, or heading to while travelling.</summary>
+    /// <summary>The area the player is in or, while travelling, the area it left (until arrival).</summary>
     public required AreaId Area { get; init; }
 
     /// <summary>The map is common knowledge.</summary>
@@ -45,6 +45,10 @@ public sealed record VisibleActorView
     public FactionId? Faction { get; init; }
     public LocationId? Location { get; init; }
     public TravelView? Travel { get; init; }
+    /// <summary>
+    /// What the player sees this actor doing: only for actors in the player's own place, and only the outward
+    /// gesture ("armeggia con le scorte", "parla con X"), never the intention or the topic. Null otherwise.
+    /// </summary>
     public string? Doing { get; init; }
 }
 

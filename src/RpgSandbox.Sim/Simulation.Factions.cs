@@ -73,7 +73,7 @@ internal sealed partial class Simulation
             return Trace("Nessun membro disponibile", "Scorte basse, ma tutti i membri sono impegnati.");
 
         // An assignment pre-empts routine only: cancel an interruptible wait, never anything else.
-        member.CurrentAction = null;
+        CancelAction(member);
         member.Assignment = new RaidAssignment
         {
             Faction = faction.Id,

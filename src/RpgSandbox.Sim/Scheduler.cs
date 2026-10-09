@@ -41,6 +41,13 @@ internal sealed class Scheduler
 
     public bool Contains(ActionId action) => _entries.Any(e => e.Job is CompleteAction c && c.Action == action);
 
+    /// <summary>Removes the completion of a cancelled action. Returns false if it was not scheduled.</summary>
+    public bool Remove(ActionId action)
+    {
+        var entry = _entries.FirstOrDefault(e => e.Job is CompleteAction c && c.Action == action);
+        return entry.Job is not null && _entries.Remove(entry);
+    }
+
     public GameTime? NextDue => _entries.Count == 0 ? null : _entries.Min.Due;
 
     /// <summary>Removes and returns, in order, every entry due exactly at <paramref name="instant"/>.</summary>
