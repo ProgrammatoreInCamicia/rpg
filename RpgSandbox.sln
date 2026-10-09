@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{72DD83BC
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RpgSandbox.Sim.Tests", "tests\RpgSandbox.Sim.Tests\RpgSandbox.Sim.Tests.csproj", "{D95B6EA5-770E-4414-BEFF-4EF5C17EAF68}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RpgSandbox.Game", "game\RpgSandbox.Game.csproj", "{0B2642AA-96C7-42D8-9C51-A4CC8DEDD6CE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,6 +30,10 @@ Global
 		{D95B6EA5-770E-4414-BEFF-4EF5C17EAF68}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D95B6EA5-770E-4414-BEFF-4EF5C17EAF68}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D95B6EA5-770E-4414-BEFF-4EF5C17EAF68}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0B2642AA-96C7-42D8-9C51-A4CC8DEDD6CE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0B2642AA-96C7-42D8-9C51-A4CC8DEDD6CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0B2642AA-96C7-42D8-9C51-A4CC8DEDD6CE}.Release|Any CPU.ActiveCfg = Debug|Any CPU
+		{0B2642AA-96C7-42D8-9C51-A4CC8DEDD6CE}.Release|Any CPU.Build.0 = Debug|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{B4496549-987F-4EE1-B3B7-9FAC3ADDCE14} = {C85D3E73-FE78-4853-A8BA-887D997DE742}

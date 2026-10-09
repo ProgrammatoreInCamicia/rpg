@@ -9,3 +9,6 @@ TestResults/
 .godot/
 *.translation
 export_presets.cfg
+
+# Local tools (Godot editor)
+tools/
