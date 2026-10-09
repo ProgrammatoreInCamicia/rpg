@@ -1153,3 +1153,87 @@ user://save.json con scrittura su file temporaneo e sostituzione, "Attendi 1 ora
 Smoke reale (build pulita): clic -> viaggio -> consegna 4 -> 9 attese -> razzia ordinata alle 09:00 visibile e
 spiegata -> salvataggio 09:07 -> attesa (furto e ritorno alle 10:05) -> caricamento: torna esattamente alle 09:07. OK.
 Limiti noti: decisioni su stato oggettivo (la conoscenza arriva al checkpoint 3); vista del giocatore ancora onnisciente.
+
+============================================================
+[CLAUDE — Checkpoint 3: annuncio del contratto (prima dell'implementazione)]
+============================================================
+Checkpoint 2 pubblicato su GitHub (de003a6). L'utente chiede il checkpoint 3; Codex è ancora fermo.
+Obiettivo: furto -> informazione -> rapporto -> presidio, con percezione DETERMINISTICA (nessun tiro).
+
+Percezione (al momento del fatto, dentro il completamento del furto):
+  - Testimoni = attori presenti nel Luogo del deposito (non in viaggio), escluso il ladro.
+  - Identificazione distinta dal vedere: il testimone riconosce il ladro solo se era nel Luogo da PRIMA che il furto
+    iniziasse (Actor.ArrivedAt <= inizio del prelievo). Chi arriva a furto in corso vede il furto ma con autore ignoto.
+  - Ogni testimone riceve un'Osservazione autosufficiente: tipo "Theft", deposito, luogo, quantità, ladro (o null),
+    ObservedAt, LearnedAt, fonte (null = vista diretta, altrimenti chi l'ha riferita), id dell'osservazione d'origine,
+    FactId facoltativo (solo per il debug). Potare la cronaca non tocca le osservazioni.
+
+Rapporto:
+  - ReportCommand { Actor, Recipient, Observation } (5 min): stesso Luogo all'inizio e al completamento, altrimenti
+    fallisce senza effetti. Il contenuto è quello scelto all'INIZIO. Il destinatario riceve una copia con fonte = chi
+    riferisce. Deduplicazione per (destinatario, osservazione d'origine): una voce che torna non diventa una seconda prova.
+    Chi riferisce annota a chi l'ha già detto. Se il destinatario era in un'attesa interrompibile, l'attesa si interrompe
+    e decide subito.
+  - Nuovi RejectionReason: RecipientNotPresent, UnknownObservation, StoreGuarded.
+
+Agenti del villaggio:
+  - Fazione Villaggio con un'AUTORITÀ (la Guardia), che riceve i rapporti. Il suo posto, la Locanda (Home), è conoscenza
+    comune; la sua posizione attuale no.
+  - Routine a orari: Home + turno di lavoro facoltativo (Contadino: Granaio 13:00–18:00). Le attese di routine finiscono
+    al confine del turno, così gli orari sono esatti.
+  - Regole NPC (priorità): passi della razzia > presidio in corso > "Organizza il presidio" (l'autorità che conosce un
+    furto ai danni della propria fazione, appreso dopo l'ultimo presidio) > "Riferisci il furto" (all'autorità se
+    presente, altrimenti "Cerca la guardia" al suo posto) > routine.
+  - Presidio: GuardDuty { Store, Until = apprendimento + 3 giorni }; la guardia va al deposito e svolge azioni "Guard"
+    da 1 h fino alla scadenza (fatto GuardDutyEnded).
+
+Deterrenza (regola generale, non uno script):
+  - Un deposito è SORVEGLIATO se nel suo Luogo è presente un attore con presidio attivo su quel deposito.
+  - TakeFood di un altro proprietario su un deposito sorvegliato: rifiutato all'avvio (StoreGuarded) e fallito al
+    completamento se la guardia arriva nel frattempo.
+  - Il Razziatore che vede la guardia sul posto desiste ("Desisti"), torna al campo e solo LÌ la fazione lo viene a
+    sapere: per 24 h evita quel bersaglio ("Bersaglio sorvegliato"). Nessuna conoscenza istantanea a distanza.
+
+Viste:
+  - ActorView: Home?, Knowledge (ObservationView), GuardDuty?, ArrivedAt (per il debug).
+  - SimulationSession.GetPlayerView() -> PlayerView FILTRATA: ora, stato del giocatore, attori e depositi visibili
+    (stessa Area del giocatore, o in viaggio da/verso quell'Area), osservazioni del giocatore, destinatari presenti.
+    GetWorldView() resta onnisciente, per il debug.
+  - ActionView.Kind anche "Report" e "Guard"; AssignmentView.Aborted; FactionView.AvoidedTargets.
+  - Nuovi fatti: FoodTheftWitnessed, InformationShared, ReportFailed, GuardDutyStarted, GuardDutyEnded, RaidAborted.
+Persistenza: schema versione 2 (i salvataggi v1 vengono rifiutati con un messaggio chiaro).
+Scenario: + Contadino (turno al Granaio 13–18), + Guardia (autorità, alla Locanda). Nella partita base nessun NPC vede
+i furti del mattino: il testimone decisivo può essere solo il giocatore. Le varianti con testimone sono nei test.
+Client: interruttore Debug (vista onnisciente + pannelli) / vista del giocatore filtrata; "Diario" con le osservazioni
+del giocatore; pulsanti "Riferisci a <nome>" quando un destinatario è presente.
+Criterio d'uscita: dalla stessa partita, attendere / consegnare / riferire portano a stati diversi e spiegabili; ladro
+identificato / ignoto / nessun testimone si comportano correttamente.
+
+============================================================
+[CLAUDE — Checkpoint 3: completato — VERTICAL SLICE CHIUSA (Sim + client)]
+============================================================
+Implementato come annunciato. Percezione nel completamento del furto (testimoni = presenti nel Luogo; riconosce il
+ladro solo chi era lì da prima dell'inizio), Observation autosufficienti con origine/fonte/ToldTo, ReportCommand
+(5 min, contenuto fissato all'avvio, dedup per origine, interrompe le attese di routine), autorità della fazione
+(Guardia) con presidio di 3 giorni a turni da 1 h, deterrenza come regola generale (deposito sorvegliato = presidio
+presente: StoreGuarded all'avvio, fallimento al completamento, "Desisti" del Razziatore), fazione che apprende il
+rifiuto solo al rientro del membro (evita il bersaglio per 24 h), routine a turni (Contadino 13–18 al Granaio),
+PlayerView filtrata dal core, salvataggi schema v2.
+Test: 70/70 (+20). Criteri d'uscita della slice coperti da test:
+  a) senza giocatore le scorte calano e il mondo prosegue (RaidTests + "Nobody_sees_the_morning_raid");
+  b) stessa partita: attendere -> granaio 24 / consegnare -> 34 / riferire -> 32 (furto del giorno 3 sventato;
+     i banditi restano a 4 invece di 12);
+  c) ogni reazione è spiegata: la decisione della guardia cita il furto, l'ora, il ladro e chi gliel'ha detto;
+  d) ladro riconosciuto / non riconosciuto (arrivato a furto iniziato) / nessun testimone.
+  In più: le osservazioni sopravvivono alla potatura della cronaca, rapporto che fallisce se l'ascoltatore se ne va,
+  ripetizioni non contate come nuove prove, viste del giocatore senza il Razziatore finché è nel bosco,
+  equivalenza continuo == save/load durante rapporto, presidio e rientro del razziatore, v1 rifiutato.
+Client: interruttore Debug (F1) tra la vista del giocatore (PlayerView) e quella onnisciente con i pannelli;
+Diario delle osservazioni; pulsanti "Riferisci a <nome>: <riassunto>"; abitanti del villaggio in verde;
+"Avanza 6 ore (debug)" per saltare in avanti.
+Smoke reale (build pulita, screenshot verificati): clic sul Granaio -> attesa -> furto delle 09:33 nel diario col
+nome del ladro -> Locanda -> "Riferisci a Guardia" -> la guardia "Organizza il presidio" e va al granaio ->
+giorno 3: il Razziatore "vede la guardia e desiste", i banditi evitano il granaio, granaio fermo a 32. OK.
+Semplificazioni dichiarate: posizione dei depositi = conoscenza comune; la fazione dei banditi vede quante razioni
+ci sono nei depositi altrui; nessun ciclo giorno/notte (tutti attenti).
+Codex: al tuo ritorno la review D4 copre checkpoint 0–3 (Sim + game). Vedi docs/INTEGRATION_CONTRACT.md.

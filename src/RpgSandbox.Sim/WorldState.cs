@@ -26,8 +26,17 @@ internal sealed class Actor
     public required bool IsPlayer { get; init; }
     public FactionId? Faction { get; init; }
 
+    /// <summary>Where the actor lives; routine brings NPCs back here outside work hours.</summary>
+    public LocationId? Home { get; init; }
+
+    /// <summary>Optional daily work shift (NPCs only).</summary>
+    public WorkShift? Shift { get; init; }
+
     /// <summary>Null while the actor is travelling.</summary>
     public LocationId? Location { get; set; }
+
+    /// <summary>When the actor last arrived at <see cref="Location"/>: decides whether a witness saw a deed from its start.</summary>
+    public GameTime ArrivedAt { get; set; }
 
     /// <summary>Rations carried. Never negative.</summary>
     public int Food { get; set; }
@@ -38,8 +47,64 @@ internal sealed class Actor
     /// <summary>At most one assignment at a time.</summary>
     public RaidAssignment? Assignment { get; set; }
 
+    /// <summary>Set while the actor is guarding a store.</summary>
+    public GuardDuty? GuardDuty { get; set; }
+
+    /// <summary>What the actor knows: its own observations and what others told it. One entry per origin.</summary>
+    public List<Observation> Knowledge { get; } = new();
+
+    /// <summary>Origins of observations this actor already reacted to (e.g. by organising a guard).</summary>
+    public SortedSet<ObservationId> ActedOn { get; } = new();
+
     /// <summary>Only the latest decision is kept (NPCs only).</summary>
     public DecisionTrace? LastDecision { get; set; }
+}
+
+/// <summary>A daily shift at a workplace, between two times of day.</summary>
+internal sealed record WorkShift(LocationId Location, Duration Start, Duration End)
+{
+    public bool Covers(GameTime t)
+    {
+        var tod = t.Seconds % 86_400;
+        return tod >= Start.Seconds && tod < End.Seconds;
+    }
+}
+
+internal sealed class GuardDuty
+{
+    public required StoreId Store { get; init; }
+    public required GameTime Since { get; init; }
+    public required GameTime Until { get; init; }
+}
+
+/// <summary>
+/// Something an actor knows about a theft. Self-contained: it describes what was perceived at the time
+/// (the thief may be unknown) and never reads the current world. Copies passed on keep the origin id.
+/// </summary>
+internal sealed class Observation
+{
+    public required ObservationId Id { get; init; }
+    public required ObservationId Origin { get; init; }
+    public required StoreId Store { get; init; }
+    public required string StoreName { get; init; }
+    public required LocationId Location { get; init; }
+    public required int Amount { get; init; }
+
+    /// <summary>Null when the witness did not recognise the thief.</summary>
+    public ActorId? Thief { get; init; }
+    public string? ThiefName { get; init; }
+
+    public required GameTime ObservedAt { get; init; }
+    public required GameTime LearnedAt { get; init; }
+
+    /// <summary>Null for a first-hand observation; otherwise who told it.</summary>
+    public ActorId? Source { get; init; }
+
+    /// <summary>Debug link to the world fact; never needed to understand the observation.</summary>
+    public FactId? Fact { get; init; }
+
+    /// <summary>Who this actor has already told, so it does not repeat itself.</summary>
+    public SortedSet<ActorId> ToldTo { get; } = new();
 }
 
 internal sealed class Store
@@ -66,9 +131,15 @@ internal sealed class Faction
     public int DailyUpkeep { get; init; }
     public Duration UpkeepTimeOfDay { get; init; }
 
+    /// <summary>Who receives reports for this faction (e.g. the guard).</summary>
+    public ActorId? Authority { get; init; }
+
     public RaidPolicy? Policy { get; init; }
     public GameTime? NextEvaluation { get; set; }
     public DecisionTrace? LastDecision { get; set; }
+
+    /// <summary>Raid targets to avoid until the given time, learned from members who came back.</summary>
+    public SortedDictionary<StoreId, GameTime> AvoidUntil { get; } = new();
 }
 
 internal sealed class RaidAssignment
@@ -81,6 +152,9 @@ internal sealed class RaidAssignment
 
     /// <summary>Set once the take action has completed, whatever it yielded.</summary>
     public bool TakeAttempted { get; set; }
+
+    /// <summary>Set when the member gave up (e.g. the target was guarded); it still has to go home and tell.</summary>
+    public bool Aborted { get; set; }
 }
 
 /// <summary>Why an NPC or a faction did what it did: rule, reason and the data it read.</summary>
@@ -115,6 +189,21 @@ internal sealed class TakeFoodAction : PendingAction
     public override string Kind => "TakeFood";
     public required StoreId Store { get; init; }
     public required int Amount { get; init; }
+}
+
+internal sealed class ReportAction : PendingAction
+{
+    public override string Kind => "Report";
+    public required ActorId Recipient { get; init; }
+
+    /// <summary>The reporter's observation, chosen when the report started.</summary>
+    public required ObservationId Observation { get; init; }
+}
+
+internal sealed class GuardAction : PendingAction
+{
+    public override string Kind => "Guard";
+    public required StoreId Store { get; init; }
 }
 
 internal sealed class WaitAction : PendingAction
@@ -156,6 +245,7 @@ internal sealed class WorldState
 
     public long NextActionId { get; set; } = 1;
     public long NextFactId { get; set; } = 1;
+    public long NextObservationId { get; set; } = 1;
 
     public static WorldState FromScenario(Scenario scenario)
     {
@@ -173,7 +263,7 @@ internal sealed class WorldState
         {
             world.Factions.Add(f.Id, new Faction
             {
-                Id = f.Id, Name = f.Name, HomeStore = f.HomeStore,
+                Id = f.Id, Name = f.Name, HomeStore = f.HomeStore, Authority = f.Authority,
                 DailyUpkeep = f.DailyUpkeep, UpkeepTimeOfDay = f.UpkeepTimeOfDay, Policy = f.Policy,
             });
         }
@@ -182,6 +272,7 @@ internal sealed class WorldState
             world.Actors.Add(a.Id, new Actor
             {
                 Id = a.Id, Name = a.Name, IsPlayer = a.IsPlayer, Faction = a.Faction, Location = a.Location, Food = a.Food,
+                Home = a.IsPlayer ? null : a.Location, Shift = a.Shift, ArrivedAt = GameTime.Start,
             });
         }
         foreach (var s in scenario.Stores)
@@ -193,10 +284,12 @@ internal sealed class WorldState
 
     public IEnumerable<Actor> MembersOf(FactionId faction) => Actors.Values.Where(a => a.Faction == faction);
 
-    public void RecordFact(string kind, string description)
+    public FactId RecordFact(string kind, string description)
     {
-        RecentFacts.AddLast(new Fact { Id = new FactId(NextFactId++), At = Now, Kind = kind, Description = description });
+        var id = new FactId(NextFactId++);
+        RecentFacts.AddLast(new Fact { Id = id, At = Now, Kind = kind, Description = description });
         while (RecentFacts.Count > RecentFactCapacity)
             RecentFacts.RemoveFirst();
+        return id;
     }
 }

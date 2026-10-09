@@ -48,13 +48,20 @@ internal sealed partial class Simulation
         if (home.Food >= policy.FoodThreshold)
             return Trace("Scorte sufficienti", $"{home.Food} ≥ {policy.FoodThreshold}: nessuna razzia.");
 
+        // Targets reported as guarded by a returning member are avoided for a while.
+        var avoided = faction.AvoidUntil.Where(a => a.Value > World.Now).Select(a => a.Key).ToHashSet();
+        foreach (var store in avoided)
+            inputs.Add($"Da evitare fino alle {faction.AvoidUntil[store].Hour:00}:{faction.AvoidUntil[store].Minute:00}: {World.Stores[store].Name} (sorvegliato)");
+
         var target = World.Stores.Values
-            .Where(s => s.Owner != faction.Id && s.Food > 0)
+            .Where(s => s.Owner != faction.Id && s.Food > 0 && !avoided.Contains(s.Id))
             .Select(s => (Store: s, Cost: PathCost(home.Location, s.Location)))
             .Where(x => x.Cost is not null)
             .OrderBy(x => x.Cost!.Value.Seconds).ThenBy(x => x.Store.Id)
             .Select(x => x.Store)
             .FirstOrDefault();
+        if (target is null && avoided.Count > 0)
+            return Trace("Bersaglio sorvegliato", "Scorte basse, ma l'unico bersaglio è sorvegliato: aspettano.");
         if (target is null)
             return Trace("Nessun bersaglio", "Scorte basse, ma non c'è nessun deposito altrui raggiungibile e non vuoto.");
         inputs.Add($"Bersaglio più vicino: {target.Name}");

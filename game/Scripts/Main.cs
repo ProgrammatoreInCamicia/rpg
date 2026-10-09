@@ -5,9 +5,10 @@ using RpgSandbox.Sim.Scenarios;
 namespace RpgSandbox.Game;
 
 /// <summary>
-/// Slice client: isometric placeholder map, travel, food deliveries, NPCs acting on their own,
-/// save/load and a debug panel explaining decisions. All rules live in Sim; this node only sends
-/// commands, plays time out while the player's action runs, and draws the current <see cref="WorldView"/>.
+/// Slice client: isometric placeholder map, travel, food deliveries, NPCs acting on their own, what the
+/// player saw and can tell, save/load and a debug mode. All rules live in Sim; this node only sends
+/// commands, plays time out while the player's action runs, and draws views produced by the core:
+/// <see cref="PlayerView"/> normally, the omniscient <see cref="WorldView"/> in debug mode.
 /// </summary>
 public partial class Main : Node2D
 {
@@ -37,10 +38,16 @@ public partial class Main : Node2D
 	private static readonly Color RouteColor = new(0.85f, 0.78f, 0.55f, 0.8f);
 	private static readonly Color PlayerColor = new(0.25f, 0.45f, 0.85f);
 	private static readonly Color BanditColor = new(0.80f, 0.22f, 0.20f);
+	private static readonly Color VillagerColor = new(0.35f, 0.65f, 0.35f);
 	private static readonly Color NeutralColor = new(0.60f, 0.60f, 0.60f);
 
+	/// <summary>An actor as drawn on the map, from either view.</summary>
+	private sealed record Figure(ActorId Id, string Name, bool IsPlayer, FactionId? Faction, LocationId? Location, TravelView? Travel);
+
 	private SimulationSession _sim = null!;
-	private WorldView _view = null!;
+	private WorldView _world = null!;
+	private PlayerView _player = null!;
+	private bool _debug = true;
 
 	private Node2D _sorted = null!; // Y-sorted layer: buildings and characters
 	private Camera2D _camera = null!;
@@ -53,22 +60,30 @@ public partial class Main : Node2D
 	private Label _foodLabel = null!;
 	private HBoxContainer _depositRow = null!;
 	private SpinBox _depositAmount = null!;
+	private VBoxContainer _reportBox = null!;
 	private Button _waitButton = null!;
 	private Button _saveButton = null!;
 	private Button _loadButton = null!;
+	private Button _debugButton = null!;
+	private Button _skipButton = null!;
 	private Label _messageLabel = null!;
+	private Label _journalLabel = null!;
+	private Control _factsSection = null!;
 	private Label _factsLabel = null!;
+	private Control _debugPanel = null!;
 	private Label _debugLabel = null!;
 
 	private ActionId? _runningAction;
 	private double _playbackSpeed = MinGameSecondsPerRealSecond;
 	private double _pendingGameSeconds;
 	private LocationId? _hovered;
+	private string _reportOptionsKey = "";
 
 	public override void _Ready()
 	{
 		_sim = SimulationSession.Create(SliceScenario.Create());
-		_view = _sim.GetWorldView();
+		_world = _sim.GetWorldView();
+		_player = _sim.GetPlayerView();
 
 		BuildGround();
 		BuildRoutes();
@@ -110,6 +125,11 @@ public partial class Main : Node2D
 
 	public override void _UnhandledInput(InputEvent @event)
 	{
+		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F1 })
+		{
+			ToggleDebug();
+			return;
+		}
 		if (@event is not InputEventMouseButton { Pressed: true } mouse)
 			return;
 
@@ -143,14 +163,43 @@ public partial class Main : Node2D
 
 	public void WaitOneHour() => StartAction(new WaitCommand { Actor = _sim.Player, Duration = Duration.FromHours(1) });
 
+	/// <summary>Used by the smoke runner: presses the first "tell" button offered for this recipient.</summary>
+	public bool ReportViaUi(ActorId recipient)
+	{
+		var option = _player.ReportOptions.FirstOrDefault(o => o.Recipient == recipient);
+		if (option is null)
+			return false;
+		Report(option);
+		return true;
+	}
+
+	public void SetDebug(bool on)
+	{
+		_debug = on;
+		Refresh();
+	}
+
+	private void ToggleDebug() => SetDebug(!_debug);
+
+	/// <summary>Debug aid: lets the world run for a while with the player idle where it stands.</summary>
+	public void SkipHours(int hours)
+	{
+		if (_runningAction is not null)
+			return;
+		_sim.Advance(Duration.FromHours(hours));
+		Refresh();
+	}
+
 	private void DepositFood()
 	{
-		var player = PlayerView();
-		var store = _view.Stores.FirstOrDefault(s => s.Location == player.Location);
+		var store = _player.VisibleStores.FirstOrDefault(s => s.Location == _player.Location);
 		if (store is null)
 			return;
 		StartAction(new DepositFoodCommand { Actor = _sim.Player, Store = store.Id, Amount = (int)_depositAmount.Value });
 	}
+
+	private void Report(ReportOptionView option) =>
+		StartAction(new ReportCommand { Actor = _sim.Player, Recipient = option.Recipient, Observation = option.Observation });
 
 	/// <summary>Sends a command; if it starts an action, time plays out in _Process until it completes.</summary>
 	private void StartAction(Command command)
@@ -183,7 +232,7 @@ public partial class Main : Node2D
 			using (var stream = File.Create(temp))
 				_sim.Save(stream);
 			File.Move(temp, path, overwrite: true);
-			ShowMessage($"Partita salvata ({_view.Now.Hour:00}:{_view.Now.Minute:00}).");
+			ShowMessage($"Partita salvata ({Clock(_player.Now)}).");
 		}
 		catch (Exception e) when (e is IOException or UnauthorizedAccessException)
 		{
@@ -223,31 +272,29 @@ public partial class Main : Node2D
 		}
 		_sim = result.Session!;
 		Refresh();
-		ShowMessage($"Partita caricata ({_view.Now.Hour:00}:{_view.Now.Minute:00}).");
+		ShowMessage($"Partita caricata ({Clock(_player.Now)}).");
 	}
 
 	private void ShowMessage(string text) => _messageLabel.Text = text;
 
 	// ---------------------------------------------------------------- view
 
-	private ActorView PlayerView() => _view.Actors.Single(a => a.Id == _view.Player);
-
 	private void Refresh(string? rejection = null)
 	{
-		_view = _sim.GetWorldView();
-		var player = PlayerView();
+		_world = _sim.GetWorldView();
+		_player = _sim.GetPlayerView();
 
 		PlaceTokens();
 
-		var now = _view.Now;
+		var now = _player.Now;
 		_clockLabel.Text = $"Giorno {now.Day + 1}   {Clock(now)}";
 
-		if (player.Travel is { } travel)
+		if (_player.Travel is { } travel)
 			_statusLabel.Text = $"In viaggio verso {LocationName(travel.Destination)} — arrivo alle {Clock(travel.ArrivesAt)}";
-		else if (player.Action is { } action)
+		else if (_player.Action is { } action)
 			_statusLabel.Text = $"{action.Description} — fino alle {Clock(action.CompletesAt)}";
 		else
-			_statusLabel.Text = $"Ti trovi a: {LocationName(player.Location!.Value)}.\nClicca un luogo per viaggiare.";
+			_statusLabel.Text = $"Ti trovi a: {LocationName(_player.Location!.Value)}.\nClicca un luogo per viaggiare.";
 		if (rejection is not null)
 			_statusLabel.Text += $"\n⚠ {rejection}";
 
@@ -255,32 +302,91 @@ public partial class Main : Node2D
 		_waitButton.Disabled = busy;
 		_saveButton.Disabled = busy;
 		_loadButton.Disabled = busy;
-		_foodLabel.Text = $"Razioni con te: {player.Food}";
+		_debugButton.Text = _debug ? "Debug: attivo (F1)" : "Debug: spento (F1)";
+		_skipButton.Visible = _debug;
+		_skipButton.Disabled = busy;
+		_foodLabel.Text = $"Razioni con te: {_player.Food}";
 
 		// Deposit controls only where there is a store; the core still validates every request.
-		var storeHere = _view.Stores.FirstOrDefault(s => s.Location == player.Location);
-		_depositRow.Visible = storeHere is not null && player.Food > 0;
-		_depositAmount.MaxValue = Math.Max(1, player.Food);
+		var storeHere = _player.VisibleStores.FirstOrDefault(s => s.Location == _player.Location);
+		_depositRow.Visible = storeHere is not null && _player.Food > 0;
+		_depositAmount.MaxValue = Math.Max(1, _player.Food);
 		_depositAmount.Editable = !busy;
 
-		foreach (var store in _view.Stores)
-			_storeLabels[store.Id].Text = $"{store.Name}: {store.Food}";
+		RefreshReportButtons(busy);
 
-		_factsLabel.Text = string.Join("\n", _view.RecentFacts.TakeLast(10).Select(f => $"[{Clock(f.At)}] {f.Description}"));
-		_debugLabel.Text = DebugText();
+		// Store contents: what the player can see, or everything in debug mode.
+		var stores = _debug ? _world.Stores : _player.VisibleStores;
+		foreach (var (id, label) in _storeLabels)
+		{
+			var store = stores.FirstOrDefault(s => s.Id == id);
+			label.Text = store is null ? "" : $"{store.Name}: {store.Food}";
+		}
+
+		_journalLabel.Text = _player.Observations.Count == 0
+			? "Non hai visto né sentito nulla di particolare."
+			: string.Join("\n", _player.Observations.Select(JournalLine));
+
+		_factsSection.Visible = _debug;
+		_debugPanel.Visible = _debug;
+		if (_debug)
+		{
+			_factsLabel.Text = string.Join("\n", _world.RecentFacts.TakeLast(10).Select(f => $"[{Clock(f.At)}] {f.Description}"));
+			_debugLabel.Text = DebugText();
+		}
 	}
 
-	/// <summary>The omniscient debug panel: what each NPC and faction is doing and why.</summary>
+	private static string JournalLine(ObservationView o)
+	{
+		var who = o.ThiefName ?? "qualcuno che non hai riconosciuto";
+		var how = o.SourceName is { } source ? $"te l'ha detto {source}" : "l'hai visto tu";
+		var told = o.ToldTo.Count > 0 ? $" Già raccontato a {o.ToldTo.Count} persona/e." : "";
+		return $"• Giorno {o.ObservedAt.Day + 1} {Clock(o.ObservedAt)}: {who} ha rubato {o.Amount} razioni da {o.StoreName} ({how}).{told}";
+	}
+
+	/// <summary>Rebuilds the "tell" buttons only when the options change, so clicks are not lost.</summary>
+	private void RefreshReportButtons(bool busy)
+	{
+		var options = _player.ReportOptions;
+		var key = string.Join("|", options.Select(o => $"{o.Recipient}:{o.Observation}"));
+		if (key != _reportOptionsKey)
+		{
+			_reportOptionsKey = key;
+			foreach (var child in _reportBox.GetChildren())
+				child.QueueFree();
+			foreach (var option in options)
+			{
+				var button = new Button
+				{
+					Text = $"Riferisci a {option.RecipientName}: {option.Summary}",
+					AutowrapMode = TextServer.AutowrapMode.WordSmart,
+				};
+				button.Pressed += () => Report(option);
+				_reportBox.AddChild(button);
+			}
+		}
+		_reportBox.Visible = options.Count > 0;
+		foreach (var child in _reportBox.GetChildren())
+			if (child is Button b)
+				b.Disabled = busy;
+	}
+
+	/// <summary>The omniscient debug panel: what each NPC and faction is doing, knows, and why.</summary>
 	private string DebugText()
 	{
 		var lines = new List<string>();
-		foreach (var npc in _view.Actors.Where(a => !a.IsPlayer))
+		foreach (var npc in _world.Actors.Where(a => !a.IsPlayer))
 		{
 			lines.Add($"■ {npc.Name}  ({npc.Food} razioni)");
 			lines.Add($"  Azione: {npc.Action?.Description ?? "nessuna"}" +
 					  (npc.Action is { } a ? $" fino alle {Clock(a.CompletesAt)}" : ""));
 			if (npc.Assignment is { } job)
-				lines.Add($"  Incarico: razzia di {StoreName(job.Target)} ({job.Amount} razioni)");
+				lines.Add($"  Incarico: razzia di {StoreName(job.Target)}" + (job.Aborted ? " (annullata, rientra)" : ""));
+			if (npc.GuardDuty is { } duty)
+				lines.Add($"  Presidio: {StoreName(duty.Store)} fino al giorno {duty.Until.Day + 1} {Clock(duty.Until)}");
+			foreach (var o in npc.Knowledge)
+				lines.Add($"  Sa: furto da {o.StoreName} ({o.ThiefName ?? "ladro ignoto"}, " +
+						  (o.SourceName is { } s ? $"da {s})" : "visto)"));
 			if (npc.LastDecision is { } d)
 			{
 				lines.Add($"  Decisione [{Clock(d.At)}] {d.Rule}: {d.Reason}");
@@ -288,12 +394,14 @@ public partial class Main : Node2D
 			}
 			lines.Add("");
 		}
-		foreach (var faction in _view.Factions)
+		foreach (var faction in _world.Factions)
 		{
-			var home = faction.HomeStore is { } h ? $" — {StoreName(h)}: {_view.Stores.Single(s => s.Id == h).Food}" : "";
+			var home = faction.HomeStore is { } h ? $" — {StoreName(h)}: {_world.Stores.Single(s => s.Id == h).Food}" : "";
 			lines.Add($"◆ {faction.Name}{home}" + (faction.DailyUpkeep > 0 ? $", consumo {faction.DailyUpkeep}/giorno" : ""));
 			if (faction.NextEvaluation is { } next)
 				lines.Add($"  Prossima valutazione: {Clock(next)}");
+			foreach (var avoid in faction.AvoidedTargets.Where(t => t.Until > _world.Now))
+				lines.Add($"  Evita {StoreName(avoid.Store)} fino al giorno {avoid.Until.Day + 1} {Clock(avoid.Until)}");
 			if (faction.LastDecision is { } d)
 			{
 				lines.Add($"  Decisione [{Clock(d.At)}] {d.Rule}: {d.Reason}");
@@ -304,34 +412,49 @@ public partial class Main : Node2D
 		return string.Join("\n", lines).TrimEnd();
 	}
 
-	private void PlaceTokens()
+	private List<Figure> Figures()
 	{
-		foreach (var actor in _view.Actors)
-		{
-			if (!_tokens.TryGetValue(actor.Id, out var token))
-			{
-				token = MakeToken(actor);
-				_tokens[actor.Id] = token;
-				_sorted.AddChild(token);
-			}
-			token.Position = ActorScreenPosition(actor);
-		}
+		var me = _world.Actors.Single(a => a.IsPlayer);
+		var figures = new List<Figure> { new(me.Id, me.Name, true, me.Faction, me.Location, me.Travel) };
+		if (_debug)
+			figures.AddRange(_world.Actors.Where(a => !a.IsPlayer).Select(a => new Figure(a.Id, a.Name, false, a.Faction, a.Location, a.Travel)));
+		else
+			figures.AddRange(_player.VisibleActors.Select(a => new Figure(a.Id, a.Name, false, a.Faction, a.Location, a.Travel)));
+		return figures;
 	}
 
-	private Vector2 ActorScreenPosition(ActorView actor)
+	private void PlaceTokens()
 	{
-		if (actor.Location is { } here)
+		var figures = Figures();
+		var shown = figures.Select(f => f.Id).ToHashSet();
+		foreach (var figure in figures)
+		{
+			if (!_tokens.TryGetValue(figure.Id, out var token))
+			{
+				token = MakeToken(figure);
+				_tokens[figure.Id] = token;
+				_sorted.AddChild(token);
+			}
+			token.Position = ScreenPosition(figure, figures);
+		}
+		foreach (var (id, token) in _tokens)
+			token.Visible = shown.Contains(id);
+	}
+
+	private Vector2 ScreenPosition(Figure figure, List<Figure> all)
+	{
+		if (figure.Location is { } here)
 		{
 			// Several actors at the same place stand side by side, in id order.
-			var present = _view.Actors.Where(a => a.Location == here).ToList();
-			var index = present.FindIndex(a => a.Id == actor.Id);
-			return StandPoint(here) + new Vector2((index - (present.Count - 1) / 2f) * 30f, 0);
+			var present = all.Where(a => a.Location == here).OrderBy(a => a.Id).ToList();
+			var index = present.FindIndex(a => a.Id == figure.Id);
+			return StandPoint(here) + new Vector2((index - (present.Count - 1) / 2f) * 66f, 0);
 		}
 
 		// Travelling: the simulation says the actor is at neither end; interpolate for display only.
-		var travel = actor.Travel!;
+		var travel = figure.Travel!;
 		var total = travel.ArrivesAt.Since(travel.DepartedAt).Seconds;
-		var progress = total > 0 ? (float)_view.Now.Since(travel.DepartedAt).Seconds / total : 1f;
+		var progress = total > 0 ? (float)_player.Now.Since(travel.DepartedAt).Seconds / total : 1f;
 		return StandPoint(travel.Origin).Lerp(StandPoint(travel.Destination), Mathf.Clamp(progress, 0f, 1f));
 	}
 
@@ -342,8 +465,8 @@ public partial class Main : Node2D
 	/// <summary>World position of a place (used by the smoke runner to aim the mouse).</summary>
 	public Vector2 ScreenPointOf(LocationId location) => Iso.CellToScreen(LocationCells[location]);
 
-	private string LocationName(LocationId id) => _view.Locations.Single(l => l.Id == id).Name;
-	private string StoreName(StoreId id) => _view.Stores.Single(s => s.Id == id).Name;
+	private string LocationName(LocationId id) => _player.Locations.Single(l => l.Id == id).Name;
+	private string StoreName(StoreId id) => _world.Stores.Single(s => s.Id == id).Name;
 	private static string Clock(GameTime t) => $"{t.Hour:00}:{t.Minute:00}";
 
 	private void UpdateHover()
@@ -390,7 +513,7 @@ public partial class Main : Node2D
 	{
 		var routes = new Node2D { ZIndex = -5 };
 		AddChild(routes);
-		foreach (var route in _view.Routes.Where(r => r.From.CompareTo(r.To) < 0))
+		foreach (var route in _player.Routes.Where(r => r.From.CompareTo(r.To) < 0))
 		{
 			var a = StandPoint(route.From);
 			var b = StandPoint(route.To);
@@ -401,7 +524,7 @@ public partial class Main : Node2D
 
 	private void BuildLocations()
 	{
-		foreach (var location in _view.Locations)
+		foreach (var location in _player.Locations)
 		{
 			var center = Iso.CellToScreen(LocationCells[location.Id]);
 
@@ -419,7 +542,7 @@ public partial class Main : Node2D
 			building.AddChild(new Polygon2D { Polygon = top, Color = baseColor.Lightened(0.15f) });
 			building.AddChild(MakeLabel(location.Name, new Vector2(-60, -130), 18));
 			var storeOffset = 0f;
-			foreach (var store in _view.Stores.Where(s => s.Location == location.Id))
+			foreach (var store in _world.Stores.Where(s => s.Location == location.Id))
 			{
 				var label = MakeLabel("", new Vector2(88, -16 + storeOffset), 15);
 				label.AddThemeColorOverride("font_color", new Color(1f, 0.92f, 0.6f));
@@ -431,9 +554,12 @@ public partial class Main : Node2D
 		}
 	}
 
-	private static Node2D MakeToken(ActorView actor)
+	private static Node2D MakeToken(Figure figure)
 	{
-		var color = actor.IsPlayer ? PlayerColor : actor.Faction == SliceScenario.Ids.Bandits ? BanditColor : NeutralColor;
+		var color = figure.IsPlayer ? PlayerColor
+			: figure.Faction == SliceScenario.Ids.Bandits ? BanditColor
+			: figure.Faction == SliceScenario.Ids.VillageFaction ? VillagerColor
+			: NeutralColor;
 		var token = new Node2D();
 		// Placeholder figure: a shadow, a body and a head, with the origin at the feet.
 		token.AddChild(new Polygon2D { Polygon = Iso.Diamond(0.3f), Color = new Color(0, 0, 0, 0.35f) });
@@ -443,8 +569,13 @@ public partial class Main : Node2D
 			Color = color,
 		});
 		token.AddChild(new Polygon2D { Polygon = Circle(8, 12), Position = new Vector2(0, -42), Color = new Color(0.95f, 0.82f, 0.68f) });
-		if (!actor.IsPlayer)
-			token.AddChild(MakeLabel(actor.Name, new Vector2(-36, -74), 12));
+		if (!figure.IsPlayer)
+		{
+			var name = MakeLabel(figure.Name, new Vector2(-40, -74), 12);
+			name.Size = new Vector2(80, 0);
+			name.HorizontalAlignment = HorizontalAlignment.Center;
+			token.AddChild(name);
+		}
 		return token;
 	}
 
@@ -498,6 +629,9 @@ public partial class Main : Node2D
 		_depositRow.AddChild(depositButton);
 		box.AddChild(_depositRow);
 
+		_reportBox = new VBoxContainer();
+		box.AddChild(_reportBox);
+
 		_waitButton = new Button { Text = "Attendi 1 ora" };
 		_waitButton.Pressed += WaitOneHour;
 		box.AddChild(_waitButton);
@@ -512,15 +646,32 @@ public partial class Main : Node2D
 		saveRow.AddChild(_loadButton);
 		box.AddChild(saveRow);
 
+		_debugButton = new Button();
+		_debugButton.Pressed += ToggleDebug;
+		box.AddChild(_debugButton);
+
+		_skipButton = new Button { Text = "Avanza 6 ore (debug)" };
+		_skipButton.Pressed += () => SkipHours(6);
+		box.AddChild(_skipButton);
+
 		_messageLabel = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		_messageLabel.AddThemeFontSizeOverride("font_size", 13);
 		box.AddChild(_messageLabel);
 
 		box.AddChild(new HSeparator());
-		box.AddChild(SmallLabel("Cronaca (debug)"));
+		box.AddChild(SmallLabel("Diario"));
+		_journalLabel = SmallLabel("");
+		_journalLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		box.AddChild(_journalLabel);
+
+		var facts = new VBoxContainer();
+		facts.AddChild(new HSeparator());
+		facts.AddChild(SmallLabel("Cronaca (debug)"));
 		_factsLabel = SmallLabel("");
 		_factsLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-		box.AddChild(_factsLabel);
+		facts.AddChild(_factsLabel);
+		box.AddChild(facts);
+		_factsSection = facts;
 
 		// Debug panel (right): omniscient, separate from what the player knows.
 		var debugPanel = new PanelContainer
@@ -534,6 +685,7 @@ public partial class Main : Node2D
 		_debugLabel = SmallLabel("");
 		_debugLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
 		debugBox.AddChild(_debugLabel);
+		_debugPanel = debugPanel;
 	}
 
 	private static Label SmallLabel(string text)

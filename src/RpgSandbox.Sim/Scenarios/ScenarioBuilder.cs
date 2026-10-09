@@ -38,10 +38,12 @@ public sealed class Scenario
 internal sealed record AreaDefinition(AreaId Id, string Name);
 internal sealed record LocationDefinition(LocationId Id, string Name, AreaId Area);
 internal sealed record RouteDefinition(LocationId A, LocationId B, Duration TravelTime);
-internal sealed record ActorDefinition(ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food, FactionId? Faction);
+internal sealed record ActorDefinition(
+    ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food, FactionId? Faction, WorkShift? Shift);
 internal sealed record StoreDefinition(StoreId Id, string Name, LocationId Location, int Food, FactionId? Owner);
 internal sealed record FactionDefinition(
-    FactionId Id, string Name, StoreId? HomeStore, int DailyUpkeep, Duration UpkeepTimeOfDay, RaidPolicy? Policy);
+    FactionId Id, string Name, StoreId? HomeStore, int DailyUpkeep, Duration UpkeepTimeOfDay, RaidPolicy? Policy,
+    ActorId? Authority);
 
 /// <summary>Builds a <see cref="Scenario"/> in C#. Validates references when <see cref="Build"/> is called.</summary>
 public sealed class ScenarioBuilder
@@ -74,9 +76,10 @@ public sealed class ScenarioBuilder
 
     /// <summary>A faction without a policy: it owns things and has members, but takes no initiative.</summary>
     public ScenarioBuilder AddFaction(string id, string name, string? homeStoreId = null,
-        int dailyUpkeep = 0, Duration upkeepTimeOfDay = default)
+        int dailyUpkeep = 0, Duration upkeepTimeOfDay = default, string? authorityId = null)
     {
-        _factions.Add(new FactionDefinition(new FactionId(id), name, ToStore(homeStoreId), dailyUpkeep, upkeepTimeOfDay, null));
+        _factions.Add(new FactionDefinition(new FactionId(id), name, ToStore(homeStoreId), dailyUpkeep, upkeepTimeOfDay, null,
+            authorityId is null ? null : new ActorId(authorityId)));
         return this;
     }
 
@@ -85,14 +88,19 @@ public sealed class ScenarioBuilder
         int dailyUpkeep, Duration upkeepTimeOfDay, int foodThreshold, int raidAmount, Duration evaluationInterval)
     {
         var policy = new RaidPolicy(foodThreshold, raidAmount, evaluationInterval);
-        _factions.Add(new FactionDefinition(new FactionId(id), name, new StoreId(homeStoreId), dailyUpkeep, upkeepTimeOfDay, policy));
+        _factions.Add(new FactionDefinition(new FactionId(id), name, new StoreId(homeStoreId), dailyUpkeep, upkeepTimeOfDay, policy, null));
         return this;
     }
 
+    /// <summary>
+    /// Adds an actor. NPCs live where they start. An optional daily shift sends them to
+    /// <paramref name="workLocationId"/> between <paramref name="shiftStart"/> and <paramref name="shiftEnd"/> (times of day).
+    /// </summary>
     public ScenarioBuilder AddActor(string id, string name, string locationId, bool isPlayer = false, int food = 0,
-        string? factionId = null)
+        string? factionId = null, string? workLocationId = null, Duration shiftStart = default, Duration shiftEnd = default)
     {
-        _actors.Add(new ActorDefinition(new ActorId(id), name, new LocationId(locationId), isPlayer, food, ToFaction(factionId)));
+        var shift = workLocationId is null ? null : new WorkShift(new LocationId(workLocationId), shiftStart, shiftEnd);
+        _actors.Add(new ActorDefinition(new ActorId(id), name, new LocationId(locationId), isPlayer, food, ToFaction(factionId), shift));
         return this;
     }
 
@@ -135,6 +143,13 @@ public sealed class ScenarioBuilder
             Require(actor.Food >= 0, $"Actor '{actor.Id}' starts with negative food.");
             Require(actor.Faction is null || factionIds.Contains(actor.Faction.Value),
                 $"Actor '{actor.Id}' belongs to unknown faction '{actor.Faction}'.");
+            if (actor.Shift is { } shift)
+            {
+                Require(!actor.IsPlayer, "The player has no work shift.");
+                Require(locationIds.Contains(shift.Location), $"Actor '{actor.Id}' works at unknown location '{shift.Location}'.");
+                Require(shift.Start.Seconds >= 0 && shift.Start.Seconds < shift.End.Seconds && shift.End.Seconds <= 86_400,
+                    $"Actor '{actor.Id}' has an invalid shift (start < end, within one day).");
+            }
         }
 
         foreach (var store in _stores)
@@ -154,6 +169,9 @@ public sealed class ScenarioBuilder
                 $"Faction '{faction.Id}' consumes food but has no home store.");
             Require(faction.UpkeepTimeOfDay.Seconds is >= 0 and < 86_400,
                 $"Faction '{faction.Id}' upkeep time must be within a day.");
+            Require(faction.Authority is null ||
+                    _actors.Any(a => a.Id == faction.Authority && a.Faction == faction.Id && !a.IsPlayer),
+                $"Faction '{faction.Id}' authority must be one of its NPC members.");
             if (faction.Policy is { } policy)
             {
                 Require(policy.EvaluationInterval.Seconds > 0, $"Faction '{faction.Id}' evaluation interval must be positive.");

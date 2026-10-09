@@ -13,7 +13,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 1;
+    public const int SchemaVersion = 2;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -60,6 +60,7 @@ internal static class SaveGame
         NextActionId = w.NextActionId,
         NextFactId = w.NextFactId,
         NextSequence = w.Scheduler.NextSequence,
+        NextObservationId = w.NextObservationId,
         Areas = w.Areas.Values.Select(a => new AreaDto { Id = a.Id.Value, Name = a.Name }).ToList(),
         Locations = w.Locations.Values.Select(l => new LocationDto { Id = l.Id.Value, Name = l.Name, Area = l.Area.Value }).ToList(),
         Routes = w.Routes.Select(r => new RouteDto { From = r.Key.From.Value, To = r.Key.To.Value, Seconds = r.Value.Seconds }).ToList(),
@@ -75,6 +76,8 @@ internal static class SaveGame
                 : null,
             NextEvaluation = f.NextEvaluation?.Seconds,
             LastDecision = ToDto(f.LastDecision),
+            Authority = f.Authority?.Value,
+            AvoidUntil = f.AvoidUntil.Select(x => new AvoidDto { Store = x.Key.Value, Until = x.Value.Seconds }).ToList(),
         }).ToList(),
         Actors = w.Actors.Values.Select(a => new ActorDto
         {
@@ -89,10 +92,16 @@ internal static class SaveGame
                 ? new RaidAssignmentDto
                 {
                     Faction = r.Faction.Value, Target = r.Target.Value, Home = r.Home.Value, Amount = r.Amount,
-                    AssignedAt = r.AssignedAt.Seconds, TakeAttempted = r.TakeAttempted,
+                    AssignedAt = r.AssignedAt.Seconds, TakeAttempted = r.TakeAttempted, Aborted = r.Aborted,
                 }
                 : null,
             LastDecision = ToDto(a.LastDecision),
+            Home = a.Home?.Value,
+            Shift = a.Shift is { } sh ? new WorkShiftDto { Location = sh.Location.Value, Start = sh.Start.Seconds, End = sh.End.Seconds } : null,
+            ArrivedAt = a.ArrivedAt.Seconds,
+            GuardDuty = a.GuardDuty is { } g ? new GuardDutyDto { Store = g.Store.Value, Since = g.Since.Seconds, Until = g.Until.Seconds } : null,
+            Knowledge = a.Knowledge.Select(ToDto).ToList(),
+            ActedOn = a.ActedOn.Select(o => o.Value).ToList(),
         }).ToList(),
         Stores = w.Stores.Values.Select(s => new StoreDto
         {
@@ -115,6 +124,14 @@ internal static class SaveGame
         Facts = w.RecentFacts.Select(f => new FactDto { Id = f.Id.Value, At = f.At.Seconds, Kind = f.Kind, Description = f.Description }).ToList(),
     };
 
+    private static ObservationDto ToDto(Observation o) => new()
+    {
+        Id = o.Id.Value, Origin = o.Origin.Value, Store = o.Store.Value, StoreName = o.StoreName, Location = o.Location.Value,
+        Amount = o.Amount, Thief = o.Thief?.Value, ThiefName = o.ThiefName, ObservedAt = o.ObservedAt.Seconds,
+        LearnedAt = o.LearnedAt.Seconds, Source = o.Source?.Value, Fact = o.Fact?.Value,
+        ToldTo = o.ToldTo.Select(t => t.Value).ToList(),
+    };
+
     private static DecisionDto? ToDto(DecisionTrace? t) => t is null
         ? null
         : new DecisionDto { At = t.At.Seconds, Rule = t.Rule, Reason = t.Reason, Inputs = t.Inputs.ToList() };
@@ -128,6 +145,8 @@ internal static class SaveGame
             DepositFoodAction d => new DepositFoodActionDto { Store = d.Store.Value, Amount = d.Amount },
             TakeFoodAction k => new TakeFoodActionDto { Store = k.Store.Value, Amount = k.Amount },
             WaitAction wa => new WaitActionDto { Interruptible = wa.Interruptible },
+            ReportAction rep => new ReportActionDto { Recipient = rep.Recipient.Value, Observation = rep.Observation.Value },
+            GuardAction ga => new GuardActionDto { Store = ga.Store.Value },
             _ => throw new InvalidOperationException($"Unknown action {action.GetType().Name}"),
         };
         if (dto is null)
@@ -146,6 +165,7 @@ internal static class SaveGame
         var w = new WorldState { Player = new ActorId(Required(d.Player, "player")), Now = new GameTime(d.Now) };
         w.NextActionId = d.NextActionId;
         w.NextFactId = d.NextFactId;
+        w.NextObservationId = d.NextObservationId;
 
         foreach (var a in d.Areas)
             w.Areas.Add(new AreaId(a.Id), new Area { Id = new AreaId(a.Id), Name = a.Name });
@@ -183,7 +203,13 @@ internal static class SaveGame
                 Policy = f.Policy is { } p ? new RaidPolicy(p.FoodThreshold, p.RaidAmount, new Duration(p.EvaluationInterval)) : null,
                 NextEvaluation = f.NextEvaluation is { } next ? new GameTime(next) : null,
                 LastDecision = FromDto(f.LastDecision),
+                Authority = f.Authority is null ? null : new ActorId(f.Authority),
             });
+            foreach (var avoid in f.AvoidUntil)
+            {
+                Check(w.Stores.ContainsKey(new StoreId(avoid.Store)), $"fazione '{f.Id}' evita un deposito sconosciuto");
+                w.Factions[new FactionId(f.Id)].AvoidUntil.Add(new StoreId(avoid.Store), new GameTime(avoid.Until));
+            }
         }
         foreach (var store in w.Stores.Values)
             Check(store.Owner is null || w.Factions.ContainsKey(store.Owner.Value), $"deposito '{store.Id}' di fazione sconosciuta");
@@ -206,15 +232,29 @@ internal static class SaveGame
                     ? new RaidAssignment
                     {
                         Faction = new FactionId(r.Faction), Target = new StoreId(r.Target), Home = new StoreId(r.Home),
-                        Amount = r.Amount, AssignedAt = new GameTime(r.AssignedAt), TakeAttempted = r.TakeAttempted,
+                        Amount = r.Amount, AssignedAt = new GameTime(r.AssignedAt), TakeAttempted = r.TakeAttempted, Aborted = r.Aborted,
                     }
                     : null,
+                Home = a.Home is null ? null : new LocationId(a.Home),
+                Shift = a.Shift is { } sh ? new WorkShift(new LocationId(sh.Location), new Duration(sh.Start), new Duration(sh.End)) : null,
+                ArrivedAt = new GameTime(a.ArrivedAt),
+                GuardDuty = a.GuardDuty is { } g
+                    ? new GuardDuty { Store = new StoreId(g.Store), Since = new GameTime(g.Since), Until = new GameTime(g.Until) }
+                    : null,
             };
+            foreach (var o in a.Knowledge)
+                actor.Knowledge.Add(FromDto(o));
+            foreach (var origin in a.ActedOn)
+                actor.ActedOn.Add(new ObservationId(origin));
             ValidateActor(w, actor);
             w.Actors.Add(actor.Id, actor);
         }
         Check(w.Actors.TryGetValue(w.Player, out var player) && player.IsPlayer, "giocatore mancante");
         Check(w.Actors.Values.Count(a => a.IsPlayer) == 1, "più di un giocatore");
+        foreach (var actor in w.Actors.Values)
+            ValidateKnowledge(w, actor);
+        foreach (var faction in w.Factions.Values)
+            Check(faction.Authority is null || w.Actors.ContainsKey(faction.Authority.Value), $"autorità di '{faction.Id}' sconosciuta");
 
         var entries = d.Schedule.Select(e => new Scheduler.Entry(new GameTime(e.Due), e.Sequence, e.Job switch
         {
@@ -245,8 +285,32 @@ internal static class SaveGame
         return w;
     }
 
+    /// <summary>Checks references that may point to any actor; runs once all actors are loaded.</summary>
+    private static void ValidateKnowledge(WorldState w, Actor a)
+    {
+        foreach (var o in a.Knowledge)
+        {
+            Check(w.Stores.ContainsKey(o.Store) && w.Locations.ContainsKey(o.Location), $"conoscenza di '{a.Id}' su luoghi sconosciuti");
+            Check(o.Thief is null || w.Actors.ContainsKey(o.Thief.Value), $"conoscenza di '{a.Id}' su un ladro sconosciuto");
+            Check(o.Source is null || w.Actors.ContainsKey(o.Source.Value), $"conoscenza di '{a.Id}' da una fonte sconosciuta");
+            Check(o.ToldTo.All(w.Actors.ContainsKey), $"conoscenza di '{a.Id}' raccontata a sconosciuti");
+            Check(o.Id.Value < w.NextObservationId && o.Origin.Value < w.NextObservationId, "contatore delle osservazioni incoerente");
+        }
+        Check(a.Knowledge.Select(o => o.Origin).Distinct().Count() == a.Knowledge.Count, $"conoscenze duplicate per '{a.Id}'");
+        if (a.CurrentAction is ReportAction report)
+        {
+            Check(w.Actors.ContainsKey(report.Recipient), $"rapporto di '{a.Id}' a destinatario sconosciuto");
+            Check(a.Knowledge.Any(o => o.Id == report.Observation), $"rapporto di '{a.Id}' su qualcosa che non sa");
+        }
+    }
+
     private static void ValidateActor(WorldState w, Actor a)
     {
+        Check(a.Home is null || w.Locations.ContainsKey(a.Home.Value), $"attore '{a.Id}' con casa sconosciuta");
+        Check(a.Shift is null || w.Locations.ContainsKey(a.Shift.Location), $"attore '{a.Id}' con lavoro sconosciuto");
+        Check(a.GuardDuty is null || w.Stores.ContainsKey(a.GuardDuty.Store), $"attore '{a.Id}' sorveglia un deposito sconosciuto");
+        if (a.CurrentAction is GuardAction guard)
+            Check(w.Stores.ContainsKey(guard.Store), $"sorveglianza di '{a.Id}' su deposito sconosciuto");
         Check(a.Food >= 0, $"attore '{a.Id}' con razioni negative");
         Check(a.Faction is null || w.Factions.ContainsKey(a.Faction.Value), $"attore '{a.Id}' di fazione sconosciuta");
         Check(a.Location is null || w.Locations.ContainsKey(a.Location.Value), $"attore '{a.Id}' in luogo sconosciuto");
@@ -296,6 +360,16 @@ internal static class SaveGame
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
                 Store = new StoreId(take.Store), Amount = take.Amount,
             },
+            ReportActionDto rep => new ReportAction
+            {
+                Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
+                Recipient = new ActorId(rep.Recipient), Observation = new ObservationId(rep.Observation),
+            },
+            GuardActionDto guard => new GuardAction
+            {
+                Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
+                Store = new StoreId(guard.Store),
+            },
             WaitActionDto wait => new WaitAction
             {
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
@@ -303,6 +377,29 @@ internal static class SaveGame
             },
             _ => throw new InvalidDataException("tipo di azione sconosciuto"),
         };
+    }
+
+    private static Observation FromDto(ObservationDto o)
+    {
+        var observation = new Observation
+        {
+            Id = new ObservationId(o.Id),
+            Origin = new ObservationId(o.Origin),
+            Store = new StoreId(Required(o.Store, "deposito dell'osservazione")),
+            StoreName = o.StoreName,
+            Location = new LocationId(Required(o.Location, "luogo dell'osservazione")),
+            Amount = o.Amount,
+            Thief = o.Thief is null ? null : new ActorId(o.Thief),
+            ThiefName = o.ThiefName,
+            ObservedAt = new GameTime(o.ObservedAt),
+            LearnedAt = new GameTime(o.LearnedAt),
+            Source = o.Source is null ? null : new ActorId(o.Source),
+            Fact = o.Fact is { } fact ? new FactId(fact) : null,
+        };
+        foreach (var told in o.ToldTo)
+            observation.ToldTo.Add(new ActorId(told));
+        Check(observation.LearnedAt >= observation.ObservedAt, "osservazione appresa prima di essere avvenuta");
+        return observation;
     }
 
     private static DecisionTrace? FromDto(DecisionDto? d) =>

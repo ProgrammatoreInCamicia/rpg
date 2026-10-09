@@ -6,6 +6,7 @@ namespace RpgSandbox.Game;
 /// <summary>
 /// Development aid, enabled only by the `--smoke=&lt;dir&gt;` user argument: plays a scripted session
 /// through the real UI paths, saves screenshots along the way, then quits.
+/// Story: the player watches the granary, sees the raider steal, tells the guard, and the next raid fails.
 /// </summary>
 public partial class SmokeRunner : Node
 {
@@ -25,7 +26,9 @@ public partial class SmokeRunner : Node
 		DirAccess.MakeDirRecursiveAbsolute(_outputDir);
 
 		await Frames(10);
-		Capture("1-start.png");
+		_main.SetDebug(false);
+		await Frames(2);
+		Capture("1-start-player-view.png");
 
 		// Go through the real input path: move the mouse over the granary and click.
 		var target = _main.GetViewport().GetCanvasTransform() * _main.ScreenPointOf(SliceScenario.Ids.Granary);
@@ -33,30 +36,35 @@ public partial class SmokeRunner : Node
 		await Frames(3);
 		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true, Position = target, GlobalPosition = target });
 		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = target, GlobalPosition = target });
-		await Seconds(1.0);
-		Capture("2-travelling.png");
 		await UntilIdle();
 
-		_main.DepositViaUi(4);
-		await UntilIdle();
-		Capture("3-deposited.png");
-
-		// Wait until the bandits' raid is under way (it starts at 09:00).
-		for (var hour = 0; hour < 9; hour++)
+		// Watch the granary through the morning: the raid happens at 09:30–09:33.
+		for (var hour = 0; hour < 10; hour++)
 		{
 			_main.WaitOneHour();
 			await UntilIdle();
 		}
-		Capture("4-raid-ordered.png");
+		Capture("2-witnessed-player-view.png");
 
-		_main.SaveGame();
-		_main.WaitOneHour();
+		_main.TravelTo(SliceScenario.Ids.Inn);
 		await UntilIdle();
-		Capture("5-after-raid.png");
+		Capture("3-at-inn-report-options.png");
 
-		_main.LoadGame();
-		await Frames(3);
-		Capture("6-reloaded.png");
+		if (!_main.ReportViaUi(SliceScenario.Ids.Guard))
+			GD.PrintErr("SMOKE FAIL: no report option for the guard");
+		await UntilIdle();
+		_main.SetDebug(true);
+		await Frames(2);
+		Capture("4-guard-reacts-debug.png");
+
+		// Day 3: the bandits are hungry again, but the granary is guarded.
+		for (var i = 0; i < 8; i++)
+		{
+			_main.SkipHours(6);
+			await Frames(1);
+		}
+		await Frames(2);
+		Capture("5-day3-raid-deterred-debug.png");
 
 		GD.Print("SMOKE OK");
 		GetTree().Quit();
@@ -82,7 +90,4 @@ public partial class SmokeRunner : Node
 		for (var i = 0; i < count; i++)
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 	}
-
-	private async Task Seconds(double seconds) =>
-		await ToSignal(GetTree().CreateTimer(seconds), SceneTreeTimer.SignalName.Timeout);
 }

@@ -12,6 +12,7 @@ internal sealed partial class Simulation
         DepositFoodCommand deposit => StartDeposit(deposit),
         TakeFoodCommand take => StartTake(take),
         WaitCommand wait => StartWait(wait.Actor, wait.Duration, interruptible: false, description: null),
+        ReportCommand report => StartReport(report),
         _ => CommandResult.Rejected(RejectionReason.UnknownCommand, $"Comando non supportato: {command.GetType().Name}."),
     };
 
@@ -75,6 +76,8 @@ internal sealed partial class Simulation
             return rejection;
         var actor = World.Actors[command.Actor];
         var store = World.Stores[command.Store];
+        if (IsTheft(actor, store) && IsGuarded(store))
+            return CommandResult.Rejected(RejectionReason.StoreGuarded, $"{store.Name} è sorvegliato.");
         if (store.Food == 0)
             return CommandResult.Rejected(RejectionReason.StoreEmpty, $"{store.Name} è vuoto.");
 
@@ -154,6 +157,7 @@ internal sealed partial class Simulation
         {
             case TravelAction travel:
                 actor.Location = travel.Destination;
+                actor.ArrivedAt = World.Now;
                 World.RecordFact("TravelCompleted", $"{actor.Name} arriva a {World.Locations[travel.Destination].Name}.");
                 break;
             case DepositFoodAction deposit:
@@ -162,6 +166,10 @@ internal sealed partial class Simulation
             case TakeFoodAction take:
                 CompleteTake(actor, take);
                 break;
+            case ReportAction report:
+                CompleteReport(actor, report);
+                break;
+            case GuardAction:
             case WaitAction:
                 break;
         }
@@ -192,6 +200,13 @@ internal sealed partial class Simulation
         if (actor.Assignment is { } assignment && assignment.Target == store.Id)
             assignment.TakeAttempted = true;
 
+        var theft = IsTheft(actor, store);
+        if (theft && IsGuarded(store))
+        {
+            World.RecordFact("FoodTakeFailed", $"{actor.Name} rinuncia: {store.Name} ora è sorvegliato.");
+            return;
+        }
+
         var taken = actor.Location == store.Location ? Math.Min(take.Amount, store.Food) : 0;
         if (taken == 0)
         {
@@ -201,9 +216,149 @@ internal sealed partial class Simulation
 
         store.Food -= taken;
         actor.Food += taken;
-        if (IsTheft(actor, store))
-            World.RecordFact("FoodStolen", $"{actor.Name} ruba {taken} razioni da {store.Name} (restano {store.Food}).");
-        else
+        if (!theft)
+        {
             World.RecordFact("FoodTaken", $"{actor.Name} prende {taken} razioni da {store.Name} (restano {store.Food}).");
+            return;
+        }
+
+        var fact = World.RecordFact("FoodStolen", $"{actor.Name} ruba {taken} razioni da {store.Name} (restano {store.Food}).");
+        PerceiveTheft(actor, take, store, taken, fact);
+    }
+
+    /// <summary>
+    /// Perception at the moment of the deed: everyone present sees the theft; only those who were there
+    /// since before it started recognise the thief. Observations copy what was perceived, nothing more.
+    /// </summary>
+    private void PerceiveTheft(Actor thief, TakeFoodAction take, Store store, int amount, FactId fact)
+    {
+        var witnesses = World.Actors.Values
+            .Where(a => a.Id != thief.Id && a.Location == store.Location)
+            .ToList();
+        foreach (var witness in witnesses)
+        {
+            var recognised = witness.ArrivedAt <= take.StartedAt;
+            var id = new ObservationId(World.NextObservationId++);
+            witness.Knowledge.Add(new Observation
+            {
+                Id = id,
+                Origin = id,
+                Store = store.Id,
+                StoreName = store.Name,
+                Location = store.Location,
+                Amount = amount,
+                Thief = recognised ? thief.Id : null,
+                ThiefName = recognised ? thief.Name : null,
+                ObservedAt = World.Now,
+                LearnedAt = World.Now,
+                Fact = fact,
+            });
+            World.RecordFact("FoodTheftWitnessed", recognised
+                ? $"{witness.Name} vede {thief.Name} rubare da {store.Name}."
+                : $"{witness.Name} vede un furto da {store.Name}, ma non riconosce il ladro.");
+            InterruptRoutine(witness);
+        }
+    }
+
+    // ---------------------------------------------------------------- reports
+
+    private CommandResult StartReport(ReportCommand command)
+    {
+        if (!World.Actors.TryGetValue(command.Actor, out var actor))
+            return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {command.Actor}.");
+        if (!World.Actors.TryGetValue(command.Recipient, out var recipient) || recipient.Id == actor.Id)
+            return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Destinatario sconosciuto: {command.Recipient}.");
+        if (actor.CurrentAction is not null || actor.Location is null)
+            return CommandResult.Rejected(RejectionReason.ActorBusy, $"{actor.Name} è già impegnato.");
+        if (recipient.Location != actor.Location)
+            return CommandResult.Rejected(RejectionReason.RecipientNotPresent, $"{recipient.Name} non è qui.");
+        var observation = actor.Knowledge.FirstOrDefault(o => o.Id == command.Observation);
+        if (observation is null)
+            return CommandResult.Rejected(RejectionReason.UnknownObservation, $"{actor.Name} non sa nulla del genere.");
+
+        var report = new ReportAction
+        {
+            Id = World.AllocateActionId(),
+            Actor = actor.Id,
+            StartedAt = World.Now,
+            CompletesAt = World.Now.Plus(Rules.ReportDuration),
+            Recipient = recipient.Id,
+            Observation = observation.Id,
+            Description = $"Racconta a {recipient.Name} del furto da {observation.StoreName}",
+        };
+        Begin(actor, report);
+        return CommandResult.Started(report.Id, report.CompletesAt, $"{actor.Name} parla con {recipient.Name}.");
+    }
+
+    private void CompleteReport(Actor reporter, ReportAction report)
+    {
+        var recipient = World.Actors[report.Recipient];
+        if (recipient.Location is null || recipient.Location != reporter.Location)
+        {
+            World.RecordFact("ReportFailed", $"{reporter.Name} non trova più {recipient.Name} per parlargli.");
+            return;
+        }
+
+        // The content is the one chosen when the report started.
+        var told = reporter.Knowledge.First(o => o.Id == report.Observation);
+        told.ToldTo.Add(recipient.Id);
+
+        // A rumour that comes back is not a second piece of evidence.
+        if (recipient.Knowledge.Any(o => o.Origin == told.Origin))
+        {
+            World.RecordFact("InformationShared", $"{reporter.Name} racconta a {recipient.Name} del furto, ma lo sapeva già.");
+            return;
+        }
+
+        recipient.Knowledge.Add(new Observation
+        {
+            Id = new ObservationId(World.NextObservationId++),
+            Origin = told.Origin,
+            Store = told.Store,
+            StoreName = told.StoreName,
+            Location = told.Location,
+            Amount = told.Amount,
+            Thief = told.Thief,
+            ThiefName = told.ThiefName,
+            ObservedAt = told.ObservedAt,
+            LearnedAt = World.Now,
+            Source = reporter.Id,
+            Fact = told.Fact,
+        });
+        World.RecordFact("InformationShared",
+            $"{reporter.Name} racconta a {recipient.Name} del furto da {told.StoreName}" +
+            (told.ThiefName is { } thief ? $" ({thief})." : " (ladro sconosciuto)."));
+        InterruptRoutine(recipient);
+    }
+
+    // ---------------------------------------------------------------- guarding
+
+    private CommandResult StartGuard(Actor actor, Store store, GameTime until)
+    {
+        var end = World.Now.Plus(Rules.GuardShift);
+        if (until < end)
+            end = until;
+        var guard = new GuardAction
+        {
+            Id = World.AllocateActionId(),
+            Actor = actor.Id,
+            StartedAt = World.Now,
+            CompletesAt = end,
+            Store = store.Id,
+            Description = $"Sorveglia {store.Name}",
+        };
+        Begin(actor, guard);
+        return CommandResult.Started(guard.Id, guard.CompletesAt, $"{actor.Name} sorveglia {store.Name}.");
+    }
+
+    /// <summary>A store is guarded when someone on guard duty for it is there.</summary>
+    private bool IsGuarded(Store store) =>
+        World.Actors.Values.Any(a => a.Location == store.Location && a.GuardDuty is { } duty && duty.Store == store.Id);
+
+    /// <summary>Something new happened to this actor: cut a routine wait short so it decides now.</summary>
+    private static void InterruptRoutine(Actor actor)
+    {
+        if (actor.CurrentAction is WaitAction { Interruptible: true })
+            actor.CurrentAction = null;
     }
 }

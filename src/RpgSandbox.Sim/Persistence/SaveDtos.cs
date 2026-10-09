@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace RpgSandbox.Sim.Persistence;
 
-// Plain serialization shapes for the save file (schema version 1). Times are seconds since the
+// Plain serialization shapes for the save file (schema version 2). Times are seconds since the
 // scenario start; ids are their string/number values. Kept separate from the domain on purpose:
 // the domain can change shape while the file format changes only deliberately.
 
@@ -14,6 +14,7 @@ internal sealed class SaveDto
     public long NextActionId { get; set; }
     public long NextFactId { get; set; }
     public long NextSequence { get; set; }
+    public long NextObservationId { get; set; }
     public List<AreaDto> Areas { get; set; } = new();
     public List<LocationDto> Locations { get; set; } = new();
     public List<RouteDto> Routes { get; set; } = new();
@@ -61,6 +62,8 @@ internal sealed class FactionDto
     public RaidPolicyDto? Policy { get; set; }
     public long? NextEvaluation { get; set; }
     public DecisionDto? LastDecision { get; set; }
+    public string? Authority { get; set; }
+    public List<AvoidDto> AvoidUntil { get; set; } = new();
 }
 
 internal sealed class ActorDto
@@ -74,6 +77,12 @@ internal sealed class ActorDto
     public ActionDto? Action { get; set; }
     public RaidAssignmentDto? Assignment { get; set; }
     public DecisionDto? LastDecision { get; set; }
+    public string? Home { get; set; }
+    public WorkShiftDto? Shift { get; set; }
+    public long ArrivedAt { get; set; }
+    public GuardDutyDto? GuardDuty { get; set; }
+    public List<ObservationDto> Knowledge { get; set; } = new();
+    public List<long> ActedOn { get; set; } = new();
 }
 
 internal sealed class StoreDto
@@ -93,6 +102,7 @@ internal sealed class RaidAssignmentDto
     public int Amount { get; set; }
     public long AssignedAt { get; set; }
     public bool TakeAttempted { get; set; }
+    public bool Aborted { get; set; }
 }
 
 internal sealed class DecisionDto
@@ -108,6 +118,8 @@ internal sealed class DecisionDto
 [JsonDerivedType(typeof(DepositFoodActionDto), "DepositFood")]
 [JsonDerivedType(typeof(TakeFoodActionDto), "TakeFood")]
 [JsonDerivedType(typeof(WaitActionDto), "Wait")]
+[JsonDerivedType(typeof(ReportActionDto), "Report")]
+[JsonDerivedType(typeof(GuardActionDto), "Guard")]
 internal abstract class ActionDto
 {
     public long Id { get; set; }
@@ -154,4 +166,52 @@ internal sealed class FactDto
     public long At { get; set; }
     public string Kind { get; set; } = "";
     public string Description { get; set; } = "";
+}
+
+internal sealed class ReportActionDto : ActionDto
+{
+    public string Recipient { get; set; } = "";
+    public long Observation { get; set; }
+}
+
+internal sealed class GuardActionDto : ActionDto
+{
+    public string Store { get; set; } = "";
+}
+
+internal sealed class AvoidDto
+{
+    public string Store { get; set; } = "";
+    public long Until { get; set; }
+}
+
+internal sealed class WorkShiftDto
+{
+    public string Location { get; set; } = "";
+    public long Start { get; set; }
+    public long End { get; set; }
+}
+
+internal sealed class GuardDutyDto
+{
+    public string Store { get; set; } = "";
+    public long Since { get; set; }
+    public long Until { get; set; }
+}
+
+internal sealed class ObservationDto
+{
+    public long Id { get; set; }
+    public long Origin { get; set; }
+    public string Store { get; set; } = "";
+    public string StoreName { get; set; } = "";
+    public string Location { get; set; } = "";
+    public int Amount { get; set; }
+    public string? Thief { get; set; }
+    public string? ThiefName { get; set; }
+    public long ObservedAt { get; set; }
+    public long LearnedAt { get; set; }
+    public string? Source { get; set; }
+    public long? Fact { get; set; }
+    public List<string> ToldTo { get; set; } = new();
 }

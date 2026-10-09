@@ -35,6 +35,16 @@ public sealed record WaitCommand : Command
     public required Duration Duration { get; init; }
 }
 
+/// <summary>
+/// Tell <see cref="Recipient"/>, who must be in the same place, something the actor knows. The content is
+/// fixed when the report starts; the recipient learns it when the report completes.
+/// </summary>
+public sealed record ReportCommand : Command
+{
+    public required ActorId Recipient { get; init; }
+    public required ObservationId Observation { get; init; }
+}
+
 public enum RejectionReason
 {
     None = 0,
@@ -50,6 +60,9 @@ public enum RejectionReason
     InsufficientFood,
     StoreEmpty,
     InvalidDuration,
+    RecipientNotPresent,
+    UnknownObservation,
+    StoreGuarded,
 }
 
 public sealed record CommandResult

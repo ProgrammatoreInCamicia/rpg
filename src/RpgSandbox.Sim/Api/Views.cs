@@ -60,6 +60,53 @@ public sealed record ActorView
 
     /// <summary>Why the NPC is doing what it does (debug). Null for the player.</summary>
     public DecisionView? LastDecision { get; init; }
+
+    /// <summary>Where the NPC lives (null for the player).</summary>
+    public LocationId? Home { get; init; }
+
+    /// <summary>When the actor arrived where it is (debug: decides who recognises a thief).</summary>
+    public GameTime ArrivedAt { get; init; }
+
+    /// <summary>What the actor knows (debug for NPCs; the player sees its own through <see cref="PlayerView"/>).</summary>
+    public IReadOnlyList<ObservationView> Knowledge { get; init; } = Array.Empty<ObservationView>();
+
+    public GuardDutyView? GuardDuty { get; init; }
+}
+
+public sealed record GuardDutyView
+{
+    public required StoreId Store { get; init; }
+    public required GameTime Since { get; init; }
+    public required GameTime Until { get; init; }
+}
+
+/// <summary>What an actor knows about a theft, as perceived or as told. Never a read of the current world.</summary>
+public sealed record ObservationView
+{
+    public required ObservationId Id { get; init; }
+
+    /// <summary>The first-hand observation this one descends from (itself, if first-hand).</summary>
+    public required ObservationId Origin { get; init; }
+
+    /// <summary>"Theft" for now. New kinds are announced before they appear.</summary>
+    public required string Kind { get; init; }
+    public required StoreId Store { get; init; }
+    public required string StoreName { get; init; }
+    public required LocationId Location { get; init; }
+    public required int Amount { get; init; }
+
+    /// <summary>Null when the thief was not recognised.</summary>
+    public ActorId? Thief { get; init; }
+    public string? ThiefName { get; init; }
+
+    public required GameTime ObservedAt { get; init; }
+    public required GameTime LearnedAt { get; init; }
+
+    /// <summary>Null when seen first-hand; otherwise who told it.</summary>
+    public ActorId? Source { get; init; }
+    public string? SourceName { get; init; }
+
+    public required IReadOnlyList<ActorId> ToldTo { get; init; }
 }
 
 public sealed record AssignmentView
@@ -72,6 +119,9 @@ public sealed record AssignmentView
     public required int Amount { get; init; }
     public required GameTime AssignedAt { get; init; }
     public required bool TakeAttempted { get; init; }
+
+    /// <summary>The member gave up (target guarded) and is going home to tell.</summary>
+    public required bool Aborted { get; init; }
 }
 
 /// <summary>A recorded decision: which rule fired, why, and the data it read.</summary>
@@ -94,13 +144,25 @@ public sealed record FactionView
     /// <summary>Null for factions without a policy.</summary>
     public GameTime? NextEvaluation { get; init; }
     public DecisionView? LastDecision { get; init; }
+
+    /// <summary>Who receives reports for this faction.</summary>
+    public ActorId? Authority { get; init; }
+
+    /// <summary>Raid targets the faction avoids, and until when.</summary>
+    public IReadOnlyList<AvoidedTargetView> AvoidedTargets { get; init; } = Array.Empty<AvoidedTargetView>();
+}
+
+public sealed record AvoidedTargetView
+{
+    public required StoreId Store { get; init; }
+    public required GameTime Until { get; init; }
 }
 
 public sealed record ActionView
 {
     public required ActionId Id { get; init; }
 
-    /// <summary>"Travel", "DepositFood", "TakeFood" or "Wait". New kinds are announced before they appear.</summary>
+    /// <summary>"Travel", "DepositFood", "TakeFood", "Wait", "Report" or "Guard". New kinds are announced before they appear.</summary>
     public required string Kind { get; init; }
 
     public required GameTime StartedAt { get; init; }

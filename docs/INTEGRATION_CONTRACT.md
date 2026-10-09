@@ -1,7 +1,7 @@
 # Contratto di integrazione Sim ↔ Godot
 
 Responsabile: **Claude** (proprietà passata da Codex in `chat.txt`, Round 5).
-Stato: **checkpoint 0, 1 e 2 pubblicati e compilabili** in `src/RpgSandbox.Sim/Api/`, coperti da test (`tests/RpgSandbox.Sim.Tests/`).
+Stato: **checkpoint 0–3 (intera vertical slice) pubblicati e compilabili** in `src/RpgSandbox.Sim/Api/`, coperti da test (`tests/RpgSandbox.Sim.Tests/`).
 Il codice in `Api/` è la fonte autorevole. Questo documento ne descrive la semantica.
 
 ## Regole del confine
@@ -16,7 +16,7 @@ Il codice in `Api/` è la fonte autorevole. Questo documento ne descrive la sema
 
 ```csharp
 // Ids.cs: record struct con stringa (ID di scenario) o long (ID allocati dalla sim)
-AreaId LocationId ActorId StoreId FactionId (string)   ActionId FactId (long)
+AreaId LocationId ActorId StoreId FactionId (string)   ActionId FactId ObservationId (long)
 
 // GameTime.cs: unità = secondo
 Duration(long Seconds)  FromSeconds/FromMinutes/FromHours, Zero
@@ -24,8 +24,11 @@ GameTime(long Seconds)  Plus(Duration), Since(GameTime), Day/Hour/Minute/Second,
 
 // Scenarios
 Scenario SliceScenario.Create();
-SliceScenario.Ids.{Village, Forest, Inn, Granary, BanditCamp, Player, Raider, GranaryStore, CampStore, VillageFaction, Bandits}
-ScenarioBuilder: AddArea, AddLocation, AddRoute, AddFaction, AddRaidingFaction, AddStore(..., owner), AddActor(..., food, faction), Build()
+Scenario SliceScenario.Build(farmerShiftStart, farmerShiftEnd, granaryFood = 40)   // varianti per i test
+SliceScenario.Ids.{Village, Forest, Inn, Granary, BanditCamp, Player, Raider, Farmer, Guard,
+                   GranaryStore, CampStore, VillageFaction, Bandits}
+ScenarioBuilder: AddArea, AddLocation, AddRoute, AddFaction(..., authorityId), AddRaidingFaction, AddStore(..., owner),
+                 AddActor(..., food, faction, workLocationId, shiftStart, shiftEnd), Build()
 
 // SimulationSession
 SimulationSession.Create(Scenario)                 // esegue subito il primo istante: fazioni valutate, NPC decidono
@@ -33,7 +36,8 @@ GameTime Now; ActorId Player
 CommandResult  Execute(Command)                    // avvia, NON avanza il tempo
 void           Advance(Duration)                   // Duration < 0 o overflow => ArgumentOutOfRangeException, nessun effetto
 AdvanceResult  AdvanceUntilCompleted(ActionId, Duration maxWait)
-WorldView      GetWorldView()                      // vista completa/onnisciente (rendering prototipo + debug)
+WorldView      GetWorldView()                      // vista completa/onnisciente: SOLO debug
+PlayerView     GetPlayerView()                     // ciò che il giocatore può sapere: usarla per l'UI di gioco
 void           Save(Stream)                        // snapshot JSON autosufficiente, versione schema 1
 static LoadResult TryLoad(Stream)                  // NUOVA sessione; quella corrente non viene toccata
 
@@ -42,10 +46,12 @@ TravelCommand      { Actor, Destination }
 DepositFoodCommand { Actor, Store, Amount }
 TakeFoodCommand    { Actor, Store, Amount }        // da un deposito di un'altra fazione = furto
 WaitCommand        { Actor, Duration }
+ReportCommand      { Actor, Recipient, Observation }
 
 CommandResult { Success, Rejection, Action?, CompletesAt?, Message }
 RejectionReason { None, ActorNotFound, DestinationNotFound, ActorBusy, AlreadyThere, RouteNotFound, UnknownCommand,
-                  StoreNotFound, NotAtStore, InvalidAmount, InsufficientFood, StoreEmpty, InvalidDuration }
+                  StoreNotFound, NotAtStore, InvalidAmount, InsufficientFood, StoreEmpty, InvalidDuration,
+                  RecipientNotPresent, UnknownObservation, StoreGuarded }
 AdvanceResult { Outcome: Completed | TimeLimitReached | NotPending, Now }
 LoadResult    { Success, Session?, Error? }
 
@@ -54,25 +60,35 @@ WorldView      { Now, Player, Areas, Locations, Routes, Actors, Stores, Factions
 AreaView       { Id, Name }
 LocationView   { Id, Name, Area }
 RouteView      { From, To, TravelTime }                 // una voce per direzione
-ActorView      { Id, Name, IsPlayer, Faction?, Location?, Food, Action?, Travel?, Assignment?, LastDecision? }
-ActionView     { Id, Kind ("Travel" | "DepositFood" | "TakeFood" | "Wait"), StartedAt, CompletesAt, Description }
+ActorView      { Id, Name, IsPlayer, Faction?, Location?, Food, Action?, Travel?, Assignment?, LastDecision?,
+                 Home?, ArrivedAt, Knowledge, GuardDuty? }
+ActionView     { Id, Kind ("Travel" | "DepositFood" | "TakeFood" | "Wait" | "Report" | "Guard"), StartedAt, CompletesAt, Description }
 TravelView     { Action, Origin, Destination, DepartedAt, ArrivesAt }
-AssignmentView { Kind ("Raid"), Faction, Target, Home, Amount, AssignedAt, TakeAttempted }
+AssignmentView { Kind ("Raid"), Faction, Target, Home, Amount, AssignedAt, TakeAttempted, Aborted }
+GuardDutyView  { Store, Since, Until }
+ObservationView{ Id, Origin, Kind ("Theft"), Store, StoreName, Location, Amount, Thief?, ThiefName?, ObservedAt, LearnedAt,
+                 Source?, SourceName?, ToldTo }
 DecisionView   { At, Rule, Reason, Inputs }
 StoreView      { Id, Name, Location, Food, Owner? }
-FactionView    { Id, Name, HomeStore?, DailyUpkeep, Members, NextEvaluation?, LastDecision? }
+FactionView    { Id, Name, HomeStore?, DailyUpkeep, Members, NextEvaluation?, LastDecision?, Authority?, AvoidedTargets }
+AvoidedTargetView { Store, Until }
 FactView       { Id, At, Kind, Description }
   // Kind: TravelStarted, TravelCompleted, FoodDeposited, FoodDepositFailed, FoodTaken, FoodStolen, FoodTakeFailed,
-  //       FoodConsumed, RaidOrdered, RaidCompleted
+  //       FoodConsumed, RaidOrdered, RaidCompleted, RaidDeterred, RaidAborted, FoodTheftWitnessed, InformationShared,
+  //       ReportFailed, GuardDutyStarted, GuardDutyEnded
+
+PlayerView       { Now, Id, Location?, Food, Action?, Travel?, Area, Areas, Locations, Routes,
+                   VisibleActors, VisibleStores, Observations, ReportOptions }
+VisibleActorView { Id, Name, Faction?, Location?, Travel?, Doing? }   // niente intenzioni né conoscenze
+ReportOptionView { Recipient, RecipientName, Observation, Summary }
 ```
 
 ## Semantica
 
 - **Ordine in ogni istante elaborato**:
-  1. completamenti delle azioni;
-  2. (percezione, dal checkpoint 3);
-  3. lavori di fazione in scadenza (consumo, valutazione della politica), in ordine di programmazione;
-  4. decisioni degli NPC liberi, in ordine di ID.
+  1. completamenti delle azioni, con la **percezione** del furto calcolata nel momento in cui avviene;
+  2. lavori di fazione in scadenza (consumo, valutazione della politica), in ordine di programmazione;
+  3. decisioni degli NPC liberi, in ordine di ID.
 
   Le parità si risolvono con un ordine stabile. Ogni nuova azione termina in un istante futuro.
 - **Travel**: valida attore, destinazione, disponibilità, "già lì" e collegamento diretto, **prima** di mutare. Durante il viaggio `Location == null`.
@@ -82,15 +98,20 @@ FactView       { Id, At, Kind, Description }
   - Il cibo si sposta senza crearsi né distruggersi. Esce dal mondo **solo** con il consumo giornaliero delle fazioni (`FoodConsumed`).
 - **Wait**: un'azione con durata. Quella del giocatore non si interrompe; quella di routine di un NPC ("Riposa") può essere interrotta solo da un incarico di fazione.
 - **Fazioni**: la politica "razzia" si valuta ogni `EvaluationInterval`. Se è già in corso una razzia, o le scorte di casa sono ≥ soglia, non fa nulla. Altrimenti sceglie il deposito altrui non vuoto più vicino e il primo membro disponibile, a cui assegna l'incarico.
-- **NPC**: regole a priorità. Riporta il bottino > Torna al campo > Razzia conclusa > Raggiungi il bersaglio > Ruba > Routine: riposa. Ogni decisione registra regola, motivo e dati letti (`LastDecision`). Per ora le decisioni leggono lo stato oggettivo; le conoscenze arrivano con il checkpoint 3.
+- **NPC**: regole a priorità. Passi della razzia (Riporta il bottino, Torna al campo, Razzia conclusa, Raggiungi il bersaglio, Desisti, Ruba) > Organizza il presidio > Presidia il deposito > Riferisci il furto / Cerca la guardia > Routine (lavoro a turni, casa, riposo). Ogni decisione registra regola, motivo e dati letti (`LastDecision`).
+- **Percezione** (deterministica): chi è nel Luogo al momento del furto lo vede. Lo **riconosce** solo se era lì da prima che iniziasse (`ArrivedAt <=` inizio). Ogni testimone riceve un'osservazione autosufficiente, che sopravvive alla potatura della cronaca.
+- **Report**: dura 5 minuti e richiede lo stesso Luogo all'inizio e alla fine (altrimenti `ReportFailed`). Il contenuto è fissato all'inizio. Il destinatario riceve una copia con fonte, deduplicata per origine. Se era in un'attesa interrompibile, decide subito.
+- **Autorità e presidio**: quando l'autorità della fazione viene a sapere di un furto ai danni della fazione, presidia il deposito per 3 giorni a turni di 1 ora. Un deposito con un presidio presente è **sorvegliato**: il furto viene rifiutato all'avvio (`StoreGuarded`) o fallisce al completamento. Il Razziatore che lo vede desiste, e la sua fazione lo viene a sapere solo al suo rientro: per 24 ore evita quel bersaglio.
+- **Vista del giocatore**: `GetPlayerView()` mostra attori e depositi della sua Area (più chi viaggia da o verso di essa), le sue osservazioni e cosa può riferire a chi è presente. Intenzioni, decisioni e conoscenze altrui restano fuori. Le decisioni degli NPC leggono le proprie conoscenze e ciò che vedono nel proprio Luogo; restano due semplificazioni: la posizione dei depositi è nota a tutti, e la fazione dei banditi vede quante razioni ci sono nei depositi altrui.
 - **Advance(d)**: elabora in ordine ogni scadenza fino a `Now + d`. `Advance(a+b)` equivale a `Advance(a)` seguito da `Advance(b)`, ed è testato anche con NPC attivi.
 - **AdvanceUntilCompleted(id, max)**: elabora le scadenze (gli altri attori continuano ad agire) e si ferma alla fine dell'istante in cui `id` si completa. Se l'azione non è in corso restituisce `NotPending`.
 - **Save/Load**:
-  - Lo snapshot contiene tutto: stato, azioni in corso, incarichi, scadenze con i numeri di sequenza, contatori, ultime decisioni e cronaca.
+  - **Versione dello schema 2**: i file della versione 1 vengono rifiutati.
+  - Lo snapshot contiene tutto: stato, azioni in corso, incarichi, presidi, conoscenze (con a chi sono state riferite), scadenze con i numeri di sequenza, contatori, ultime decisioni e cronaca.
   - `TryLoad` valida versione, riferimenti, coerenza tra posizione e viaggio, e che ogni azione in corso abbia la sua scadenza. Errori in italiano, leggibili.
   - Testato: continuare senza interruzioni equivale a salvare e caricare a metà di un viaggio, di un furto o di una consegna.
 - `RecentFacts` è uno storico limitato (200 voci), dalla più vecchia alla più recente.
 
-## Prossima estensione (checkpoint 3, da annunciare prima)
+## Oltre la slice
 
-Percezione deterministica (testimone del furto), osservazioni con autore anche ignoto, comando di rapporto e presidio della guardia, vista filtrata per il giocatore (`PlayerView`), distinta da `GetWorldView()`.
+Ancora da decidere con l'utente e con Codex. I candidati concordati sono la furtività giocabile (prime prove 5e e RNG serializzabile), il combattimento a turni e il reclutamento di compagni.

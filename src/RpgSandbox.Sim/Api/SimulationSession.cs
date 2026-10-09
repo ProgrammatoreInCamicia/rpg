@@ -96,7 +96,7 @@ public sealed class SimulationSession
             Areas = Freeze(w.Areas.Values.Select(a => new AreaView { Id = a.Id, Name = a.Name })),
             Locations = Freeze(w.Locations.Values.Select(l => new LocationView { Id = l.Id, Name = l.Name, Area = l.Area })),
             Routes = Freeze(w.Routes.Select(r => new RouteView { From = r.Key.From, To = r.Key.To, TravelTime = r.Value })),
-            Actors = Freeze(w.Actors.Values.Select(ToView)),
+            Actors = Freeze(w.Actors.Values.Select(a => ToView(a, w))),
             Stores = Freeze(w.Stores.Values.Select(s => new StoreView
             {
                 Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food, Owner = s.Owner,
@@ -110,12 +110,14 @@ public sealed class SimulationSession
                 Members = Freeze(w.MembersOf(f.Id).Select(m => m.Id)),
                 NextEvaluation = f.NextEvaluation,
                 LastDecision = ToView(f.LastDecision),
+                Authority = f.Authority,
+                AvoidedTargets = Freeze(f.AvoidUntil.Select(a => new AvoidedTargetView { Store = a.Key, Until = a.Value })),
             })),
             RecentFacts = Freeze(w.RecentFacts.Select(f => new FactView { Id = f.Id, At = f.At, Kind = f.Kind, Description = f.Description })),
         };
     }
 
-    private static ActorView ToView(Actor actor) => new()
+    private static ActorView ToView(Actor actor, WorldState w) => new()
     {
         Id = actor.Id,
         Name = actor.Name,
@@ -133,10 +135,101 @@ public sealed class SimulationSession
             ? new AssignmentView
             {
                 Kind = "Raid", Faction = r.Faction, Target = r.Target, Home = r.Home, Amount = r.Amount,
-                AssignedAt = r.AssignedAt, TakeAttempted = r.TakeAttempted,
+                AssignedAt = r.AssignedAt, TakeAttempted = r.TakeAttempted, Aborted = r.Aborted,
             }
             : null,
         LastDecision = ToView(actor.LastDecision),
+        Home = actor.Home,
+        ArrivedAt = actor.ArrivedAt,
+        Knowledge = Freeze(actor.Knowledge.Select(o => ToView(o, w))),
+        GuardDuty = actor.GuardDuty is { } g ? new GuardDutyView { Store = g.Store, Since = g.Since, Until = g.Until } : null,
+    };
+
+    /// <summary>
+    /// What the player can know right now: the map, what is visible in its area, its own observations
+    /// and whom it could tell them to. Intentions, decisions and other actors' knowledge are not included.
+    /// </summary>
+    public PlayerView GetPlayerView()
+    {
+        var w = World;
+        var player = w.Actors[w.Player];
+        var travel = player.CurrentAction as TravelAction;
+        var area = w.Locations[player.Location ?? travel!.Destination].Area;
+
+        bool InArea(LocationId? location) => location is { } l && w.Locations[l].Area == area;
+        bool Visible(Actor a) => InArea(a.Location) ||
+                                 (a.CurrentAction is TravelAction t && (InArea(t.Origin) || InArea(t.Destination)));
+
+        var present = player.Location is { } here
+            ? w.Actors.Values.Where(a => a.Id != player.Id && a.Location == here).ToList()
+            : new List<Actor>();
+        var options = present
+            .SelectMany(recipient => player.Knowledge
+                .Where(o => !o.ToldTo.Contains(recipient.Id))
+                .Select(o => new ReportOptionView
+                {
+                    Recipient = recipient.Id,
+                    RecipientName = recipient.Name,
+                    Observation = o.Id,
+                    Summary = Summary(o),
+                }));
+
+        return new PlayerView
+        {
+            Now = w.Now,
+            Id = player.Id,
+            Location = player.Location,
+            Food = player.Food,
+            Action = player.CurrentAction is { } a
+                ? new ActionView { Id = a.Id, Kind = a.Kind, StartedAt = a.StartedAt, CompletesAt = a.CompletesAt, Description = a.Description }
+                : null,
+            Travel = travel is null
+                ? null
+                : new TravelView { Action = travel.Id, Origin = travel.Origin, Destination = travel.Destination, DepartedAt = travel.StartedAt, ArrivesAt = travel.CompletesAt },
+            Area = area,
+            Areas = Freeze(w.Areas.Values.Select(x => new AreaView { Id = x.Id, Name = x.Name })),
+            Locations = Freeze(w.Locations.Values.Select(l => new LocationView { Id = l.Id, Name = l.Name, Area = l.Area })),
+            Routes = Freeze(w.Routes.Select(r => new RouteView { From = r.Key.From, To = r.Key.To, TravelTime = r.Value })),
+            VisibleActors = Freeze(w.Actors.Values.Where(x => x.Id != player.Id && Visible(x)).Select(x => new VisibleActorView
+            {
+                Id = x.Id,
+                Name = x.Name,
+                Faction = x.Faction,
+                Location = x.Location,
+                Travel = x.CurrentAction is TravelAction t
+                    ? new TravelView { Action = t.Id, Origin = t.Origin, Destination = t.Destination, DepartedAt = t.StartedAt, ArrivesAt = t.CompletesAt }
+                    : null,
+                Doing = x.CurrentAction?.Description,
+            })),
+            VisibleStores = Freeze(w.Stores.Values.Where(s => InArea(s.Location)).Select(s => new StoreView
+            {
+                Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food, Owner = s.Owner,
+            })),
+            Observations = Freeze(player.Knowledge.Select(o => ToView(o, w))),
+            ReportOptions = Freeze(options),
+        };
+    }
+
+    private static string Summary(Observation o) =>
+        $"furto di {o.Amount} razioni da {o.StoreName} alle {o.ObservedAt.Hour:00}:{o.ObservedAt.Minute:00}" +
+        (o.ThiefName is { } thief ? $" ({thief})" : " (ladro sconosciuto)");
+
+    private static ObservationView ToView(Observation o, WorldState w) => new()
+    {
+        Id = o.Id,
+        Origin = o.Origin,
+        Kind = "Theft",
+        Store = o.Store,
+        StoreName = o.StoreName,
+        Location = o.Location,
+        Amount = o.Amount,
+        Thief = o.Thief,
+        ThiefName = o.ThiefName,
+        ObservedAt = o.ObservedAt,
+        LearnedAt = o.LearnedAt,
+        Source = o.Source,
+        SourceName = o.Source is { } s ? w.Actors[s].Name : null,
+        ToldTo = Freeze(o.ToldTo),
     };
 
     private static DecisionView? ToView(DecisionTrace? trace) => trace is null

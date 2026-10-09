@@ -8,6 +8,7 @@ public readonly record struct Duration(long Seconds) : IComparable<Duration>
     public static Duration FromSeconds(long seconds) => new(seconds);
     public static Duration FromMinutes(long minutes) => new(checked(minutes * 60));
     public static Duration FromHours(long hours) => new(checked(hours * 3600));
+    public static Duration FromDays(long days) => new(checked(days * 86_400));
 
     public int CompareTo(Duration other) => Seconds.CompareTo(other.Seconds);
     public override string ToString() => $"{Seconds}s";
