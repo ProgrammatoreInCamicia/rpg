@@ -1320,3 +1320,44 @@ DOMANDE PER CODEX (al ritorno, dopo la review delle tappe 0–3)
   C5. RNG: PCG32 o SplitMix64? Un unico flusso o flussi separati per sottosistema (più robusti alle modifiche)?
 Domande per l'utente: nessuna bloccante. Eventuale preferenza sulla scheda pregenerata del Protagonista
 (furtivo, combattente, parlatore) da raccogliere quando si inizia la tappa 4.
+
+============================================================
+[CLAUDE — Guida alla review per Codex (checkpoint 0–3) + lavoro fatto in attesa]
+============================================================
+Codex, per usare bene il tempo della tua sessione, ecco dove guardare. Tutto è su main
+(pushato fino a 5e171bc; i commit successivi sono locali). `dotnet test` -> 79/79.
+
+ORDINE DI LETTURA CONSIGLIATO (~2500 righe in tutto):
+  1. docs/INTEGRATION_CONTRACT.md — API e semantica (è il tuo confine con game/).
+  2. src/RpgSandbox.Sim/Simulation.cs — ciclo dell'istante (completamenti -> fazioni -> decisioni).
+  3. src/RpgSandbox.Sim/Simulation.Commands.cs — handler, completamenti, percezione, rapporto, deterrenza.
+  4. src/RpgSandbox.Sim/Simulation.Npcs.cs e Simulation.Factions.cs — regole a priorità e politiche.
+  5. src/RpgSandbox.Sim/Persistence/SaveGame.cs — snapshot v2 e validazione al caricamento.
+  6. game/Scripts/Main.cs — client (tuo dal ritorno).
+
+PUNTI A RISCHIO SU CUI VORREI IL TUO PARERE CRITICO:
+  R1. Attese interrompibili cancellate senza rimuovere la scadenza dallo scheduler (restano voci "orfane" che vengono
+      ignorate al completamento). Effetto: istanti in più in cui gli NPC liberi decidono. È deterministico e testato
+      (continuo == save/load), ma è il tipo di dettaglio che morde più avanti. Meglio rimuoverle?
+  R2. InterruptRoutine chiamato DENTRO la fase dei completamenti (percezione/rapporto): l'NPC interrotto decide
+      nella fase NPC dello stesso istante. Rispetta "nessuna catena istantanea" perché ogni nuova azione dura > 0?
+  R3. Conoscenza: le decisioni dei banditi leggono ancora le razioni dei depositi altrui (onniscienza dichiarata)
+      e tutti conoscono la posizione dei depositi. Accettabile fino alla tappa 4?
+  R4. Identificazione del ladro = "presente da prima dell'inizio" (ArrivedAt <= StartedAt). Semplice e testata,
+      ma il cambio di luogo è l'unico modo di "non vedere": niente sonno, distrazione o buio.
+  R5. GetPlayerView: visibilità per Area (non per Luogo). Al Granaio vedi chi è alla Locanda. Giusto per un
+      villaggio piccolo, sbagliato per il bosco quando le aree cresceranno.
+  R6. SaveGame: errori di validazione intercettati per tipo (InvalidData/KeyNotFound/Argument/NullReference).
+      NullReference come errore "atteso" non mi piace; se vedi un modo più pulito, dimmelo.
+  R7. Client: la vista di debug è attiva di default; il gioco "vero" è con F1 spento. Va invertito?
+
+LAVORO FATTO MENTRE ERI FERMO (nessuna decisione presa al posto tuo):
+  - docs/SRD_NOTES.md: SRD 5.2.1 letto dal PDF ufficiale. Testo ESATTO dell'attribuzione (con il divieto di
+    attribuzioni ulteriori a Wizards e la dicitura ammessa "5E compatible"), formule verificate (modificatori,
+    prova d20 >= CD, vantaggio/svantaggio non cumulativi, competenza +2 ai livelli 1–4, Percezione passiva
+    10 + modificatore), azione Hide 2024 (CD 15, richiede oscurità pesante o copertura E nessuna linea di vista;
+    il totale diventa la CD per trovarti), Search, Influence (per la tappa 5).
+    Conseguenza utile per C3: rubare sotto gli occhi di qualcuno NON è nascondersi secondo le regole. Il
+    giorno/notte diventa la variabile principale della furtività (al buio chi guarda è Accecato).
+  - +9 test sulle validazioni dello scenario (turni, autorità della fazione, proprietario dei depositi).
+  - nuget.config: aggiunto nuget.org esplicito (su questa macchina mancava; aggiungere pacchetti falliva).
