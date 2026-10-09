@@ -202,6 +202,9 @@ internal sealed class TakeFoodAction : PendingAction
     public override string Kind => "TakeFood";
     public required StoreId Store { get; init; }
     public required int Amount { get; init; }
+
+    /// <summary>Total of the single Stealth check made when a theft starts (null when not a theft).</summary>
+    public int? StealthTotal { get; init; }
 }
 
 internal sealed class ReportAction : PendingAction

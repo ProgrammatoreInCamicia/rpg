@@ -225,7 +225,7 @@ internal static class SaveGame
             null => null,
             TravelAction t => new TravelActionDto { Origin = t.Origin.Value, Destination = t.Destination.Value },
             DepositFoodAction d => new DepositFoodActionDto { Store = d.Store.Value, Amount = d.Amount },
-            TakeFoodAction k => new TakeFoodActionDto { Store = k.Store.Value, Amount = k.Amount },
+            TakeFoodAction k => new TakeFoodActionDto { Store = k.Store.Value, Amount = k.Amount, StealthTotal = k.StealthTotal },
             WaitAction wa => new WaitActionDto { Interruptible = wa.Interruptible },
             ReportAction rep => new ReportActionDto { Recipient = rep.Recipient.Value, Observation = rep.Observation.Value },
             GuardAction ga => new GuardActionDto { Store = ga.Store.Value },
@@ -476,7 +476,7 @@ internal static class SaveGame
             TakeFoodActionDto take => new TakeFoodAction
             {
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
-                Store = new StoreId(take.Store), Amount = take.Amount,
+                Store = new StoreId(take.Store), Amount = take.Amount, StealthTotal = take.StealthTotal,
             },
             ReportActionDto rep => new ReportAction
             {

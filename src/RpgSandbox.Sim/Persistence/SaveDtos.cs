@@ -148,6 +148,7 @@ internal sealed class TakeFoodActionDto : ActionDto
 {
     public string Store { get; set; } = "";
     public int Amount { get; set; }
+    public int? StealthTotal { get; set; }
 }
 
 internal sealed class WaitActionDto : ActionDto

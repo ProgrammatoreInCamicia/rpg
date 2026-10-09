@@ -1,4 +1,5 @@
 using RpgSandbox.Sim.Api;
+using RpgSandbox.Sim.Rules;
 
 namespace RpgSandbox.Sim;
 
@@ -85,6 +86,16 @@ internal sealed partial class Simulation
         if (actor.Food == int.MaxValue)
             return CommandResult.Rejected(RejectionReason.CapacityExceeded, $"{actor.Name} non può portare altre razioni.");
 
+        // A theft is done as quietly as possible: one Stealth check when it starts, valid for the whole action
+        // (ADAPTATION, see Perception). Heavy armor imposes Disadvantage.
+        var theft = IsTheft(actor, store);
+        D20Roll? stealth = null;
+        if (theft)
+        {
+            stealth = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Stealth), disadvantage: actor.Sheet.StealthDisadvantage);
+            World.RecordFact("Roll", $"{actor.Name}, Furtività: {stealth.Describe()} ({Perception.Describe(Perception.LightAt(World.Now))}).");
+        }
+
         var take = new TakeFoodAction
         {
             Id = World.AllocateActionId(),
@@ -93,12 +104,13 @@ internal sealed partial class Simulation
             CompletesAt = World.Now.Plus(Tuning.TakeFoodDuration),
             Store = store.Id,
             Amount = command.Amount,
-            Description = IsTheft(actor, store)
-                ? $"Furto di razioni da {store.Name}"
-                : $"Prelievo di razioni da {store.Name}",
+            StealthTotal = stealth?.Total,
+            Description = theft ? $"Furto di razioni da {store.Name}" : $"Prelievo di razioni da {store.Name}",
         };
         Begin(actor, take);
-        return CommandResult.Started(take.Id, take.CompletesAt, $"{actor.Name} inizia a prendere razioni da {store.Name}.");
+        // The actor knows how quiet it managed to be, never whether someone noticed.
+        var how = stealth is null ? "" : $" Furtività: {stealth.Describe()}.";
+        return CommandResult.Started(take.Id, take.CompletesAt, $"{actor.Name} inizia a prendere razioni da {store.Name}.{how}");
     }
 
     internal CommandResult StartWait(ActorId actorId, Duration duration, bool interruptible, string? description)
@@ -243,12 +255,23 @@ internal sealed partial class Simulation
     /// </summary>
     private void PerceiveTheft(Actor thief, TakeFoodAction take, Store store, int amount, FactId fact)
     {
+        var light = Perception.LightAt(World.Now);
+        var stealth = take.StealthTotal ?? 0;
         var witnesses = World.Actors.Values
             .Where(a => a.Id != thief.Id && a.Location == store.Location)
             .ToList();
         foreach (var witness in witnesses)
         {
-            var recognised = witness.ArrivedAt <= take.StartedAt;
+            var seen = Perception.Witness(witness.Sheet, light, stealth);
+            if (!seen.Noticed)
+            {
+                World.RecordFact("FoodTheftUnnoticed",
+                    $"{witness.Name} non si accorge di nulla ({Perception.Describe(light)}: Percezione passiva {seen.PassivePerception} < Furtività {stealth}).");
+                continue;
+            }
+
+            // Recognising takes seeing the thief, and having been there since the theft began.
+            var recognised = seen.SawActor && witness.ArrivedAt <= take.StartedAt;
             var id = new ObservationId(World.NextObservationId++);
             witness.Knowledge.Add(new Observation
             {
@@ -264,9 +287,10 @@ internal sealed partial class Simulation
                 LearnedAt = World.Now,
                 Fact = fact,
             });
-            World.RecordFact("FoodTheftWitnessed", recognised
-                ? $"{witness.Name} vede {thief.Name} rubare da {store.Name}."
-                : $"{witness.Name} vede un furto da {store.Name}, ma non riconosce il ladro.");
+            World.RecordFact("FoodTheftWitnessed",
+                recognised ? $"{witness.Name} vede {thief.Name} rubare da {store.Name}."
+                : seen.SawActor ? $"{witness.Name} vede un furto da {store.Name}, ma non riconosce il ladro."
+                : $"{witness.Name} sente qualcuno rubare da {store.Name} nel {Perception.Describe(light)}, ma non vede chi.");
             InterruptRoutine(witness);
         }
     }
