@@ -31,7 +31,8 @@ internal static class SaveGame
         {
             dto = JsonSerializer.Deserialize<SaveDto>(stream, Options);
         }
-        catch (JsonException e)
+        // NotSupportedException: a polymorphic object without (or with an unusable) type discriminator.
+        catch (Exception e) when (e is JsonException or NotSupportedException)
         {
             throw new SaveGameException("Il salvataggio è danneggiato o non è un salvataggio valido.", e);
         }
@@ -40,15 +41,68 @@ internal static class SaveGame
         if (dto.Version != SchemaVersion)
             throw new SaveGameException($"Versione del salvataggio non supportata: {dto.Version} (attesa {SchemaVersion}).");
 
+        // Validation is explicit: every rule below raises InvalidDataException with a readable reason.
+        // Any other exception is a programming error and is deliberately not disguised as a bad save.
         try
         {
+            ValidateShape(dto);
             return FromDto(dto);
         }
-        catch (Exception e) when (e is InvalidDataException or KeyNotFoundException or ArgumentException or NullReferenceException)
+        catch (InvalidDataException e)
         {
             throw new SaveGameException($"Il salvataggio contiene dati incoerenti: {e.Message}", e);
         }
     }
+
+    /// <summary>Structural checks: no missing collections, no null entries, no empty identifiers.</summary>
+    private static void ValidateShape(SaveDto d)
+    {
+        Required(d.Player, "giocatore");
+        foreach (var (list, what) in new (System.Collections.IList?, string)[]
+                 {
+                     (d.Areas, "aree"), (d.Locations, "luoghi"), (d.Routes, "percorsi"), (d.Factions, "fazioni"),
+                     (d.Actors, "attori"), (d.Stores, "depositi"), (d.Schedule, "scadenze"), (d.Facts, "cronaca"),
+                 })
+        {
+            Check(list is not null, $"elenco delle {what} mancante");
+            foreach (var item in list!)
+                Check(item is not null, $"voce vuota nell'elenco delle {what}");
+        }
+
+        foreach (var a in d.Areas) { Required(a.Id, "id di un'area"); Required(a.Name, "nome di un'area"); }
+        foreach (var l in d.Locations) { Required(l.Id, "id di un luogo"); Required(l.Name, "nome di un luogo"); Required(l.Area, "area di un luogo"); }
+        foreach (var r in d.Routes) { Required(r.From, "origine di un percorso"); Required(r.To, "destinazione di un percorso"); }
+        foreach (var s in d.Stores) { Required(s.Id, "id di un deposito"); Required(s.Name, "nome di un deposito"); Required(s.Location, "luogo di un deposito"); }
+        foreach (var f in d.Factions)
+        {
+            Required(f.Id, "id di una fazione");
+            Required(f.Name, "nome di una fazione");
+            Check(f.AvoidUntil is not null && f.AvoidUntil.All(x => x is not null && !string.IsNullOrEmpty(x.Store)),
+                $"bersagli evitati di '{f.Id}' non validi");
+            CheckDecision(f.LastDecision, f.Id);
+        }
+        foreach (var a in d.Actors)
+        {
+            Required(a.Id, "id di un attore");
+            Required(a.Name, "nome di un attore");
+            Check(a.Knowledge is not null && a.Knowledge.All(o => o is not null && o.ToldTo is not null && o.ToldTo.All(t => !string.IsNullOrEmpty(t))),
+                $"conoscenze di '{a.Id}' non valide");
+            Check(a.ActedOn is not null, $"elenco ActedOn di '{a.Id}' mancante");
+            if (a.Assignment is { } r)
+                Check(new[] { r.Faction, r.Target, r.Home }.All(x => !string.IsNullOrEmpty(x)), $"incarico di '{a.Id}' incompleto");
+            if (a.Shift is { } sh)
+                Required(sh.Location, $"luogo di lavoro di '{a.Id}'");
+            if (a.GuardDuty is { } g)
+                Required(g.Store, $"deposito sorvegliato da '{a.Id}'");
+            CheckDecision(a.LastDecision, a.Id);
+        }
+        foreach (var f in d.Facts) { Required(f.Kind, "tipo di un fatto"); Check(f.Description is not null, "descrizione di un fatto mancante"); }
+        foreach (var e in d.Schedule) Required(e.Job, "tipo di una scadenza");
+    }
+
+    private static void CheckDecision(DecisionDto? decision, string owner) =>
+        Check(decision is null || (decision.Rule is not null && decision.Reason is not null && decision.Inputs is not null && decision.Inputs.All(i => i is not null)),
+            $"decisione di '{owner}' non valida");
 
     // ---------------------------------------------------------------- world -> dto
 
@@ -168,32 +222,32 @@ internal static class SaveGame
         w.NextObservationId = d.NextObservationId;
 
         foreach (var a in d.Areas)
-            w.Areas.Add(new AreaId(a.Id), new Area { Id = new AreaId(a.Id), Name = a.Name });
+            AddUnique(w.Areas, new AreaId(a.Id), new Area { Id = new AreaId(a.Id), Name = a.Name }, "area");
         foreach (var l in d.Locations)
         {
             Check(w.Areas.ContainsKey(new AreaId(l.Area)), $"luogo '{l.Id}' in area sconosciuta");
-            w.Locations.Add(new LocationId(l.Id), new Location { Id = new LocationId(l.Id), Name = l.Name, Area = new AreaId(l.Area) });
+            AddUnique(w.Locations, new LocationId(l.Id), new Location { Id = new LocationId(l.Id), Name = l.Name, Area = new AreaId(l.Area) }, "luogo");
         }
         foreach (var r in d.Routes)
         {
             Check(w.Locations.ContainsKey(new LocationId(r.From)) && w.Locations.ContainsKey(new LocationId(r.To)),
                 $"percorso '{r.From}'-'{r.To}' con luogo sconosciuto");
             Check(r.Seconds > 0, "percorso di durata non positiva");
-            w.Routes.Add((new LocationId(r.From), new LocationId(r.To)), new Duration(r.Seconds));
+            AddUnique(w.Routes, (new LocationId(r.From), new LocationId(r.To)), new Duration(r.Seconds), "percorso");
         }
         foreach (var s in d.Stores)
         {
             Check(w.Locations.ContainsKey(new LocationId(s.Location)), $"deposito '{s.Id}' in luogo sconosciuto");
             Check(s.Food >= 0, $"deposito '{s.Id}' con razioni negative");
-            w.Stores.Add(new StoreId(s.Id), new Store
+            AddUnique(w.Stores, new StoreId(s.Id), new Store
             {
                 Id = new StoreId(s.Id), Name = s.Name, Location = new LocationId(s.Location),
                 Owner = s.Owner is null ? null : new FactionId(s.Owner), Food = s.Food,
-            });
+            }, "deposito");
         }
         foreach (var f in d.Factions)
         {
-            w.Factions.Add(new FactionId(f.Id), new Faction
+            AddUnique(w.Factions, new FactionId(f.Id), new Faction
             {
                 Id = new FactionId(f.Id),
                 Name = f.Name,
@@ -204,11 +258,15 @@ internal static class SaveGame
                 NextEvaluation = f.NextEvaluation is { } next ? new GameTime(next) : null,
                 LastDecision = FromDto(f.LastDecision),
                 Authority = f.Authority is null ? null : new ActorId(f.Authority),
-            });
+            }, "fazione");
+            var restored = w.Factions[new FactionId(f.Id)];
+            Check(Invariants.Faction(f.Id, restored.DailyUpkeep, restored.HomeStore is not null, restored.UpkeepTimeOfDay, restored.Policy));
+            Check((restored.Policy is null) == (restored.NextEvaluation is null),
+                $"la fazione '{f.Id}' ha una prossima valutazione solo se ha una politica");
             foreach (var avoid in f.AvoidUntil)
             {
                 Check(w.Stores.ContainsKey(new StoreId(avoid.Store)), $"fazione '{f.Id}' evita un deposito sconosciuto");
-                w.Factions[new FactionId(f.Id)].AvoidUntil.Add(new StoreId(avoid.Store), new GameTime(avoid.Until));
+                AddUnique(w.Factions[new FactionId(f.Id)].AvoidUntil, new StoreId(avoid.Store), new GameTime(avoid.Until), "bersaglio evitato");
             }
         }
         foreach (var store in w.Stores.Values)
@@ -247,7 +305,7 @@ internal static class SaveGame
             foreach (var origin in a.ActedOn)
                 actor.ActedOn.Add(new ObservationId(origin));
             ValidateActor(w, actor);
-            w.Actors.Add(actor.Id, actor);
+            AddUnique(w.Actors, actor.Id, actor, "attore");
         }
         Check(w.Actors.TryGetValue(w.Player, out var player) && player.IsPlayer, "giocatore mancante");
         Check(w.Actors.Values.Count(a => a.IsPlayer) == 1, "più di un giocatore");
@@ -263,9 +321,28 @@ internal static class SaveGame
             "EvaluateFaction" => new EvaluateFaction(ExistingFaction(w, e.Faction)),
             _ => throw new InvalidDataException($"lavoro sconosciuto '{e.Job}'"),
         })).ToList();
+        // Everything due at or before Now was processed before saving.
         foreach (var entry in entries)
-            Check(entry.Due >= w.Now, "scadenza nel passato");
+            Check(entry.Due > w.Now, "scadenza non futura");
         w.Scheduler = Scheduler.Restore(entries, d.NextSequence);
+
+        // Periodic faction jobs are not optional: without them consumption and raids would silently stop.
+        foreach (var faction in w.Factions.Values)
+        {
+            var upkeeps = entries.Where(e => e.Job is FactionUpkeep u && u.Faction == faction.Id).ToList();
+            if (faction.DailyUpkeep > 0)
+                Check(upkeeps.Count == 1 && upkeeps[0].Due == Simulation.NextUpkeepAfter(w.Now, faction),
+                    $"consumo giornaliero di '{faction.Id}' non programmato correttamente");
+            else
+                Check(upkeeps.Count == 0, $"consumo programmato per '{faction.Id}', che non consuma");
+
+            var evaluations = entries.Where(e => e.Job is EvaluateFaction v && v.Faction == faction.Id).ToList();
+            if (faction.Policy is not null)
+                Check(evaluations.Count == 1 && evaluations[0].Due == faction.NextEvaluation,
+                    $"valutazione di '{faction.Id}' non programmata correttamente");
+            else
+                Check(evaluations.Count == 0, $"valutazione programmata per '{faction.Id}', che non ha una politica");
+        }
 
         // Every action in progress must still be due, or the actor would be stuck forever.
         foreach (var actor in w.Actors.Values)
@@ -306,6 +383,8 @@ internal static class SaveGame
 
     private static void ValidateActor(WorldState w, Actor a)
     {
+        if (a.Shift is { } shift)
+            Check(Invariants.Shift(a.Id.Value, a.IsPlayer, shift.Start, shift.End));
         Check(a.Home is null || w.Locations.ContainsKey(a.Home.Value), $"attore '{a.Id}' con casa sconosciuta");
         Check(a.Shift is null || w.Locations.ContainsKey(a.Shift.Location), $"attore '{a.Id}' con lavoro sconosciuto");
         Check(a.GuardDuty is null || w.Stores.ContainsKey(a.GuardDuty.Store), $"attore '{a.Id}' sorveglia un deposito sconosciuto");
@@ -419,5 +498,19 @@ internal static class SaveGame
     {
         if (!condition)
             throw new InvalidDataException(message);
+    }
+
+    /// <summary>Fails with a shared invariant's message, if any.</summary>
+    private static void Check(string? problem)
+    {
+        if (problem is not null)
+            throw new InvalidDataException(problem);
+    }
+
+    private static void AddUnique<TKey, TValue>(SortedDictionary<TKey, TValue> map, TKey key, TValue value, string what)
+        where TKey : notnull
+    {
+        Check(!map.ContainsKey(key), $"{what} duplicato: {key}");
+        map.Add(key, value);
     }
 }

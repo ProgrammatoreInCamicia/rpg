@@ -12,3 +12,6 @@ export_presets.cfg
 
 # Local tools (Godot editor)
 tools/
+
+# Local review harnesses and evidence (Codex)
+.review/

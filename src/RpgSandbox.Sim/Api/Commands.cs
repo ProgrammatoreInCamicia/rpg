@@ -63,6 +63,7 @@ public enum RejectionReason
     RecipientNotPresent,
     UnknownObservation,
     StoreGuarded,
+    CapacityExceeded,
 }
 
 public sealed record CommandResult

@@ -99,8 +99,26 @@ internal sealed partial class Simulation
         }
 
         inputs.Add($"Razioni in {target.Name}: {target.Food}");
-        return Do("Ruba", $"Prende fino a {raid.Amount} razioni da {target.Name}.",
-            new TakeFoodCommand { Actor = npc.Id, Store = target.Id, Amount = raid.Amount });
+
+        // On site the raider sees the store is empty: the attempt is over, go home empty-handed.
+        if (target.Food == 0)
+        {
+            raid.TakeAttempted = true;
+            npc.Assignment = null;
+            World.RecordFact("RaidCompleted", $"{npc.Name} trova {target.Name} vuoto e rinuncia alla razzia.");
+            var next = Routine(npc);
+            return next with { Rule = "Bersaglio vuoto", Reason = $"{target.Name} è vuoto: razzia chiusa. Poi: {next.Reason}" };
+        }
+
+        var take = new TakeFoodCommand { Actor = npc.Id, Store = target.Id, Amount = raid.Amount };
+        return new Plan("Ruba", $"Prende fino a {raid.Amount} razioni da {target.Name}.", () =>
+        {
+            // Any refusal still counts as the attempt: the raid must end rather than retry forever.
+            var result = Execute(take);
+            if (!result.Success)
+                raid.TakeAttempted = true;
+            return result;
+        });
     }
 
     // ---------------------------------------------------------------- guarding (the authority)

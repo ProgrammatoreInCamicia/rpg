@@ -55,6 +55,8 @@ internal sealed partial class Simulation
         var store = World.Stores[command.Store];
         if (command.Amount > actor.Food)
             return CommandResult.Rejected(RejectionReason.InsufficientFood, $"{actor.Name} ha solo {actor.Food} razioni.");
+        if (store.Food > int.MaxValue - command.Amount)
+            return CommandResult.Rejected(RejectionReason.CapacityExceeded, $"{store.Name} non può contenere altre {command.Amount} razioni.");
 
         var deposit = new DepositFoodAction
         {
@@ -80,6 +82,8 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(RejectionReason.StoreGuarded, $"{store.Name} è sorvegliato.");
         if (store.Food == 0)
             return CommandResult.Rejected(RejectionReason.StoreEmpty, $"{store.Name} è vuoto.");
+        if (actor.Food == int.MaxValue)
+            return CommandResult.Rejected(RejectionReason.CapacityExceeded, $"{actor.Name} non può portare altre razioni.");
 
         var take = new TakeFoodAction
         {
@@ -181,6 +185,7 @@ internal sealed partial class Simulation
         var failure =
             actor.Location != store.Location ? "non è più presso il deposito" :
             actor.Food < deposit.Amount ? "non ha più abbastanza razioni" :
+            store.Food > int.MaxValue - deposit.Amount ? "il deposito non può contenerle" :
             null;
         if (failure is not null)
         {
@@ -207,7 +212,8 @@ internal sealed partial class Simulation
             return;
         }
 
-        var taken = actor.Location == store.Location ? Math.Min(take.Amount, store.Food) : 0;
+        // Never more than is there, nor more than the actor can carry without overflowing.
+        var taken = actor.Location == store.Location ? Math.Min(Math.Min(take.Amount, store.Food), int.MaxValue - actor.Food) : 0;
         if (taken == 0)
         {
             World.RecordFact("FoodTakeFailed", $"{actor.Name} non trova razioni da prendere in {store.Name}.");

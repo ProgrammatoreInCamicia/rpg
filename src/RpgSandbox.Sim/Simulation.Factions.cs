@@ -8,7 +8,7 @@ internal sealed partial class Simulation
 {
     private const long SecondsPerDay = 86_400;
 
-    private static GameTime NextUpkeepAfter(GameTime now, Faction faction)
+    internal static GameTime NextUpkeepAfter(GameTime now, Faction faction)
     {
         var dayStart = now.Seconds / SecondsPerDay * SecondsPerDay;
         var candidate = dayStart + faction.UpkeepTimeOfDay.Seconds;

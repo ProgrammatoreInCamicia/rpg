@@ -101,7 +101,9 @@ public class SaveLoadTests
         var s = NewSession();
         s.Execute(new TravelCommand { Actor = s.Player, Destination = Granary });
         var json = JsonNode.Parse(s.SaveToString())!;
-        json["Schedule"] = new JsonArray();
+        var schedule = json["Schedule"]!.AsArray();
+        foreach (var entry in schedule.Where(e => (string?)e!["Job"] == "CompleteAction").ToList())
+            schedule.Remove(entry);
 
         var result = LoadFromString(json.ToJsonString());
 

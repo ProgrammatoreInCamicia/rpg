@@ -145,10 +145,8 @@ public sealed class ScenarioBuilder
                 $"Actor '{actor.Id}' belongs to unknown faction '{actor.Faction}'.");
             if (actor.Shift is { } shift)
             {
-                Require(!actor.IsPlayer, "The player has no work shift.");
+                Require(Invariants.Shift(actor.Id.Value, actor.IsPlayer, shift.Start, shift.End));
                 Require(locationIds.Contains(shift.Location), $"Actor '{actor.Id}' works at unknown location '{shift.Location}'.");
-                Require(shift.Start.Seconds >= 0 && shift.Start.Seconds < shift.End.Seconds && shift.End.Seconds <= 86_400,
-                    $"Actor '{actor.Id}' has an invalid shift (start < end, within one day).");
             }
         }
 
@@ -164,21 +162,14 @@ public sealed class ScenarioBuilder
         {
             Require(faction.HomeStore is null || storeIds.Contains(faction.HomeStore.Value),
                 $"Faction '{faction.Id}' has unknown home store '{faction.HomeStore}'.");
-            Require(faction.DailyUpkeep >= 0, $"Faction '{faction.Id}' has negative upkeep.");
-            Require(faction.DailyUpkeep == 0 || faction.HomeStore is not null,
-                $"Faction '{faction.Id}' consumes food but has no home store.");
-            Require(faction.UpkeepTimeOfDay.Seconds is >= 0 and < 86_400,
-                $"Faction '{faction.Id}' upkeep time must be within a day.");
+            Require(Invariants.Faction(faction.Id.Value, faction.DailyUpkeep, faction.HomeStore is not null,
+                faction.UpkeepTimeOfDay, faction.Policy));
             Require(faction.Authority is null ||
                     _actors.Any(a => a.Id == faction.Authority && a.Faction == faction.Id && !a.IsPlayer),
                 $"Faction '{faction.Id}' authority must be one of its NPC members.");
-            if (faction.Policy is { } policy)
-            {
-                Require(policy.EvaluationInterval.Seconds > 0, $"Faction '{faction.Id}' evaluation interval must be positive.");
-                Require(policy.RaidAmount > 0, $"Faction '{faction.Id}' raid amount must be positive.");
+            if (faction.Policy is not null)
                 Require(_stores.Any(s => s.Id == faction.HomeStore && s.Owner == faction.Id),
                     $"Raiding faction '{faction.Id}' must own its home store.");
-            }
         }
 
         var players = _actors.Where(a => a.IsPlayer).ToList();
@@ -190,6 +181,13 @@ public sealed class ScenarioBuilder
 
     private static FactionId? ToFaction(string? id) => id is null ? null : new FactionId(id);
     private static StoreId? ToStore(string? id) => id is null ? null : new StoreId(id);
+
+    /// <summary>Fails with the shared invariant's message, if any.</summary>
+    private static void Require(string? problem)
+    {
+        if (problem is not null)
+            throw new InvalidOperationException(problem);
+    }
 
     private static void Require(bool condition, string message)
     {
