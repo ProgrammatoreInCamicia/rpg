@@ -236,7 +236,7 @@ public sealed class SimulationSession
     };
 
     private static string Summary(Observation o) =>
-        $"furto di {o.Amount} razioni da {o.StoreName} alle {o.ObservedAt.Hour:00}:{o.ObservedAt.Minute:00}" +
+        $"furto di {o.Amount} razioni da {o.StoreName}, giorno {o.ObservedAt.Day + 1} alle {o.ObservedAt.Hour:00}:{o.ObservedAt.Minute:00}" +
         (o.ThiefName is { } thief ? $" ({thief})" : " (ladro sconosciuto)");
 
     private static ObservationView ToView(Observation o, WorldState w) => new()

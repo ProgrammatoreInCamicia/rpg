@@ -277,6 +277,7 @@ public class KnowledgeTests
 
         Assert.Equal(new[] { Farmer, Guard }, options.Select(o => o.Recipient).ToArray());
         Assert.All(options, o => Assert.Contains("Razziatore", o.Summary));
+        Assert.All(options, o => Assert.Contains("giorno 1 alle 09:33", o.Summary)); // thefts on different days must not look identical
     }
 
     // ---------------------------------------------------------------- persistence
