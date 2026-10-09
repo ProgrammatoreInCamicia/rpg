@@ -22,6 +22,9 @@ public sealed record PlayerView
     public ActionView? Action { get; init; }
     public TravelView? Travel { get; init; }
 
+    /// <summary>Light where the player is, by time of day: it decides what can be seen (see the rules notes).</summary>
+    public Light Light { get; init; }
+
     /// <summary>The area the player is in or, while travelling, the area it left (until arrival).</summary>
     public required AreaId Area { get; init; }
 

@@ -196,6 +196,7 @@ public sealed class SimulationSession
                 ? null
                 : new TravelView { Action = travel.Id, Origin = travel.Origin, Destination = travel.Destination, DepartedAt = travel.StartedAt, ArrivesAt = travel.CompletesAt },
             Area = area,
+            Light = Perception.LightAt(w.Now),
             Areas = Freeze(w.Areas.Values.Select(x => new AreaView { Id = x.Id, Name = x.Name })),
             Locations = Freeze(w.Locations.Values.Select(l => new LocationView { Id = l.Id, Name = l.Name, Area = l.Area })),
             Routes = Freeze(w.Routes.Select(r => new RouteView { From = r.Key.From, To = r.Key.To, TravelTime = r.Value })),

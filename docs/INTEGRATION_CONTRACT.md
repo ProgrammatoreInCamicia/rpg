@@ -1,7 +1,7 @@
 # Contratto di integrazione Sim ↔ Godot
 
 Responsabile: **Claude** (proprietà passata da Codex in `chat.txt`, Round 5).
-Stato: **checkpoint 0–3 (vertical slice) + T5 ridotta lato Sim pubblicati e compilabili** in `src/RpgSandbox.Sim/Api/`, coperti da test (`tests/RpgSandbox.Sim.Tests/`).
+Stato: **checkpoint 0–3, T5 ridotta e T4 (regole, dadi, luce, furto del giocatore) pubblicati e compilabili** in `src/RpgSandbox.Sim/Api/`, coperti da test (`tests/RpgSandbox.Sim.Tests/`).
 Il codice in `Api/` è la fonte autorevole. Questo documento ne descrive la semantica.
 
 ## Regole del confine
@@ -38,7 +38,7 @@ void           Advance(Duration)                   // Duration < 0 o overflow =>
 AdvanceResult  AdvanceUntilCompleted(ActionId, Duration maxWait)
 WorldView      GetWorldView()                      // vista completa/onnisciente: SOLO debug
 PlayerView     GetPlayerView()                     // ciò che il giocatore può sapere: usarla per l'UI di gioco
-void           Save(Stream)                        // snapshot JSON autosufficiente, versione schema 4
+void           Save(Stream)                        // snapshot JSON autosufficiente, versione schema 5
 static LoadResult TryLoad(Stream)                  // NUOVA sessione; quella corrente non viene toccata
 
 // Comandi
@@ -111,7 +111,7 @@ ReportOptionView { Recipient, RecipientName, Observation, Summary }
 - **Advance(d)**: elabora in ordine ogni scadenza fino a `Now + d`. `Advance(a+b)` equivale a `Advance(a)` seguito da `Advance(b)`, ed è testato anche con NPC attivi.
 - **AdvanceUntilCompleted(id, max)**: elabora le scadenze (gli altri attori continuano ad agire) e si ferma alla fine dell'istante in cui `id` termina, dopo tutte le fasi. L'esito è `Completed` solo se l'azione si è davvero completata, `Cancelled` se è stata annullata (anche da un evento precedente nello stesso istante), `NotPending` se l'azione non era in corso già alla chiamata, `TimeLimitReached` se il limite arriva prima. Per il client Completed, Cancelled e NotPending significano tutti "attesa finita"; solo TimeLimitReached lascia l'azione in corso. Dopo un caricamento, l'azione da riprendere è `PlayerView.Action` (S3).
 - **Save/Load**:
-  - **Versione dello schema 4** (aggiunge la vigilanza): le versioni 1–3 vengono rifiutate con un messaggio chiaro. La v3 richiede una corrispondenza 1:1 tra azioni in corso e scadenze (ID unici, nessuna scadenza orfana), oltre ai lavori periodici obbligatori delle fazioni e alle stesse invarianti degli scenari (`Invariants.cs`).
+  - **Versione dello schema 5**: aggiunge lo stato del generatore SplitMix64 (con il nome dell'algoritmo), le schede, la Furtività dei furti in corso, i debiti e la confisca, i partecipanti agli eventi. Le versioni 1–4 vengono rifiutate con un messaggio chiaro. La v3 richiede una corrispondenza 1:1 tra azioni in corso e scadenze (ID unici, nessuna scadenza orfana), oltre ai lavori periodici obbligatori delle fazioni e alle stesse invarianti degli scenari (`Invariants.cs`).
   - Lo snapshot contiene tutto: stato, azioni in corso, incarichi, presidi, conoscenze (con a chi sono state riferite), scadenze con i numeri di sequenza, contatori, ultime decisioni e cronaca.
   - `TryLoad` valida versione, riferimenti, coerenza tra posizione e viaggio, e che ogni azione in corso abbia la sua scadenza. Errori in italiano, leggibili.
   - Testato: continuare senza interruzioni equivale a salvare e caricare a metà di un viaggio, di un furto o di una consegna.
@@ -120,3 +120,18 @@ ReportOptionView { Recipient, RecipientName, Observation, Summary }
 ## Oltre la slice
 
 Ancora da decidere con l'utente e con Codex. I candidati concordati sono la furtività giocabile (prime prove 5e e RNG serializzabile), il combattimento a turni e il reclutamento di compagni.
+
+## T4 — Regole, dadi, luce, furto del giocatore
+
+- **Regole** (`RpgSandbox.Sim.Rules`, SRD 5.2.1, attribuzione in `CREDITS.md`): `CharacterSheet` (caratteristiche, competenza, abilità, CA, svantaggio dell'armatura alla Furtività), `Abilities.Modifier`, `Bonus(skill)`, `PassivePerception(adv, dis)`, `D20Roll`. Il Protagonista è un **Paladino 1 (Accolito)**; gli NPC hanno schede originali.
+- **Casualità**: un solo generatore `SplitMix64`, il cui stato fa parte del salvataggio. Stesso seme e stesse scelte danno la stessa partita (`ScenarioBuilder.WithSeed`).
+- **Luce** (`Light`, `PlayerView.Light`): piena dalle 07 alle 19, fioca alle 06 e alle 19, buio altrimenti. È un ADATTAMENTO.
+- **Furto**: una prova di Furtività all'inizio dell'azione (fatto `Roll`). Il ladro conosce il proprio tiro, che è nel `Message` del comando. Per ogni presente:
+  - luce piena: il furto viene visto;
+  - luce fioca: Percezione passiva −5 contro il totale;
+  - buio: il furto può solo essere sentito, mai visto (fatti `FoodTheftWitnessed` / `FoodTheftUnnoticed`).
+  
+  Il ladro viene riconosciuto solo se è stato visto e se il testimone era presente dall'inizio.
+- **Confisca**: l'autorità che viene a sapere di un ladro riconosciuto apre un debito (`ActorView.Claims`). Quando se lo trova davanti e il ladro ha ancora razioni, si fa restituire al massimo il dovuto (`Confiscate`, 2 minuti) e lo riporta al deposito. Non recupera a distanza e non agisce se il ladro non ha più nulla.
+- **PlayerView**: `Sheet`, `Light`, `RecentEvents` (solo i fatti a cui il giocatore ha preso parte; non dice chi l'ha visto).
+- `ActionView.Kind` può valere anche "Confiscate". `RejectionReason` resta invariato.

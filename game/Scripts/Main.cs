@@ -1,5 +1,7 @@
 using Godot;
+using RpgSandbox.Sim;
 using RpgSandbox.Sim.Api;
+using RpgSandbox.Sim.Rules;
 using RpgSandbox.Sim.Scenarios;
 
 namespace RpgSandbox.Game;
@@ -59,6 +61,14 @@ public partial class Main : Node2D
 	private Label _statusLabel = null!;
 	private Label _foodLabel = null!;
 	private HBoxContainer _depositRow = null!;
+	private HBoxContainer _takeRow = null!;
+	private SpinBox _takeAmount = null!;
+	private Label _takeWarning = null!;
+	private Button _sheetButton = null!;
+	private Label _sheetLabel = null!;
+	private Label _eventsLabel = null!;
+	private CanvasModulate _daylight = null!;
+	private bool _showSheet;
 	private SpinBox _depositAmount = null!;
 	private HFlowContainer _peopleRow = null!;
 	private VBoxContainer _talkBox = null!;
@@ -93,6 +103,9 @@ public partial class Main : Node2D
 		AddChild(_sorted);
 		BuildLocations();
 		BuildCamera();
+		// Night darkens the map (not the UI): presentation of the light the core reports.
+		_daylight = new CanvasModulate();
+		AddChild(_daylight);
 		BuildUi();
 		Refresh();
 
@@ -229,6 +242,29 @@ public partial class Main : Node2D
 		Refresh();
 	}
 
+	/// <summary>Used by the smoke runner: same path as the "Prendi razioni" button.</summary>
+	public void TakeViaUi(int amount)
+	{
+		_takeAmount.Value = amount;
+		TakeFood();
+	}
+
+	internal string LastMessage => _messageLabel.Text;
+
+	public void ShowSheet(bool show)
+	{
+		_showSheet = show;
+		Refresh();
+	}
+
+	private void TakeFood()
+	{
+		var store = _player.VisibleStores.FirstOrDefault(s => s.Location == _player.Location);
+		if (store is null)
+			return;
+		StartAction(new TakeFoodCommand { Actor = _sim.Player, Store = store.Id, Amount = (int)_takeAmount.Value });
+	}
+
 	private void DepositFood()
 	{
 		var store = _player.VisibleStores.FirstOrDefault(s => s.Location == _player.Location);
@@ -251,6 +287,9 @@ public partial class Main : Node2D
 		{
 			RestorePlayback();
 		}
+		// The player knows his own roll (it is in the message); never whether someone noticed.
+		if (result.Success && command is TakeFoodCommand)
+			ShowMessage(result.Message);
 		Refresh(result.Success ? null : result.Message);
 	}
 
@@ -337,7 +376,13 @@ public partial class Main : Node2D
 		PlaceTokens();
 
 		var now = _player.Now;
-		_clockLabel.Text = $"Giorno {now.Day + 1}   {Clock(now)}";
+		_clockLabel.Text = $"Giorno {now.Day + 1}   {Clock(now)}   {LightName(_player.Light)}";
+		_daylight.Color = _player.Light switch
+		{
+			Light.Bright => Colors.White,
+			Light.Dim => new Color(0.78f, 0.72f, 0.82f),
+			_ => new Color(0.38f, 0.42f, 0.62f),
+		};
 
 		if (_player.Travel is { } travel)
 			_statusLabel.Text = $"In viaggio verso {LocationName(travel.Destination)} — arrivo alle {Clock(travel.ArrivesAt)}";
@@ -363,6 +408,15 @@ public partial class Main : Node2D
 		_depositAmount.MaxValue = Math.Max(1, _player.Food);
 		_depositAmount.Editable = !busy;
 
+		// Taking from a store that is not yours is a theft: say so before the player commits to it.
+		_takeRow.Visible = storeHere is not null && storeHere.Food > 0;
+		_takeAmount.MaxValue = Math.Max(1, storeHere?.Food ?? 1);
+		_takeAmount.Editable = !busy;
+		_takeWarning.Visible = storeHere?.Owner is not null;
+		_takeWarning.Text = _player.Sheet.StealthDisadvantage
+			? "⚠ È un furto. Con la cotta di maglia la Furtività ha svantaggio."
+			: "⚠ È un furto.";
+
 		RefreshTalk(busy);
 
 		// Store contents: what the player can see, or everything in debug mode.
@@ -377,6 +431,13 @@ public partial class Main : Node2D
 			? "Non hai visto né sentito nulla di particolare."
 			: string.Join("\n", _player.Observations.Select(JournalLine));
 
+		_eventsLabel.Text = _player.RecentEvents.Count == 0
+			? "Nessun avvenimento."
+			: string.Join("\n", _player.RecentEvents.TakeLast(6).Select(e => $"[{Clock(e.At)}] {e.Description}"));
+		_sheetButton.Text = _showSheet ? "Nascondi la scheda" : "Scheda del personaggio";
+		_sheetLabel.Visible = _showSheet;
+		_sheetLabel.Text = SheetText(_player.Sheet);
+
 		_factsSection.Visible = _debug;
 		_debugPanel.Visible = _debug;
 		if (_debug)
@@ -385,6 +446,38 @@ public partial class Main : Node2D
 			_debugLabel.Text = DebugText();
 		}
 	}
+
+	private static string LightName(Light light) => light switch
+	{
+		Light.Bright => "giorno",
+		Light.Dim => "luce fioca",
+		_ => "notte",
+	};
+
+	private static readonly (Skill Skill, string Name)[] ShownSkills =
+	{
+		(Skill.Athletics, "Atletica"), (Skill.Insight, "Intuizione"), (Skill.Perception, "Percezione"),
+		(Skill.Persuasion, "Persuasione"), (Skill.Religion, "Religione"), (Skill.Stealth, "Furtività"),
+	};
+
+	/// <summary>The character sheet as the player reads it; numbers come from the rules, not from the client.</summary>
+	private static string SheetText(CharacterSheet s)
+	{
+		string Ability(string name, int score) => $"{name} {score} ({Signed(Abilities.Modifier(score))})";
+		var lines = new List<string>
+		{
+			s.Title,
+			$"{Ability("For", s.Strength)}   {Ability("Des", s.Dexterity)}   {Ability("Cos", s.Constitution)}",
+			$"{Ability("Int", s.Intelligence)}   {Ability("Sag", s.Wisdom)}   {Ability("Car", s.Charisma)}",
+			$"Classe Armatura {s.ArmorClass}   Competenza {Signed(s.ProficiencyBonus)}   Percezione passiva {s.PassivePerception()}",
+		};
+		lines.AddRange(ShownSkills.Select(k =>
+			$"{(s.IsProficient(k.Skill) ? "●" : "○")} {k.Name} {Signed(s.Bonus(k.Skill))}" +
+			(k.Skill == Skill.Stealth && s.StealthDisadvantage ? " (svantaggio: armatura)" : "")));
+		return string.Join("\n", lines);
+	}
+
+	private static string Signed(int value) => value >= 0 ? $"+{value}" : $"−{-value}";
 
 	private static string JournalLine(ObservationView o)
 	{
@@ -727,6 +820,18 @@ public partial class Main : Node2D
 		_depositRow.AddChild(depositButton);
 		box.AddChild(_depositRow);
 
+		_takeRow = new HBoxContainer();
+		_takeRow.AddThemeConstantOverride("separation", 8);
+		_takeAmount = new SpinBox { MinValue = 1, MaxValue = 1, Value = 1, Step = 1, CustomMinimumSize = new Vector2(90, 0) };
+		_takeRow.AddChild(_takeAmount);
+		var takeButton = new Button { Text = "Prendi razioni", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		takeButton.Pressed += TakeFood;
+		_takeRow.AddChild(takeButton);
+		box.AddChild(_takeRow);
+		_takeWarning = SmallLabel("");
+		_takeWarning.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		box.AddChild(_takeWarning);
+
 		_waitButton = new Button { Text = "Attendi 1 ora" };
 		_waitButton.Pressed += WaitOneHour;
 		box.AddChild(_waitButton);
@@ -768,6 +873,17 @@ public partial class Main : Node2D
 		_talkBox = new VBoxContainer();
 		_talkBox.AddThemeConstantOverride("separation", 6);
 		details.AddChild(_talkBox);
+		details.AddChild(new HSeparator());
+		_sheetButton = new Button();
+		_sheetButton.Pressed += () => ShowSheet(!_showSheet);
+		details.AddChild(_sheetButton);
+		_sheetLabel = SmallLabel("");
+		details.AddChild(_sheetLabel);
+		details.AddChild(new HSeparator());
+		details.AddChild(SmallLabel("Cosa ti è successo"));
+		_eventsLabel = SmallLabel("");
+		_eventsLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		details.AddChild(_eventsLabel);
 		details.AddChild(new HSeparator());
 		details.AddChild(SmallLabel("Diario"));
 		_journalLabel = SmallLabel("");

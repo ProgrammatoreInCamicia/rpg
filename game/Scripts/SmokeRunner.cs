@@ -1,4 +1,5 @@
 using Godot;
+using RpgSandbox.Sim;
 using RpgSandbox.Sim.Api;
 using RpgSandbox.Sim.Scenarios;
 
@@ -57,6 +58,19 @@ public partial class SmokeRunner : Node
 		Require(_main.IsBusy, "Map click did not start travel");
 		await UntilIdle();
 		Require(_main.PlayerState.Location == SliceScenario.Ids.Granary, "Player did not arrive at granary");
+
+		// At night, nobody around: the paladin pockets one ration. He sees his own Stealth roll (with Disadvantage
+		// from chain mail), never who might have noticed.
+		Require(_main.PlayerState.Light == Light.Dark, "It should be night at 00:05");
+		_main.TakeViaUi(1);
+		Require(_main.IsBusy, "Take command was rejected");
+		Require(_main.LastMessage.Contains("Furtività") && _main.LastMessage.Contains("svantaggio"), "Own stealth roll not shown");
+		await UntilIdle();
+		Require(_main.PlayerState.Food == 11, "The ration was not taken");
+		_main.ShowSheet(true);
+		await Frames(2);
+		Capture("1b-night-theft-and-sheet.png");
+		_main.ShowSheet(false);
 
 		// Watch the granary through the morning: the raid happens at 09:30–09:33.
 		for (var hour = 0; hour < 10; hour++)
