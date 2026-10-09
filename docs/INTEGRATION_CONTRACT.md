@@ -1,7 +1,7 @@
 # Contratto di integrazione Sim ↔ Godot
 
 Responsabile: **Claude** (proprietà passata da Codex in `chat.txt`, Round 5).
-Stato: **checkpoint 0–3 (intera vertical slice) pubblicati e compilabili** in `src/RpgSandbox.Sim/Api/`, coperti da test (`tests/RpgSandbox.Sim.Tests/`).
+Stato: **checkpoint 0–3 (vertical slice) + T5 ridotta lato Sim pubblicati e compilabili** in `src/RpgSandbox.Sim/Api/`, coperti da test (`tests/RpgSandbox.Sim.Tests/`).
 Il codice in `Api/` è la fonte autorevole. Questo documento ne descrive la semantica.
 
 ## Regole del confine
@@ -38,7 +38,7 @@ void           Advance(Duration)                   // Duration < 0 o overflow =>
 AdvanceResult  AdvanceUntilCompleted(ActionId, Duration maxWait)
 WorldView      GetWorldView()                      // vista completa/onnisciente: SOLO debug
 PlayerView     GetPlayerView()                     // ciò che il giocatore può sapere: usarla per l'UI di gioco
-void           Save(Stream)                        // snapshot JSON autosufficiente, versione schema 3
+void           Save(Stream)                        // snapshot JSON autosufficiente, versione schema 4
 static LoadResult TryLoad(Stream)                  // NUOVA sessione; quella corrente non viene toccata
 
 // Comandi
@@ -61,7 +61,8 @@ AreaView       { Id, Name }
 LocationView   { Id, Name, Area }
 RouteView      { From, To, TravelTime }                 // una voce per direzione
 ActorView      { Id, Name, IsPlayer, Faction?, Location?, Food, Action?, Travel?, Assignment?, LastDecision?,
-                 Home?, ArrivedAt, Knowledge, GuardDuty? }
+                 Home?, ArrivedAt, Knowledge, GuardDuty?, Vigil? }
+VigilView      { Store, Until }
 ActionView     { Id, Kind ("Travel" | "DepositFood" | "TakeFood" | "Wait" | "Report" | "Guard"), StartedAt, CompletesAt, Description }
 TravelView     { Action, Origin, Destination, DepartedAt, ArrivesAt }
 AssignmentView { Kind ("Raid"), Faction, Target, Home, Amount, AssignedAt, TakeAttempted, Aborted }
@@ -75,10 +76,12 @@ AvoidedTargetView { Store, Until }
 FactView       { Id, At, Kind, Description }
   // Kind: TravelStarted, TravelCompleted, FoodDeposited, FoodDepositFailed, FoodTaken, FoodStolen, FoodTakeFailed,
   //       FoodConsumed, RaidOrdered, RaidCompleted, RaidDeterred, RaidAborted, FoodTheftWitnessed, InformationShared,
-  //       ReportFailed, GuardDutyStarted, GuardDutyEnded
+  //       ReportFailed, GuardDutyStarted, GuardDutyEnded, VigilStarted, VigilEnded
 
 PlayerView       { Now, Id, Location?, Food, Action?, Travel?, Area, Areas, Locations, Routes,
-                   VisibleActors, VisibleStores, Observations, ReportOptions }
+                   VisibleActors, VisibleStores, Observations, ReportOptions (superato), PeopleHere }
+PersonView       { Id, Name, Doing?, Topics }                         // chi è qui: "Parla con…"
+TopicView        { Kind ("Tell"), Observation, Summary }              // cosa gli puoi dire
 VisibleActorView { Id, Name, Faction?, Location?, Travel?, Doing? }   // Doing: solo il gesto, solo nello stesso Luogo
 ReportOptionView { Recipient, RecipientName, Observation, Summary }
 ```
@@ -99,15 +102,16 @@ ReportOptionView { Recipient, RecipientName, Observation, Summary }
   - Nessun overflow: un deposito o un attore che supererebbe `int.MaxValue` rifiuta all'avvio (`CapacityExceeded`) o non trasferisce al completamento.
 - **Wait**: un'azione con durata. Quella del giocatore non si interrompe. Quella di routine di un NPC ("Riposa", "Lavora") viene interrotta da un incarico di fazione, dalla percezione di un furto o da un rapporto ricevuto. **Interrompere un'azione la cancella e ne rimuove la scadenza**: nello scheduler non restano voci orfane.
 - **Fazioni**: la politica "razzia" si valuta ogni `EvaluationInterval`. Se è già in corso una razzia, o le scorte di casa sono ≥ soglia, non fa nulla. Altrimenti sceglie il deposito altrui non vuoto più vicino e il primo membro disponibile, a cui assegna l'incarico.
-- **NPC**: regole a priorità. Passi della razzia (Riporta il bottino, Torna al campo, Razzia conclusa, Raggiungi il bersaglio, Desisti, Bersaglio vuoto, Ruba; qualunque rifiuto del prelievo chiude la razzia) > Organizza il presidio > Presidia il deposito > Riferisci il furto / Cerca la guardia > Routine (lavoro a turni, casa, riposo). Ogni decisione registra regola, motivo e dati letti (`LastDecision`).
+- **NPC**: regole a priorità. Passi della razzia (Riporta il bottino, Torna al campo, Razzia conclusa, Raggiungi il bersaglio, Desisti, Bersaglio vuoto, Ruba; qualunque rifiuto del prelievo chiude la razzia) > Organizza il presidio > Presidia il deposito > Riferisci il furto / Cerca la guardia (solo ciò che si è visto di persona) > Vigila > Routine (lavoro a turni, casa, riposo). Ogni decisione registra regola, motivo e dati letti (`LastDecision`).
 - **Percezione** (deterministica): chi è nel Luogo al momento del furto lo vede. Lo **riconosce** solo se era lì da prima che iniziasse (`ArrivedAt <=` inizio). Ogni testimone riceve un'osservazione autosufficiente, che sopravvive alla potatura della cronaca.
 - **Report**: dura 5 minuti e richiede lo stesso Luogo all'inizio e alla fine (altrimenti `ReportFailed`). Il contenuto è fissato all'inizio. Il destinatario riceve una copia con fonte, deduplicata per origine. Se era in un'attesa interrompibile, decide subito.
+- **Vigilanza (T5)**: un membro della fazione derubata che non è l'autorità e viene a sapere di un furto, di persona o per sentito dire, tiene d'occhio il deposito dalle 07:00 alle 18:00 per 3 giorni (`Vigil`). Non scoraggia i furti, ma lo rende testimone del successivo. Le voci sentite **non** vengono portate all'autorità: si riferisce solo ciò che si è visto. L'autorità agisce su qualunque rapporto ricevuto, anche quello del giocatore.
 - **Autorità e presidio**: quando l'autorità della fazione viene a sapere di un furto ai danni della fazione, presidia il deposito per 3 giorni a turni di 1 ora. Un deposito con un presidio presente è **sorvegliato**: il furto viene rifiutato all'avvio (`StoreGuarded`) o fallisce al completamento. Il Razziatore che lo vede desiste, e la sua fazione lo viene a sapere solo al suo rientro: per 24 ore evita quel bersaglio.
 - **Vista del giocatore**: `GetPlayerView()` mostra attori e depositi della sua Area (più chi viaggia da o verso di essa), le sue osservazioni e cosa può riferire a chi è presente. Durante un viaggio l'Area è quella di **partenza**, fino all'arrivo. Degli altri si vede solo il **gesto** (`Doing`: "armeggia con le scorte", "parla con X", "sorveglia il deposito"…) e solo se sono nello stesso Luogo, che deve essere un Luogo vero: due viaggiatori non sono mai "nello stesso posto". Intenzioni, argomenti delle conversazioni, decisioni e conoscenze altrui restano fuori. Le decisioni degli NPC leggono le proprie conoscenze e ciò che vedono nel proprio Luogo; restano due semplificazioni: la posizione dei depositi è nota a tutti, e la fazione dei banditi vede quante razioni ci sono nei depositi altrui.
 - **Advance(d)**: elabora in ordine ogni scadenza fino a `Now + d`. `Advance(a+b)` equivale a `Advance(a)` seguito da `Advance(b)`, ed è testato anche con NPC attivi.
 - **AdvanceUntilCompleted(id, max)**: elabora le scadenze (gli altri attori continuano ad agire) e si ferma alla fine dell'istante in cui `id` termina, dopo tutte le fasi. L'esito è `Completed` solo se l'azione si è davvero completata, `Cancelled` se è stata annullata (anche da un evento precedente nello stesso istante), `NotPending` se l'azione non era in corso già alla chiamata, `TimeLimitReached` se il limite arriva prima. Per il client Completed, Cancelled e NotPending significano tutti "attesa finita"; solo TimeLimitReached lascia l'azione in corso. Dopo un caricamento, l'azione da riprendere è `PlayerView.Action` (S3).
 - **Save/Load**:
-  - **Versione dello schema 3**: le versioni 1 e 2 vengono rifiutate con un messaggio chiaro. La v3 richiede una corrispondenza 1:1 tra azioni in corso e scadenze (ID unici, nessuna scadenza orfana), oltre ai lavori periodici obbligatori delle fazioni e alle stesse invarianti degli scenari (`Invariants.cs`).
+  - **Versione dello schema 4** (aggiunge la vigilanza): le versioni 1–3 vengono rifiutate con un messaggio chiaro. La v3 richiede una corrispondenza 1:1 tra azioni in corso e scadenze (ID unici, nessuna scadenza orfana), oltre ai lavori periodici obbligatori delle fazioni e alle stesse invarianti degli scenari (`Invariants.cs`).
   - Lo snapshot contiene tutto: stato, azioni in corso, incarichi, presidi, conoscenze (con a chi sono state riferite), scadenze con i numeri di sequenza, contatori, ultime decisioni e cronaca.
   - `TryLoad` valida versione, riferimenti, coerenza tra posizione e viaggio, e che ogni azione in corso abbia la sua scadenza. Errori in italiano, leggibili.
   - Testato: continuare senza interruzioni equivale a salvare e caricare a metà di un viaggio, di un furto o di una consegna.

@@ -33,8 +33,14 @@ public sealed record PlayerView
     /// <summary>The player's own knowledge: what it saw and what it was told.</summary>
     public required IReadOnlyList<ObservationView> Observations { get; init; }
 
-    /// <summary>Things the player could tell to someone standing here right now.</summary>
+    /// <summary>Things the player could tell to someone standing here right now. Superseded by <see cref="PeopleHere"/>.</summary>
     public required IReadOnlyList<ReportOptionView> ReportOptions { get; init; }
+
+    /// <summary>
+    /// Everyone the player can talk to right now (same place), with what the player could tell each of them.
+    /// Present even with no topics, so the client can offer "Parla con…" and say there is nothing new to tell.
+    /// </summary>
+    public IReadOnlyList<PersonView> PeopleHere { get; init; } = Array.Empty<PersonView>();
 }
 
 /// <summary>Another actor as seen from outside: where it is and what it is visibly doing. No intentions, no knowledge.</summary>
@@ -56,6 +62,24 @@ public sealed record ReportOptionView
 {
     public required ActorId Recipient { get; init; }
     public required string RecipientName { get; init; }
+    public required ObservationId Observation { get; init; }
+    public required string Summary { get; init; }
+}
+
+/// <summary>Someone the player can talk to, as seen by the player.</summary>
+public sealed record PersonView
+{
+    public required ActorId Id { get; init; }
+    public required string Name { get; init; }
+    public string? Doing { get; init; }
+    public required IReadOnlyList<TopicView> Topics { get; init; }
+}
+
+/// <summary>Something the player can bring up in a conversation.</summary>
+public sealed record TopicView
+{
+    /// <summary>"Tell" for now: tell what you know about a theft. New kinds are announced before they appear.</summary>
+    public required string Kind { get; init; }
     public required ObservationId Observation { get; init; }
     public required string Summary { get; init; }
 }

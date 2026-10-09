@@ -24,10 +24,12 @@ internal sealed partial class Simulation
             $"Razioni con sé: {npc.Food}",
         };
 
+        UpdateVigil(npc, inputs);
         var plan = RaidStep(npc, inputs)
                    ?? OrganiseGuard(npc, inputs)
                    ?? GuardStep(npc, inputs)
                    ?? ReportStep(npc, inputs)
+                   ?? VigilStep(npc, inputs)
                    ?? Routine(npc);
 
         var reason = plan.Reason;
@@ -185,8 +187,9 @@ internal sealed partial class Simulation
         if (npc.Faction is not { } factionId || World.Factions[factionId].Authority is not { } authorityId || authorityId == npc.Id)
             return null;
 
+        // Only first-hand testimony goes to the authority: nobody bothers the guard with hearsay.
         var untold = npc.Knowledge
-            .Where(o => !o.ToldTo.Contains(authorityId))
+            .Where(o => o.Source is null && !o.ToldTo.Contains(authorityId))
             .OrderBy(o => o.LearnedAt).ThenBy(o => o.Id)
             .FirstOrDefault();
         if (untold is null)
@@ -205,6 +208,58 @@ internal sealed partial class Simulation
         return null;
     }
 
+    // ---------------------------------------------------------------- vigilance (villagers who know of a theft)
+
+    /// <summary>
+    /// A member of the robbed faction (not its authority) who learns of a theft, first-hand or by hearsay,
+    /// keeps an eye on the store for a while. Updates state only; <see cref="VigilStep"/> acts on it.
+    /// </summary>
+    private void UpdateVigil(Actor npc, List<string> inputs)
+    {
+        if (npc.Faction is not { } factionId || World.Factions[factionId].Authority == npc.Id)
+            return;
+
+        foreach (var news in npc.Knowledge
+                     .Where(o => World.Stores[o.Store].Owner == factionId && !npc.ActedOn.Contains(o.Origin))
+                     .OrderBy(o => o.LearnedAt).ThenBy(o => o.Id)
+                     .ToList())
+        {
+            npc.ActedOn.Add(news.Origin);
+            var until = World.Now.Plus(Rules.VigilLength);
+            if (npc.Vigil is null)
+                World.RecordFact("VigilStarted", $"{npc.Name} decide di tenere d'occhio {news.StoreName}.");
+            npc.Vigil = new Vigil { Store = news.Store, Until = until };
+            inputs.Add($"Sa del furto da {news.StoreName}" +
+                       (news.Source is { } source ? $" (gliel'ha detto {World.Actors[source].Name})" : " (l'ha visto)") +
+                       $": vigila fino al giorno {until.Day + 1} {Clock(until)}");
+        }
+    }
+
+    private Plan? VigilStep(Actor npc, List<string> inputs)
+    {
+        if (npc.Vigil is not { } vigil)
+            return null;
+        if (World.Now >= vigil.Until)
+        {
+            npc.Vigil = null;
+            World.RecordFact("VigilEnded", $"{npc.Name} smette di tenere d'occhio {World.Stores[vigil.Store].Name}.");
+            return null;
+        }
+
+        var tod = World.Now.Seconds % SecondsPerDay;
+        if (tod < Rules.VigilStart.Seconds || tod >= Rules.VigilEnd.Seconds)
+            return null;
+
+        var store = World.Stores[vigil.Store];
+        inputs.Add($"Vigila su {store.Name} fino al giorno {vigil.Until.Day + 1} {Clock(vigil.Until)}");
+        if (npc.Location != store.Location)
+            return Go("Vigila", $"Va a tenere d'occhio {store.Name}.", npc, store.Location);
+        var end = TodayAt(Rules.VigilEnd);
+        if (vigil.Until < end)
+            end = vigil.Until;
+        return Rest("Vigila", $"Tiene d'occhio {store.Name}.", npc, "Vigila", end);
+    }
+
     // ---------------------------------------------------------------- routine
 
     private Plan Routine(Actor npc)
@@ -221,8 +276,13 @@ internal sealed partial class Simulation
         if (npc.Home is { } home && here != home)
             return Go("Routine: torna a casa", $"Rientra a {World.Locations[home].Name}.", npc, home);
 
+        // Wake up exactly when the next commitment starts: the work shift or, while vigilant, the watch.
         var nextShift = npc.Shift is { } s ? NextTimeOfDay(s.Start) : (GameTime?)null;
-        return Rest("Routine: riposa", "Nessun incarico: riposa.", npc, "Riposa", nextShift);
+        var nextWatch = npc.Vigil is not null ? NextTimeOfDay(Rules.VigilStart) : (GameTime?)null;
+        var wake = nextShift is null ? nextWatch
+            : nextWatch is null ? nextShift
+            : nextShift < nextWatch ? nextShift : nextWatch;
+        return Rest("Routine: riposa", "Nessun incarico: riposa.", npc, "Riposa", wake);
     }
 
     /// <summary>An interruptible wait of at most an hour, cut at <paramref name="boundary"/> so schedules stay exact.</summary>

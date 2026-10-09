@@ -71,6 +71,15 @@ public sealed record ActorView
     public IReadOnlyList<ObservationView> Knowledge { get; init; } = Array.Empty<ObservationView>();
 
     public GuardDutyView? GuardDuty { get; init; }
+
+    /// <summary>Set while the actor keeps an eye on a robbed store (debug).</summary>
+    public VigilView? Vigil { get; init; }
+}
+
+public sealed record VigilView
+{
+    public required StoreId Store { get; init; }
+    public required GameTime Until { get; init; }
 }
 
 public sealed record GuardDutyView

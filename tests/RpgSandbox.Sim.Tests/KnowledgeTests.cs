@@ -304,6 +304,7 @@ public class KnowledgeTests
     [Theory]
     [InlineData(1)]
     [InlineData(2)] // v3 forbids leftover deadlines of cancelled actions, which v2 allowed
+    [InlineData(3)] // v4 adds vigilance
     public void Older_save_versions_are_rejected(int version)
     {
         var json = JsonNode.Parse(NewSession().SaveToString())!;

@@ -21,6 +21,13 @@ internal static class Rules
     /// <summary>Length of one guard shift; the guard re-decides between shifts.</summary>
     public static readonly Duration GuardShift = Duration.FromHours(1);
 
+    /// <summary>How long a villager keeps an eye on a robbed store after learning of the theft.</summary>
+    public static readonly Duration VigilLength = Duration.FromDays(3);
+
+    /// <summary>A vigilant villager watches the store between these times of day.</summary>
+    public static readonly Duration VigilStart = Duration.FromHours(7);
+    public static readonly Duration VigilEnd = Duration.FromHours(18);
+
     /// <summary>How long a raiding faction avoids a target its member found guarded.</summary>
     public static readonly Duration AvoidGuardedTarget = Duration.FromHours(24);
 }

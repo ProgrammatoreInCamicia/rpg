@@ -147,6 +147,7 @@ public sealed class SimulationSession
         ArrivedAt = actor.ArrivedAt,
         Knowledge = Freeze(actor.Knowledge.Select(o => ToView(o, w))),
         GuardDuty = actor.GuardDuty is { } g ? new GuardDutyView { Store = g.Store, Since = g.Since, Until = g.Until } : null,
+        Vigil = actor.Vigil is { } v ? new VigilView { Store = v.Store, Until = v.Until } : null,
     };
 
     /// <summary>
@@ -212,6 +213,15 @@ public sealed class SimulationSession
             })),
             Observations = Freeze(player.Knowledge.Select(o => ToView(o, w))),
             ReportOptions = Freeze(options),
+            PeopleHere = Freeze(present.Select(p => new PersonView
+            {
+                Id = p.Id,
+                Name = p.Name,
+                Doing = OutwardDoing(p, w),
+                Topics = Freeze(player.Knowledge
+                    .Where(o => !o.ToldTo.Contains(p.Id))
+                    .Select(o => new TopicView { Kind = "Tell", Observation = o.Id, Summary = Summary(o) })),
+            })),
         };
     }
 

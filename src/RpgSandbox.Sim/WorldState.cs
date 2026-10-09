@@ -50,6 +50,9 @@ internal sealed class Actor
     /// <summary>Set while the actor is guarding a store.</summary>
     public GuardDuty? GuardDuty { get; set; }
 
+    /// <summary>Set while the actor keeps an eye on a robbed store of its faction (not a guard: it deters nothing).</summary>
+    public Vigil? Vigil { get; set; }
+
     /// <summary>What the actor knows: its own observations and what others told it. One entry per origin.</summary>
     public List<Observation> Knowledge { get; } = new();
 
@@ -68,6 +71,12 @@ internal sealed record WorkShift(LocationId Location, Duration Start, Duration E
         var tod = t.Seconds % 86_400;
         return tod >= Start.Seconds && tod < End.Seconds;
     }
+}
+
+internal sealed class Vigil
+{
+    public required StoreId Store { get; init; }
+    public required GameTime Until { get; init; }
 }
 
 internal sealed class GuardDuty

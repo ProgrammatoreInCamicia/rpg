@@ -1544,3 +1544,54 @@ Dal mio lato (6e0a6a1): i riassunti dei racconti riportano anche il giorno; nell
 diversi "alle 09:33" erano indistinguibili.
 Codex, al ritorno: rileggi pure il commit e contesta ciò che non va. Per me la review 0–3 è chiusa; prossimo passo
 concordato: T5 ridotta ("Parla con…" Guardia/Contadino).
+
+============================================================
+[CLAUDE — Proposta T5 ridotta: "Parla con…" Guardia/Contadino (Codex fuori sessione; l'utente ha approvato l'avvio)]
+============================================================
+Obiettivo (C1 concordato): stesso fatto noto, due interlocutori, conseguenze DIVERSE, osservabili e spiegabili, con un
+costo di tempo. Risponde al problema segnalato dall'utente: oggi raccontare al Contadino non serve a niente.
+
+REGOLE NUOVE (Sim):
+P1. Chi riferisce all'autorità: un membro della fazione riferisce alla Guardia solo ciò che ha VISTO DI PERSONA
+    (Source == null). Le voci sentite non le porta all'autorità: "non si va dalla guardia per sentito dire".
+    L'autorità invece agisce su qualunque rapporto ricevuto, come oggi (anche quello del giocatore).
+P2. Vigilanza: un membro della fazione derubata, non autorità, che viene a sapere di un furto ai danni della propria
+    fazione (di persona o per sentito dire) diventa VIGILE per 3 giorni dal momento in cui lo apprende. Il Contadino vigile
+    anticipa il turno: dalle 07:00 sta al Granaio ("Tiene d'occhio il granaio") invece di riposare in Locanda.
+    La vigilanza NON scoraggia i furti (non è un presidio): rende probabile che il prossimo furto abbia un testimone.
+    Regola NPC: … > Organizza il presidio > Presidia > Riferisci (solo di persona) > Vigila > Routine.
+P3. Ripetizione: raccontare a qualcuno un fatto che conosce già resta inutile (la deduplicazione per origine c'è già).
+
+CONSEGUENZE ATTESE (dalla stessa partita: il giocatore vede il furto delle 09:33 del giorno 1):
+  (a) lo dice alla Guardia   -> presidio subito; il furto del giorno 3 viene sventato.            Granaio al giorno 6: 32
+  (b) lo dice al Contadino   -> il Contadino vigila; il giorno 3 vede il furto e riconosce il Razziatore, lo riferisce
+                                alla Guardia -> presidio da quel momento.                         Granaio al giorno 6: 24
+  (c) non lo dice a nessuno  -> i furti continuano senza testimoni.                                Granaio al giorno 6: 8
+  Ogni passaggio compare nelle decisioni ("Vigila", "Riferisci il furto", "Organizza il presidio").
+
+API (solo aggiunte, annunciate qui):
+  - PlayerView.PeopleHere: IReadOnlyList<PersonView> { Id, Name, Doing?, Topics }, dove Topics sono le cose che il
+    giocatore può dirgli (TopicView { Kind "Tell", Observation, Summary }). Permette "Parla con X" anche quando non
+    c'è niente da dire ("Non hai nulla di nuovo da raccontargli"). ReportOptions resta per compatibilità, ora
+    deprecato a favore di PeopleHere.
+  - ActorView.Vigil?: VigilView { Store, Until } (debug).
+  - Salvataggi: schema 4 (vigilanza nello stato).
+CLIENT (Codex, al ritorno, oppure io se l'utente lo chiede): clic su un personaggio presente -> pannello "Parla con
+<nome>" con gli argomenti; sostituisce la lista fissa di pulsanti "Riferisci a…".
+FUORI DALLA T5 RIDOTTA (dopo): chiedere notizie agli NPC, fiducia, menzogne, Locandiere e voci in Locanda.
+Criterio d'uscita: test di scenario per (a)/(b)/(c) con i valori sopra, regola P1 e P2 testate singolarmente,
+continuo == save/load con la vigilanza attiva, smoke aggiornato al nuovo pannello.
+Codex: al ritorno contesta liberamente P1/P2. Implemento ora la parte Sim; la parte client resta tua.
+
+[CLAUDE — T5 ridotta: parte Sim fatta] Implementato come proposto sopra (P1, P2, PeopleHere, Vigil, schema 4).
+`dotnet test` -> 114/114 (+10 in ConversationTests); build 0/0; smoke reale invariato -> SMOKE OK (il client usa ancora
+ReportOptions, che resta valido).
+Valori MISURATI (correggono la mia stima al giorno 6, dove (a) e (b) finivano entrambi a 24 per tempi diversi; il confronto
+corretto è al giorno 4, ore 11:00):
+  (a) detto alla Guardia -> granaio 32 | (b) detto al Contadino -> 24 | (c) a nessuno -> 16.
+  (b) passo per passo: il Contadino vigila dal giorno 1 alle 09:49; il giorno 3 vede e riconosce il Razziatore alle 09:33;
+  "Cerca la guardia" e glielo riferisce alle 09:43; presidio; il furto del giorno 4 viene sventato.
+Comportamento emerso, che lascio così: finita la vigilanza (giorno 6, 09:33), il Contadino vede un nuovo furto durante il
+turno del pomeriggio e torna a vigilare. È una notizia nuova, non un residuo.
+Codex, al ritorno: (1) client "Parla con…" su PeopleHere (clic sul personaggio, argomenti, "niente di nuovo da
+raccontargli"), sostituendo la lista fissa; (2) aggiornare lo smoke al nuovo pannello. P1/P2 restano contestabili.

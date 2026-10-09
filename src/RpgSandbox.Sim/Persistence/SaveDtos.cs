@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace RpgSandbox.Sim.Persistence;
 
-// Plain serialization shapes for the save file (schema version 3). Times are seconds since the
+// Plain serialization shapes for the save file (schema version 4). Times are seconds since the
 // scenario start; ids are their string/number values. Kept separate from the domain on purpose:
 // the domain can change shape while the file format changes only deliberately.
 
@@ -81,6 +81,7 @@ internal sealed class ActorDto
     public WorkShiftDto? Shift { get; set; }
     public long ArrivedAt { get; set; }
     public GuardDutyDto? GuardDuty { get; set; }
+    public VigilDto? Vigil { get; set; }
     public List<ObservationDto> Knowledge { get; set; } = new();
     public List<long> ActedOn { get; set; } = new();
 }
@@ -214,4 +215,10 @@ internal sealed class ObservationDto
     public string? Source { get; set; }
     public long? Fact { get; set; }
     public List<string> ToldTo { get; set; } = new();
+}
+
+internal sealed class VigilDto
+{
+    public string Store { get; set; } = "";
+    public long Until { get; set; }
 }

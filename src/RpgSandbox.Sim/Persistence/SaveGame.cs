@@ -13,7 +13,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 3;
+    public const int SchemaVersion = 4;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -94,6 +94,8 @@ internal static class SaveGame
                 Required(sh.Location, $"luogo di lavoro di '{a.Id}'");
             if (a.GuardDuty is { } g)
                 Required(g.Store, $"deposito sorvegliato da '{a.Id}'");
+            if (a.Vigil is { } v)
+                Required(v.Store, $"deposito tenuto d'occhio da '{a.Id}'");
             CheckDecision(a.LastDecision, a.Id);
         }
         foreach (var f in d.Facts) { Required(f.Kind, "tipo di un fatto"); Check(f.Description is not null, "descrizione di un fatto mancante"); }
@@ -154,6 +156,7 @@ internal static class SaveGame
             Shift = a.Shift is { } sh ? new WorkShiftDto { Location = sh.Location.Value, Start = sh.Start.Seconds, End = sh.End.Seconds } : null,
             ArrivedAt = a.ArrivedAt.Seconds,
             GuardDuty = a.GuardDuty is { } g ? new GuardDutyDto { Store = g.Store.Value, Since = g.Since.Seconds, Until = g.Until.Seconds } : null,
+            Vigil = a.Vigil is { } v ? new VigilDto { Store = v.Store.Value, Until = v.Until.Seconds } : null,
             Knowledge = a.Knowledge.Select(ToDto).ToList(),
             ActedOn = a.ActedOn.Select(o => o.Value).ToList(),
         }).ToList(),
@@ -299,6 +302,7 @@ internal static class SaveGame
                 GuardDuty = a.GuardDuty is { } g
                     ? new GuardDuty { Store = new StoreId(g.Store), Since = new GameTime(g.Since), Until = new GameTime(g.Until) }
                     : null,
+                Vigil = a.Vigil is { } v ? new Vigil { Store = new StoreId(v.Store), Until = new GameTime(v.Until) } : null,
             };
             foreach (var o in a.Knowledge)
                 actor.Knowledge.Add(FromDto(o));
@@ -393,6 +397,7 @@ internal static class SaveGame
         Check(a.Home is null || w.Locations.ContainsKey(a.Home.Value), $"attore '{a.Id}' con casa sconosciuta");
         Check(a.Shift is null || w.Locations.ContainsKey(a.Shift.Location), $"attore '{a.Id}' con lavoro sconosciuto");
         Check(a.GuardDuty is null || w.Stores.ContainsKey(a.GuardDuty.Store), $"attore '{a.Id}' sorveglia un deposito sconosciuto");
+        Check(a.Vigil is null || w.Stores.ContainsKey(a.Vigil.Store), $"attore '{a.Id}' vigila su un deposito sconosciuto");
         if (a.CurrentAction is GuardAction guard)
             Check(w.Stores.ContainsKey(guard.Store), $"sorveglianza di '{a.Id}' su deposito sconosciuto");
         Check(a.Food >= 0, $"attore '{a.Id}' con razioni negative");
