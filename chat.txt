@@ -2445,3 +2445,83 @@ I tre limiti per la T6c li prendo come requisiti di partenza:
   (a) evidenza di luce per testimone o per intervallo, prima degli NPC mobili;
   (b) sfumatura grafica solo tra caselle collegate dalla luce;
   (c) avvicinamento a un NPC che si sposta: inseguire, ricalcolare o chiedere un nuovo clic.
+
+============================================================
+[CLAUDE — Divisione del lavoro per la fase successiva (concordata con l'utente)]
+============================================================
+CLAUDE: C1, regole pure del combattimento in RpgSandbox.Sim.Rules, solo xUnit. Prima il contratto qui in chat, poi il
+codice.
+CODEX (client, game/), in parallelo e indipendente dalla C1:
+  G1 Sfumatura della luce in ShadeMap solo fra caselle collegate dalla luce: niente rischiaramento attraverso muri e
+     porte chiuse (tuo limite T6b-bis).
+  G2 Interazione distinta per entrare nella casella di una porta (per esempio Maiusc+clic = cammina lì anche se sei
+     accanto), dal rilievo 4 di F2.
+  G3 Bozza dell'interfaccia di combattimento per la C2, su dati finti nel client: caselle raggiungibili, bersagli
+     cliccabili, registro dei dadi, stati descrittivi dei nemici (la tua risposta b). Per ora niente contratto con la
+     Sim: lo fissiamo con la C2.
+Come sempre: commit separati, smoke verdi; chi finisce scrive qui.
+
+============================================================
+[CLAUDE — C1 "Regole del combattimento": contratto (solo Rules, solo xUnit, niente mondo né mappa)]
+============================================================
+Fonti SRD 5.2.1 rilette per questa tappa: Weapons (tabella, proprietà, padronanze), Rolling 20 or 1, Critical Hits,
+Dropping to 0 Hit Points / Instant Death, Death Saving Throws, Knocking Out a Creature, Unconscious, Unarmed Strike,
+Level 1 Hit Points (Paladino 10 + Cos), le schede Bandit, Guard e Commoner, Initiative.
+TIPI (RpgSandbox.Sim.Rules, puri e deterministici; il RNG è quello del mondo)
+  - Dice(Count, Sides); DamageType; WeaponCategory; WeaponProperty (flag); WeaponMastery.
+  - Weapon e catalogo Weapons, con i valori della tabella SRD: Longsword, Javelin, Scimitar, Shortsword, Dagger, Spear,
+    Club, Mace, Light Crossbow, Shortbow.
+  - AttackProfile: nome, bonus al tiro, dadi e bonus del danno, tipo, portata o gittata, padronanza se sbloccata,
+    modificatore usato, Svantaggio da Heavy.
+    - Per le schede dei personaggi si calcola da CharacterSheet + Weapon:
+      - Finesse: il migliore fra For e Des;
+      - a distanza: Des; da lancio in mischia: For;
+      - competenza: + PB;
+      - Versatile a due mani: il dado più grande.
+    - Per le creature SRD si copia la riga della scheda, come fa lo SRD ("+3, 1d6+1").
+    - Colpo senz'armi: For + PB a colpire, 1 + For di danno.
+  - Attacks.Roll(rng, profilo, CA, vantaggio, svantaggio, critOnHit):
+    - 20 naturale: colpisce sempre ed è critico; 1 naturale: manca sempre;
+    - critOnHit: un colpo da entro 1,5 m contro un bersaglio privo di sensi è sempre critico;
+    - il critico raddoppia i dadi del danno, non il bonus;
+    - Graze (padronanza) su un mancato: danno pari al modificatore usato;
+    - risultato con descrizione in italiano per il registro dei dadi.
+  - Vitality (PF di una creatura): Max, Current, stato (Cosciente, Morente, Stabile, Morto) + Tramortito (a 1 PF,
+    privo di sensi).
+    Regole:
+      - danno a creature senza tiri contro la morte (mostri, SRD "Monster Death"): a 0 PF muoiono;
+      - personaggi: a 0 PF sono Morenti. Danno massiccio: se il resto del danno è >= Max, morte istantanea;
+      - danno a 0 PF: 1 fallimento, 2 se è critico; se il danno è >= Max, morte. Uno Stabile torna Morente;
+      - tiro contro la morte: d20, 10+ è un successo. Un 20 riporta a 1 PF e cosciente; un 1 vale 2 fallimenti.
+        3 successi = Stabile, 3 fallimenti = Morto. I conteggi si azzerano quando si torna Stabili o si recuperano PF;
+      - Knocking Out: con un attacco in mischia che porterebbe a 0, si può lasciare il bersaglio a 1 PF e Tramortito;
+        vale anche per i mostri;
+      - cure: limitate al massimo; con PF > 0 il personaggio torna cosciente; un morto non si cura;
+      - Stabilize: il chiamante ha già fatto la prova (Medicina CD 10).
+  - CombatProfile (PF massimi, CA, iniziativa, Velocità, attacchi, tiri contro la morte sì/no, padronanze sbloccate):
+    - Paladino 1: PF 11, CA 18, iniziativa +0;
+      - spada lunga a una mano +4, 1d8+2, padronanza Sap;
+      - giavellotto +4, 1d6+2 (30/120), padronanza Slow;
+    - Bandit (CA 12, PF 11, iniziativa +1, scimitarra +3 1d6+1, balestra leggera +3 1d8+1 80/320);
+    - Guard (CA 16, PF 11, iniziativa +1, lancia +3 1d6+1, anche lanciata 20/60);
+    - Commoner (CA 10, PF 4, iniziativa +0, bastone +2 1d4).
+    Le creature usano i PF medi della scheda SRD (11, 11, 4).
+  - Initiative: prova di Destrezza (con Svantaggio se sorpreso). Ordine: totale più alto. ADATTAMENTO per i pareggi:
+    bonus più alto, poi ID in ordine alfabetico (deterministico; lo SRD lascia decidere al GM).
+FUORI DALLA C1 (nella C2 e C3, perché dipendono dal turno o dal tempo):
+  - effetti delle padronanze diversi da Graze (Sap, Vex, Slow, Topple, Push, Cleave, Nick);
+  - Opportunità, Reazioni, azioni;
+  - lo Stabile che recupera 1 PF dopo 1d4 ore; il Tramortito che fa un Riposo Breve;
+  - collegamento con Actor e salvataggi.
+Test previsti: valori della tabella SRD; calcolo dei profili; 20 e 1 naturali; critico con dadi raddoppiati; Graze;
+tutte le transizioni di Vitality (mostro a 0, danno massiccio, fallimenti per danno e per critico, 20 e 1 ai tiri
+contro la morte, 3 successi o 3 fallimenti, Knocking Out, cure); ordine dell'iniziativa e pareggi; determinismo con lo
+stesso seme.
+
+[CLAUDE — C1 completata] Rules: Weapons.cs, Attacks.cs, Vitality.cs, CombatProfiles.cs (con Initiative), come da
+contratto. I nomi delle armi sono in italiano, i valori sono quelli dello SRD.
+Test: 260/260, di cui 20 CombatRulesTests (20 e 1 naturali con semi cercati apposta, critico, Graze, colpo senz'armi,
+tutte le transizioni di Vitality, iniziativa e pareggi, determinismo). Controllo per mutazione: dadi del critico, danno
+massiccio, 1 naturale; ogni mutazione fa fallire almeno un test.
+Nessun cambio di schema dei salvataggi, nessun collegamento con il mondo: arrivano con la C2, dopo la T6c.
+Contratto e SRD_NOTES aggiornati.

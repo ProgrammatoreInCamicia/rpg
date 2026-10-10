@@ -271,3 +271,35 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
 - Le attività a durata fissa scorrono più veloci, al massimo 3 secondi reali, e il mondo intanto va avanti.
 - Le regole non cambiano: una casella costa sempre 1 secondo di gioco a Speed 30.
 - In combattimento (proposta in chat) il tempo passerà a round da 6 secondi.
+
+## C1 — Regole del combattimento (solo `RpgSandbox.Sim.Rules`, non ancora collegate al mondo)
+
+- **`Weapons`**: armi con i valori della tabella SRD 5.2.1 (danni, proprietà, gittate, padronanze).
+- **`AttackProfile`**: un attacco già calcolato.
+  - Per i personaggi si ricava da scheda e arma: Finesse usa il migliore fra Forza e Destrezza; le armi a distanza usano la Destrezza; le altre, anche quelle lanciate da mischia, la Forza. La competenza aggiunge il bonus. Versatile a due mani usa il dado più grande. Heavy dà svantaggio sotto 13 di Forza o Destrezza.
+  - Per le creature SRD si copia la riga della scheda.
+  - Il colpo senz'armi colpisce con Forza + bonus di competenza e fa 1 + Forza danni.
+- **`Attacks.Roll`**:
+  - il 20 naturale colpisce sempre ed è critico; l'1 naturale manca sempre;
+  - con `critOnHit` ogni colpo è critico (bersaglio privo di sensi entro 5 piedi);
+  - il critico raddoppia i dadi del danno, non il bonus;
+  - con la padronanza Graze un attacco mancato fa danni pari al modificatore;
+  - `Describe()` produce la riga per il registro dei dadi.
+- **`Vitality`**: punti ferita e stati (Vivo, Morente, Stabile, Morto), più Tramortito.
+  - I mostri muoiono a 0 PF.
+  - I personaggi a 0 PF diventano Morenti, a meno di danno massiccio (danno avanzato ≥ PF massimi: morte istantanea).
+  - Il danno subito a 0 PF conta come uno o due fallimenti ai tiri contro la morte; se è ≥ PF massimi è morte.
+  - Tiro contro la morte: 20 = 1 PF; 1 = due fallimenti; tre successi = Stabile; tre fallimenti = Morto.
+  - Knocking Out: invece di scendere a 0 si resta a 1 PF, Tramortiti.
+  - Le cure non superano il massimo e fanno rinvenire; un morto non si cura.
+  - `Describe()` dà lo stato descrittivo (illeso, ferito, malconcio, tramortito, a terra), mai i PF esatti.
+- **`CombatProfiles`**:
+  - Paladino 1: 11 PF, CA 18, spada lunga +4 1d8+2 con padronanza Sap, giavellotto +4 1d6+2 con padronanza Slow;
+  - Bandito, Guardia e Popolano: valori copiati dalle schede SRD.
+- **`Initiative`**: prova di Destrezza, con svantaggio se sorpreso. Ordine: totale più alto; a parità, bonus più alto e poi id (ADATTAMENTO).
+- **Fuori dalla C1**:
+  - gli effetti delle padronanze diverse da Graze;
+  - reazioni e attacchi di opportunità;
+  - il recupero dello Stabile (1 PF dopo 1d4 ore);
+  - il Riposo Breve del Tramortito;
+  - il collegamento con gli attori e con i salvataggi (C2).

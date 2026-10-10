@@ -60,3 +60,18 @@ Dove metterla: un file `CREDITS.md` nel repository e una schermata dei crediti n
 - Quando nessuno ti vede in modo diretto, ad esempio chi arriva dopo o chi è nella stanza ma distratto, si può usare il caso previsto dallo SRD: una prova di Furtività contro la **Percezione passiva** di chi è presente. Proposta di adattamento per un'azione che dura minuti: **una sola prova all'inizio**, il cui totale vale per tutta la durata contro chi è presente o arriva. Va marcato come ADATTAMENTO.
 - **Il ciclo giorno/notte diventa gameplay.** Di notte il granaio è Pesantemente oscurato: si può davvero usare Nascondersi, e chi guarda senza luce è come Accecato. Di giorno no. Finora il giorno/notte era solo una semplificazione dichiarata; con queste regole diventa la variabile principale della furtività.
 - Rapidità di mano può servire per piccoli furti, come borse o tasche. Per le razioni del granaio basta la Furtività.
+
+## Combattimento (C1)
+
+Regole lette e applicate dallo SRD 5.2.1:
+- tabella **Weapons**, con proprietà e padronanze;
+- **Rolling 20 or 1** e **Critical Hits**;
+- **Dropping to 0 Hit Points** e **Instant Death**: Monster Death e Massive Damage;
+- **Death Saving Throws**;
+- **Knocking Out a Creature**;
+- condizione **Unconscious**: gli attacchi da entro 5 piedi sono critici automatici;
+- **Unarmed Strike**;
+- **Level 1 Hit Points by Class**: Paladino 10 + Costituzione;
+- privilegi del Paladino di livello 1: Weapon Mastery;
+- schede **Bandit**, **Guard** e **Commoner**;
+- **Initiative**: sorpresa e pareggi (i pareggi sono un adattamento).
