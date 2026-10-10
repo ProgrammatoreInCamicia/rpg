@@ -309,4 +309,42 @@ public class StealthTests
         Assert.Null(s.GetPlayerView().Sneaking); // found on the way, and the dark beyond does not hide again
         Assert.Contains(s.GetWorldView().RecentFacts, f => f.Kind == "SneakDiscovered");
     }
+
+    // ---------------------------------------------------------------- T6c-5: light judged only while in sight
+
+    [Fact]
+    public void A_torch_that_burned_while_the_witness_was_behind_a_wall_is_not_evidence()
+    {
+        // Night. A wall column at x=7. The watcher starts in sight of the thief at (6,4), steps behind the wall to (9,2),
+        // a villager lights a torch next to the thief and puts it out, then the watcher comes back into sight.
+        var scenario = new ScenarioBuilder()
+            .AddArea("a", "A")
+            .AddLocation("yard", "Cortile", "a")
+            .AddMap("a", new[] { "YYYYYYYYYYY", "YYYYYYY#YYY", "YYYYYYY#YYY", "YYYYYYY#YYY", "YYYYYYYYYYY" },
+                new Dictionary<char, string> { ['Y'] = "yard" })
+            .AddFaction("village", "Villaggio", homeStoreId: Store.Value, authorityId: Watcher.Value)
+            .AddStore(Store.Value, "Scorte", "yard", 40, "village", at: (5, 2))
+            .AddActor("player", "Protagonista", "yard", isPlayer: true, sheet: Sheets.Raider(), at: (4, 2))
+            .AddActor(Watcher.Value, "Guardia", "yard", factionId: "village", sheet: Sheets.VillageGuard(), at: (6, 4))
+            .AddActor(Bearer.Value, "Contadino", "yard", sheet: Sheets.Farmer(), at: (4, 3), torches: 2)
+            .Build();
+        var s = SimulationSession.Create(scenario);
+        s.AdvanceTo(At(1, 2));
+        void WatcherTo(int x, int y)
+        {
+            var walk = s.Execute(new MoveCommand { Actor = Watcher, To = new GridPos(x, y) });
+            Assert.True(walk.Success, walk.Message);
+            s.AdvanceUntilCompleted(walk.Action!.Value, Duration.FromMinutes(1));
+        }
+
+        var theft = StartTheft(s);
+        WatcherTo(9, 2); // behind the wall
+        Assert.True(s.Execute(new TorchCommand { Actor = Bearer, Lit = true }).Success);
+        s.Advance(Duration.FromSeconds(20));
+        Assert.True(s.Execute(new TorchCommand { Actor = Bearer, Lit = false }).Success);
+        WatcherTo(6, 4); // back in sight, in the dark again
+        s.AdvanceUntilCompleted(theft, Duration.FromHours(1));
+
+        Assert.All(s.GetWorldView().Actor(Watcher).Knowledge, k => Assert.Equal("Heard", k.Perceived));
+    }
 }

@@ -107,4 +107,19 @@ public class MapContactTests
 
         Assert.Equal(once.SaveToString(), stepped.SaveToString());
     }
+
+    [Fact]
+    public void A_thief_who_walks_away_during_the_confiscation_keeps_the_rations()
+    {
+        var s = GuardWithClaim(FarmerHome);
+        s.Advance(Duration.FromMinutes(30));
+        Walk(s, new GridPos(GuardStart.X + 1, GuardStart.Y));
+        Assert.Equal("Confiscate", s.GetWorldView().Actor(Guard).Action?.Kind); // she stops him at once...
+
+        Walk(s, new GridPos(12, 9)); // ...but he walks off before the two minutes are over
+        s.Advance(Duration.FromMinutes(3));
+
+        Assert.Contains(s.GetWorldView().RecentFacts, f => f.Kind == "ConfiscationFailed");
+        Assert.Equal(10, s.GetPlayerView().Food); // nothing taken from afar
+    }
 }

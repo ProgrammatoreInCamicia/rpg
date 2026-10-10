@@ -61,9 +61,12 @@ internal sealed partial class Simulation
             Destination = destination.Id,
             Description = $"In viaggio verso {destination.Name}",
         };
+        var leftMap = MapOf(actor);
         actor.Location = null;
         actor.Position = null; // off the map for the journey
         actor.MapArea = null;
+        if (leftMap is not null)
+            NoteSensesChange(leftMap); // out of sight of any theft there (T6c-5)
         Begin(actor, travel);
         World.RecordFact("TravelStarted", $"{actor.Name} parte da {World.Locations[origin].Name} verso {destination.Name}.", actor.Id);
         return CommandResult.Started(travel.Id, travel.CompletesAt, $"{actor.Name} si incammina verso {destination.Name}.");
@@ -127,10 +130,11 @@ internal sealed partial class Simulation
             Amount = command.Amount,
             StealthTotal = stealth?.Total,
             SeenAtStart = theft ? WhoSeesOnMap(actor) : new HashSet<ActorId>(),
-            BestLight = theft && MapOf(actor) is { } lightMap && CurrentPosition(actor) is { } spot ? LightOn(lightMap, spot) : null,
             Description = theft ? $"Furto di razioni da {store.Name}" : $"Prelievo di razioni da {store.Name}",
         };
         Begin(actor, take);
+        if (theft)
+            StartTheftEvidence(actor, take); // T6c-5: light and sight from the start, on maps
         // The actor knows how quiet it managed to be, never whether someone noticed.
         var how = stealth is null ? "" : $" Furtività: {stealth.Describe()}.";
         return CommandResult.Started(take.Id, take.CompletesAt, $"{actor.Name} inizia a prendere razioni da {store.Name}.{how}");

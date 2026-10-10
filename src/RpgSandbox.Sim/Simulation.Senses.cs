@@ -30,10 +30,10 @@ internal sealed partial class Simulation
     {
         var map = MapOf(actor);
         if (map is not null)
-            NoteLightChange(map);
+            NoteSensesChange(map);
         change();
         if (map is not null)
-            NoteLightChange(map);
+            NoteSensesChange(map);
     }
 
     private CommandResult UseTorch(TorchCommand command)
@@ -56,15 +56,81 @@ internal sealed partial class Simulation
         return new CommandResult { Message = $"Accendi una torcia: brucerà per un'ora. Te ne restano {actor.Torches}." };
     }
 
+    /// <summary>Light on a square from lamps and carried torches only (daylight is accounted for apart).</summary>
+    private Light SourceLightOn(GridMap map, GridPos square) => map.SourceLight(square, CarriedLights(map));
+
     /// <summary>
-    /// The best light on a thief's square over the part of a theft a witness watched: what was recorded at the start
-    /// and at every change of light since (<see cref="TakeFoodAction.BestLight"/>), daylight over the stretch, and the
-    /// light now. A witness who arrived later only gets daylight over its own stretch and the light now.
+    /// T6c-5: the best light a witness could have seen the thief in: daylight and lamp or torch light, taken only over
+    /// the stretches during which it had a line of sight to the thief. Dark if it never had one.
     /// </summary>
-    private Light BestLightDuringTheft(GridMap map, GridPos square, TakeFoodAction take, GameTime watchedFrom)
+    private Light BestLightInSight(TakeFoodAction take, ActorId witness)
     {
-        var best = Max(Perception.BestDaylightDuring(watchedFrom, World.Now), LightOn(map, square));
-        return watchedFrom == take.StartedAt && take.BestLight is { } recorded ? Max(best, recorded) : best;
+        if (!take.Sight.TryGetValue(witness, out var spans))
+            return Light.Dark;
+        var best = Light.Dark;
+        foreach (var span in spans)
+        {
+            var from = span.From;
+            var to = span.To ?? World.Now;
+            best = Max(best, Perception.BestDaylightDuring(from, to));
+            for (var i = 0; i < take.SourceLightLog.Count; i++)
+            {
+                // Each recorded light holds from its instant until the next change.
+                var (at, light) = take.SourceLightLog[i];
+                var until = i + 1 < take.SourceLightLog.Count ? take.SourceLightLog[i + 1].At : (GameTime?)null;
+                if (at <= to && (until is null || until > from))
+                    best = Max(best, light);
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// T6c-5: senses may have changed on a map (someone moved, a torch, a door). For every theft in progress there, the
+    /// light on the thief's square is logged if it changed, and every actor's stretches in sight of the thief are
+    /// opened or closed. Called after every such change, so the evidence never depends on the state at the end.
+    /// </summary>
+    private void NoteSensesChange(GridMap map)
+    {
+        foreach (var thief in World.Actors.Values.Where(a => a.MapArea == map.Area)
+                     .OrderBy(a => a.Id.Value, StringComparer.Ordinal).ToList())
+        {
+            if (thief.CurrentAction is not TakeFoodAction take || take.SourceLightLog.Count == 0
+                || CurrentPosition(thief) is not { } square)
+                continue;
+            var light = SourceLightOn(map, square);
+            if (take.SourceLightLog[^1].Light != light)
+                take.SourceLightLog.Add((World.Now, light));
+            UpdateSight(map, thief, take, square);
+        }
+    }
+
+    /// <summary>Opens or closes each actor's stretch in sight of the thief (anyone off this map is out of sight).</summary>
+    private void UpdateSight(GridMap map, Actor thief, TakeFoodAction take, GridPos square)
+    {
+        foreach (var other in World.Actors.Values.Where(a => a.Id != thief.Id).OrderBy(a => a.Id.Value, StringComparer.Ordinal))
+        {
+            var inSight = other.MapArea == map.Area && CurrentPosition(other) is { } from && map.HasLineOfSight(from, square);
+            take.Sight.TryGetValue(other.Id, out var spans);
+            var open = spans is { Count: > 0 } && spans[^1].To is null;
+            if (inSight && !open)
+            {
+                if (spans is null)
+                    take.Sight[other.Id] = spans = new List<SightSpan>();
+                spans.Add(new SightSpan { From = World.Now });
+            }
+            else if (!inSight && open)
+                spans![^1].To = World.Now;
+        }
+    }
+
+    /// <summary>T6c-5: the evidence a theft on a map starts with: the light on the thief's square and who has it in sight.</summary>
+    private void StartTheftEvidence(Actor thief, TakeFoodAction take)
+    {
+        if (MapOf(thief) is not { } map || CurrentPosition(thief) is not { } square)
+            return;
+        take.SourceLightLog.Add((World.Now, SourceLightOn(map, square)));
+        UpdateSight(map, thief, take, square);
     }
 
     /// <summary>Who sees <paramref name="target"/> right now on its map, by the rules of F3.</summary>
@@ -93,16 +159,6 @@ internal sealed partial class Simulation
         World.RecordFact("SneakDiscovered", $"{actor.Name} è scoperto: lo vede {names}.", actor.Id);
     }
 
-    /// <summary>
-    /// Light may have changed on a map (a torch, a door, a torch bearer on the move): thefts in progress keep the best
-    /// light seen so far on the thief's square. Called before and after each change.
-    /// </summary>
-    private void NoteLightChange(GridMap map)
-    {
-        foreach (var thief in World.Actors.Values.Where(a => a.MapArea == map.Area))
-            if (thief.CurrentAction is TakeFoodAction { BestLight: { } best } take && CurrentPosition(thief) is { } square)
-                take.BestLight = Max(best, LightOn(map, square));
-    }
 
     private static Light Max(Light a, Light b) => a > b ? a : b;
 
@@ -136,27 +192,28 @@ internal sealed partial class Simulation
     };
 
     /// <summary>
-    /// Perception of a theft on a mapped area: anyone on the same map may notice it by sight (line of sight and light on
-    /// the thief's square, best light over the stretch watched) or by hearing (within earshot). Recognising the thief
-    /// takes seeing them now and having seen them when the theft began (evidence fixed then, F4).
+    /// Perception of a theft on a mapped area: anyone on the same map may notice it by sight (the best light on the
+    /// thief's square, judged only over the stretches it had a line of sight to the thief, T6c-5) or by hearing (within
+    /// earshot at the end). Recognising the thief takes seeing it and having seen it when the theft began (F4).
     /// </summary>
     private void PerceiveTheftOnMap(Actor thief, TakeFoodAction take, Store store, int amount, FactId fact, GridMap map)
     {
         var stealth = take.StealthTotal ?? 0;
         var thiefSquare = CurrentPosition(thief)!.Value;
+        NoteSensesChange(map); // the evidence up to this very instant
         foreach (var witness in World.Actors.Values.Where(a => a.Id != thief.Id && a.MapArea == map.Area).ToList())
         {
             var here = CurrentPosition(witness)!.Value;
-            var watchedFrom = witness.ArrivedAt > take.StartedAt ? witness.ArrivedAt : take.StartedAt;
-            var light = BestLightDuringTheft(map, thiefSquare, take, watchedFrom);
+            var everInSight = take.Sight.ContainsKey(witness.Id);
+            var light = everInSight ? BestLightInSight(take, witness.Id) : LightOn(map, thiefSquare);
             var senses = Perception.Witness(witness.Sheet, light, stealth);
-            var seen = senses.SawActor && map.HasLineOfSight(here, thiefSquare);
+            var seen = everInSight && senses.SawActor;
             var heard = senses.HearingPerception >= stealth && WithinEarshot(map, here, thiefSquare);
             if (!seen && !heard)
             {
                 World.RecordFact("FoodTheftUnnoticed",
                     $"{witness.Name} non si accorge di nulla ({Perception.Describe(light)}, " +
-                    $"{(map.HasLineOfSight(here, thiefSquare) ? "in vista" : "fuori vista")}, " +
+                    $"{(everInSight ? "in vista" : "fuori vista")}, " +
                     $"{(WithinEarshot(map, here, thiefSquare) ? "a portata d'orecchio" : "troppo lontano per sentire")}).");
                 continue;
             }

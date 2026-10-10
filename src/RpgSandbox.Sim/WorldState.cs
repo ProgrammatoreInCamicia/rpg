@@ -271,10 +271,24 @@ internal sealed class TakeFoodAction : PendingAction
     public IReadOnlySet<ActorId> SeenAtStart { get; init; } = new HashSet<ActorId>();
 
     /// <summary>
-    /// On maps, the best light on the thief's square so far: at the start, then at every change of light (a torch
-    /// lit or put out, a door, a torch bearer reaching a waypoint). Null off the maps.
+    /// T6c-5, on maps: the light on the thief's square from lamps and torches (daylight is computed apart), from the
+    /// start and at every change since, each with its instant. Empty off the maps.
     /// </summary>
-    public Light? BestLight { get; set; }
+    public List<(GameTime At, Light Light)> SourceLightLog { get; init; } = new();
+
+    /// <summary>
+    /// T6c-5, on maps: for every other actor on the map, the stretches during which it had a line of sight to the thief
+    /// (an open stretch has no end yet). A witness judges the light only over these stretches.
+    /// </summary>
+    public SortedDictionary<ActorId, List<SightSpan>> Sight { get; init; } =
+        new(Comparer<ActorId>.Create((a, b) => string.CompareOrdinal(a.Value, b.Value)));
+}
+
+/// <summary>A stretch of time during which a witness had a line of sight to a thief (To = null: still open).</summary>
+internal sealed class SightSpan
+{
+    public required GameTime From { get; init; }
+    public GameTime? To { get; set; }
 }
 
 internal sealed class ReportAction : PendingAction

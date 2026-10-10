@@ -313,6 +313,7 @@ public class KnowledgeTests
     [InlineData(9)] // v10 adds doors and torches
     [InlineData(10)] // v11 adds the evidence fixed when a theft starts
     [InlineData(11)] // v12 adds exits, posts and store access
+    [InlineData(12)] // v13 adds the light log and sight stretches of thefts in progress
     public void Older_save_versions_are_rejected(int version)
     {
         var json = JsonNode.Parse(NewSession().SaveToString())!;

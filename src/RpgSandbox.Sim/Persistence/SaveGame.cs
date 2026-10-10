@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 12;
+    public const int SchemaVersion = 13;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -207,6 +207,43 @@ internal static class SaveGame
         }).ToList(),
     };
 
+
+    /// <summary>T6c-5: the light log and the stretches in sight of a theft in progress, validated.</summary>
+    private static TakeFoodAction RestoreEvidence(TakeFoodActionDto dto, TakeFoodAction take)
+    {
+        GameTime? previous = null;
+        foreach (var change in dto.SourceLightLog ?? throw new InvalidDataException("luce del furto mancante"))
+        {
+            if (change is null || !Enum.IsDefined(typeof(Light), change.Light)
+                || (previous is { } p && new GameTime(change.At) <= p) || new GameTime(change.At) < take.StartedAt)
+                throw new InvalidDataException("luce del furto non valida");
+            take.SourceLightLog.Add((new GameTime(change.At), (Light)change.Light));
+            previous = new GameTime(change.At);
+        }
+        foreach (var sight in dto.Sight ?? throw new InvalidDataException("vista del furto mancante"))
+        {
+            if (sight?.Spans is null || sight.Spans.Count == 0)
+                throw new InvalidDataException("vista del furto non valida");
+            var spans = new List<SightSpan>();
+            GameTime? end = take.StartedAt;
+            for (var i = 0; i < sight.Spans.Count; i++)
+            {
+                var span = sight.Spans[i] ?? throw new InvalidDataException("vista del furto non valida");
+                var from = new GameTime(span.From);
+                GameTime? to = span.To is { } t ? new GameTime(t) : null;
+                // Spans follow one another without overlapping; only the last can still be open.
+                if (end is null || from < end || (to is { } closed && closed < from) || (to is null && i != sight.Spans.Count - 1))
+                    throw new InvalidDataException("vista del furto non valida");
+                spans.Add(new SightSpan { From = from, To = to });
+                end = to;
+            }
+            if (!take.Sight.TryAdd(new ActorId(Required(sight.Actor, "testimone della vista")), spans))
+                throw new InvalidDataException("vista del furto ripetuta");
+        }
+        return take;
+    }
+
+
     private static SheetDto ToDto(CharacterSheet s) => new()
     {
         Title = s.Title, Strength = s.Strength, Dexterity = s.Dexterity, Constitution = s.Constitution,
@@ -251,7 +288,12 @@ internal static class SaveGame
             {
                 Store = k.Store.Value, Amount = k.Amount, StealthTotal = k.StealthTotal,
                 SeenAtStart = k.SeenAtStart.Select(a => a.Value).OrderBy(a => a, StringComparer.Ordinal).ToList(),
-                BestLight = (int?)k.BestLight,
+                SourceLightLog = k.SourceLightLog.Select(c => new LightChangeDto { At = c.At.Seconds, Light = (int)c.Light }).ToList(),
+                Sight = k.Sight.Select(s => new SightDto
+                {
+                    Actor = s.Key.Value,
+                    Spans = s.Value.Select(p => new SpanDto { From = p.From.Seconds, To = p.To?.Seconds }).ToList(),
+                }).ToList(),
             },
             WaitAction wa => new WaitActionDto { Interruptible = wa.Interruptible },
             ReportAction rep => new ReportActionDto { Recipient = rep.Recipient.Value, Observation = rep.Observation.Value },
@@ -414,6 +456,11 @@ internal static class SaveGame
             ValidateActor(w, actor);
             AddUnique(w.Actors, actor.Id, actor, "attore");
         }
+        // Witnesses of thefts in progress are checked once every actor is loaded (they may come later in the file).
+        foreach (var thief in w.Actors.Values)
+            Check(thief.CurrentAction is not TakeFoodAction theft
+                  || (theft.SeenAtStart.All(w.Actors.ContainsKey) && theft.Sight.Keys.All(w.Actors.ContainsKey)),
+                $"furto di '{thief.Id}' con testimoni sconosciuti");
         Check(w.Actors.TryGetValue(w.Player, out var player) && player.IsPlayer, "giocatore mancante");
         Check(w.Actors.Values.Count(a => a.IsPlayer) == 1, "più di un giocatore");
         foreach (var actor in w.Actors.Values)
@@ -536,8 +583,6 @@ internal static class SaveGame
             Check(w.Stores.ContainsKey(guard.Store), $"sorveglianza di '{a.Id}' su deposito sconosciuto");
         Check(a.Food >= 0, $"attore '{a.Id}' con razioni negative");
         Check(a.Torches >= 0, $"attore '{a.Id}' con torce negative");
-        Check(a.CurrentAction is not TakeFoodAction theft || theft.SeenAtStart.All(w.Actors.ContainsKey),
-            $"furto di '{a.Id}' con testimoni sconosciuti");
         Check(a.Faction is null || w.Factions.ContainsKey(a.Faction.Value), $"attore '{a.Id}' di fazione sconosciuta");
         Check(a.Location is null || w.Locations.ContainsKey(a.Location.Value), $"attore '{a.Id}' in luogo sconosciuto");
         if (a.Position is { } pos)
@@ -606,15 +651,13 @@ internal static class SaveGame
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
                 Store = new StoreId(dep.Store), Amount = dep.Amount,
             },
-            TakeFoodActionDto take => new TakeFoodAction
+            TakeFoodActionDto take => RestoreEvidence(take, new TakeFoodAction
             {
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
                 Store = new StoreId(take.Store), Amount = take.Amount, StealthTotal = take.StealthTotal,
                 SeenAtStart = (take.SeenAtStart ?? throw new InvalidDataException("testimoni del furto mancanti"))
                     .Select(a => new ActorId(Required(a, "testimone del furto"))).ToHashSet(),
-                BestLight = take.BestLight is { } light && Enum.IsDefined(typeof(Light), light) ? (Light)light
-                    : take.BestLight is null ? null : throw new InvalidDataException("luce del furto non valida"),
-            },
+            }),
             ReportActionDto rep => new ReportAction
             {
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,

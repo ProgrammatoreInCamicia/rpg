@@ -124,10 +124,10 @@ internal sealed partial class Simulation
         // within the same second (a fast walker) is no arrival.
         var moved = _moved.Values.OrderBy(m => m.Actor.Id.Value, StringComparer.Ordinal).ToList();
         _moved.Clear();
+        foreach (var area in moved.Select(m => m.Actor.MapArea).OfType<AreaId>().Distinct().OrderBy(a => a.Value, StringComparer.Ordinal))
+            NoteSensesChange(World.Maps[area]); // sight and carried light changed with the walkers (T6c-5)
         foreach (var (actor, zoneBefore) in moved)
         {
-            if (actor.MapArea is { } area && TorchLit(actor))
-                NoteLightChange(World.Maps[area]); // the light moved with its bearer
             if (actor.Location == zoneBefore)
                 continue;
             actor.ArrivedAt = World.Now; // on maps the meeting that matters is contact, not entering a zone (T6c-4)
@@ -153,9 +153,9 @@ internal sealed partial class Simulation
 
     private void OpenDoorOnTheWay(Actor actor, GridMap map, GridPos door)
     {
-        NoteLightChange(map);
+        NoteSensesChange(map);
         map.SetDoor(door, open: true);
-        NoteLightChange(map);
+        NoteSensesChange(map);
         World.RecordFact("DoorOpened", $"{actor.Name} apre la porta in {door}.", actor.Id);
     }
 
@@ -178,9 +178,9 @@ internal sealed partial class Simulation
                 && (CurrentPosition(a) == command.At || a.CurrentAction is MoveAction m && NextSquare(m) == command.At)))
             return CommandResult.Rejected(RejectionReason.DoorBlocked, "Qualcuno è sulla porta.");
 
-        NoteLightChange(map);
+        NoteSensesChange(map);
         map.SetDoor(command.At, command.Open);
-        NoteLightChange(map);
+        NoteSensesChange(map);
         World.RecordFact(command.Open ? "DoorOpened" : "DoorClosed",
             $"{actor.Name} {(command.Open ? "apre" : "chiude")} la porta in {command.At}.", actor.Id);
         return new CommandResult { Message = command.Open ? "Apri la porta." : "Chiudi la porta." };
