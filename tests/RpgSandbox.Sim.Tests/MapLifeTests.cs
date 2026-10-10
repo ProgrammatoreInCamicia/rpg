@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using RpgSandbox.Sim.Api;
 using RpgSandbox.Sim.Rules;
 using RpgSandbox.Sim.Scenarios;
@@ -175,5 +176,90 @@ public class MapLifeTests
 
         Assert.Equal(new GridPos(6, 1), map.Exits[new LocationId("road")]);
         Assert.Equal(new GridPos(3, 2), map.Posts[(new LocationId("yard"), PostKind.Guard)]);
+    }
+
+    // ---------------------------------------------------------------- T6c-1 review fixes
+
+    [Fact]
+    public void An_exit_must_be_on_the_edge_of_the_map()
+    {
+        ScenarioBuilder Field() => new ScenarioBuilder()
+            .AddArea("a", "A").AddArea("b", "B")
+            .AddLocation("yard", "Cortile", "a").AddLocation("far", "Lontano", "b")
+            .AddRoute("yard", "far", Duration.FromMinutes(5))
+            .AddMap("a", Enumerable.Repeat("YYYYY", 5).ToArray(), new Dictionary<char, string> { ['Y'] = "yard" })
+            .AddActor("p", "P", "yard", isPlayer: true, at: (0, 0));
+
+        Assert.Contains("bordo", Assert.Throws<InvalidOperationException>(() => Field().AddExit("a", "yard", (2, 2)).Build()).Message);
+        Field().AddExit("a", "yard", (4, 2)).Build(); // on the east edge: fine
+    }
+
+    [Fact]
+    public void Passing_through_a_place_and_back_within_one_second_is_no_arrival()
+    {
+        // A fast walker (Speed 120: four squares a second) crosses B and is back in A within the same second.
+        var swift = Sheets.Raider() with { Speed = 120 };
+        var s = SimulationSession.Create(new ScenarioBuilder()
+            .AddArea("a", "A")
+            .AddLocation("la", "A", "a").AddLocation("lb", "B", "a")
+            .AddMap("a", new[] { "AABAA" }, new Dictionary<char, string> { ['A'] = "la", ['B'] = "lb" })
+            .AddActor("player", "P", "la", isPlayer: true, sheet: swift, at: (0, 0))
+            .Build());
+        s.Advance(Duration.FromMinutes(1));
+        var arrivedBefore = s.Engine.World.Actors[s.Player].ArrivedAt;
+
+        var dash = s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(4, 0) });
+        Assert.Equal(1, dash.CompletesAt!.Value.Since(s.Now).Seconds);
+        s.AdvanceUntilCompleted(dash.Action!.Value, Duration.FromMinutes(1));
+
+        Assert.Equal(new LocationId("la"), s.GetPlayerView().Location);
+        Assert.Equal(arrivedBefore, s.Engine.World.Actors[s.Player].ArrivedAt); // never "arrived" in A again
+    }
+
+    [Theory]
+    [InlineData("drop")]
+    [InlineData("duplicate")]
+    public void A_save_must_keep_every_future_waypoint_of_a_walk_exactly_once(string tamper)
+    {
+        var s = SimulationSession.Create(Village().Build());
+        s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(6, 1) });
+        s.Advance(Duration.FromSeconds(1));
+        var save = JsonNode.Parse(s.SaveToString())!;
+        var schedule = save["Schedule"]!.AsArray();
+        var waypoint = schedule.First(e => (string?)e!["Job"] == "MoveWaypoint")!;
+        if (tamper == "drop")
+            schedule.Remove(waypoint);
+        else
+        {
+            var copy = JsonNode.Parse(waypoint.ToJsonString())!;
+            copy["Sequence"] = save["NextSequence"]!.GetValue<long>();
+            save["NextSequence"] = save["NextSequence"]!.GetValue<long>() + 1;
+            schedule.Add(copy);
+        }
+
+        var loaded = LoadFromString(save.ToJsonString());
+
+        Assert.False(loaded.Success);
+        Assert.Contains("tappe del cammino", loaded.Error);
+    }
+
+    [Fact]
+    public void Waypoints_falling_in_the_same_second_as_the_arrival_are_not_skipped()
+    {
+        // Speed 120: the whole walk, through a closed door, ends within one second. Its waypoints still happen first.
+        var swift = Sheets.Raider() with { Speed = 120 };
+        var s = SimulationSession.Create(new ScenarioBuilder()
+            .AddArea("a", "A")
+            .AddLocation("la", "A", "a")
+            .AddMap("a", new[] { "AAAAA" }, new Dictionary<char, string> { ['A'] = "la" })
+            .AddDoor("a", (2, 0), open: false)
+            .AddActor("player", "P", "la", isPlayer: true, sheet: swift, at: (0, 0))
+            .Build());
+
+        var dash = s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(4, 0) });
+        s.AdvanceUntilCompleted(dash.Action!.Value, Duration.FromMinutes(1));
+
+        Assert.True(s.GetPlayerView().Doors.Single().Open); // opened on the way, not walked through shut
+        Assert.Contains(s.GetWorldView().RecentFacts, f => f.Kind == "DoorOpened");
     }
 }

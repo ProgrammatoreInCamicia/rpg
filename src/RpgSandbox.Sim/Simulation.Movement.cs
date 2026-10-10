@@ -90,8 +90,8 @@ internal sealed partial class Simulation
     }
 
     /// <summary>The walker reaches a square where its place changes (or its destination).</summary>
-    /// <summary>Actors placed on a new square during this instant, and whether they changed zone (see Place).</summary>
-    private readonly List<(Actor Actor, bool NewZone)> _moved = new();
+    /// <summary>Actors placed on a new square during this instant, with the zone each was in before its first move.</summary>
+    private readonly Dictionary<ActorId, (Actor Actor, LocationId? ZoneBefore)> _moved = new();
 
     /// <summary>
     /// Moves an actor's recorded square (and zone), nothing else. Contacts are evaluated by <see cref="EvaluateContacts"/>
@@ -99,15 +99,9 @@ internal sealed partial class Simulation
     /// </summary>
     private void Place(Actor actor, GridPos square)
     {
+        _moved.TryAdd(actor.Id, (actor, actor.Location)); // the zone at the start of the instant, kept on later moves
         actor.Position = square;
-        var zone = World.Maps[actor.MapArea!.Value].ZoneAt(square);
-        var newZone = zone != actor.Location;
-        if (newZone)
-        {
-            actor.Location = zone;
-            actor.ArrivedAt = World.Now;
-        }
-        _moved.Add((actor, newZone));
+        actor.Location = World.Maps[actor.MapArea!.Value].ZoneAt(square);
     }
 
     /// <summary>Places an actor and evaluates the contacts at once (moves outside the per-instant phases, e.g. a stop).</summary>
@@ -126,17 +120,18 @@ internal sealed partial class Simulation
     {
         if (_moved.Count == 0)
             return;
-        var moved = _moved
-            .GroupBy(m => m.Actor.Id)
-            .Select(g => (Actor: g.First().Actor, NewZone: g.Any(m => m.NewZone)))
-            .OrderBy(m => m.Actor.Id.Value, StringComparer.Ordinal)
-            .ToList();
+        // Only the zone at the end of the instant counts against the one at its start: passing through a place and back
+        // within the same second (a fast walker) is no arrival.
+        var moved = _moved.Values.OrderBy(m => m.Actor.Id.Value, StringComparer.Ordinal).ToList();
         _moved.Clear();
-        foreach (var (actor, newZone) in moved)
+        foreach (var (actor, zoneBefore) in moved)
         {
             if (actor.MapArea is { } area && TorchLit(actor))
                 NoteLightChange(World.Maps[area]); // the light moved with its bearer
-            if (newZone && actor.Location is not null)
+            if (actor.Location == zoneBefore)
+                continue;
+            actor.ArrivedAt = World.Now;
+            if (actor.Location is not null)
                 NoticeArrival(actor);
         }
         foreach (var area in moved.Select(m => m.Actor.MapArea).OfType<AreaId>().Distinct().OrderBy(a => a.Value, StringComparer.Ordinal))

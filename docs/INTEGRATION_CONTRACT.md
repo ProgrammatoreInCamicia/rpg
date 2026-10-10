@@ -311,12 +311,12 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
 ## T6c-1 — Tappe, uscite, posti, accessi
 
 - **Tappe**: ogni casella di un cammino sulle mappe è una tappa. In ogni istante l'ordine è fisso:
-  1. tappe e completamenti dei cammini, in ordine di ID dell'attore; si aggiornano solo casella, zona e porte attraversate;
-  2. valutazione dei contatti, una sola volta (`EvaluateContacts`): luce della torcia per i furti in corso, arrivo in un Luogo (NoticeArrival), scoperta dei nascosti da parte di chiunque ora li veda, anche se è l'osservatore a muoversi;
+  1. tappe e completamenti dei cammini, in ordine di ID dell'attore e, per lo stesso attore, prima le tappe in ordine di passo e poi il completamento (un camminatore veloce può raggiungere più caselle e l'arrivo nello stesso secondo). Si aggiornano solo casella, zona e porte attraversate;
+  2. valutazione dei contatti, una sola volta (`EvaluateContacts`): luce della torcia per i furti in corso; arrivo in un Luogo (NoticeArrival e `ArrivedAt`) solo se la zona a fine istante è diversa da quella a inizio istante (attraversare una zona e tornare nello stesso secondo non è un arrivo); scoperta dei nascosti da parte di chiunque ora li veda, anche se è l'osservatore a muoversi;
   3. le fasi di prima: altri completamenti, fazioni, decisioni.
 
-  L'ultima casella è il completamento, quindi non c'è una doppia valutazione. Un Advance lungo equivale a tanti Advance brevi. Un cammino sostituisce anche un'attesa di routine interrompibile.
-- **Uscite** (`AddExit(area, luogo, casella)`): un Luogo di bordo della mappa ("Strada per il bosco") con la sua casella di uscita.
+  L'ultima casella è il completamento, quindi non c'è una doppia valutazione. Un Advance lungo equivale a tanti Advance brevi. Un cammino sostituisce anche un'attesa di routine interrompibile. Al caricamento ogni cammino in corso deve avere esattamente le sue tappe future, una per passo ancora da fare.
+- **Uscite** (`AddExit(area, luogo, casella)`): un Luogo di bordo della mappa ("Strada per il bosco") con la sua casella di uscita, che deve stare sul **bordo** della mappa.
   - `TravelCommand` da un Luogo mappato richiede di stare sulla casella di uscita (`NotAtExit`); si lascia la mappa durante il viaggio.
   - All'arrivo in un Luogo mappato si compare sulla sua uscita e l'arrivo si nota con i contatti.
   - Ogni Route che tocca un Luogo di un'Area mappata richiede la sua uscita: è validato negli scenari e nei salvataggi.

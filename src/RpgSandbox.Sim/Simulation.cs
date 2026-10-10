@@ -65,7 +65,11 @@ internal sealed partial class Simulation
             var walking = entries
                 .Select(e => (Entry: e, Walker: WalkerOf(e.Job)))
                 .Where(x => x.Walker is not null)
-                .OrderBy(x => x.Walker!.Id.Value, StringComparer.Ordinal).ThenBy(x => x.Entry.Sequence)
+                .OrderBy(x => x.Walker!.Id.Value, StringComparer.Ordinal)
+                // For one walker: its waypoints step by step, then the completion (a fast walker may reach several
+                // squares and the end within the same second; the completion was scheduled first, so it must not go first).
+                .ThenBy(x => x.Entry.Job is CompleteAction ? 1 : 0)
+                .ThenBy(x => (x.Entry.Job as MoveWaypoint)?.Step ?? 0)
                 .ToList();
             foreach (var (entry, _) in walking)
             {

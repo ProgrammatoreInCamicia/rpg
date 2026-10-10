@@ -461,6 +461,14 @@ internal static class SaveGame
                   && entry.Due == walk.StartedAt.Plus(Duration.FromSeconds(MoveAction.SecondsFor(waypoint.Step, walk.Speed))),
                 "tappa di un movimento non valida");
         }
+        // T6c-1: and every walk has exactly its future waypoints, one per square still ahead (those due after now).
+        foreach (var walk in w.Actors.Values.Select(x => x.CurrentAction).OfType<MoveAction>())
+        {
+            var expected = Enumerable.Range(1, Math.Max(0, walk.Path.Count - 1))
+                .Where(step => walk.StartedAt.Plus(Duration.FromSeconds(MoveAction.SecondsFor(step, walk.Speed))) > w.Now);
+            var scheduled = entries.Select(e => e.Job).OfType<MoveWaypoint>().Where(m => m.Action == walk.Id).Select(m => m.Step).OrderBy(s => s);
+            Check(scheduled.SequenceEqual(expected), $"tappe del cammino di '{walk.Actor}' mancanti o ripetute");
+        }
 
         // Actions and completions match one to one: cancelling an action removes its deadline (schema v3),
         // so every completion belongs to exactly one active action, and every active action is due.

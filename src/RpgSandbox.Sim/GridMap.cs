@@ -49,8 +49,8 @@ internal sealed class GridMap
             if (!IsWalkable(at) || !_doors.TryAdd(at, open) || Lights.Any(l => l.At == at))
                 throw new InvalidDataException($"porta non valida in {at}");
         foreach (var (location, at) in exits ?? Array.Empty<(LocationId, GridPos)>())
-            if (!IsWalkable(at) || ZoneAt(at) != location || !_exits.TryAdd(location, at))
-                throw new InvalidDataException($"uscita di '{location}' non valida in {at}: deve essere una casella percorribile del Luogo, una per Luogo");
+            if (!IsWalkable(at) || ZoneAt(at) != location || !OnEdge(at) || !_exits.TryAdd(location, at))
+                throw new InvalidDataException($"uscita di '{location}' non valida in {at}: deve essere una casella percorribile del Luogo sul bordo della mappa, una per Luogo");
         foreach (var (location, kind, at) in posts ?? Array.Empty<(LocationId, PostKind, GridPos)>())
             if (!Enum.IsDefined(kind) || !IsWalkable(at) || ZoneAt(at) != location || !_posts.TryAdd((location, kind), at))
                 throw new InvalidDataException($"posto {kind} di '{location}' non valido in {at}: deve essere una casella percorribile del Luogo, uno per tipo");
@@ -115,6 +115,9 @@ internal sealed class GridMap
     /// <summary>A step from <paramref name="from"/> to the adjacent <paramref name="to"/> does not squeeze past a blocked corner.</summary>
     public bool DiagonalOpen(GridPos from, GridPos to) =>
         from.X == to.X || from.Y == to.Y || (IsWalkable(new GridPos(to.X, from.Y)) && IsWalkable(new GridPos(from.X, to.Y)));
+
+    /// <summary>On the outer edge of the map (where an exit leads off it).</summary>
+    public bool OnEdge(GridPos p) => InBounds(p) && (p.X == 0 || p.Y == 0 || p.X == Width - 1 || p.Y == Height - 1);
 
     public bool InBounds(GridPos p) => p.X >= 0 && p.Y >= 0 && p.X < Width && p.Y < Height;
 
