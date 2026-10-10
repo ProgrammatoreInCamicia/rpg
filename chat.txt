@@ -2102,3 +2102,48 @@ esatti (|prodotto vettoriale|), quindi resta deterministica. L'euristica è cons
 Test: 3 casi, con un controllo per mutazione (tutti e 3 falliscono con lo spareggio vecchio). 214/214, smoke OK.
 In futuro: un "cammino furtivo" che sceglie caselle buie o fuori vista (costo aggiuntivo per la luce) si innesta qui
 come terza componente del costo, solo quando il personaggio si muove furtivamente.
+
+============================================================
+[CLAUDE — F1 Furtività in movimento: contratto (scelta dall'utente mentre Codex è assente; da rivedere)]
+============================================================
+Basi SRD 5.2.1 verificate:
+  - Travel Pace: Slow = 200 ft/min contro i 300 della Normal; la Normal impone Svantaggio alla Furtività.
+  - Hide: CD 15, fuori dalla linea di vista dei nemici, al buio o al riparo; il totale della prova è la CD per trovarti;
+    "se vedi una creatura, sai se lei vede te"; si smette di essere nascosti con un suono più forte di un sussurro o se si
+    viene trovati.
+ADATTAMENTI:
+  F1 MoveCommand.Stealthy: si cammina all'andatura Lenta (velocità × 2/3: 30 ft → 20, una casella ogni 1,5 s).
+     All'avvio della prima camminata furtiva si tira UNA prova di Furtività (Svantaggio con armatura pesante: il paladino
+     in cotta di maglia è un pessimo ladro). Il totale resta finché si resta furtivi (Actor.Sneak): niente nuovo tiro
+     a ogni clic.
+  F2 Si smette di essere furtivi con una camminata normale o con qualunque azione rumorosa: conversazione, consegna,
+     attesa. Prendere razioni non interrompe la furtività (il furto ha comunque la sua prova).
+  F3 Chi vede chi (sulle mappe): linea di vista e luce sulla casella del bersaglio.
+       - buio: non si vede;
+       - luce fioca e bersaglio furtivo: lo vede solo chi ha Percezione passiva −5 (Svantaggio) >= totale della Furtività;
+       - luce fioca e bersaglio non furtivo: si vede;
+       - luce piena: si vede sempre (non ci si nasconde in vista, alla luce).
+     Non c'è il "Nascondersi" come azione separata con CD 15: la camminata furtiva fa da azione Hide continua.
+  F4 Furti: il ladro è riconosciuto solo se il testimone lo VEDEVA (regola F3) quando il furto è cominciato, non basta la
+     linea di vista. Così avvicinarsi di soppiatto nella penombra ha un effetto vero.
+  F5 Percorso furtivo: costo per casella = 1 + penalità per la luce al momento della partenza (fioca +1, piena +3).
+     Il personaggio fa qualche passo in più per restare al buio. Il tempo resta legato alle caselle percorse.
+  F6 PlayerView: Sneaking (totale della propria prova, il giocatore lo conosce) e, per ogni persona visibile, SeesYou
+     ("se la vedi, sai se ti vede"). Nessuna informazione su chi non vedi.
+  Salvataggi: schema 9 (Actor.Sneak, MoveAction.Stealthy).
+  Fuori da qui: gli NPC non reagiscono ancora al vederti girare di soppiatto (arriva con T6c, quando le routine sono sulla
+  mappa); cercare attivamente chi si nasconde (azione Search) arriva più avanti.
+
+[CLAUDE — F1 completata] Come da contratto (F1–F6), con un'aggiunta: con "Furtivo" attivato durante un cammino, il
+cammino riparte verso la stessa casella nel nuovo modo.
+  - Test: 223/223, di cui 8 StealthTests. Controllo per mutazione: con il riconoscimento per sola linea di vista, il test
+    sui furti fallisce.
+  - Smoke: VILLAGE SMOKE OK (aggiunta una camminata furtiva che controlla l'andatura lenta), SMOKE OK (slice).
+  - Schema dei salvataggi 9.
+Da rivedere:
+  (a) un'azione rumorosa interrompe la furtività, ma riattivarla tira una nuova prova: si può "ritirare" facendo una
+      breve attesa. Possibili soluzioni: un tempo di recupero, oppure la nuova prova vale solo fuori dalla vista di tutti
+      (come l'Hide dello SRD);
+  (b) la luce piena rende sempre visibili: lo SRD vieta di nascondersi in linea di vista, ma un riparo parziale
+      (Three-Quarters Cover) oggi non esiste sulle mappe;
+  (c) per misurare la luce, la penalità del percorso usa il momento della partenza.

@@ -38,7 +38,7 @@ void           Advance(Duration)                   // Duration < 0 o overflow =>
 AdvanceResult  AdvanceUntilCompleted(ActionId, Duration maxWait)
 WorldView      GetWorldView()                      // vista completa/onnisciente: SOLO debug
 PlayerView     GetPlayerView()                     // ciò che il giocatore può sapere: usarla per l'UI di gioco
-void           Save(Stream)                        // snapshot JSON autosufficiente, versione schema 8
+void           Save(Stream)                        // snapshot JSON autosufficiente, versione schema 9
 static LoadResult TryLoad(Stream)                  // NUOVA sessione; quella corrente non viene toccata
 
 // Comandi
@@ -167,7 +167,7 @@ Le parti marcate ADATTAMENTO sono scelte del gioco che applicano lo SRD 5.2.1 al
 - **Degli altri** si vede solo il gesto (`Doing`), e solo nel proprio Luogo. Intenzioni, argomenti, decisioni e conoscenze altrui restano fuori.
 
 ### Save/Load
-- **Versione dello schema 8** (la 6 ha aggiunto luoghi illuminati, modo di percezione, debiti per furto, furti saldati e carico; la 7 mappe, posizioni e cammini; la 8 le sorgenti di luce delle mappe). Le versioni 1–7 vengono rifiutate con un messaggio chiaro.
+- **Versione dello schema 8** (la 6 ha aggiunto luoghi illuminati, modo di percezione, debiti per furto, furti saldati e carico; la 7 mappe, posizioni e cammini; la 8 le sorgenti di luce delle mappe; la 9 la furtività). Le versioni 1–8 vengono rifiutate con un messaggio chiaro.
 - Lo snapshot è autosufficiente e contiene anche lo stato del generatore `SplitMix64`, con il nome dell'algoritmo.
 - `TryLoad` valida forma, riferimenti, invarianti condivise con gli scenari (`Invariants.cs`), la corrispondenza 1:1 tra azioni e scadenze, i lavori periodici e la coerenza tra carico e cibo. Gli errori sono in italiano e leggibili.
 - Testato: continuare senza interruzioni equivale a salvare e caricare a metà di viaggi, furti, rapporti, presidi, vigilanze e confische.
@@ -212,3 +212,17 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
 - **Restano a zone fino alla T6c**: presidio, Desisti, vigilanza e contatto con l'autorità.
 - **Luce nella PlayerView** (T6b-bis): `MapLight` riporta una riga per ogni riga della mappa, con un carattere per casella (`0` buio, `1` fioca, `2` piena). Sono i livelli usati dalle regole; la sfumatura tra caselle è solo grafica. `Light` è la luce della casella del giocatore, `Daylight` la luce del giorno all'aperto.
 - **Avvicinarsi a qualcuno** (T6b-bis): con `MoveCommand { To, StopNextTo = true }` si percorre lo stesso cammino verso `To` fermandosi sulla casella precedente, sempre adiacente e con la diagonale libera. Se non serve alcun passo, il comando è rifiutato con `AlreadyThere`. Nel client, un clic sul corpo di una persona significa "parla con lei": se è accanto si apre la conversazione, altrimenti il personaggio si avvicina e la apre all'arrivo. La conversazione si chiude allontanandosi o con "Congedati".
+
+## F1 — Furtività in movimento (ADATTAMENTO di SRD 5.2.1: Travel Pace e azione Hide)
+
+- `MoveCommand { Stealthy = true }`: si cammina all'andatura **Lenta** (velocità × 2/3: per Speed 30, una casella ogni 1,5 s).
+  - Alla prima camminata furtiva si tira **una** prova di Furtività, con svantaggio se l'armatura lo impone. Il totale resta in `Actor.Sneak` finché si resta furtivi: un nuovo clic non ritira.
+  - Il percorso furtivo considera la luce: ogni casella costa 1, più 1 se è in luce fioca e 3 se è in luce piena. Il personaggio allunga un po' il giro per restare al buio, ma il tempo si conta sempre in caselle percorse.
+- **Fine della furtività**: una camminata normale, oppure qualunque comando riuscito diverso da muoversi, fermarsi o prendere razioni. Quindi conversazione, consegna, attesa.
+- **Chi vede chi** sulle mappe (`Simulation.Sees`): serve la linea di vista, poi conta la luce sulla casella del bersaglio:
+  - buio: non si vede nessuno;
+  - luce fioca: si vede chi non è furtivo; un bersaglio furtivo si vede solo se la Percezione passiva −5 (svantaggio) raggiunge il suo totale di Furtività;
+  - luce piena: si vede sempre.
+- **Furti**: il ladro è riconosciuto solo se il testimone lo *vedeva*, secondo la regola sopra, nel momento in cui il furto è cominciato.
+- **PlayerView**: `Sneaking` contiene il proprio totale; `VisibleActorView.SeesYou` dice se quella persona ti vede. Lo SRD stabilisce che se vedi una creatura sai se lei vede te. `MoveView.Stealthy` indica se il cammino in corso è furtivo.
+- **Non ancora**: gli NPC non reagiscono al vederti girare di soppiatto (arriva con la T6c) e non esiste ancora l'azione Search per cercare chi si nasconde.

@@ -55,6 +55,12 @@ public sealed record MoveCommand : Command
     /// Rejected as already there if no step is needed.
     /// </summary>
     public bool StopNextTo { get; init; }
+
+    /// <summary>
+    /// Sneak: SRD Slow pace (two thirds of the speed), keeping to the dark where it can, with one Stealth check when the
+    /// sneaking starts. Walking normally or doing anything noisy ends it.
+    /// </summary>
+    public bool Stealthy { get; init; }
 }
 
 /// <summary>Stop walking, on the last square reached. Time then stands still until the next action.</summary>

@@ -309,6 +309,7 @@ public class KnowledgeTests
     [InlineData(5)] // v6 adds lit places, perception mode, theft-keyed claims and cargo
     [InlineData(6)] // v7 adds maps, positions and walks
     [InlineData(7)] // v8 adds light sources
+    [InlineData(8)] // v9 adds sneaking
     public void Older_save_versions_are_rejected(int version)
     {
         var json = JsonNode.Parse(NewSession().SaveToString())!;

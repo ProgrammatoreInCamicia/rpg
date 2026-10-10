@@ -150,6 +150,7 @@ public sealed class SimulationSession
         Vigil = actor.Vigil is { } v ? new VigilView { Store = v.Store, Until = v.Until } : null,
         Sheet = actor.Sheet,
         Position = PositionOf(actor, w),
+        Sneak = actor.Sneak,
         Move = MoveOf(actor),
         Claims = Freeze(actor.Claims.Select(c => new ClaimView { Thief = c.Thief, Store = c.Store, Owed = c.Owed })),
     };
@@ -223,6 +224,7 @@ public sealed class SimulationSession
             Area = area,
             Light = light,
             Daylight = Perception.DaylightAt(w.Now),
+            Sneaking = player.Sneak,
             UnseenNearby = nearby.Count - present.Count,
             Areas = Freeze(w.Areas.Values.Select(x => new AreaView { Id = x.Id, Name = x.Name })),
             Locations = Freeze(w.Locations.Values.Select(l => new LocationView { Id = l.Id, Name = l.Name, Area = l.Area })),
@@ -239,6 +241,9 @@ public sealed class SimulationSession
                 Doing = map is not null || (player.Location is { } here && x.Location == here) ? OutwardDoing(x, w) : null,
                 Position = PositionOf(x, w),
                 Move = MoveOf(x),
+                SeesYou = map is not null && me is { } mine && PositionOf(x, w) is { } theirs
+                    ? Simulation.Sees(map, x, theirs, player, mine, _sim.LightOn(map, mine))
+                    : null,
             })),
             VisibleStores = Freeze(w.Stores.Values.Where(s => s.Position is { } sp && map is not null
                 ? w.Locations[s.Location].Area == map.Area && (SeenOnMap(sp) || me is { } m && m.IsAdjacentOrSame(sp))
@@ -286,7 +291,7 @@ public sealed class SimulationSession
     private static GridPos? PositionOf(Actor a, WorldState w) => a.CurrentAction is MoveAction m ? m.PositionAt(w.Now) : a.Position;
 
     private static MoveView? MoveOf(Actor a) => a.CurrentAction is MoveAction m
-        ? new MoveView { From = m.From, Path = Freeze(m.Path), DepartedAt = m.StartedAt, Speed = m.Speed }
+        ? new MoveView { From = m.From, Path = Freeze(m.Path), DepartedAt = m.StartedAt, Speed = m.Speed, Stealthy = m.Stealthy }
         : null;
 
     private static MapView MapOf(GridMap map, WorldState w)

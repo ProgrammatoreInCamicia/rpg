@@ -105,6 +105,18 @@ public partial class VillageSmoke : Node
 		Require(_map.View.PeopleHere.Any(p => p.Id == guard), "The guard should be within talking distance");
 		Require(_map.TalkingTo == guard, $"The conversation did not open: {_map.LastMessage}");
 		Capture("4-talking-to-guard.png");
+
+		// Sneak out into the dark road: slow pace, one Stealth check, and the guard in the lamplight no longer sees you.
+		_map.SetSneak(true);
+		var before = _map.View.Now;
+		_map.MoveTo(new GridPos(14, 2));
+		Require(_map.IsWalking && _map.View.Move!.Stealthy, $"Sneaking did not start: {_map.LastMessage}");
+		var squares = _map.View.Move!.Path.Count;
+		await UntilIdle(40);
+		Require(_map.View.Sneaking is not null, "The player should still be sneaking after the walk");
+		Require(_map.View.Now.Since(before).Seconds >= squares * 3 / 2, "Sneaking should go at the slow pace");
+		Capture("5-sneaking.png");
+		_map.SetSneak(false);
 	}
 
 	private static void Require(bool condition, string message)

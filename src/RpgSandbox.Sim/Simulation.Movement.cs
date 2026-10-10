@@ -1,4 +1,5 @@
 using RpgSandbox.Sim.Api;
+using RpgSandbox.Sim.Rules;
 
 namespace RpgSandbox.Sim;
 
@@ -23,7 +24,7 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(RejectionReason.NoMap, $"Qui non c'è una mappa su cui camminare.");
         if (from == command.To)
             return CommandResult.Rejected(RejectionReason.AlreadyThere, $"{actor.Name} è già lì.");
-        if (map.FindPath(from, command.To) is not { } path)
+        if (map.FindPath(from, command.To, command.Stealthy ? square => SneakCost(map, square) : null) is not { } path)
             return CommandResult.Rejected(RejectionReason.Unreachable, "Non si può raggiungere quel punto.");
         if (command.StopNextTo)
         {
@@ -37,16 +38,29 @@ internal sealed partial class Simulation
         if (actor.CurrentAction is MoveAction)
             CancelAction(actor);
 
+        // Sneaking: SRD Slow pace and one Stealth check for as long as the actor keeps sneaking (no reroll per walk).
+        var speed = command.Stealthy ? Math.Max(1, actor.Sheet.Speed * 2 / 3) : actor.Sheet.Speed;
+        D20Roll? stealth = null;
+        if (!command.Stealthy)
+            actor.Sneak = null;
+        else if (actor.Sneak is null)
+        {
+            stealth = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Stealth), disadvantage: actor.Sheet.StealthDisadvantage);
+            actor.Sneak = stealth.Total;
+            World.RecordFact("Roll", $"{actor.Name} si muove di soppiatto, Furtività: {stealth.Describe()}.", actor.Id);
+        }
+
         var move = new MoveAction
         {
             Id = World.AllocateActionId(),
             Actor = actor.Id,
             StartedAt = World.Now,
-            CompletesAt = World.Now.Plus(Duration.FromSeconds(MoveAction.SecondsFor(path.Count, actor.Sheet.Speed))),
+            CompletesAt = World.Now.Plus(Duration.FromSeconds(MoveAction.SecondsFor(path.Count, speed))),
             From = from,
             Path = path,
-            Speed = actor.Sheet.Speed,
-            Description = "Cammina",
+            Speed = speed,
+            Stealthy = command.Stealthy,
+            Description = command.Stealthy ? "Si muove di soppiatto" : "Cammina",
         };
         Begin(actor, move);
 
@@ -60,7 +74,9 @@ internal sealed partial class Simulation
             zone = next;
             World.Scheduler.Schedule(move.StartedAt.Plus(Duration.FromSeconds(MoveAction.SecondsFor(step, move.Speed))), new MoveWaypoint(move.Id, step));
         }
-        return CommandResult.Started(move.Id, move.CompletesAt, $"{actor.Name} si incammina.");
+        var how = stealth is null ? "" : $" Furtività: {stealth.Describe()}.";
+        return CommandResult.Started(move.Id, move.CompletesAt,
+            command.Stealthy ? $"{actor.Name} avanza di soppiatto.{how}" : $"{actor.Name} si incammina.");
     }
 
     private CommandResult Stop(StopCommand command)

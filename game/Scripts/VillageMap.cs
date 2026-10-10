@@ -44,6 +44,9 @@ public partial class VillageMap : Node2D
 	private Label _status = null!;
 	private Label _food = null!;
 	private Button _stop = null!;
+	private CheckButton _sneakToggle = null!;
+	private Label _watched = null!;
+	private bool _sneak;
 	private HBoxContainer _storeRow = null!;
 	private SpinBox _amount = null!;
 	private VBoxContainer _people = null!;
@@ -109,6 +112,11 @@ public partial class VillageMap : Node2D
 			Stop();
 			return;
 		}
+		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F })
+		{
+			SetSneak(!_sneak);
+			return;
+		}
 		if (@event is not InputEventMouseButton { Pressed: true } mouse)
 			return;
 		switch (mouse.ButtonIndex)
@@ -145,7 +153,7 @@ public partial class VillageMap : Node2D
 	/// <summary>Walk to a square. A walk in progress is replaced (the core stops it on the square reached).</summary>
 	public void MoveTo(GridPos cell)
 	{
-		if (Walk(new MoveCommand { Actor = _sim.Player, To = cell }))
+		if (Walk(new MoveCommand { Actor = _sim.Player, To = cell, Stealthy = _sneak }))
 			_approaching = null;
 	}
 
@@ -162,10 +170,23 @@ public partial class VillageMap : Node2D
 		}
 		if (_view.VisibleActors.FirstOrDefault(a => a.Id == person) is not { Position: { } there } seen)
 			return;
-		if (Walk(new MoveCommand { Actor = _sim.Player, To = there, StopNextTo = true }))
+		if (Walk(new MoveCommand { Actor = _sim.Player, To = there, StopNextTo = true, Stealthy = _sneak }))
 		{
 			_approaching = person;
 			ShowMessage($"Vai da {seen.Name}.");
+		}
+	}
+
+	/// <summary>Switch between walking and sneaking; a walk in progress carries on to the same square in the new way.</summary>
+	internal void SetSneak(bool on)
+	{
+		_sneak = on;
+		_sneakToggle.SetPressedNoSignal(on);
+		if (_walking && _view.Move is { } move)
+		{
+			var approaching = _approaching;
+			if (Walk(new MoveCommand { Actor = _sim.Player, To = move.Path[^1], Stealthy = on }))
+				_approaching = approaching;
 		}
 	}
 
@@ -294,6 +315,8 @@ public partial class VillageMap : Node2D
 		_lightKey = "";
 		_approaching = null;
 		_talkingTo = null;
+		_sneak = _sim.GetPlayerView().Sneaking is not null;
+		_sneakToggle.SetPressedNoSignal(_sneak);
 		// Resume a walk or activity that was in progress when saving.
 		var view = _sim.GetPlayerView();
 		_running = view.Action?.Id;
@@ -316,6 +339,9 @@ public partial class VillageMap : Node2D
 		var where = _view.Location is { } here ? _view.Locations.Single(l => l.Id == here).Name : "strada";
 		_status.Text = _walking ? $"Cammini… ({where})" : $"Sei qui: {where}. Clicca dove vuoi andare.";
 		_food.Text = $"Razioni con te: {_view.Food}";
+		var watchers = _view.VisibleActors.Where(a => a.SeesYou == true).Select(a => a.Name).ToList();
+		var hidden = _view.Sneaking is { } total ? $"Di soppiatto (Furtività {total}). " : "";
+		_watched.Text = hidden + (watchers.Count > 0 ? $"Ti vede: {string.Join(", ", watchers)}." : _view.VisibleActors.Count > 0 ? "Nessuno di quelli che vedi ti vede." : "");
 		_stop.Disabled = !_walking;
 		ShadeMap();
 		if (!_walking)
@@ -377,7 +403,7 @@ public partial class VillageMap : Node2D
 		{
 			(me.Id, "Tu", true, me.Position, me.Move),
 		};
-		figures.AddRange(_view.VisibleActors.Select(a => (a.Id, a.Name, false, a.Position, a.Move)));
+		figures.AddRange(_view.VisibleActors.Select(a => (a.Id, a.SeesYou == true ? $"{a.Name} · ti vede" : a.Name, false, a.Position, a.Move)));
 
 		var shown = new HashSet<ActorId>();
 		foreach (var figure in figures)
@@ -392,6 +418,10 @@ public partial class VillageMap : Node2D
 			}
 			token.Position = SmoothPosition(figure.Position.Value, figure.Move);
 			token.Modulate = Shade(ScreenToCell(token.Position));
+			if (figure.Player && _view.Sneaking is not null)
+				token.Modulate = token.Modulate with { A = 0.55f }; // sneaking
+			if (token.GetNodeOrNull<Label>("Name") is { } nameLabel)
+				nameLabel.Text = figure.Name;
 			shown.Add(figure.Id);
 		}
 		foreach (var (id, token) in _tokens)
@@ -600,7 +630,7 @@ public partial class VillageMap : Node2D
 		});
 		if (!player)
 		{
-			var label = new Label { Text = name, Position = new Vector2(-30, -52), Size = new Vector2(60, 0), HorizontalAlignment = HorizontalAlignment.Center };
+			var label = new Label { Name = "Name", Text = name, Position = new Vector2(-50, -52), Size = new Vector2(100, 0), HorizontalAlignment = HorizontalAlignment.Center };
 			label.AddThemeFontSizeOverride("font_size", 10);
 			label.AddThemeConstantOverride("outline_size", 3);
 			label.AddThemeColorOverride("font_outline_color", Colors.Black);
@@ -641,6 +671,11 @@ public partial class VillageMap : Node2D
 		_stop = new Button { Text = "Fermati (Spazio)" };
 		_stop.Pressed += Stop;
 		box.AddChild(_stop);
+		_sneakToggle = new CheckButton { Text = "Muoviti di soppiatto (F)", TooltipText = "Andatura lenta: preferisci il buio. Parlare o fermarti a lavorare ti fa tornare visibile." };
+		_sneakToggle.Toggled += SetSneak;
+		box.AddChild(_sneakToggle);
+		_watched = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		box.AddChild(_watched);
 
 		_storeRow = new HBoxContainer();
 		_storeRow.AddThemeConstantOverride("separation", 6);

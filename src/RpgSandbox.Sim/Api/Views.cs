@@ -86,6 +86,9 @@ public sealed record ActorView
     /// <summary>The walk in progress, if any.</summary>
     public MoveView? Move { get; init; }
 
+    /// <summary>Stealth total while sneaking (debug).</summary>
+    public int? Sneak { get; init; }
+
     /// <summary>Thefts this authority wants made good (debug).</summary>
     public IReadOnlyList<ClaimView> Claims { get; init; } = Array.Empty<ClaimView>();
 }
@@ -252,6 +255,9 @@ public sealed record MoveView
 
     /// <summary>Feet per 6-second round; Speed/5 squares per round.</summary>
     public required int Speed { get; init; }
+
+    /// <summary>Moving at the Slow pace, sneaking (an outward gesture: anyone who sees the walker sees it creep).</summary>
+    public bool Stealthy { get; init; }
 }
 
 /// <summary>An area's walkable map, as given to the scenario: one character per 5-ft square.</summary>

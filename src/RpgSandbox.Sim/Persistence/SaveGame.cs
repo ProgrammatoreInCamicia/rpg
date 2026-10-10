@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 8;
+    public const int SchemaVersion = 9;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -168,6 +168,7 @@ internal static class SaveGame
             Cargo = a.Cargo.Select(c => new CargoDto { Store = c.Store.Value, Amount = c.Amount }).ToList(),
             Position = a.Position is { } p ? new PosDto { X = p.X, Y = p.Y } : null,
             MapArea = a.MapArea?.Value,
+            Sneak = a.Sneak,
             Knowledge = a.Knowledge.Select(ToDto).ToList(),
             ActedOn = a.ActedOn.Select(o => o.Value).ToList(),
         }).ToList(),
@@ -245,7 +246,7 @@ internal static class SaveGame
             ReportAction rep => new ReportActionDto { Recipient = rep.Recipient.Value, Observation = rep.Observation.Value },
             GuardAction ga => new GuardActionDto { Store = ga.Store.Value },
             ConfiscateAction ca => new ConfiscateActionDto { Target = ca.Target.Value, Store = ca.Store.Value },
-            MoveAction mv => new MoveActionDto { From = new PosDto { X = mv.From.X, Y = mv.From.Y }, Path = mv.Path.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(), Speed = mv.Speed },
+            MoveAction mv => new MoveActionDto { From = new PosDto { X = mv.From.X, Y = mv.From.Y }, Path = mv.Path.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(), Speed = mv.Speed, Stealthy = mv.Stealthy },
             _ => throw new InvalidOperationException($"Unknown action {action.GetType().Name}"),
         };
         if (dto is null)
@@ -364,6 +365,7 @@ internal static class SaveGame
                 Vigil = a.Vigil is { } v ? new Vigil { Store = new StoreId(v.Store), Until = new GameTime(v.Until) } : null,
                 Position = a.Position is { } ap ? new GridPos(ap.X, ap.Y) : null,
                 MapArea = a.MapArea is null ? null : new AreaId(a.MapArea),
+                Sneak = a.Sneak,
                 Sheet = FromDto(a.Sheet!),
             };
             foreach (var o in a.Knowledge)
@@ -576,7 +578,7 @@ internal static class SaveGame
             MoveActionDto mv => new MoveAction
             {
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
-                From = new GridPos(mv.From.X, mv.From.Y), Path = mv.Path.Select(p => new GridPos(p.X, p.Y)).ToArray(), Speed = mv.Speed,
+                From = new GridPos(mv.From.X, mv.From.Y), Path = mv.Path.Select(p => new GridPos(p.X, p.Y)).ToArray(), Speed = mv.Speed, Stealthy = mv.Stealthy,
             },
             ConfiscateActionDto ca => new ConfiscateAction
             {

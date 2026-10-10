@@ -48,6 +48,12 @@ internal sealed class Actor
     /// <summary>The mapped area the actor is on (also on open ground, outside any place). Null off the maps.</summary>
     public AreaId? MapArea { get; set; }
 
+    /// <summary>
+    /// Set while the actor moves stealthily (ADAPTATION of the SRD Hide action): its Stealth total, rolled once when it
+    /// starts sneaking, is the DC to notice it in dim light. Cleared by walking normally or by anything noisy.
+    /// </summary>
+    public int? Sneak { get; set; }
+
     /// <summary>When the actor last arrived at <see cref="Location"/>: decides whether a witness saw a deed from its start.</summary>
     public GameTime ArrivedAt { get; set; }
 
@@ -283,6 +289,9 @@ internal sealed class MoveAction : PendingAction
 
     /// <summary>Feet per round of 6 seconds.</summary>
     public required int Speed { get; init; }
+
+    /// <summary>Walking at the SRD Slow pace, trying not to be seen.</summary>
+    public bool Stealthy { get; init; }
 
     /// <summary>Seconds needed to walk <paramref name="steps"/> squares at <paramref name="speed"/> (rounded up).</summary>
     public static long SecondsFor(int steps, int speed) => (steps * 30L + speed - 1) / speed;

@@ -41,6 +41,9 @@ public sealed record PlayerView
     /// <summary>Daylight outdoors right now, whatever lamps are near: day, dawn or dusk, night.</summary>
     public Light Daylight { get; init; }
 
+    /// <summary>While sneaking: the player's own Stealth total (the DC to notice it in dim light). Null otherwise.</summary>
+    public int? Sneaking { get; init; }
+
     /// <summary>People right next to the player that it cannot see (darkness): only their presence is known.</summary>
     public int UnseenNearby { get; init; }
 
@@ -89,6 +92,12 @@ public sealed record VisibleActorView
     /// gesture ("armeggia con le scorte", "parla con X"), never the intention or the topic. Null otherwise.
     /// </summary>
     public string? Doing { get; init; }
+
+    /// <summary>
+    /// On maps: whether this actor sees the player right now (SRD: if you can see a creature, you can discern whether
+    /// it can see you). Null off the maps.
+    /// </summary>
+    public bool? SeesYou { get; init; }
 }
 
 public sealed record ReportOptionView

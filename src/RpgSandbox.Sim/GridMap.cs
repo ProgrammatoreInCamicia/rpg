@@ -148,10 +148,11 @@ internal sealed class GridMap
 
     /// <summary>
     /// Shortest path by the SRD grid rules: 8 directions, 1 square each, no diagonal across the corner of a blocked
-    /// square. Deterministic A*: among paths of the same length (same time) the one closest to the straight line wins, then (estimate, y, x). Returns the squares after <paramref name="from"/>,
+    /// square. <paramref name="extraCost"/> (never negative) makes some squares dearer: a sneaking walk detours
+    /// around light. Time is always counted in squares walked, not in this cost. Deterministic A*: among paths of the same length (same time) the one closest to the straight line wins, then (estimate, y, x). Returns the squares after <paramref name="from"/>,
     /// ending at <paramref name="to"/>, or null when unreachable.
     /// </summary>
-    public IReadOnlyList<GridPos>? FindPath(GridPos from, GridPos to)
+    public IReadOnlyList<GridPos>? FindPath(GridPos from, GridPos to, Func<GridPos, int>? extraCost = null)
     {
         if (!IsWalkable(to) || !InBounds(from))
             return null;
@@ -178,7 +179,7 @@ internal sealed class GridMap
                     continue;
                 if (dx != 0 && dy != 0 && (!IsWalkable(new GridPos(here.X + dx, here.Y)) || !IsWalkable(new GridPos(here.X, here.Y + dy))))
                     continue; // no cutting corners
-                var nextCost = (Steps: cost[here].Steps + 1, Drift: cost[here].Drift + Drift(next));
+                var nextCost = (Steps: cost[here].Steps + 1 + (extraCost?.Invoke(next) ?? 0), Drift: cost[here].Drift + Drift(next));
                 if (cost.TryGetValue(next, out var known) && known.CompareTo(nextCost) <= 0)
                     continue;
                 if (cost.TryGetValue(next, out var old))

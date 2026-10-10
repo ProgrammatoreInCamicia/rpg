@@ -6,7 +6,9 @@ namespace RpgSandbox.Sim;
 internal sealed partial class Simulation
 {
     /// <summary>Light on a square: the better of daylight and the map's light sources (lamps, torches).</summary>
-    internal Light LightOn(GridMap map, GridPos square) => Max(Perception.DaylightAt(World.Now), map.SourceLight(square));
+    internal Light LightOn(GridMap map, GridPos square) => LightOnAt(map, square, World.Now);
+
+    private static Light LightOnAt(GridMap map, GridPos square, GameTime t) => Max(Perception.DaylightAt(t), map.SourceLight(square));
 
     /// <summary>The best light on a square over a stretch of time: sources are steady, daylight changes on the hour.</summary>
     private Light BestLightOn(GridMap map, GridPos square, GameTime from, GameTime to) =>
@@ -22,6 +24,28 @@ internal sealed partial class Simulation
         map.SoundSteps(listener, source, Tuning.HearingRadius) is not null;
 
     /// <summary>
+    /// Whether <paramref name="watcher"/>, standing on <paramref name="from"/>, sees <paramref name="target"/> on
+    /// <paramref name="at"/> in <paramref name="light"/> (F3, ADAPTATION of Hide): never in the dark; in dim light a
+    /// sneaking target is seen only with Passive Perception at Disadvantage (−5) reaching its Stealth total; in bright
+    /// light anyone in line of sight is seen.
+    /// </summary>
+    internal static bool Sees(GridMap map, Actor watcher, GridPos from, Actor target, GridPos at, Light light) =>
+        map.HasLineOfSight(from, at) && light switch
+        {
+            Light.Bright => true,
+            Light.Dim => target.Sneak is not { } dc || watcher.Sheet.PassivePerception(disadvantage: true) >= dc,
+            _ => false,
+        };
+
+    /// <summary>F5: a sneaking walk pays for light, so it takes a few more squares to stay in the dark.</summary>
+    private int SneakCost(GridMap map, GridPos square) => LightOn(map, square) switch
+    {
+        Light.Bright => 3,
+        Light.Dim => 1,
+        _ => 0,
+    };
+
+    /// <summary>
     /// Where an actor stood at an earlier instant, if it can be told from its current action: the square on a walk
     /// in progress, or its square during an activity begun before then. Otherwise its current square (approximation).
     /// </summary>
@@ -31,7 +55,7 @@ internal sealed partial class Simulation
     /// <summary>
     /// Perception of a theft on a mapped area: anyone on the same map may notice it by sight (line of sight and light on
     /// the thief's square, best light over the stretch watched) or by hearing (within earshot). Recognising the thief
-    /// takes seeing them both now and from where the witness stood when the theft began.
+    /// takes seeing them both now and, by the sneaking rules, from where the witness stood when the theft began.
     /// </summary>
     private void PerceiveTheftOnMap(Actor thief, TakeFoodAction take, Store store, int amount, FactId fact, GridMap map)
     {
@@ -55,8 +79,9 @@ internal sealed partial class Simulation
             }
 
             var startSquare = PositionAt(witness, take.StartedAt);
-            var recognised = seen && witness.ArrivedAt <= take.StartedAt
-                             && startSquare is { } s && map.HasLineOfSight(s, thiefSquare);
+            // F4: recognising takes having SEEN the thief when the theft began (a sneaking thief in dim light may not be).
+            var recognised = seen && witness.ArrivedAt <= take.StartedAt && startSquare is { } s
+                             && Sees(map, witness, s, thief, thiefSquare, LightOnAt(map, thiefSquare, take.StartedAt));
             Witnessed(witness, thief, store, amount, fact, recognised, seen ? PerceptionMode.Seen : PerceptionMode.Heard, light);
         }
     }

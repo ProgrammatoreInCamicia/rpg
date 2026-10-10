@@ -7,7 +7,18 @@ namespace RpgSandbox.Sim;
 // every precondition is validated before anything is mutated, and re-checked at completion.
 internal sealed partial class Simulation
 {
-    public CommandResult Execute(Command command) => command switch
+    public CommandResult Execute(Command command)
+    {
+        var result = Dispatch(command);
+        // Anything louder than a whisper ends sneaking (SRD Hide): talking, depositing, waiting... Taking food quietly and
+        // stopping do not; a normal walk ends it in StartMove.
+        if (result.Success && command is not (MoveCommand or StopCommand or TakeFoodCommand)
+            && World.Actors.TryGetValue(command.Actor, out var actor))
+            actor.Sneak = null;
+        return result;
+    }
+
+    private CommandResult Dispatch(Command command) => command switch
     {
         TravelCommand travel => StartTravel(travel),
         DepositFoodCommand deposit => StartDeposit(deposit),
