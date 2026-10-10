@@ -35,11 +35,14 @@ public sealed record AttackProfile
     /// <summary>
     /// A character's attack with a weapon (SRD): Finesse uses the better of Strength and Dexterity, a Ranged weapon
     /// Dexterity, anything else (thrown melee weapons too) Strength; the Proficiency Bonus is added if proficient; with
-    /// two hands a Versatile weapon uses its larger die. The mastery counts only if unlocked.
+    /// two hands a Versatile weapon uses its larger die. The mastery counts only if unlocked. Throwing a weapon
+    /// without the Thrown property makes it an improvised weapon (see <see cref="Improvised"/>).
     /// </summary>
     public static AttackProfile With(CharacterSheet sheet, Weapon weapon, bool proficient, bool twoHanded = false,
         bool thrown = false, bool masteryUnlocked = false)
     {
+        if (thrown && !weapon.Has(WeaponProperty.Thrown))
+            return Improvised(sheet, weapon, thrown: true); // a sword thrown is an improvised weapon (SRD)
         var strength = Abilities.Modifier(sheet.Strength);
         var dexterity = Abilities.Modifier(sheet.Dexterity);
         var modifier = weapon.Has(WeaponProperty.Finesse) ? Math.Max(strength, dexterity)
@@ -61,6 +64,27 @@ public sealed record AttackProfile
             Mastery = masteryUnlocked ? weapon.Mastery : null,
             AbilityModifier = modifier,
             HeavyDisadvantage = heavy,
+        };
+    }
+
+    /// <summary>
+    /// SRD Improvised Weapons: a weapon used contrary to its design (a Melee weapon without Thrown thrown, a Ranged
+    /// weapon swung in melee) counts as improvised: no Proficiency Bonus, 1d4 damage, thrown range 20/60, no
+    /// mastery. The ability modifier still applies: Strength, as for any melee or thrown melee weapon.
+    /// </summary>
+    public static AttackProfile Improvised(CharacterSheet sheet, Weapon weapon, bool thrown)
+    {
+        var strength = Abilities.Modifier(sheet.Strength);
+        return new AttackProfile
+        {
+            Name = $"{weapon.Name} (improvvisata{(thrown ? ", lanciata" : "")})",
+            AttackBonus = strength,
+            Damage = new Dice(1, 4),
+            DamageBonus = strength,
+            Type = weapon.Ranged ? DamageType.Bludgeoning : weapon.Type, // a crossbow swung hits like a club
+            Melee = !thrown,
+            Range = thrown ? (20, 60) : null,
+            AbilityModifier = strength,
         };
     }
 

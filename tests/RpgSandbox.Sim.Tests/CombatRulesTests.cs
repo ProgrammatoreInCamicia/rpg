@@ -333,4 +333,21 @@ public class CombatRulesTests
 
         Assert.Equal("ferito", giant.Describe());
     }
+
+    [Fact]
+    public void A_weapon_used_contrary_to_its_design_is_an_improvised_weapon()
+    {
+        var paladin = Sheets.Paladin(); // Str 15 (+2), PB +2
+
+        var thrownSword = AttackProfile.With(paladin, Weapons.Longsword, proficient: true, thrown: true, masteryUnlocked: true);
+        Assert.Equal((2, new Dice(1, 4), 2, false, null), (thrownSword.AttackBonus, thrownSword.Damage, thrownSword.DamageBonus, thrownSword.Melee, thrownSword.Mastery));
+        Assert.Equal((20, 60), thrownSword.Range);
+        Assert.Equal(DamageType.Slashing, thrownSword.Type);
+
+        var crossbowBash = AttackProfile.Improvised(paladin, Weapons.LightCrossbow, thrown: false);
+        Assert.Equal((2, new Dice(1, 4), true, DamageType.Bludgeoning), (crossbowBash.AttackBonus, crossbowBash.Damage, crossbowBash.Melee, crossbowBash.Type));
+
+        var javelin = AttackProfile.With(paladin, Weapons.Javelin, proficient: true, thrown: true);
+        Assert.Equal((4, new Dice(1, 6)), (javelin.AttackBonus, javelin.Damage)); // a real Thrown weapon keeps its rules
+    }
 }

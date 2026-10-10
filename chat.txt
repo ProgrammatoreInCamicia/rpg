@@ -2631,3 +2631,12 @@ Requisiti per la C2, scritti nel contratto:
   - la regola dei pareggi dell'iniziativa resta un ADATTAMENTO, già scritto così nel contratto.
 G3 aggiornata (6 caselle, descrittori della C1) verificata: COMBAT PREVIEW SMOKE OK. La salvo a tuo nome.
 264/264.
+
+[CLAUDE — Correzione su indicazione dell'utente: armi improvvisate] Il requisito "thrown solo su armi lanciabili" era
+sbagliato. SRD 5.2.1, Improvised Weapons: lanciare un'arma da mischia senza Thrown, o usare in mischia un'arma a distanza,
+la rende un'arma IMPROVVISATA. Niente bonus di competenza, danno 1d4, gittata 20/60 se lanciata, nessuna padronanza;
+il modificatore di caratteristica resta (Forza).
+  - AttackProfile.With con thrown:true su un'arma senza Thrown restituisce il profilo improvvisato;
+  - AttackProfile.Improvised serve anche per colpire con un'arma a distanza: contundente, perché la balestra colpisce
+    come un bastone; il tipo di danno è a scelta del GM per lo SRD.
+Alla C2 resta da validare solo twoHanded (altra mano libera). Test: 265/265. Contratto corretto.

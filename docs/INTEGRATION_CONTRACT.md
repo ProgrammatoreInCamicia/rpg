@@ -299,7 +299,7 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
 - **`Initiative`**: prova di Destrezza, con svantaggio se sorpreso. Ordine: totale più alto; a parità, bonus più alto e poi id (ADATTAMENTO).
 - **Requisiti per la C2** (dalla review di Codex):
   - `Vitality` avrà uno snapshot/restore validato (stato, KO, contatori dei tiri contro la morte); ogni `Actor` ne tiene una copia propria, mai un'istanza condivisa con uno snapshot;
-  - i comandi e l'equipaggiamento validano le precondizioni di `AttackProfile.With`: `thrown` solo con armi da lancio, `twoHanded` solo con l'altra mano libera;
+  - i comandi e l'equipaggiamento validano `twoHanded` (solo con l'altra mano libera). Lanciare un'arma senza la proprietà Lancio **non è vietato**: è un'arma improvvisata (SRD Improvised Weapons: niente bonus di competenza, 1d4, gittata 20/60; il modificatore di Forza resta). Lo stesso vale per un'arma a distanza usata in mischia (`AttackProfile.Improvised`);
   - un colpo da 0 danni non ha alcun effetto (`NoEffect`), anche a 0 PF.
 - **Fuori dalla C1**:
   - gli effetti delle padronanze diverse da Graze;
