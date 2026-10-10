@@ -34,7 +34,7 @@ public enum DamageOutcome
 
     Killed,
 
-    /// <summary>The creature was already dead.</summary>
+    /// <summary>Nothing happened: the creature was already dead, or the hit dealt 0 damage.</summary>
     NoEffect,
 }
 
@@ -81,8 +81,8 @@ public sealed class Vitality
     {
         if (amount < 0)
             throw new ArgumentOutOfRangeException(nameof(amount));
-        if (State == LifeState.Dead)
-            return DamageOutcome.NoEffect;
+        if (State == LifeState.Dead || amount == 0)
+            return DamageOutcome.NoEffect; // a hit for 0 damage changes nothing, not even at 0 Hit Points
 
         if (State is LifeState.Dying or LifeState.Stable)
         {
@@ -167,7 +167,9 @@ public sealed class Vitality
         if (State == LifeState.Dead || amount == 0)
             return 0;
         var before = Current;
-        Current = Math.Min(Maximum, Current + amount);
+        Current = (int)Math.Min(Maximum, (long)Current + amount); // no overflow on huge amounts
+        if (Current == before)
+            return 0; // nothing regained: a knock-out does not end (SRD: only regaining Hit Points or first aid)
         if (State is LifeState.Dying or LifeState.Stable)
         {
             State = LifeState.Alive;
@@ -199,7 +201,7 @@ public sealed class Vitality
         LifeState.Stable => "a terra, privo di sensi",
         _ when KnockedOut => "tramortito",
         _ when Current == Maximum => "illeso",
-        _ when Current * 2 > Maximum => "ferito",
+        _ when (long)Current * 2 > Maximum => "ferito",
         _ => "malconcio",
     };
 }

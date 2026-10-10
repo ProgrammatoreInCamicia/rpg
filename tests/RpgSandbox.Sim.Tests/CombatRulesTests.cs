@@ -290,4 +290,47 @@ public class CombatRulesTests
         Assert.True(surprised.Roll.Disadvantage);
         Assert.Equal(Math.Min(surprised.Roll.First, surprised.Roll.Second!.Value), surprised.Roll.Kept);
     }
+
+    // ---------------------------------------------------------------- edge cases from the C1 review
+
+    [Fact]
+    public void A_hit_for_0_damage_changes_nothing_even_at_0_hit_points()
+    {
+        var dying = new Vitality(11, makesDeathSaves: true, current: 0);
+        Assert.Equal(DamageOutcome.NoEffect, dying.TakeDamage(0));
+        Assert.Equal((LifeState.Dying, 0), (dying.State, dying.DeathSaveFailures));
+
+        var stable = new Vitality(11, makesDeathSaves: true, current: 0);
+        stable.Stabilize();
+        Assert.Equal(DamageOutcome.NoEffect, stable.TakeDamage(0));
+        Assert.Equal(LifeState.Stable, stable.State);
+    }
+
+    [Fact]
+    public void Huge_healing_is_capped_without_overflow()
+    {
+        var hero = new Vitality(11, makesDeathSaves: true, current: 1);
+
+        Assert.Equal(10, hero.Heal(int.MaxValue));
+        Assert.Equal(11, hero.Current);
+    }
+
+    [Fact]
+    public void A_knock_out_ends_only_when_hit_points_are_actually_regained()
+    {
+        var tiny = new Vitality(1, makesDeathSaves: false);
+        Assert.Equal(DamageOutcome.KnockedOut, tiny.TakeDamage(1, knockOut: true));
+
+        Assert.Equal(0, tiny.Heal(1)); // already at its maximum: nothing regained
+        Assert.True(tiny.KnockedOut);
+    }
+
+    [Fact]
+    public void Wound_descriptions_hold_for_huge_hit_point_maximums()
+    {
+        var giant = new Vitality(int.MaxValue, makesDeathSaves: false);
+        giant.TakeDamage(1);
+
+        Assert.Equal("ferito", giant.Describe());
+    }
 }

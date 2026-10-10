@@ -297,6 +297,10 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
   - Paladino 1: 11 PF, CA 18, spada lunga +4 1d8+2 con padronanza Sap, giavellotto +4 1d6+2 con padronanza Slow;
   - Bandito, Guardia e Popolano: valori copiati dalle schede SRD.
 - **`Initiative`**: prova di Destrezza, con svantaggio se sorpreso. Ordine: totale più alto; a parità, bonus più alto e poi id (ADATTAMENTO).
+- **Requisiti per la C2** (dalla review di Codex):
+  - `Vitality` avrà uno snapshot/restore validato (stato, KO, contatori dei tiri contro la morte); ogni `Actor` ne tiene una copia propria, mai un'istanza condivisa con uno snapshot;
+  - i comandi e l'equipaggiamento validano le precondizioni di `AttackProfile.With`: `thrown` solo con armi da lancio, `twoHanded` solo con l'altra mano libera;
+  - un colpo da 0 danni non ha alcun effetto (`NoEffect`), anche a 0 PF.
 - **Fuori dalla C1**:
   - gli effetti delle padronanze diverse da Graze;
   - reazioni e attacchi di opportunità;
