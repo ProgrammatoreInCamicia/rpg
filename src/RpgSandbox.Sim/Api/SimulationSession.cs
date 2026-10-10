@@ -291,7 +291,7 @@ public sealed class SimulationSession
             "Riposa" => "riposa",
             _ => "sta fermo",
         },
-        _ => "è occupato",
+        _ => "sta facendo altro",
     };
 
     private static GridPos? PositionOf(Actor a, WorldState w) => a.CurrentAction is MoveAction m ? m.PositionAt(w.Now) : a.Position;

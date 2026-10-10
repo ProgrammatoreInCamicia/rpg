@@ -665,6 +665,19 @@ public partial class VillageMap : Node2D
 		}
 		foreach (var (id, token) in _tokens)
 			token.Visible = shown.Contains(id);
+		// Nearby people can share almost the same projected Y: place their captions on separate lines.
+		var occupiedCaptions = new List<Rect2>();
+		foreach (var token in _tokens.Values.Where(t => t.Visible && t.GetNodeOrNull<Label>("Name") is not null)
+			.OrderBy(t => t.Position.Y).ThenBy(t => t.Position.X))
+		{
+			var label = token.GetNode<Label>("Name");
+			var height = label.Text.Contains('\n') ? 36f : 20f;
+			var caption = new Rect2(token.Position + new Vector2(-70, -58), new Vector2(140, height));
+			while (occupiedCaptions.Any(used => used.Grow(3).Intersects(caption)))
+				caption.Position -= new Vector2(0, height + 6);
+			label.Position = caption.Position - token.Position;
+			occupiedCaptions.Add(caption);
+		}
 		if (_tokens.TryGetValue(_view.Id, out var mine))
 			_camera.Position = _camera.Position.Lerp(mine.Position, 0.15f);
 	}
