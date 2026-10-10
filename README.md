@@ -47,5 +47,6 @@ Le porte sono mostrate secondo ciò che il personaggio sa: aspetto pieno se le v
 La scena principale usa il villaggio ampliato: Locanda, granaio con accesso sul lato ovest, casa del contadino e strada verso il bosco. La vecchia mappa piccola rimane disponibile come scenario di regressione per i test T6a/T6b. La casella di uscita verso il campo dei banditi si trova all'estremità est della strada.
 
 Lo smoke `--village-smoke=<dir>` include il furto scoperto di giorno: cattura il furto al granaio, l'arrivo della Guardia, la confisca, la restituzione delle razioni al deposito e il rapporto del Contadino. Salva nella cartella indicata screenshot e partite riproducibili per ciascun passaggio.
+Include anche tre viste della porta di casa: mai vista dalla Locanda, vista chiusa da vicino e ricordata chiusa dopo che il Contadino l'ha aperta fuori vista.
 
 Lo smoke del villaggio include la razzia notturna: carica salvataggi riproducibili poco prima dell'arrivo del Razziatore, durante il suo cammino e dopo il furto, controlla che il giocatore lo veda al crepuscolo e salva gli screenshot `11-raider-enters.png`–`15-raid-returned.png` nella cartella scelta.

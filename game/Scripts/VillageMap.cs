@@ -36,6 +36,7 @@ public partial class VillageMap : Node2D
 	private Node2D _floor = null!;
 	private Node2D _sorted = null!;
 	private Camera2D _camera = null!;
+	private GridPos? _smokeFocus;
 	private Polygon2D _hover = null!;
 	private Polygon2D _target = null!;
 	private readonly Dictionary<GridPos, CanvasItem> _lit = new(); // floor, walls and stores, shaded by their square's light
@@ -580,8 +581,6 @@ public partial class VillageMap : Node2D
 			if (!_doorPanels.TryGetValue(door.At, out var panel))
 				continue;
 			panel.Visible = door.Known != DoorKnowledge.Unknown && door.Open == false;
-			panel.SelfModulate = door.Known == DoorKnowledge.Remembered
-				? new Color(0.72f, 0.72f, 0.72f, 0.55f) : Colors.White;
 			_doorFloors[door.At].Color = door.Known == DoorKnowledge.Unknown ? Road
 				: door.Known == DoorKnowledge.Remembered ? DoorWood.Lerp(Colors.Gray, 0.5f).Darkened(0.25f)
 				: DoorWood.Darkened(0.25f);
@@ -596,6 +595,13 @@ public partial class VillageMap : Node2D
 		_watched.Text = hidden + (watchers.Count > 0 ? $"Ti vede: {string.Join(", ", watchers)}." : _view.VisibleActors.Count > 0 ? "Nessuno di quelli che vedi ti vede." : "");
 		_stop.Disabled = !_walking;
 		ShadeMap();
+		foreach (var door in _view.Doors)
+		{
+			var panel = _doorPanels[door.At];
+			var lit = Shade(door.At);
+			panel.Modulate = door.Known == DoorKnowledge.Remembered
+				? new Color(lit.R * 0.72f, lit.G * 0.72f, lit.B * 0.72f, 0.42f) : lit;
+		}
 		if (!_walking || !onMap)
 			_target.Visible = false;
 
@@ -698,7 +704,7 @@ public partial class VillageMap : Node2D
 			occupiedCaptions.Add(caption);
 		}
 		if (_tokens.TryGetValue(_view.Id, out var mine))
-			_camera.Position = _camera.Position.Lerp(mine.Position, 0.15f);
+			_camera.Position = _camera.Position.Lerp(_smokeFocus is { } focus ? CellToScreen(focus) : mine.Position, 0.15f);
 	}
 
 	/// <summary>
@@ -763,8 +769,6 @@ public partial class VillageMap : Node2D
 		}
 		foreach (var (cell, item) in _lit)
 			item.Modulate = Shade(cell);
-		foreach (var (cell, panel) in _doorPanels)
-			panel.Modulate = Shade(cell);
 	}
 
 	private static readonly Color Night = new(0.22f, 0.25f, 0.42f);
@@ -797,6 +801,14 @@ public partial class VillageMap : Node2D
 
 	/// <summary>World position of a square (used by the smoke runner to click on it).</summary>
 	internal static Vector2 ScreenPointOf(GridPos c) => CellToScreen(c);
+
+	/// <summary>Keep a fixture's door in frame while the paused village smoke captures it.</summary>
+	internal void FocusForSmoke(GridPos? cell)
+	{
+		_smokeFocus = cell;
+		if (cell is { } at)
+			_camera.Position = CellToScreen(at);
+	}
 
 	private static GridPos ScreenToCell(Vector2 p)
 	{

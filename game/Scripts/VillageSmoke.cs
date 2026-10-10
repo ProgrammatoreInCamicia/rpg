@@ -231,6 +231,52 @@ public partial class VillageSmoke : Node
 		Capture("10-village-return.png");
 		await NightRaid();
 		await DiscoveredTheft();
+		await DoorMemory();
+	}
+
+	/// <summary>G9: frame an unknown farmhouse door, then the player's stale memory after it opens unseen.</summary>
+	private async Task DoorMemory()
+	{
+		var houseDoor = MappedVillageScenario.Ids.HouseDoor;
+		var session = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
+		var unknown = session.GetPlayerView().Doors.Single(d => d.At == houseDoor);
+		Require(unknown.Known == DoorKnowledge.Unknown && unknown.Open is null,
+			"The farmhouse door should be unknown from the inn at midnight");
+		var unknownSave = System.IO.Path.Combine(_outputDir, "door-unknown.json");
+		using (var stream = File.Create(unknownSave)) session.Save(stream);
+		_map.SetPaused(true);
+		_map.LoadGameFromPath(unknownSave);
+		_map.FocusForSmoke(houseDoor);
+		await Frames(3);
+		Require(_map.View.Doors.Single(d => d.At == houseDoor).Known == DoorKnowledge.Unknown,
+			"The UI load revealed the unknown door");
+		Capture("22-door-unknown.png");
+
+		var walk = session.Execute(new MoveCommand { Actor = session.Player, To = new GridPos(9, 13) });
+		Require(walk.Success, "Cannot approach the farmhouse door for G9");
+		session.AdvanceUntilCompleted(walk.Action!.Value, Duration.FromMinutes(5));
+		Require(session.GetPlayerView().Doors.Single(d => d.At == houseDoor) is { Known: DoorKnowledge.Seen, Open: false },
+			"The player did not see the closed farmhouse door");
+		var seenSave = System.IO.Path.Combine(_outputDir, "door-seen-closed.json");
+		using (var stream = File.Create(seenSave)) session.Save(stream);
+		_map.LoadGameFromPath(seenSave);
+		await Frames(3);
+		Capture("23-door-seen-closed.png");
+
+		walk = session.Execute(new MoveCommand { Actor = session.Player, To = MappedVillageScenario.Ids.PlayerStart });
+		Require(walk.Success, "Cannot return to the inn for the remembered door");
+		session.AdvanceUntilCompleted(walk.Action!.Value, Duration.FromMinutes(5));
+		session.Advance(new GameTime(13 * 3600 + 30 * 60).Since(session.Now));
+		Require(session.GetPlayerView().Doors.Single(d => d.At == houseDoor) is { Known: DoorKnowledge.Remembered, Open: false },
+			"The player's memory of the closed door changed after the farmer opened it unseen");
+		var rememberedSave = System.IO.Path.Combine(_outputDir, "door-remembered-closed.json");
+		using (var stream = File.Create(rememberedSave)) session.Save(stream);
+		_map.LoadGameFromPath(rememberedSave);
+		await Frames(3);
+		Require(_map.View.Doors.Single(d => d.At == houseDoor).Known == DoorKnowledge.Remembered,
+			"The UI load lost the remembered door state");
+		Capture("24-door-remembered-closed.png");
+		_map.FocusForSmoke(null);
 	}
 
 	/// <summary>G6: show the raid through the actual village view, with a reproducible saved world at each long gap.</summary>
