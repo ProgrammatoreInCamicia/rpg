@@ -4,7 +4,7 @@ using RpgSandbox.Sim.Rules;
 namespace RpgSandbox.Sim;
 
 // Walking on area maps (T6a). Movement follows the SRD grid rules: Speed/5 squares per 6-second round, so a
-// Speed of 30 is one square per second. Time passes only while walking: stopping stops the clock.
+// Speed of 30 is one square per second. The Sim only moves when advanced; the client decides how time flows.
 internal sealed partial class Simulation
 {
     /// <summary>Where an actor stands right now: mid-walk, the last square fully reached.</summary>

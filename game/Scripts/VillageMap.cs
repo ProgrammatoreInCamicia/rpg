@@ -6,10 +6,10 @@ using RpgSandbox.Sim.Scenarios;
 namespace RpgSandbox.Game;
 
 /// <summary>
-/// T6a client: the village as an isometric grid drawn from <see cref="MapView"/>. Click a square to walk there, click
-/// someone to walk up to them and talk; each square is shaded by its own light (T6b),
-/// Space or "Fermati" to stop. Walking plays out at one game second per real second (Speed 30 = one square per
-/// second), so stopping stops the clock. Positions, paths, reach and timing all come from the core.
+/// Village client: the village as an isometric grid drawn from <see cref="MapView"/>. Click a square to walk there,
+/// someone to walk up to them and talk, a door to open or close it; each square is shaded by its own light.
+/// Real time with pause (BG1/BG2): the world runs at the chosen pace (1×/3×/6× game seconds per real second) whether
+/// the player moves or not; Space pauses, X stops walking. Positions, paths, reach and timing all come from the core.
 /// </summary>
 public partial class VillageMap : Node2D
 {
@@ -45,6 +45,7 @@ public partial class VillageMap : Node2D
 	private Label _status = null!;
 	private Label _food = null!;
 	private Button _stop = null!;
+	private Button _pause = null!;
 	private CheckButton _sneakToggle = null!;
 	private Label _watched = null!;
 	private Button _torch = null!;
@@ -66,6 +67,7 @@ public partial class VillageMap : Node2D
 	/// unchanged (one square takes one game second at Speed 30); only how long the player waits on screen changes.
 	/// </summary>
 	private double _pace = 3;
+	private bool _paused;
 	private readonly Dictionary<double, Button> _paceButtons = new();
 	private double _pending;
 	private string _peopleKey = "";
@@ -89,24 +91,31 @@ public partial class VillageMap : Node2D
 		Pan(delta);
 		UpdateHover();
 
-		if (_running is { } action)
+		// The world goes on whether the player moves or not (real time with pause, as in BG1/BG2): the exploration pace
+		// while walking or standing, a fast-forward during fixed-length activities. Only the pause stops the clock.
+		if (!_paused)
 		{
-			_pending += delta * _speed;
+			_pending += delta * (_running is not null && !_walking ? _speed : _pace);
 			var whole = (long)_pending;
 			if (whole > 0)
 			{
 				_pending -= whole;
-				var result = _sim.AdvanceUntilCompleted(action, Duration.FromSeconds(whole));
 				ActorId? arrived = null;
-				if (result.Outcome != AdvanceOutcome.TimeLimitReached)
+				if (_running is { } action)
 				{
-					_running = null;
-					_walking = false;
-					_pending = 0;
-					if (result.Outcome == AdvanceOutcome.Completed)
-						arrived = _approaching;
-					_approaching = null;
+					var result = _sim.AdvanceUntilCompleted(action, Duration.FromSeconds(whole));
+					if (result.Outcome != AdvanceOutcome.TimeLimitReached)
+					{
+						_running = null;
+						_walking = false;
+						_pending = 0;
+						if (result.Outcome == AdvanceOutcome.Completed)
+							arrived = _approaching;
+						_approaching = null;
+					}
 				}
+				else
+					_sim.Advance(Duration.FromSeconds(whole));
 				Refresh();
 				if (arrived is { } who)
 					OpenTalk(who);
@@ -118,6 +127,11 @@ public partial class VillageMap : Node2D
 	public override void _UnhandledInput(InputEvent @event)
 	{
 		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Space })
+		{
+			SetPaused(!_paused);
+			return;
+		}
+		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.X })
 		{
 			Stop();
 			return;
@@ -231,6 +245,16 @@ public partial class VillageMap : Node2D
 		return null;
 	}
 
+	internal bool IsPaused => _paused;
+
+	/// <summary>Pause or resume the world. Orders given while paused start when it resumes.</summary>
+	internal void SetPaused(bool paused)
+	{
+		_paused = paused;
+		_pause.SetPressedNoSignal(paused);
+		Refresh();
+	}
+
 	internal double Pace => _pace;
 
 	/// <summary>Change the exploration pace; a walk in progress speeds up or slows down at once.</summary>
@@ -239,8 +263,6 @@ public partial class VillageMap : Node2D
 		_pace = pace;
 		foreach (var (value, button) in _paceButtons)
 			button.SetPressedNoSignal(value == pace);
-		if (_walking)
-			_speed = pace;
 	}
 
 	/// <summary>Switch between walking and sneaking; a walk in progress carries on to the same square in the new way.</summary>
@@ -268,7 +290,6 @@ public partial class VillageMap : Node2D
 		}
 		_running = result.Action;
 		_walking = true;
-		_speed = _pace; // exploration pace while walking
 		_target.Position = CellToScreen(_sim.GetPlayerView().Move!.Path[^1]);
 		_target.Visible = true;
 		Refresh();
@@ -387,7 +408,7 @@ public partial class VillageMap : Node2D
 		var view = _sim.GetPlayerView();
 		_running = view.Action?.Id;
 		_walking = view.Move is not null;
-		_speed = _walking ? _pace : Math.Max(1, (view.Action?.CompletesAt.Since(view.Action.StartedAt).Seconds ?? 1) / MaxActivityRealSeconds);
+		_speed = Math.Max(1, (view.Action?.CompletesAt.Since(view.Action.StartedAt).Seconds ?? 1) / MaxActivityRealSeconds);
 		_pending = 0;
 		Refresh();
 		ShowMessage("Partita caricata.");
@@ -403,7 +424,8 @@ public partial class VillageMap : Node2D
 		var now = _view.Now;
 		_clock.Text = $"Giorno {now.Day + 1}   {now.Hour:00}:{now.Minute:00}:{now.Second:00}   {DayName(_view.Daylight)}   ({HereName(_view.Light)})";
 		var where = _view.Location is { } here ? _view.Locations.Single(l => l.Id == here).Name : "strada";
-		_status.Text = _walking ? $"Cammini… ({where})" : $"Sei qui: {where}. Clicca dove vuoi andare.";
+		_status.Text = (_paused ? "IN PAUSA — gli ordini partono quando riprendi. " : "")
+			+ (_walking ? $"Cammini… ({where})" : $"Sei qui: {where}. Clicca dove vuoi andare.");
 		_food.Text = $"Razioni con te: {_view.Food}";
 		_torch.Text = _view.TorchLitUntil is { } burnsUntil
 			? $"Spegni la torcia (T) — ancora {Math.Max(1, burnsUntil.Since(_view.Now).Seconds / 60)} min"
@@ -765,7 +787,10 @@ public partial class VillageMap : Node2D
 		_food = new Label();
 		box.AddChild(_food);
 
-		_stop = new Button { Text = "Fermati (Spazio)" };
+		_pause = new Button { Text = "Pausa (Spazio)", ToggleMode = true };
+		_pause.Toggled += SetPaused;
+		box.AddChild(_pause);
+		_stop = new Button { Text = "Fermati (X)" };
 		_stop.Pressed += Stop;
 		box.AddChild(_stop);
 		var paceRow = new HBoxContainer();

@@ -5,7 +5,7 @@ using RpgSandbox.Sim.Scenarios;
 namespace RpgSandbox.Game;
 
 /// <summary>
-/// Development aid, enabled by `--village-smoke=&lt;dir&gt;`: plays the T6a loop through the real UI paths
+/// Development aid, enabled by `--village-smoke=&lt;dir&gt;`: plays the village loop through the real UI paths
 /// (click, walk, stop, reach the store, deposit, walk up to the guard) and fails with exit code 1 on any problem.
 /// </summary>
 public partial class VillageSmoke : Node
@@ -43,7 +43,15 @@ public partial class VillageSmoke : Node
 		Require(_map.View.Position == MappedVillageScenario.Ids.PlayerStart, "Player does not start at the inn");
 		Capture("1-start.png");
 
-		// A real click on a road square.
+		// Real time with pause: the world goes on while the player stands still.
+		var t0 = _map.View.Now;
+		await Seconds(1.0);
+		Require(_map.View.Now > t0 && _map.View.Position == MappedVillageScenario.Ids.PlayerStart,
+			"The clock should run while the player stands still");
+
+		// Paused, the clock stops; an order given while paused (a real click) starts when the game resumes.
+		_map.SetPaused(true);
+		var pausedAt = _map.View.Now;
 		var target = new GridPos(12, 3);
 		var screen = _map.GetViewport().GetCanvasTransform() * VillageMap.ScreenPointOf(target);
 		Input.WarpMouse(screen);
@@ -52,27 +60,33 @@ public partial class VillageSmoke : Node
 		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = screen, GlobalPosition = screen });
 		await Frames(2);
 		Require(_map.IsWalking, "Clicking a square did not start walking");
+		await Seconds(1.0);
+		Require(_map.View.Now == pausedAt && _map.View.Position == MappedVillageScenario.Ids.PlayerStart, "Time or position moved while paused");
+		_map.SetPaused(false);
 
-		// Walk a little, then stop: the clock and the position must stay where they are.
+		// Walk a little at the exploration pace (several game seconds per real second, rules unchanged), save, stop.
 		await Seconds(2.5);
 		Capture("2-walking.png");
+		var pace = _map.Pace;
+		var walked = _map.View.Now.Since(pausedAt).Seconds;
+		Require(walked >= (long)(2 * pace) && walked <= (long)(3 * pace),
+			$"After 2.5 real seconds at {pace}× the walk should have taken {2 * pace}–{3 * pace} s, not {walked}");
+		var savedAt = _map.View.Now;
+		var savedSquare = _map.View.Position;
 		var walkingSave = System.IO.Path.Combine(_outputDir, "walking.json");
 		_map.SaveGameToPath(walkingSave);
 		Require(File.Exists(walkingSave), "Saving during a walk did not create a snapshot");
 		_map.Stop();
 		var stoppedAt = _map.View.Position;
 		var stoppedTime = _map.View.Now;
-		// The exploration pace plays several game seconds per real second (rules unchanged).
-		var pace = _map.Pace;
-		Require(stoppedTime.Seconds >= (long)(2 * pace) && stoppedTime.Seconds <= (long)(3 * pace),
-			$"After 2.5 real seconds at {pace}× the clock should show {2 * pace}–{3 * pace} s, not {stoppedTime.Seconds}");
 		await Seconds(1.5);
-		Require(!_map.IsBusy && _map.View.Now == stoppedTime && _map.View.Position == stoppedAt, "Time or position moved after stopping");
+		Require(!_map.IsBusy && _map.View.Position == stoppedAt, "The position moved after stopping");
+		Require(_map.View.Now > stoppedTime, "The world should go on after stopping");
 		_map.LoadGameFromPath(walkingSave);
-		Require(_map.IsWalking && _map.View.Now == stoppedTime && _map.View.Position == stoppedAt,
+		Require(_map.IsWalking && _map.View.Now == savedAt && _map.View.Position == savedSquare,
 			"Loading the mid-walk save did not resume the walk at the saved square");
 		await Seconds(1.2);
-		Require(_map.View.Now > stoppedTime, "The loaded walk did not advance");
+		Require(_map.View.Now > savedAt, "The loaded walk did not advance");
 		_map.Stop();
 
 		// Reach the square next to the granary store and deposit.

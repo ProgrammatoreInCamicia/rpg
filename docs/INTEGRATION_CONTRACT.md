@@ -187,7 +187,7 @@ Da decidere con l'utente e con Codex. I candidati sono il combattimento a turni,
 - **Mappe** (`ScenarioBuilder.AddMap`): una griglia per Area, una casella da 5 piedi per carattere. `#` è bloccato, `.` è terreno aperto fuori dai Luoghi (la strada), una lettera indica una casella del Luogo corrispondente (le zone). Depositi e attori hanno una casella (`at`); un deposito occupa la sua casella.
 - **Posizione**: `GridPos`, presente in `ActorView.Position`, `PlayerView.Position`, `VisibleActorView.Position` e `StoreView.Position`. Durante un cammino è l'ultima casella raggiunta. `Location` è la zona della casella (null sulla strada) e cambia nell'istante in cui si attraversa il confine.
 - **MoveCommand { Actor, To }**: percorso A* deterministico su 8 direzioni, in cui ogni passo costa 1 e non si tagliano gli angoli dei muri (regole della griglia dello SRD). La casella i si raggiunge a `ceil(i·30/Speed)` secondi dalla partenza: con Speed 30 è 1 secondo per casella. Un nuovo ordine sostituisce il cammino in corso. Rifiuti: `NoMap`, `Unreachable`, `AlreadyThere`, `ActorBusy`.
-- **StopCommand { Actor }**: ci si ferma sull'ultima casella raggiunta (`NotMoving` se non si sta camminando). Il tempo passa solo durante le azioni: fermarsi ferma l'orologio.
+- **StopCommand { Actor }**: ci si ferma sull'ultima casella raggiunta (`NotMoving` se non si sta camminando). Fermarsi non ferma il tempo: lo scorrere del tempo lo decide il client (vedi R1).
 - **Portata sulle mappe**: depositi e conversazioni (`Report`, `PeopleHere`) richiedono una casella adiacente, controllata all'inizio e al completamento (`OutOfReach`). Dove non c'è una mappa resta valido "stesso Luogo".
 - **Viste**: `PlayerView.Map` (`MapView` con righe, zone e `S` per i depositi) e `PlayerView.Move` / `ActorView.Move` (`MoveView`: From, Path, DepartedAt, Speed). Il client anima solo ciò che queste viste descrivono.
 - **Scenario**: `MappedVillageScenario`, con strada, Locanda e Granaio. Non ci sono ancora i banditi: arrivano con la T6c. Lo scenario a Luoghi (`SliceScenario`) resta invariato.
@@ -247,8 +247,10 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
 - **PlayerView**: `Doors` (tutte le porte della mappa, anche quelle fuori vista: approssimazione), `Torches`, `TorchLitUntil`, `VisibleActorView.Torch`.
 - **Client**: il clic su una porta adiacente la apre o la chiude, il clic su una porta lontana ci fa camminare fino a lei. Il tasto T accende e spegne la torcia.
 
-## R1 — Ritmo dell'esplorazione (solo client)
+## R1 — Tempo reale con pausa e ritmo (solo client)
 
-- Durante il cammino, `VillageMap` fa avanzare la Sim di `_pace` secondi di gioco per ogni secondo reale. Il ritmo si sceglie tra 1×, 3× e 6×; il default è 3×.
-- Le regole non cambiano: una casella costa sempre 1 secondo di gioco a Speed 30. Cambia solo quanto aspetta il giocatore, come in Project Zomboid.
-- Le attività a durata fissa durano al massimo 3 secondi reali, come prima.
+- Il mondo scorre **sempre**, che il giocatore si muova o no, come in BG1/BG2: `VillageMap` fa avanzare la Sim di `_pace` secondi di gioco per ogni secondo reale. Il ritmo si sceglie tra 1×, 3× e 6×; il default è 3×.
+- La **pausa** (Spazio) è l'unico modo per fermare l'orologio. In pausa si possono dare ordini, che partono alla ripresa. X ferma il cammino, ma non il tempo.
+- Le attività a durata fissa scorrono più veloci, al massimo 3 secondi reali, e il mondo intanto va avanti.
+- Le regole non cambiano: una casella costa sempre 1 secondo di gioco a Speed 30.
+- In combattimento (proposta in chat) il tempo passerà a round da 6 secondi.

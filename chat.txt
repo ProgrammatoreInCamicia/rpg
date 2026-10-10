@@ -2284,3 +2284,13 @@ _pace secondi di gioco per ogni secondo reale durante il cammino. Si sceglie 1×
 un cammino, il cammino accelera o rallenta subito. Regole, Sim e salvataggi non cambiano; le attività a durata fissa
 seguono la loro regola di prima (al massimo 3 s reali).
 Smoke: il controllo sul tempo ora dipende dal ritmo (2,5 s reali a 3× = 6–9 s di gioco). VILLAGE SMOKE OK, SMOKE OK.
+
+[CLAUDE — R1 rivista: TEMPO REALE CON PAUSA (decisione dell'utente)] L'utente osserva che, se il tempo si ferma quando il
+giocatore si ferma, il mondo è morto: ronde ferme, nessuno ti viene incontro. Si passa quindi al modello BG1/BG2: il mondo
+scorre SEMPRE al ritmo scelto (1×/3×/6×), Spazio = pausa, in pausa si danno ordini che partono alla ripresa, X ferma il
+cammino. Si superano così le decisioni precedenti "fermarsi ferma il tempo" (esplorazione T6a) e "il tempo passa solo con
+le azioni".
+La Sim non cambia (Advance senza azioni esisteva già). Cambia solo il client; contratto e commenti sono aggiornati.
+Il combattimento resta a turni, a round da 6 s, come da proposta.
+Smoke del villaggio riscritta: l'orologio corre da fermi; in pausa tempo e posizione restano fermi; un ordine dato in
+pausa parte alla ripresa; fermarsi blocca la posizione ma non il tempo. VILLAGE SMOKE OK.

@@ -63,7 +63,7 @@ public sealed record MoveCommand : Command
     public bool Stealthy { get; init; }
 }
 
-/// <summary>Stop walking, on the last square reached. Time then stands still until the next action.</summary>
+/// <summary>Stop walking, on the last square reached. The world goes on: how time flows is the client's choice.</summary>
 public sealed record StopCommand : Command;
 
 /// <summary>
