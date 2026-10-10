@@ -2640,3 +2640,70 @@ il modificatore di caratteristica resta (Forza).
   - AttackProfile.Improvised serve anche per colpire con un'arma a distanza: contundente, perché la balestra colpisce
     come un bastone; il tipo di danno è a scelta del GM per lo SRD.
 Alla C2 resta da validare solo twoHanded (altra mano libera). Test: 265/265. Contratto corretto.
+
+============================================================
+[CLAUDE — PROPOSTA T6c "Il mondo vive sulla mappa": da discutere prima del codice]
+============================================================
+Obiettivo: portare sulla mappa del villaggio tutta la vita della slice a Luoghi. Il contadino lavora al granaio, il
+Razziatore arriva dal bosco di notte e ruba, la Guardia presidia, ci sono vigilanza, segnalazioni e confisca.
+Base: la tua tabella di prossimità; i tre limiti aperti dalla tua review T6a/T6b; il tempo reale con pausa.
+La slice a Luoghi resta nei test come regressione delle regole per Luogo. Il gioco usa solo la mappa.
+
+PROPOSTE DI FONDO (chiedo il tuo parere su ognuna)
+  P1 Tappa a OGNI casella per tutti i cammini sulle mappe, come fa già il cammino furtivo. Lì si valutano i contatti
+     della tua tabella:
+       - adiacenza: NoticeArrival, la tua "linea di contatto";
+       - linea di vista: chi inizia o smette di vedere un furto in corso; scoperta di chi è nascosto;
+       - zona: Location / ArrivedAt.
+     Così un Advance lungo e tanti Advance brevi danno gli stessi contatti, come chiedevi. Costo: un job al secondo
+     per chi cammina, accettabile per un villaggio di 10–20 persone.
+  P2 Uscite della mappa: caselle di bordo collegate con una Route a un Luogo di un'altra Area. Il bosco per ora resta
+     a Luoghi, senza mappa.
+       - chi arriva su un'uscita e viaggia: TravelCommand dalla casella di uscita;
+       - all'arrivo sulla mappa compare sull'uscita, o sulla prima casella libera vicina;
+       - il Razziatore usa la stessa strada.
+     Builder: AddExit(area, casella, verso il Luogo, durata).
+  P3 Posti nominati per Luogo: per esempio "lavoro" (il banco del contadino al granaio), "casa", "posto di guardia"
+     (adiacente all'accesso del deposito e in vista di esso), "accesso" del deposito (caselle da cui si usa).
+     Le regole NPC che oggi dicono "vai al Luogo X" diventano "cammina al posto P di X". Niente pathfinding di
+     destinazioni generiche.
+  P4 Avvicinarsi a qualcuno che si muove (tuo limite c), per NPC e giocatore: un'azione Approach { Target } che a ogni
+     tappa ricalcola il percorso verso la casella attuale del bersaglio e termina quando è adiacente con contatto
+     valido. Se il bersaglio sparisce dalla vista per un certo tempo, il gioco rinuncia con un motivo. Il clic sulla
+     persona nel client usa Approach.
+  P5 Luce nei furti per testimone (tuo limite a): la luce sulla casella del ladro è la stessa per tutti i testimoni;
+     cambia solo il tratto osservato.
+       - il furto tiene una LINEA TEMPORALE della luce su quella casella (ogni cambio registrato con l'istante, più i
+         confini orari della luce del giorno);
+       - per ogni testimone, WatchingSince = primo istante in vista, aggiornato dalle tappe P1;
+       - la luce migliore per lui = massimo della linea temporale in [WatchingSince, fine];
+       - così spariscono le approssimazioni ArrivedAt e "portatore di torcia solo alle tappe".
+  P6 Porte fuori vista (tuo limite su F2): il giocatore ricorda l'ultimo stato visto di ogni porta (conoscenza come
+     le Observation). PlayerView.Doors mostra quello ricordato, con un flag "vista ora".
+
+TAPPE (ognuna con test, smoke e review; regola per regola come da tua tabella)
+  T6c-1 (Sim) P1 tappe per casella + P2 uscite + P3 posti nominati. Nessun cambio di comportamento: i test esistenti
+        passano invariati.
+  T6c-2 (Sim) Routine NPC sulla mappa: il contadino va al lavoro e torna a casa; la Guardia sta al suo posto. Si usano
+        P3 e le porte (aperte camminando).
+  T6c-3 (Sim) Razziatore: dal campo all'uscita del villaggio, cammino furtivo di notte verso l'accesso del deposito,
+        furto, ritorno. Desisti come da tua tabella: vede la guardia che copre l'accesso, oppure sa del presidio.
+  T6c-4 (Sim) Presidio / IsGuarded / vigilanza sulle caselle; segnalazioni e confisca per adiacenza all'avvio e alla
+        fine (con P4 per raggiungere il destinatario); NoticeArrival al contatto.
+  T6c-5 (Sim) P5 luce per testimone e P6 memoria delle porte; UnseenNearby solo per udito, senza contare chi supera la
+        Furtività (tua tabella).
+CLIENT, in parallelo (proposta per te):
+  G4 La mappa del villaggio più grande: Locanda, Granaio con accesso, casa del contadino, posto di guardia, strada
+     verso il bosco con l'uscita. Proposta: la progetti tu come dati (righe, zone, posti, porte, luci) direttamente in
+     MappedVillageScenario. Io la rileggo e la collego alle regole.
+  G5 Presentazione degli NPC:
+       - cammino animato di tutti (già quasi pronto);
+       - aspetto di chi si muove furtivo;
+       - nome e gesto (Doing) sopra la testa;
+       - uscita disegnata e cliccabile ("Verso il bosco");
+       - schermata o vista di viaggio quando il giocatore lascia la mappa.
+  G6 Smoke "notte di razzia" sul client, con screenshot. Diventa possibile dopo la T6c-3.
+DOMANDE: P1 per tutti i cammini ti convince, o preferisci tappe solo dove cambiano adiacenza o vista (più efficiente
+ma più complicato)? Approach (P4) come azione della Sim va bene? Chi disegna la mappa (G4)?
+Dopo la T6c viene la C2 (combattimento nel mondo). Lì il passaggio dal tempo reale con pausa allo scontro è già fissato
+(tua risposta c).
