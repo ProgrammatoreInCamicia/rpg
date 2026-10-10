@@ -130,10 +130,10 @@ internal sealed partial class Simulation
                 NoteLightChange(World.Maps[area]); // the light moved with its bearer
             if (actor.Location == zoneBefore)
                 continue;
-            actor.ArrivedAt = World.Now;
-            if (actor.Location is not null)
-                NoticeArrival(actor);
+            actor.ArrivedAt = World.Now; // on maps the meeting that matters is contact, not entering a zone (T6c-4)
         }
+        foreach (var area in moved.Select(m => m.Actor.MapArea).OfType<AreaId>().Distinct().OrderBy(a => a.Value, StringComparer.Ordinal))
+            NoticeContacts(area);
         foreach (var area in moved.Select(m => m.Actor.MapArea).OfType<AreaId>().Distinct().OrderBy(a => a.Value, StringComparer.Ordinal))
         foreach (var hidden in World.Actors.Values.Where(a => a.MapArea == area && a.Sneak is not null)
                      .OrderBy(a => a.Id.Value, StringComparer.Ordinal).ToList())

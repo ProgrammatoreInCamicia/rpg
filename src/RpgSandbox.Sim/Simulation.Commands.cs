@@ -457,7 +457,7 @@ internal sealed partial class Simulation
     {
         var thief = World.Actors[confiscate.Target];
         var claim = authority.Claims.FirstOrDefault(c => c.Thief == thief.Id && c.Store == confiscate.Store);
-        if (claim is null || thief.Location is null || thief.Location != authority.Location)
+        if (claim is null || !CanTalk(authority, thief)) // still next to it (on a map), in the same place (elsewhere)
         {
             World.RecordFact("ConfiscationFailed", $"{authority.Name} non riesce a fermare {thief.Name}.", authority.Id, thief.Id);
             return;

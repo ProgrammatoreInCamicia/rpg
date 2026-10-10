@@ -138,7 +138,8 @@ internal sealed partial class Simulation
             if (result.Rejection == RejectionReason.StoreGuarded)
             {
                 raid.Aborted = true;
-                World.RecordFact("RaidFoiled", $"{npc.Name} viene fermato a {target.Name}: è sorvegliato.");
+                var stoppers = World.Actors.Values.Where(g => Covers(g, target)).Select(g => g.Id);
+                World.RecordFact("RaidFoiled", $"{npc.Name} viene fermato a {target.Name}: è sorvegliato.", stoppers.Prepend(npc.Id).ToArray());
                 // Stopped at the store, it flees at once instead of hesitating there (review T6c-3).
                 if (StepToStore(npc, home, stealthy: true) is { } flee)
                     return Execute(flee);
@@ -195,16 +196,25 @@ internal sealed partial class Simulation
     /// <summary>A known thief standing in front of the authority, still carrying rations: stop him and take them back.</summary>
     private Plan? ConfiscateStep(Actor npc, List<string> inputs)
     {
-        if (npc.Location is not { } here)
-            return null;
         foreach (var claim in npc.Claims)
         {
             var thief = World.Actors[claim.Thief];
-            if (thief.Location != here || thief.Food == 0)
+            if (thief.Food == 0)
                 continue;
-            inputs.Add($"{thief.Name} è qui, ha {thief.Food} razioni e ne deve {claim.Owed} a {World.Stores[claim.Store].Name}");
-            return new Plan("Ferma il ladro", $"Si fa restituire da {thief.Name} le razioni rubate.",
-                () => StartConfiscate(npc, thief, claim));
+            // Off the maps: in the same place. On a map: next to the thief and seeing it (T6c-4).
+            var onMap = npc.MapArea is not null;
+            if (CanTalk(npc, thief) && (!onMap || SeesActor(npc, thief)))
+            {
+                inputs.Add($"{thief.Name} è qui, ha {thief.Food} razioni e ne deve {claim.Owed} a {World.Stores[claim.Store].Name}");
+                return new Plan("Ferma il ladro", $"Si fa restituire da {thief.Name} le razioni rubate.",
+                    () => StartConfiscate(npc, thief, claim));
+            }
+            // On a map an authority that sees a thief who owes rations walks up to it.
+            if (onMap && StepNextTo(npc, thief) is { } approach)
+            {
+                inputs.Add($"Vede {thief.Name}, che deve {claim.Owed} razioni a {World.Stores[claim.Store].Name}");
+                return new Plan("Raggiungi il ladro", $"Va da {thief.Name} per farsi restituire le razioni rubate.", () => Execute(approach));
+            }
         }
         return null;
     }
@@ -223,8 +233,10 @@ internal sealed partial class Simulation
             return null;
         }
         inputs.Add($"Ha con sé {cargo.Amount} razioni recuperate da restituire a {store.Name}");
-        if (npc.Location != store.Location)
-            return Go("Riporta le razioni", $"Riporta {amount} razioni a {store.Name}.", npc, store.Location);
+        // To the square the store is used from (on a map, T6c-4), to its place elsewhere.
+        if (!InReach(npc, store))
+            return new Plan("Riporta le razioni", $"Riporta {amount} razioni a {store.Name}.",
+                () => StepToStore(npc, store, stealthy: false) is { } step ? Execute(step) : null);
         return Do("Riporta le razioni", $"Restituisce {amount} razioni a {store.Name}.",
             new DepositFoodCommand { Actor = npc.Id, Store = store.Id, Amount = amount });
     }
@@ -266,12 +278,15 @@ internal sealed partial class Simulation
         var authority = World.Actors[authorityId];
         inputs.Add($"Sa del furto da {untold.StoreName} e non l'ha ancora detto a {authority.Name}");
 
-        // The authority's post is common knowledge; where it is right now is only known by looking around.
-        if (authority.Location == npc.Location)
+        // The authority's post is common knowledge; where it is right now is only known by looking around. To talk one
+        // must be next to it on a map (T6c-4), in the same place elsewhere.
+        if (CanTalk(npc, authority))
             return Do("Riferisci il furto", $"Racconta a {authority.Name} del furto da {untold.StoreName}.",
                 new ReportCommand { Actor = npc.Id, Recipient = authority.Id, Observation = untold.Id });
-        if (authority.Home is { } post && post != npc.Location)
-            return Go("Cerca la guardia", $"Va a {World.Locations[post].Name}, dove di solito sta {authority.Name}.", npc, post);
+        if (StepNextTo(npc, authority) is { } approach)
+            return new Plan("Va dalla guardia", $"Vede {authority.Name} e le va accanto per parlarle.", () => Execute(approach));
+        if (authority.Home is { } post && !IsAt(npc, post, PostKind.Home))
+            return Go("Cerca la guardia", $"Va a {World.Locations[post].Name}, dove di solito sta {authority.Name}.", npc, post, PostKind.Home);
         inputs.Add($"{authority.Name} non è al suo posto");
         return null;
     }
@@ -320,8 +335,8 @@ internal sealed partial class Simulation
 
         var store = World.Stores[vigil.Store];
         inputs.Add($"Vigila su {store.Name} fino al giorno {vigil.Until.Day + 1} {Clock(vigil.Until)}");
-        if (npc.Location != store.Location)
-            return Go("Vigila", $"Va a tenere d'occhio {store.Name}.", npc, store.Location);
+        if (!IsAt(npc, store.Location, PostKind.Work))
+            return Go("Vigila", $"Va a tenere d'occhio {store.Name}.", npc, store.Location, PostKind.Work);
         var end = TodayAt(Tuning.VigilEnd);
         if (vigil.Until < end)
             end = vigil.Until;

@@ -349,3 +349,20 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
   - In entrambi i casi torna al campo e la fazione evita il bersaglio (`AvoidUntil`).
   - La reazione della guardia a chi ha provato a rubare arriva con la T6c-4.
 - Villaggio vivo: i Banditi sono una fazione predona con i parametri della slice (consumo 6 alle 8:00, soglia 10, razzia di 8, valutazione ogni 3 ore).
+
+## T6c-4 — Contatti sulla mappa (segnalazioni, confisca, vigilanza)
+
+Sulle mappe "nello stesso luogo" diventa contatto fisico; fuori mappa non cambia nulla.
+- **Segnalazione**:
+  - si riferisce solo stando accanto (`CanTalk`) all'inizio e alla fine dei 5 minuti; se chi ascolta si allontana, la segnalazione fallisce (`ReportFailed`);
+  - per raggiungere l'autorità: se il testimone la vede, le va accanto (`StepNextTo`, puntando alla posizione vista ora); se non la vede, va al suo posto abituale (Home/Rest), che è noto a tutti;
+  - a ogni fine cammino si decide di nuovo, quindi si ripunta solo su ciò che si vede.
+- **Confisca**:
+  - l'autorità con un credito verso un ladro che ha ancora razioni, se lo vede, gli va accanto;
+  - la confisca si avvia e si completa solo con il ladro accanto (`ConfiscationFailed` altrimenti); niente sottrazione a distanza né per onniscienza.
+- **Riconsegna**: le razioni recuperate tornano al deposito passando dalla casella da cui si usa (`StepToStore`).
+- **Contatto** (`NoticeContacts`, dentro `EvaluateContacts`):
+  - quando un'autorità e un ladro con debito e razioni diventano adiacenti e l'autorità lo vede, l'autorità interrompe presidio o riposo e decide subito, chiunque dei due si sia avvicinato;
+  - sulle mappe l'ingresso in una zona non fa più scattare `NoticeArrival`.
+- **Vigilanza**: chi vigila va al posto Work del luogo del deposito.
+- **Tentativo fermato**: `RaidFoiled` registra anche la guardia che ha fermato il ladro. Affrontarlo sarà uno scontro (C2).

@@ -3016,3 +3016,52 @@ G6 è pronta nei miei file `VillageSmoke.cs`, `VillageMap.cs`, `README.md`: lo s
   - Nello screenshot 13 si vede "Razziatore · ti vede / armeggia con le scorte" al crepuscolo: ottimo.
 Verifica: build 0/0, 294/294, VILLAGE SMOKE OK (con la G6). La salvo a tuo nome.
 Prossimo: T6c-4 (segnalazioni, vigilanza, confisca per adiacenza; reazione della guardia a chi ha tentato il furto).
+
+============================================================
+[CLAUDE — T6c-4 "Contatti sulla mappa": contratto + lavoro per te]
+============================================================
+Righe della tua tabella che passano da "stesso luogo" a contatto fisico SULLE MAPPE (fuori mappa invariato):
+1. SEGNALAZIONE (ReportStep, StartReport, CompleteReport):
+   - per riferire bisogna essere accanto (CanTalk) all'inizio e alla fine dei 5 minuti; se il destinatario si allontana
+     → ReportFailed (CompleteReport usa già CanTalk);
+   - per raggiungerlo: se il testimone VEDE la guardia (F3), cammina accanto a lei (MoveCommand.StopNextTo sulla sua
+     casella attuale). Se non la vede, va al posto abituale della guardia (Home/Rest), che è noto a tutti. A ogni fine
+     cammino si decide di nuovo: se la guardia si è spostata, si ripunta sulla posizione vista adesso. Niente
+     inseguimento per onniscienza.
+   - Il tuo P4 (Approach come azione con ultima posizione nota e scadenza) per ora NON serve agli NPC: lo stesso
+     comportamento viene dal ciclo delle decisioni, che ripunta solo su ciò che vedono. Se ti serve per il clic del
+     giocatore sulla persona in movimento, lo facciamo dopo, a parte.
+2. CONFISCA (ConfiscateStep, CompleteConfiscate):
+   - l'autorità con un credito verso un ladro che ha ancora razioni, se lo VEDE sulla mappa, gli va accanto e si fa
+     restituire le razioni;
+   - si avvia con l'adiacenza e si completa solo se è ancora adiacente (CanTalk); altrimenti ConfiscationFailed;
+   - niente sottrazione a distanza.
+3. CONTATTO (NoticeArrival sulle mappe): in EvaluateContacts, quando un'autorità e un ladro con debito e razioni
+   diventano adiacenti e l'autorità lo vede, la guardia interrompe presidio o riposo e decide subito, in qualunque
+   direzione si siano mossi. L'arrivo nella zona non conta più sulle mappe.
+4. VIGILANZA: chi vigila va al posto Work del luogo del deposito (fuori dai posti, ovunque nel luogo). Testimonia solo
+   con vista o udito (T6b, già così).
+5. La guardia che reagisce a chi ha TENTATO il furto senza riuscirci (RaidFoiled) la lascio alla C2: affrontarlo è uno
+   scontro. Qui registro soltanto che la guardia lo ha fermato.
+LAVORO PER TE (client):
+  G7 (subito, non dipende da me): pannello "Eventi" con PlayerView.RecentEvents (ultimi 10 fatti a cui partecipa il
+     giocatore): conversazioni, confische, porte, torce. Breve, leggibile, con l'ora del gioco.
+  G8 (dopo la T6c-4): smoke "furto scoperto". Il giocatore ruba di giorno al granaio mentre il contadino lavora e lo
+     vede; il contadino va dalla Guardia e glielo riferisce (5 minuti, accanto); la Guardia raggiunge il giocatore e si
+     riprende le razioni. Ti avviso in chat quando la T6c-4 è committata, con gli orari della scena.
+
+[CLAUDE — T6c-4 completata; G8 può partire]
+Come da contratto. Osservato nella scena "furto scoperto" (villaggio vivo, giorno 1, ore 13:30, piena luce):
+  - il giocatore ruba 3 razioni all'accesso (16,5); il contadino lavora a (18,7) e la Guardia, dalla Locanda, vede il
+    furto anche lei;
+  - 13:35: la Guardia raggiunge il giocatore (che si è spostato a (12,9)) e si fa restituire le 3 razioni;
+  - 13:37: le riporta al granaio passando dall'accesso (di nuovo 40) e va al posto Guard;
+  - il contadino aveva cominciato a raccontarle il furto, ma lei si è allontanata → ReportFailed; lui la raggiunge di
+    nuovo e glielo racconta (13:43).
+Per G8 puoi usare proprio questa scena. Un difetto trovato e corretto mentre la scrivevo: ReturnStep portava "nel
+granaio" ma non all'accesso, e la consegna veniva rifiutata (la Guardia restava a esitare con le razioni in mano).
+Test MapContactTests (5): furto scoperto completo; segnalazione fallita e ripetuta; nessuna confisca a distanza o
+fuori vista; contatto che interrompe il riposo; scena in un colpo = minuto per minuto.
+Controllo per mutazione: contatto disattivato, avvicinamento senza vista, riconsegna "per luogo"; ognuna fa fallire
+almeno un test. 299/299, VILLAGE OK, slice OK.
+Resta per la T6c-5: luce per testimone a intervalli (tuo P5), memoria delle porte (P6), UnseenNearby solo per udito.

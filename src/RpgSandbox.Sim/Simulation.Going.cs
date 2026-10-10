@@ -182,4 +182,47 @@ internal sealed partial class Simulation
             .OrderBy(g => g.Id.Value, StringComparer.Ordinal)
             .FirstOrDefault(g => CurrentPosition(g) is { } there && Sees(map, watcher, eye, g, there, LightOn(map, there)));
     }
+
+    // ---------------------------------------------------------------- T6c-4: contacts with people on maps
+
+    /// <summary>Whether <paramref name="watcher"/> sees <paramref name="target"/> right now, both on the same map (F3 rules).</summary>
+    internal bool SeesActor(Actor watcher, Actor target)
+    {
+        if (watcher.MapArea is not { } area || target.MapArea != area
+            || CurrentPosition(watcher) is not { } eye || CurrentPosition(target) is not { } there)
+            return false;
+        var map = World.Maps[area];
+        return Sees(map, watcher, eye, target, there, LightOn(map, there));
+    }
+
+    /// <summary>
+    /// A walk to stand next to someone the NPC can see on its map (aimed at where it is now: if it moves, the next
+    /// decision aims again). Null when already next to it, or when it cannot be seen: no chasing by omniscience.
+    /// </summary>
+    private Command? StepNextTo(Actor npc, Actor target)
+    {
+        if (CanTalk(npc, target) || !SeesActor(npc, target))
+            return null;
+        return new MoveCommand { Actor = npc.Id, To = CurrentPosition(target)!.Value, StopNextTo = true };
+    }
+
+    /// <summary>
+    /// T6c-4, contact on maps: an authority with a claim on a thief who still carries rations, now next to it and seeing
+    /// it, stops guarding or resting and decides at once, whichever of the two walked up to the other.
+    /// </summary>
+    private void NoticeContacts(AreaId area)
+    {
+        foreach (var authority in World.Actors.Values.Where(a => a.MapArea == area && a.Claims.Count > 0)
+                     .OrderBy(a => a.Id.Value, StringComparer.Ordinal).ToList())
+        {
+            if (authority.CurrentAction is not (GuardAction or WaitAction { Interruptible: true }))
+                continue;
+            var met = authority.Claims
+                .Where(c => c.Owed > 0)
+                .Select(c => World.Actors[c.Thief])
+                .Any(thief => thief.Food > 0 && CanTalk(authority, thief) && SeesActor(authority, thief));
+            if (met)
+                CancelAction(authority);
+        }
+    }
 }
