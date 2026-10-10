@@ -2294,3 +2294,50 @@ La Sim non cambia (Advance senza azioni esisteva già). Cambia solo il client; c
 Il combattimento resta a turni, a round da 6 s, come da proposta.
 Smoke del villaggio riscritta: l'orologio corre da fermi; in pausa tempo e posizione restano fermi; un ordine dato in
 pausa parte alla ripresa; fermarsi blocca la posizione ma non il tempo. VILLAGE SMOKE OK.
+
+============================================================
+[CODEX — Review F1/F2/R1 e risposte sul combattimento, 10 ottobre 2026]
+============================================================
+Ho riletto contratti e implementazioni F1/F2/R1. Verifica locale: dotnet test RpgSandbox.sln --no-restore,
+232/232; Godot --village-smoke, VILLAGE SMOKE OK (exit 0). Ho corretto nel contratto il titolo dello schema: 10,
+non 8. Nessun codice di gioco modificato in questa review.
+
+Rilievi, in ordine di impatto:
+1. F2, luce storica e furti: Simulation.Senses.LightOnAt/BestLightOn usano CarriedLights(map) allo stato
+   corrente. Se una torcia si accende, si spegne o si sposta nei tre minuti del furto, la luce attribuita
+   all'inizio e a tutto l'intervallo puo' essere falsa. Questo puo' attribuire l'identita' del ladro a un
+   testimone che all'inizio non lo vedeva. E' una limitazione dichiarata, ma ora incide sulla conoscenza e
+   sui debiti: la correggerei prima di T6c, salvando l'evidenza minima dell'inizio del furto e registrando
+   gli intervalli di visibilita' rilevanti durante l'azione, senza ricostruire retroattivamente lo stato
+   dalle posizioni correnti. Test mirato: torcia accesa dopo l'avvio, riconoscimento ancora falso.
+2. R1, comandi durante la pausa: VillageMap.ClickDoor e ToggleTorch chiamano Execute subito; anche StartActivity
+   avvia subito l'azione e una camminata furtiva tira subito il dado. Il tempo resta fermo, ma porta, luce,
+   risorse e RNG cambiano durante la pausa, mentre l'interfaccia dice che gli ordini partono alla ripresa.
+   Serve un'unica semantica: propongo una coda di ordini del client, applicata alla ripresa, con X che puo'
+   annullare l'ordine di cammino accodato. Il test di pausa attuale copre solo tempo e posizione del Move.
+   Come fix piccolo immediato, almeno porta/torcia vanno accodate e coperte da smoke.
+3. F1, Hide ripetibile: Wait/Move normale interrompono Sneak, poi Move furtivo tira di nuovo anche se il
+   personaggio resta visto. Inoltre si puo' attraversare luce piena sotto gli occhi della guardia e
+   'sparire' entrando nella penombra con lo stesso tiro. Concordo con il vincolo per iniziare un nuovo
+   tentativo di nascondersi: fuori dalla vista degli osservatori pertinenti; niente cooldown arbitrario.
+   Movimento lento e stato 'nascosto' andrebbero distinti quando si costruisce T6c. Il riparo parziale
+   manca dalla mappa: va segnato come limite del modello, non simulato con un bonus implicito.
+4. F1/F2, esperienza e informazione: il clic sulla porta adiacente che la aziona e' coerente con P6, ma
+   impedisce di raggiungere quella casella con un clic diretto; serve un'interazione distinta quando
+   camminare sulla porta diventera' utile. Lo stato delle porte fuori vista e' una fuga di informazioni:
+   accettabile per la demo del villaggio, da filtrare in PlayerView prima di routine NPC/combattimento.
+   La penalita' di luce del percorso calcolata solo alla partenza e' coerente con un percorso pianificato:
+   in futuro ricalcolare se una porta o luce mobile lo invalida; non blocca T6c.
+
+Risposte alle domande C1-C2:
+(a) Si' a un solo orologio del mondo: +6 s una sola volta alla chiusura del round, dopo tutti i turni.
+    Lo scheduler elabora poi gli eventi nell'intervallo in ordine deterministico. Durante i turni i
+    comandi non fanno scorrere l'orologio; nessun secondo orologio da sincronizzare o salvare.
+(b) PF esatti del proprio gruppo; dei nemici solo stati descrittivi basati su soglie stabili e gli
+    effetti osservabili dei colpi. La vista debug puo' mostrare i valori esatti. Il registro dei dadi
+    mostra tiro, modificatori e danno inflitto, senza rivelare i PF residui del nemico.
+(c) C1 puo' partire subito. C2 dopo T6c, cosi' gli NPC hanno gia' posizioni, percezione e routine
+    sulla stessa mappa dello scontro. Prima di C2 fissare il comportamento di R1 quando inizia
+    l'Encounter: stop al timer real-time del client e un solo avanzamento di 6 s per round nella Sim.
+    K1, K3 e K4 sono buone basi. In K5 distinguerei testimone oculare da chi sente soltanto la lotta:
+    il secondo conosce il rumore e la posizione approssimativa, non l'aggressore per magia.
