@@ -60,6 +60,13 @@ public partial class VillageMap : Node2D
 	private ActorId? _talkingTo;
 	private bool _walking;
 	private double _speed = 1;
+
+	/// <summary>
+	/// Exploration pace: game seconds played per real second while walking (Project Zomboid style). The rules are
+	/// unchanged (one square takes one game second at Speed 30); only how long the player waits on screen changes.
+	/// </summary>
+	private double _pace = 3;
+	private readonly Dictionary<double, Button> _paceButtons = new();
 	private double _pending;
 	private string _peopleKey = "";
 
@@ -224,6 +231,18 @@ public partial class VillageMap : Node2D
 		return null;
 	}
 
+	internal double Pace => _pace;
+
+	/// <summary>Change the exploration pace; a walk in progress speeds up or slows down at once.</summary>
+	internal void SetPace(double pace)
+	{
+		_pace = pace;
+		foreach (var (value, button) in _paceButtons)
+			button.SetPressedNoSignal(value == pace);
+		if (_walking)
+			_speed = pace;
+	}
+
 	/// <summary>Switch between walking and sneaking; a walk in progress carries on to the same square in the new way.</summary>
 	internal void SetSneak(bool on)
 	{
@@ -249,7 +268,7 @@ public partial class VillageMap : Node2D
 		}
 		_running = result.Action;
 		_walking = true;
-		_speed = 1; // one game second per real second while walking
+		_speed = _pace; // exploration pace while walking
 		_target.Position = CellToScreen(_sim.GetPlayerView().Move!.Path[^1]);
 		_target.Visible = true;
 		Refresh();
@@ -368,7 +387,7 @@ public partial class VillageMap : Node2D
 		var view = _sim.GetPlayerView();
 		_running = view.Action?.Id;
 		_walking = view.Move is not null;
-		_speed = _walking ? 1 : Math.Max(1, (view.Action?.CompletesAt.Since(view.Action.StartedAt).Seconds ?? 1) / MaxActivityRealSeconds);
+		_speed = _walking ? _pace : Math.Max(1, (view.Action?.CompletesAt.Since(view.Action.StartedAt).Seconds ?? 1) / MaxActivityRealSeconds);
 		_pending = 0;
 		Refresh();
 		ShowMessage("Partita caricata.");
@@ -484,7 +503,7 @@ public partial class VillageMap : Node2D
 		foreach (var (id, token) in _tokens)
 			token.Visible = shown.Contains(id);
 		if (_tokens.TryGetValue(_view.Id, out var mine))
-			_camera.Position = _camera.Position.Lerp(mine.Position, 0.08f);
+			_camera.Position = _camera.Position.Lerp(mine.Position, 0.15f);
 	}
 
 	/// <summary>
@@ -749,6 +768,18 @@ public partial class VillageMap : Node2D
 		_stop = new Button { Text = "Fermati (Spazio)" };
 		_stop.Pressed += Stop;
 		box.AddChild(_stop);
+		var paceRow = new HBoxContainer();
+		paceRow.AddThemeConstantOverride("separation", 6);
+		paceRow.AddChild(new Label { Text = "Ritmo:", TooltipText = "Quanto scorre veloce il tempo mentre cammini. Le regole non cambiano: cambia solo quanto aspetti." });
+		var paceGroup = new ButtonGroup();
+		foreach (var pace in new[] { 1.0, 3.0, 6.0 })
+		{
+			var button = new Button { Text = $"{pace}×", ToggleMode = true, ButtonGroup = paceGroup, ButtonPressed = pace == _pace, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+			button.Pressed += () => SetPace(pace);
+			paceRow.AddChild(button);
+			_paceButtons[pace] = button;
+		}
+		box.AddChild(paceRow);
 		_sneakToggle = new CheckButton { Text = "Muoviti di soppiatto (F)", TooltipText = "Andatura lenta: preferisci il buio. Parlare o fermarti a lavorare ti fa tornare visibile." };
 		_sneakToggle.Toggled += SetSneak;
 		box.AddChild(_sneakToggle);

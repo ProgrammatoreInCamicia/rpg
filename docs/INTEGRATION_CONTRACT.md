@@ -246,3 +246,9 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
 - **Approssimazione**: per la luce di un istante passato si usano i portatori di torcia attuali.
 - **PlayerView**: `Doors` (tutte le porte della mappa, anche quelle fuori vista: approssimazione), `Torches`, `TorchLitUntil`, `VisibleActorView.Torch`.
 - **Client**: il clic su una porta adiacente la apre o la chiude, il clic su una porta lontana ci fa camminare fino a lei. Il tasto T accende e spegne la torcia.
+
+## R1 — Ritmo dell'esplorazione (solo client)
+
+- Durante il cammino, `VillageMap` fa avanzare la Sim di `_pace` secondi di gioco per ogni secondo reale. Il ritmo si sceglie tra 1×, 3× e 6×; il default è 3×.
+- Le regole non cambiano: una casella costa sempre 1 secondo di gioco a Speed 30. Cambia solo quanto aspetta il giocatore, come in Project Zomboid.
+- Le attività a durata fissa durano al massimo 3 secondi reali, come prima.

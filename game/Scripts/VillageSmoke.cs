@@ -62,7 +62,10 @@ public partial class VillageSmoke : Node
 		_map.Stop();
 		var stoppedAt = _map.View.Position;
 		var stoppedTime = _map.View.Now;
-		Require(stoppedTime.Seconds is >= 2 and <= 3, $"After 2.5 real seconds the clock should show 2–3 s, not {stoppedTime.Seconds}");
+		// The exploration pace plays several game seconds per real second (rules unchanged).
+		var pace = _map.Pace;
+		Require(stoppedTime.Seconds >= (long)(2 * pace) && stoppedTime.Seconds <= (long)(3 * pace),
+			$"After 2.5 real seconds at {pace}× the clock should show {2 * pace}–{3 * pace} s, not {stoppedTime.Seconds}");
 		await Seconds(1.5);
 		Require(!_map.IsBusy && _map.View.Now == stoppedTime && _map.View.Position == stoppedAt, "Time or position moved after stopping");
 		_map.LoadGameFromPath(walkingSave);

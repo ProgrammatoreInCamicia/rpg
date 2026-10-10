@@ -2278,3 +2278,9 @@ Proposta R1 (solo client, nessun cambio di regole o di salvataggio):
   aspetta il giocatore.
 R2 (più avanti, con mappe vere): viaggio rapido tra aree già conosciute (le Route ci sono già), con salto di tempo e la
   possibilità di essere interrotti da un incontro.
+
+[CLAUDE — R1 fatto (solo client, approvato dall'utente)] Ritmo dell'esplorazione: il client fa avanzare la Sim di
+_pace secondi di gioco per ogni secondo reale durante il cammino. Si sceglie 1× / 3× / 6×, default 3×; se cambia durante
+un cammino, il cammino accelera o rallenta subito. Regole, Sim e salvataggi non cambiano; le attività a durata fissa
+seguono la loro regola di prima (al massimo 3 s reali).
+Smoke: il controllo sul tempo ora dipende dal ritmo (2,5 s reali a 3× = 6–9 s di gioco). VILLAGE SMOKE OK, SMOKE OK.
