@@ -183,12 +183,12 @@ public partial class VillageSmoke : Node
 		Input.WarpMouse(doorNow);
 		await Frames(3);
 		doorNow = _map.GetViewport().GetCanvasTransform() * VillageMap.ScreenPointOf(MappedVillageScenario.Ids.InnDoor);
-		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, ShiftPressed = true,
+		GetViewport().PushInput(new InputEventMouseButton { ButtonIndex = MouseButton.Left, ShiftPressed = true,
 			Pressed = true, Position = doorNow, GlobalPosition = doorNow });
-		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, ShiftPressed = true,
+		GetViewport().PushInput(new InputEventMouseButton { ButtonIndex = MouseButton.Left, ShiftPressed = true,
 			Pressed = false, Position = doorNow, GlobalPosition = doorNow });
-		await Frames(2);
-		Require(_map.IsWalking && _map.View.Move!.Path[^1] == MappedVillageScenario.Ids.InnDoor,
+		Require((_map.IsWalking && _map.View.Move?.Path[^1] == MappedVillageScenario.Ids.InnDoor)
+			|| _map.View.Position == MappedVillageScenario.Ids.InnDoor,
 			$"Shift-clicking the adjacent door should walk onto it: {_map.LastMessage}");
 		await UntilIdle(10);
 		Require(_map.View.Position == MappedVillageScenario.Ids.InnDoor, "The player did not enter the door square");
@@ -225,6 +225,88 @@ public partial class VillageSmoke : Node
 			"The return journey did not put the player back on the village exit");
 		Require(!_map.OffMapPanelVisible, "The village map did not return");
 		Capture("10-village-return.png");
+		await NightRaid();
+	}
+
+	/// <summary>G6: show the raid through the actual village view, with a reproducible saved world at each long gap.</summary>
+	private async Task NightRaid()
+	{
+		var session = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
+		var lookout = new GridPos(18, 8);
+		var walk = session.Execute(new MoveCommand { Actor = session.Player, To = lookout });
+		Require(walk.Success, "Cannot place the player at the raid lookout");
+		session.AdvanceUntilCompleted(walk.Action!.Value, Duration.FromMinutes(5));
+		var dusk = new GameTime(19 * 3600 + 30 * 60);
+		session.Advance(dusk.Since(session.Now));
+		var raider = MappedVillageScenario.Ids.Raider;
+		var granary = MappedVillageScenario.Ids.GranaryStore;
+		var camp = MappedVillageScenario.Ids.CampStore;
+		for (var i = 0; i < 60 && session.GetWorldView().Actors.Single(a => a.Id == raider).Move is null; i++)
+			session.Advance(Duration.FromSeconds(1));
+		Require(session.GetWorldView().Actors.Single(a => a.Id == raider).Move?.Stealthy == true,
+			"The raider did not enter the village sneaking at dusk");
+		Require(session.GetWorldView().Stores.Single(s => s.Id == granary).Food == 40,
+			"The granary was robbed before the raider arrived");
+
+		_map.SetPaused(true);
+		var midRaid = System.IO.Path.Combine(_outputDir, "raid-mid-walk.json");
+		using (var stream = File.Create(midRaid)) session.Save(stream);
+		_map.LoadGameFromPath(midRaid);
+		await Frames(3);
+		Require(_map.View.Position == lookout && _map.SmokeWorld.Actors.Single(a => a.Id == raider).Move?.Stealthy == true,
+			"The UI did not restore the raid walk");
+		Require(_map.View.VisibleActors.Any(a => a.Id == raider), "The raider should be visible at dusk from the lookout");
+		Capture("11-raider-enters.png");
+
+		_map.SetPace(6);
+		_map.SetPaused(false);
+		await Seconds(0.8);
+		_map.SetPaused(true);
+		Require(_map.SmokeWorld.Actors.Single(a => a.Id == raider).Position is not null,
+			"The raider vanished from the map during his approach");
+		Capture("12-raider-approaches.png");
+		var resumedAt = _map.View.Now;
+		_map.SaveGameToPath(midRaid);
+		_map.LoadGameFromPath(midRaid);
+		Require(_map.View.Now == resumedAt && _map.SmokeWorld.Actors.Single(a => a.Id == raider).Move?.Stealthy == true,
+			"Saving and loading during the raider's walk lost the routine");
+		_map.SetPaused(false);
+		await Seconds(0.6);
+		_map.SetPaused(true);
+		Require(_map.View.Now > resumedAt && _map.SmokeWorld.Actors.Single(a => a.Id == raider).Position is not null,
+			"The loaded raid walk did not resume");
+
+		session.Advance(new GameTime(19 * 3600 + 31 * 60).Since(session.Now));
+		Require(session.GetWorldView().Stores.Single(s => s.Id == granary).Food == 40,
+			"The raid should still be in progress before the three-minute theft finishes");
+		var atGranary = System.IO.Path.Combine(_outputDir, "raid-at-granary.json");
+		using (var stream = File.Create(atGranary)) session.Save(stream);
+		_map.LoadGameFromPath(atGranary);
+		await Frames(3);
+		Require(_map.SmokeWorld.Actors.Single(a => a.Id == raider).Position == MappedVillageScenario.Ids.GranaryAccess,
+			"The raider did not reach the declared granary access");
+		Require(_map.View.VisibleActors.Any(a => a.Id == raider),
+			"The player cannot see the raider at the granary in the dusk fixture");
+		Capture("13-raid-at-granary.png");
+
+		session.Advance(new GameTime(19 * 3600 + 35 * 60).Since(session.Now));
+		var afterTheft = System.IO.Path.Combine(_outputDir, "raid-after-theft.json");
+		using (var stream = File.Create(afterTheft)) session.Save(stream);
+		_map.LoadGameFromPath(afterTheft);
+		await Frames(3);
+		Require(_map.SmokeWorld.Stores.Single(s => s.Id == granary).Food == 32, "The raid did not take eight rations");
+		Capture("14-after-theft.png");
+
+		session.Advance(new GameTime(20 * 3600 + 10 * 60).Since(session.Now));
+		var returned = System.IO.Path.Combine(_outputDir, "raid-returned.json");
+		using (var stream = File.Create(returned)) session.Save(stream);
+		_map.LoadGameFromPath(returned);
+		await Frames(3);
+		Require(_map.SmokeWorld.Actors.Single(a => a.Id == raider).Location == MappedVillageScenario.Ids.BanditCamp,
+			"The raider did not return to the camp");
+		Require(_map.SmokeWorld.Stores.Single(s => s.Id == camp).Food == 16,
+			"The stolen rations were not delivered to the camp");
+		Capture("15-raid-returned.png");
 	}
 
 	private static void Require(bool condition, string message)

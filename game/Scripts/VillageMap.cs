@@ -196,6 +196,7 @@ public partial class VillageMap : Node2D
 	// ---------------------------------------------------------------- commands
 
 	internal PlayerView View => _view;
+	internal WorldView SmokeWorld => _sim.GetWorldView();
 	internal bool IsBusy => _running is not null;
 	internal bool IsWalking => _walking;
 	internal string LastMessage => _message.Text;
@@ -830,7 +831,8 @@ public partial class VillageMap : Node2D
 			&& _view.Locations.Any(l => l.Id == s.Location && l.Area == map.Area)))
 		{
 			var block = MakeBlock(store.Position!.Value, new Color(0.65f, 0.45f, 0.30f), 34f);
-			var label = new Label { Text = store.Name, Position = new Vector2(-50, -70) };
+			// Keep the west access clear for the raider/guard labels during a raid.
+			var label = new Label { Text = store.Name, Position = new Vector2(24, -70) };
 			label.AddThemeFontSizeOverride("font_size", 12);
 			label.AddThemeConstantOverride("outline_size", 4);
 			label.AddThemeColorOverride("font_outline_color", Colors.Black);

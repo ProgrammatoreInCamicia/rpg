@@ -43,3 +43,5 @@ tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64_consol
 Nel gioco: clic su una casella per camminare, clic sul segnale «Strada per il bosco» per raggiungere il campo dei banditi, Spazio per mettere in pausa/riprendere, X per fermarsi, Maiusc+clic su una porta per entrarci, WASD/frecce per la camera, rotella per lo zoom. Dal campo, «Torna al villaggio» riporta all'uscita. La vecchia scena a Luoghi si avvia con `--path game res://Scenes/Main.tscn`.
 
 La scena principale usa il villaggio ampliato: Locanda, granaio con accesso sul lato ovest, casa del contadino e strada verso il bosco. La vecchia mappa piccola rimane disponibile come scenario di regressione per i test T6a/T6b. La casella di uscita verso il campo dei banditi si trova all'estremità est della strada.
+
+Lo smoke del villaggio include la razzia notturna: carica salvataggi riproducibili poco prima dell'arrivo del Razziatore, durante il suo cammino e dopo il furto, controlla che il giocatore lo veda al crepuscolo e salva gli screenshot `11-raider-enters.png`–`15-raid-returned.png` nella cartella scelta.
