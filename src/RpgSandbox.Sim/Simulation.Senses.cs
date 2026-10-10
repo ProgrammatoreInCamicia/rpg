@@ -224,4 +224,29 @@ internal sealed partial class Simulation
             Witnessed(witness, thief, store, amount, fact, recognised, seen ? PerceptionMode.Seen : PerceptionMode.Heard, light);
         }
     }
+
+    // ---------------------------------------------------------------- T6c-5: the player's memory of doors
+
+    /// <summary>A door is seen from next to it, or in line of sight with at least dim light on it.</summary>
+    internal bool SeesDoor(Actor actor, GridMap map, GridPos door) =>
+        actor.MapArea == map.Area && CurrentPosition(actor) is { } eye
+        && (eye.IsAdjacentOrSame(door) || (map.HasLineOfSight(eye, door) && LightOn(map, door) >= Light.Dim));
+
+    /// <summary>The player remembers the doors it sees now, as they are now. Called at processed instants and after commands only.</summary>
+    internal void RememberDoors()
+    {
+        var player = World.Actors[World.Player];
+        if (player.MapArea is not { } area || !World.Maps.TryGetValue(area, out var map))
+            return;
+        foreach (var (at, open) in map.Doors)
+            if (SeesDoor(player, map, at))
+                player.DoorMemory[new DoorKey(area, at)] = new RememberedDoor(open, World.Now);
+    }
+
+    /// <summary>The player knows the state of a door it opens or closes itself, even passing through in the dark.</summary>
+    private void Touched(Actor actor, GridMap map, GridPos door)
+    {
+        if (actor.IsPlayer)
+            actor.DoorMemory[new DoorKey(map.Area, door)] = new RememberedDoor(map.Doors[door], World.Now);
+    }
 }

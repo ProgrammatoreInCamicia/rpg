@@ -155,6 +155,7 @@ internal sealed partial class Simulation
     {
         NoteSensesChange(map);
         map.SetDoor(door, open: true);
+        Touched(actor, map, door);
         NoteSensesChange(map);
         World.RecordFact("DoorOpened", $"{actor.Name} apre la porta in {door}.", actor.Id);
     }
@@ -180,6 +181,7 @@ internal sealed partial class Simulation
 
         NoteSensesChange(map);
         map.SetDoor(command.At, command.Open);
+        Touched(actor, map, command.At);
         NoteSensesChange(map);
         World.RecordFact(command.Open ? "DoorOpened" : "DoorClosed",
             $"{actor.Name} {(command.Open ? "apre" : "chiude")} la porta in {command.At}.", actor.Id);

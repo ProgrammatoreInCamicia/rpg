@@ -95,6 +95,7 @@ internal sealed class ActorDto
     public int? Sneak { get; set; }
     public int Torches { get; set; }
     public long? TorchLitUntil { get; set; }
+    public List<RememberedDoorDto> Doors { get; set; } = new();
     public List<ObservationDto> Knowledge { get; set; } = new();
     public List<long> ActedOn { get; set; } = new();
 }
@@ -354,4 +355,13 @@ internal sealed class SpanDto
 {
     public long From { get; set; }
     public long? To { get; set; }
+}
+
+internal sealed class RememberedDoorDto
+{
+    public string Area { get; set; } = "";
+    public int X { get; set; }
+    public int Y { get; set; }
+    public bool Open { get; set; }
+    public long SeenAt { get; set; }
 }

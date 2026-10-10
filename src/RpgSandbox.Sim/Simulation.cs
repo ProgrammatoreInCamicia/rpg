@@ -26,6 +26,7 @@ internal sealed partial class Simulation
                 EvaluateFactionPolicy(faction);
         }
         DecideForFreeNpcs();
+        RememberDoors(); // what the player sees from where it starts (T6c-5)
     }
 
     public GameTime TargetAfter(Duration duration)
@@ -109,6 +110,7 @@ internal sealed partial class Simulation
             // Phase 3: free NPCs decide what to do next.
             DecideForFreeNpcs();
             EvaluateContacts();
+            RememberDoors(); // T6c-5: only at processed instants, so chunks of time do not matter
 
             if (completedAwaited)
                 return AdvanceOutcome.Completed;

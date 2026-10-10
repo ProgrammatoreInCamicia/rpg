@@ -171,6 +171,10 @@ internal static class SaveGame
             Sneak = a.Sneak,
             Torches = a.Torches,
             TorchLitUntil = a.TorchLitUntil?.Seconds,
+            Doors = a.DoorMemory.Select(d => new RememberedDoorDto
+            {
+                Area = d.Key.Area.Value, X = d.Key.At.X, Y = d.Key.At.Y, Open = d.Value.Open, SeenAt = d.Value.SeenAt.Seconds,
+            }).ToList(),
             Knowledge = a.Knowledge.Select(ToDto).ToList(),
             ActedOn = a.ActedOn.Select(o => o.Value).ToList(),
         }).ToList(),
@@ -453,6 +457,13 @@ internal static class SaveGame
             }
             foreach (var origin in a.ActedOn)
                 actor.ActedOn.Add(new ObservationId(origin));
+            foreach (var door in a.Doors ?? throw new InvalidDataException($"porte ricordate da '{a.Id}' mancanti"))
+            {
+                Check(door is not null && w.Maps.TryGetValue(new AreaId(door.Area), out var doorMap) && doorMap.IsDoor(new GridPos(door.X, door.Y))
+                      && door.SeenAt <= d.Now && a.IsPlayer, $"porta ricordata da '{a.Id}' non valida");
+                Check(actor.DoorMemory.TryAdd(new DoorKey(new AreaId(door!.Area), new GridPos(door.X, door.Y)), new RememberedDoor(door.Open, new GameTime(door.SeenAt))),
+                    $"porta ricordata due volte da '{a.Id}'");
+            }
             ValidateActor(w, actor);
             AddUnique(w.Actors, actor.Id, actor, "attore");
         }

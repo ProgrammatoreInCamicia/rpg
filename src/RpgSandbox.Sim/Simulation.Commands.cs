@@ -10,6 +10,7 @@ internal sealed partial class Simulation
     public CommandResult Execute(Command command)
     {
         var result = Dispatch(command);
+        RememberDoors(); // a command may open a door or move the player's view (T6c-5)
         // Anything louder than a whisper ends sneaking (SRD Hide): talking, depositing, waiting... Taking food quietly,
         // stopping, a door or a torch do not (a lit torch gives you away by its light anyway); a normal walk ends it in StartMove.
         if (result.Success && command is not (MoveCommand or StopCommand or TakeFoodCommand or DoorCommand or TorchCommand)

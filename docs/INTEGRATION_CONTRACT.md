@@ -366,3 +366,20 @@ Sulle mappe "nello stesso luogo" diventa contatto fisico; fuori mappa non cambia
   - sulle mappe l'ingresso in una zona non fa più scattare `NoticeArrival`.
 - **Vigilanza**: chi vigila va al posto Work del luogo del deposito.
 - **Tentativo fermato**: `RaidFoiled` registra anche la guardia che ha fermato il ladro. Affrontarlo sarà uno scontro (C2).
+
+## T6c-5 — Luce per testimone, memoria delle porte, presenze udite
+
+- **Luce dei furti per testimone**:
+  - ogni furto in corso su una mappa tiene il registro della luce di lampade e torce sulla casella del ladro, con l'istante di ogni cambio (`SourceLightLog`);
+  - per ogni attore tiene anche gli intervalli in cui ha avuto la linea di vista sul ladro (`Sight`);
+  - questi registri si aggiornano a ogni movimento, torcia, porta e partenza;
+  - alla fine la luce migliore conta solo dentro gli intervalli in vista, unendo luce del giorno e lampade. `SeenAtStart` resta l'evidenza per il riconoscimento.
+  - Sostituisce `BestLight` e l'approssimazione con `ArrivedAt`.
+- **Memoria delle porte** (solo del giocatore, `Actor.DoorMemory`):
+  - `PlayerView.Doors` è `DoorView { At, Known, Open (bool?), SeenAt }` con `Known` uguale a `Seen` (vista ora: accanto, o in linea di vista con almeno luce fioca), `Remembered` (stato e istante dell'ultima volta) oppure `Unknown` (`Open` null);
+  - la memoria si aggiorna solo negli istanti elaborati e dopo ogni comando, mai alla fine di un `Advance` qualsiasi, così spezzare il tempo non cambia il risultato;
+  - una porta che il giocatore apre o chiude da sé è nota anche al buio.
+  - Limite: una porta che diventa visibile solo per la luce del giorno, senza alcun evento, viene ricordata al primo istante elaborato successivo.
+- **UnseenNearby**: conta solo le presenze adiacenti non viste che il giocatore sente. Chi è furtivo con una Furtività superiore alla sua Percezione passiva non conta.
+- **Limite aperto** (Codex): `PlayerView.MapLight` mostra la luce reale di tutta la mappa, quindi un cambio fuori vista può trasparire dalla luce. Si risolve con una tappa di nebbia di guerra (luce e oggetti percepiti).
+- Schema dei salvataggi 13.

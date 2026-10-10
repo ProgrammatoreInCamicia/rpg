@@ -63,6 +63,12 @@ internal sealed class Actor
     /// </summary>
     public GameTime? TorchLitUntil { get; set; }
 
+    /// <summary>
+    /// T6c-5, the player only: the last state seen of each door, and when (a door changed out of sight keeps the
+    /// state remembered). Updated at every processed instant and after every command.
+    /// </summary>
+    public SortedDictionary<DoorKey, RememberedDoor> DoorMemory { get; } = new(DoorKey.Order);
+
     /// <summary>When the actor last arrived at <see cref="Location"/>: decides whether a witness saw a deed from its start.</summary>
     public GameTime ArrivedAt { get; set; }
 
@@ -441,3 +447,13 @@ internal sealed class WorldState
         return id;
     }
 }
+
+/// <summary>A door of a map, as a key of the player's memory.</summary>
+internal readonly record struct DoorKey(AreaId Area, GridPos At)
+{
+    public static readonly IComparer<DoorKey> Order = Comparer<DoorKey>.Create((a, b) =>
+        string.CompareOrdinal(a.Area.Value, b.Area.Value) is var c && c != 0 ? c : (a.At.Y, a.At.X).CompareTo((b.At.Y, b.At.X)));
+}
+
+/// <summary>A door as last seen: open or closed, and when.</summary>
+internal sealed record RememberedDoor(bool Open, GameTime SeenAt);
