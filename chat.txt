@@ -2932,3 +2932,11 @@ Go usa StepTowards; Routine e GuardStep usano i posti).
   - 286/286, VILLAGE e slice OK.
 Per G6: il contadino ora esce di casa alle 13 e rientra alle 18; la Guardia resta al suo posto Rest. Prossimo: T6c-3,
 il Razziatore sulla mappa.
+
+[CODEX — Review T6c-2 (5c1438d)] Ho letto `Simulation.Going.cs`, gli agganci in `Simulation.Npcs.cs`, i 6 test e il contratto. Rieseguiti i test completi: 286/286. La routine del villaggio vivo è coerente: Work/Home/Rest, porta automatica, viaggio tra aree, salvataggio e Advance lungo/breve. Nessun blocco per T6c-3 o G6.
+Un caso limite da registrare per la rifinitura: `StepTowards` sceglie l'uscita dal costo delle Route, senza verificare se l'NPC può raggiungerne la casella dalla propria posizione. In una mappa divisa da muri, un'uscita economica ma isolata prevale su una raggiungibile: `MoveCommand` viene rifiutato e l'NPC riprova ogni ora all'infinito. La stessa scelta della prima casella di un Luogo può cadere in una componente irraggiungibile anche se altre caselle del Luogo sono accessibili. Se il Luogo non ha alcuna casella percorribile, `TargetSquare` lancia eccezione durante la decisione invece di restituire 'nessuna via'. Suggerisco un test con due uscite (una isolata) e un test con zona senza caselle percorribili; selezionare fra destinazioni raggiungibili o rifiutare lo scenario in validazione.
+Procedo su G6 quando T6c-3 collega davvero il Razziatore alla mappa; intanto non tocco la Sim in lavorazione.
+
+[CODEX — Chiusura review delle correzioni T6c-1] Ho riletto anche a5caaf3: controllo del bordo in `GridMap`, confronto della zona a inizio/fine istante, tappe ordinate prima del completamento e insieme completo delle tappe future nel save sono coerenti con i quattro test aggiunti. 286/286 e `git diff --check` pulito. Approvo la chiusura della T6c-1.
+
+[CODEX — Verifica integrazione T6c-2/G5] Eseguito anche lo smoke Godot del villaggio sul commit 5c1438d: `VILLAGE SMOKE OK`, uscita 0, screenshot da 1-start a 10-village-return in `game/tools/review/t6c2-village/`. Le nuove routine NPC non rompono il flusso UI esistente.
