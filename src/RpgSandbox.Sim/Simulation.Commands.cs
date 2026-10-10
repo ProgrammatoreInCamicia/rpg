@@ -46,6 +46,10 @@ internal sealed partial class Simulation
         if (!World.Routes.TryGetValue((origin, destination.Id), out var travelTime))
             return CommandResult.Rejected(RejectionReason.RouteNotFound,
                 $"Nessun collegamento diretto da {World.Locations[origin].Name} a {destination.Name}.");
+        // T6c: a journey leaves a map only from the exit square of its place.
+        if (MapOf(actor) is { } map && (!map.Exits.TryGetValue(origin, out var exit) || CurrentPosition(actor) != exit))
+            return CommandResult.Rejected(RejectionReason.NotAtExit,
+                $"Per partire verso {destination.Name} raggiungi l'uscita di {World.Locations[origin].Name}.");
 
         var travel = new TravelAction
         {
@@ -58,6 +62,8 @@ internal sealed partial class Simulation
             Description = $"In viaggio verso {destination.Name}",
         };
         actor.Location = null;
+        actor.Position = null; // off the map for the journey
+        actor.MapArea = null;
         Begin(actor, travel);
         World.RecordFact("TravelStarted", $"{actor.Name} parte da {World.Locations[origin].Name} verso {destination.Name}.", actor.Id);
         return CommandResult.Started(travel.Id, travel.CompletesAt, $"{actor.Name} si incammina verso {destination.Name}.");
@@ -195,9 +201,16 @@ internal sealed partial class Simulation
         switch (action)
         {
             case TravelAction travel:
+                World.RecordFact("TravelCompleted", $"{actor.Name} arriva a {World.Locations[travel.Destination].Name}.", actor.Id);
+                if (World.Maps.TryGetValue(World.Locations[travel.Destination].Area, out var arrivalMap))
+                {
+                    // T6c: onto a map, on the exit square of the place; the arrival is noticed with the contacts.
+                    actor.MapArea = arrivalMap.Area;
+                    Place(actor, arrivalMap.Exits[travel.Destination]);
+                    break;
+                }
                 actor.Location = travel.Destination;
                 actor.ArrivedAt = World.Now;
-                World.RecordFact("TravelCompleted", $"{actor.Name} arriva a {World.Locations[travel.Destination].Name}.", actor.Id);
                 NoticeArrival(actor);
                 break;
             case DepositFoodAction deposit:
@@ -213,7 +226,7 @@ internal sealed partial class Simulation
                 CompleteConfiscate(actor, confiscate);
                 break;
             case MoveAction move:
-                Reach(actor, move.Path[^1]);
+                Place(actor, move.Path[^1]); // contacts follow once the instant's positions are all known
                 break;
             case GuardAction:
             case WaitAction:

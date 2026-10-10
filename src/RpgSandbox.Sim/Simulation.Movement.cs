@@ -18,7 +18,8 @@ internal sealed partial class Simulation
         // Validate everything before touching anything, including a walk already in progress.
         if (!World.Actors.TryGetValue(command.Actor, out var actor))
             return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {command.Actor}.");
-        if (actor.CurrentAction is not null and not MoveAction)
+        // A walk replaces a walk in progress or an interruptible routine wait (an NPC idling); anything else is busy.
+        if (actor.CurrentAction is not null and not MoveAction and not WaitAction { Interruptible: true })
             return CommandResult.Rejected(RejectionReason.ActorBusy, $"{actor.Name} è già impegnato.");
         if (CurrentPosition(actor) is not { } from || MapOf(actor) is not { } map)
             return CommandResult.Rejected(RejectionReason.NoMap, $"Qui non c'è una mappa su cui camminare.");
@@ -34,8 +35,8 @@ internal sealed partial class Simulation
             path = path.Take(path.Count - 1).ToList();
         }
 
-        // A new order replaces the walk in progress: stop on the square reached, then set off from there.
-        if (actor.CurrentAction is MoveAction)
+        // A new order replaces the walk in progress (stop on the square reached, then set off from there) or the idling.
+        if (actor.CurrentAction is MoveAction or WaitAction { Interruptible: true })
             CancelAction(actor);
 
         // Sneaking: SRD Slow pace and one Stealth check for as long as the actor keeps sneaking (no reroll per walk).
@@ -66,21 +67,12 @@ internal sealed partial class Simulation
         };
         Begin(actor, move);
 
-        // The only instants that matter on the way: entering or leaving a place (the arrival is the completion), and the
-        // square before each door, where the walker opens it if it is closed (free, SRD). A door next to the start is
-        // opened at once.
+        // T6c-1: a waypoint on every square of the way (the arrival is the completion), where contacts are evaluated and
+        // the door ahead, if closed, is opened (free, SRD). A door next to the start is opened at once.
         if (map.IsClosedDoor(path[0]))
             OpenDoorOnTheWay(actor, map, path[0]);
-        var zone = map.ZoneAt(from);
         for (var step = 1; step < path.Count; step++)
-        {
-            var next = map.ZoneAt(path[step - 1]);
-            var door = map.IsDoor(path[step]);
-            if (next == zone && !door && !move.Stealthy) // a sneaking walk checks every square: one may be seen there
-                continue;
-            zone = next;
             World.Scheduler.Schedule(move.StartedAt.Plus(Duration.FromSeconds(MoveAction.SecondsFor(step, move.Speed))), new MoveWaypoint(move.Id, step));
-        }
         var how = stealth is not null ? $" Furtività: {stealth.Describe()}."
             : watchedBy.Count > 0 ? $" Ti vede {string.Join(", ", watchedBy)}: vai piano, ma non puoi nasconderti." : "";
         return CommandResult.Started(move.Id, move.CompletesAt,
@@ -98,21 +90,59 @@ internal sealed partial class Simulation
     }
 
     /// <summary>The walker reaches a square where its place changes (or its destination).</summary>
-    private void Reach(Actor actor, GridPos square)
+    /// <summary>Actors placed on a new square during this instant, and whether they changed zone (see Place).</summary>
+    private readonly List<(Actor Actor, bool NewZone)> _moved = new();
+
+    /// <summary>
+    /// Moves an actor's recorded square (and zone), nothing else. Contacts are evaluated by <see cref="EvaluateContacts"/>
+    /// once every position of the instant is known, so they never depend on the order walkers were processed in.
+    /// </summary>
+    private void Place(Actor actor, GridPos square)
     {
         actor.Position = square;
-        var map = World.Maps[actor.MapArea!.Value];
-        if (actor.Sneak is not null)
-            CheckDiscovered(actor);
-        if (TorchLit(actor))
-            NoteLightChange(map); // the light moved with its bearer
-        var zone = map.ZoneAt(square);
-        if (zone == actor.Location)
+        var zone = World.Maps[actor.MapArea!.Value].ZoneAt(square);
+        var newZone = zone != actor.Location;
+        if (newZone)
+        {
+            actor.Location = zone;
+            actor.ArrivedAt = World.Now;
+        }
+        _moved.Add((actor, newZone));
+    }
+
+    /// <summary>Places an actor and evaluates the contacts at once (moves outside the per-instant phases, e.g. a stop).</summary>
+    private void Reach(Actor actor, GridPos square)
+    {
+        Place(actor, square);
+        EvaluateContacts();
+    }
+
+    /// <summary>
+    /// T6c-1: what follows from the positions of this instant, evaluated once, in actor ID order: light carried by
+    /// torch bearers (thefts in progress), arrivals in a place, then, on every map where someone moved, hidden actors
+    /// found by anyone who now sees them (the walker, or the one it walked past).
+    /// </summary>
+    private void EvaluateContacts()
+    {
+        if (_moved.Count == 0)
             return;
-        actor.Location = zone;
-        actor.ArrivedAt = World.Now;
-        if (zone is not null)
-            NoticeArrival(actor);
+        var moved = _moved
+            .GroupBy(m => m.Actor.Id)
+            .Select(g => (Actor: g.First().Actor, NewZone: g.Any(m => m.NewZone)))
+            .OrderBy(m => m.Actor.Id.Value, StringComparer.Ordinal)
+            .ToList();
+        _moved.Clear();
+        foreach (var (actor, newZone) in moved)
+        {
+            if (actor.MapArea is { } area && TorchLit(actor))
+                NoteLightChange(World.Maps[area]); // the light moved with its bearer
+            if (newZone && actor.Location is not null)
+                NoticeArrival(actor);
+        }
+        foreach (var area in moved.Select(m => m.Actor.MapArea).OfType<AreaId>().Distinct().OrderBy(a => a.Value, StringComparer.Ordinal))
+        foreach (var hidden in World.Actors.Values.Where(a => a.MapArea == area && a.Sneak is not null)
+                     .OrderBy(a => a.Id.Value, StringComparer.Ordinal).ToList())
+            CheckDiscovered(hidden);
     }
 
     private void RunWaypoint(MoveWaypoint waypoint)
@@ -120,7 +150,7 @@ internal sealed partial class Simulation
         var actor = World.Actors.Values.FirstOrDefault(a => a.CurrentAction?.Id == waypoint.Action);
         if (actor?.CurrentAction is not MoveAction move)
             return;
-        Reach(actor, move.Path[waypoint.Step - 1]);
+        Place(actor, move.Path[waypoint.Step - 1]);
         var map = World.Maps[actor.MapArea!.Value];
         if (map.IsClosedDoor(move.Path[waypoint.Step]))
             OpenDoorOnTheWay(actor, map, move.Path[waypoint.Step]);
@@ -177,8 +207,12 @@ internal sealed partial class Simulation
         if (store.Position is not { } at)
             return actor.Location is not null && actor.Location == store.Location;
         var area = World.Locations[store.Location].Area;
-        return actor.MapArea == area && CurrentPosition(actor) is { } here && here != at
-            && here.IsAdjacentOrSame(at) && OpenDiagonal(World.Maps[area], here, at);
+        if (actor.MapArea != area || CurrentPosition(actor) is not { } here)
+            return false;
+        // T6c: a store with declared access squares is used only from them (not from behind it).
+        return store.Access.Count > 0
+            ? store.Access.Contains(here)
+            : here != at && here.IsAdjacentOrSame(at) && OpenDiagonal(World.Maps[area], here, at);
     }
 
     /// <summary>Close enough to talk: adjacent squares on a mapped area, otherwise the same place.</summary>

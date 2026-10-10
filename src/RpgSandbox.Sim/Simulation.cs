@@ -37,6 +37,14 @@ internal sealed partial class Simulation
         return World.Now.Plus(duration);
     }
 
+    /// <summary>The walker a waypoint or a walk completion belongs to (null for any other job, or a stale one).</summary>
+    private Actor? WalkerOf(ScheduledJob job) => job switch
+    {
+        MoveWaypoint w => World.Actors.Values.FirstOrDefault(a => a.CurrentAction is MoveAction m && m.Id == w.Action),
+        CompleteAction c => World.Actors.Values.FirstOrDefault(a => a.CurrentAction is MoveAction m && m.Id == c.Action),
+        _ => null,
+    };
+
     public bool IsActive(ActionId action) => World.Actors.Values.Any(a => a.CurrentAction?.Id == action);
 
     /// <summary>
@@ -51,21 +59,34 @@ internal sealed partial class Simulation
             World.Now = due;
             var entries = World.Scheduler.TakeDueAt(due);
 
-            // Phase 1: action completions, in (due, sequence) order, perception included.
-            // An entry whose action was cancelled earlier in this same batch completes nothing.
+            // Phase 0 (T6c-1): positions. Waypoints and walk completions due now, in actor ID order, so every position of
+            // the instant is known before anything is judged from it; then the contacts, once.
             var completedAwaited = false;
-            foreach (var entry in entries)
+            var walking = entries
+                .Select(e => (Entry: e, Walker: WalkerOf(e.Job)))
+                .Where(x => x.Walker is not null)
+                .OrderBy(x => x.Walker!.Id.Value, StringComparer.Ordinal).ThenBy(x => x.Entry.Sequence)
+                .ToList();
+            foreach (var (entry, _) in walking)
             {
                 if (entry.Job is MoveWaypoint waypoint)
-                {
                     RunWaypoint(waypoint);
-                    continue;
-                }
-                if (entry.Job is not CompleteAction complete)
+                else if (entry.Job is CompleteAction complete)
+                    completedAwaited |= CompleteActionJob(complete.Action) && complete.Action == stopAfter;
+            }
+            EvaluateContacts();
+            var positional = walking.Select(x => x.Entry.Sequence).ToHashSet();
+
+            // Phase 1: the other action completions, in (due, sequence) order, perception included.
+            // An entry whose action was cancelled earlier in this same batch completes nothing.
+            foreach (var entry in entries)
+            {
+                if (positional.Contains(entry.Sequence) || entry.Job is not CompleteAction complete)
                     continue;
                 var completed = CompleteActionJob(complete.Action);
                 completedAwaited |= completed && complete.Action == stopAfter;
             }
+            EvaluateContacts(); // arrivals from a journey onto a map
 
             // Phase 2: faction jobs due now, in scheduling order.
             foreach (var entry in entries)
@@ -83,6 +104,7 @@ internal sealed partial class Simulation
 
             // Phase 3: free NPCs decide what to do next.
             DecideForFreeNpcs();
+            EvaluateContacts();
 
             if (completedAwaited)
                 return AdvanceOutcome.Completed;

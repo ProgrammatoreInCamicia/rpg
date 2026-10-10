@@ -106,6 +106,7 @@ public enum RejectionReason
     NotMoving,
     OutOfReach,
     NotADoor,
+    NotAtExit,
     DoorBlocked,
     NoTorch,
     AlreadyDone,

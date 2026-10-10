@@ -9,6 +9,22 @@ namespace RpgSandbox.Sim;
 /// </summary>
 internal static class Invariants
 {
+    /// <summary>
+    /// T6c: a store's declared access squares are walkable squares next to it, reached without squeezing past a
+    /// blocked corner, and there is at least one. Shared by scenarios and saves.
+    /// </summary>
+    public static string? StoreAccess(string storeId, GridMap map, GridPos store, IReadOnlyCollection<GridPos> access)
+    {
+        if (access.Count == 0)
+            return $"il deposito '{storeId}' dichiara un accesso vuoto";
+        if (access.Distinct().Count() != access.Count)
+            return $"il deposito '{storeId}' ripete una casella di accesso";
+        foreach (var square in access)
+            if (!map.IsWalkable(square) || square == store || !square.IsAdjacentOrSame(store) || !map.DiagonalOpen(square, store))
+                return $"la casella di accesso {square} del deposito '{storeId}' non è percorribile e adiacente";
+        return null;
+    }
+
     public static string? Faction(string id, int dailyUpkeep, bool hasHomeStore, Duration upkeepTimeOfDay, RaidPolicy? policy)
     {
         if (dailyUpkeep < 0)

@@ -38,7 +38,7 @@ void           Advance(Duration)                   // Duration < 0 o overflow =>
 AdvanceResult  AdvanceUntilCompleted(ActionId, Duration maxWait)
 WorldView      GetWorldView()                      // vista completa/onnisciente: SOLO debug
 PlayerView     GetPlayerView()                     // ciò che il giocatore può sapere: usarla per l'UI di gioco
-void           Save(Stream)                        // snapshot JSON autosufficiente, versione schema 11
+void           Save(Stream)                        // snapshot JSON autosufficiente, versione schema 12
 static LoadResult TryLoad(Stream)                  // NUOVA sessione; quella corrente non viene toccata
 
 // Comandi
@@ -167,7 +167,7 @@ Le parti marcate ADATTAMENTO sono scelte del gioco che applicano lo SRD 5.2.1 al
 - **Degli altri** si vede solo il gesto (`Doing`), e solo nel proprio Luogo. Intenzioni, argomenti, decisioni e conoscenze altrui restano fuori.
 
 ### Save/Load
-- **Versione dello schema 11** (la 6 ha aggiunto luoghi illuminati, modo di percezione, debiti per furto, furti saldati e carico; la 7 mappe, posizioni e cammini; la 8 le sorgenti di luce delle mappe; la 9 la furtività; la 10 porte e torce; la 11 l'evidenza fissata all'inizio dei furti). Le versioni 1–10 vengono rifiutate con un messaggio chiaro.
+- **Versione dello schema 12** (la 6 ha aggiunto luoghi illuminati, modo di percezione, debiti per furto, furti saldati e carico; la 7 mappe, posizioni e cammini; la 8 le sorgenti di luce delle mappe; la 9 la furtività; la 10 porte e torce; la 11 l'evidenza fissata all'inizio dei furti; la 12 uscite, posti e accessi ai depositi). Le versioni 1–11 vengono rifiutate con un messaggio chiaro.
 - Lo snapshot è autosufficiente e contiene anche lo stato del generatore `SplitMix64`, con il nome dell'algoritmo.
 - `TryLoad` valida forma, riferimenti, invarianti condivise con gli scenari (`Invariants.cs`), la corrispondenza 1:1 tra azioni e scadenze, i lavori periodici e la coerenza tra carico e cibo. Gli errori sono in italiano e leggibili.
 - Testato: continuare senza interruzioni equivale a salvare e caricare a metà di viaggi, furti, rapporti, presidi, vigilanze e confische.
@@ -307,3 +307,19 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
   - il recupero dello Stabile (1 PF dopo 1d4 ore);
   - il Riposo Breve del Tramortito;
   - il collegamento con gli attori e con i salvataggi (C2).
+
+## T6c-1 — Tappe, uscite, posti, accessi
+
+- **Tappe**: ogni casella di un cammino sulle mappe è una tappa. In ogni istante l'ordine è fisso:
+  1. tappe e completamenti dei cammini, in ordine di ID dell'attore; si aggiornano solo casella, zona e porte attraversate;
+  2. valutazione dei contatti, una sola volta (`EvaluateContacts`): luce della torcia per i furti in corso, arrivo in un Luogo (NoticeArrival), scoperta dei nascosti da parte di chiunque ora li veda, anche se è l'osservatore a muoversi;
+  3. le fasi di prima: altri completamenti, fazioni, decisioni.
+
+  L'ultima casella è il completamento, quindi non c'è una doppia valutazione. Un Advance lungo equivale a tanti Advance brevi. Un cammino sostituisce anche un'attesa di routine interrompibile.
+- **Uscite** (`AddExit(area, luogo, casella)`): un Luogo di bordo della mappa ("Strada per il bosco") con la sua casella di uscita.
+  - `TravelCommand` da un Luogo mappato richiede di stare sulla casella di uscita (`NotAtExit`); si lascia la mappa durante il viaggio.
+  - All'arrivo in un Luogo mappato si compare sulla sua uscita e l'arrivo si nota con i contatti.
+  - Ogni Route che tocca un Luogo di un'Area mappata richiede la sua uscita: è validato negli scenari e nei salvataggi.
+  - `MapView.Exits` elenca le uscite con le loro Route.
+- **Posti** (`AddPost(area, luogo, PostKind, casella)`; `PostKind`: Work, Home, Guard, Rest): caselle percorribili nella zona del Luogo, uno per tipo. Sono destinazioni delle routine: non danno né portata né vista.
+- **Accessi** (`AddStore(..., access: caselle)`): caselle percorribili adiacenti al deposito, con la diagonale libera. Se sono dichiarati, il deposito si usa **solo** da lì; altrimenti da qualunque casella adiacente, come prima. `StoreView.Access` li espone.

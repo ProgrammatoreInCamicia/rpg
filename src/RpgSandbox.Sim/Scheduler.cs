@@ -8,7 +8,7 @@ internal abstract record ScheduledJob;
 /// <summary>An actor's action reaches its completion time.</summary>
 internal sealed record CompleteAction(ActionId Action) : ScheduledJob;
 
-/// <summary>A walker crosses into or out of a zone at this step of its path.</summary>
+/// <summary>A walker reaches the square before this step of its path (one for every square, T6c-1).</summary>
 internal sealed record MoveWaypoint(ActionId Action, int Step) : ScheduledJob;
 
 /// <summary>A faction consumes its daily food.</summary>

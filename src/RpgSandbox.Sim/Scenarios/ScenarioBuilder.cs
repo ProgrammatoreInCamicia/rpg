@@ -50,11 +50,14 @@ internal sealed record RouteDefinition(LocationId A, LocationId B, Duration Trav
 internal sealed record ActorDefinition(
     ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food, FactionId? Faction, WorkShift? Shift,
     CharacterSheet Sheet, GridPos? At, int Torches = 0);
-internal sealed record StoreDefinition(StoreId Id, string Name, LocationId Location, int Food, FactionId? Owner, GridPos? At);
+internal sealed record StoreDefinition(StoreId Id, string Name, LocationId Location, int Food, FactionId? Owner, GridPos? At,
+    IReadOnlyList<GridPos>? Access = null);
 internal sealed record MapDefinition(AreaId Area, IReadOnlyList<string> Rows, IReadOnlyDictionary<char, LocationId> Zones)
 {
     public List<LightSource> Lights { get; } = new();
     public List<(GridPos At, bool Open)> Doors { get; } = new();
+    public List<(LocationId Location, GridPos At)> Exits { get; } = new();
+    public List<(LocationId Location, PostKind Kind, GridPos At)> Posts { get; } = new();
 }
 internal sealed record FactionDefinition(
     FactionId Id, string Name, StoreId? HomeStore, int DailyUpkeep, Duration UpkeepTimeOfDay, RaidPolicy? Policy,
@@ -133,10 +136,10 @@ public sealed class ScenarioBuilder
 
     /// <summary>Adds a store. On a mapped area, <paramref name="at"/> is the square it occupies (used from an adjacent square).</summary>
     public ScenarioBuilder AddStore(string id, string name, string locationId, int food, string? ownerFactionId = null,
-        (int X, int Y)? at = null)
+        (int X, int Y)? at = null, IEnumerable<(int X, int Y)>? access = null)
     {
         _stores.Add(new StoreDefinition(new StoreId(id), name, new LocationId(locationId), food, ToFaction(ownerFactionId),
-            at is { } p ? new GridPos(p.X, p.Y) : null));
+            at is { } p ? new GridPos(p.X, p.Y) : null, access?.Select(a => new GridPos(a.X, a.Y)).ToArray()));
         return this;
     }
 
@@ -162,6 +165,27 @@ public sealed class ScenarioBuilder
         map.Lights.Add(new LightSource(new GridPos(at.X, at.Y), brightFeet, dimFeet));
         return this;
     }
+
+    /// <summary>
+    /// T6c: makes a place on the map's edge an exit: journeys (Routes) from it start on <paramref name="at"/>, journeys to it
+    /// end there. Every Route touching a place of a mapped area needs that place's exit. Add the map first.
+    /// </summary>
+    public ScenarioBuilder AddExit(string areaId, string locationId, (int X, int Y) at)
+    {
+        MapOf(areaId, "exits").Exits.Add((new LocationId(locationId), new GridPos(at.X, at.Y)));
+        return this;
+    }
+
+    /// <summary>T6c: a named square of a place (work bench, home, guard post), where routines take people. Add the map first.</summary>
+    public ScenarioBuilder AddPost(string areaId, string locationId, PostKind kind, (int X, int Y) at)
+    {
+        MapOf(areaId, "posts").Posts.Add((new LocationId(locationId), kind, new GridPos(at.X, at.Y)));
+        return this;
+    }
+
+    private MapDefinition MapOf(string areaId, string what) =>
+        _maps.LastOrDefault(m => m.Area.Value == areaId)
+        ?? throw new InvalidOperationException($"Add the map of '{areaId}' before its {what}.");
 
     /// <summary>Puts a door on a walkable square of a mapped area (open or closed). Add the map first.</summary>
     public ScenarioBuilder AddDoor(string areaId, (int X, int Y) at, bool open)
@@ -266,7 +290,7 @@ public sealed class ScenarioBuilder
             var storeSquares = _stores.Where(s => areaOf[s.Location] == map.Area && s.At is not null).Select(s => s.At!.Value);
             try
             {
-                maps[map.Area] = new GridMap(map.Area, map.Rows, map.Zones, storeSquares, map.Lights, map.Doors);
+                maps[map.Area] = new GridMap(map.Area, map.Rows, map.Zones, storeSquares, map.Lights, map.Doors, map.Exits, map.Posts);
             }
             catch (InvalidDataException e)
             {
@@ -279,6 +303,18 @@ public sealed class ScenarioBuilder
             RequirePlaced($"Store '{store.Id}'", store.Location, store.At, maps, areaOf, mustBeWalkable: false);
         foreach (var actor in _actors)
             RequirePlaced($"Actor '{actor.Id}'", actor.Location, actor.At, maps, areaOf, mustBeWalkable: true);
+
+        // T6c: store access squares, and an exit for every place of a mapped area a Route touches.
+        foreach (var store in _stores.Where(s => s.Access is not null))
+        {
+            Require(store.At is not null, $"Store '{store.Id}' declares access squares but has no square on a map.");
+            var error = Invariants.StoreAccess(store.Id.Value, maps[areaOf[store.Location]], store.At!.Value, store.Access!);
+            Require(error is null, error ?? "");
+        }
+        foreach (var route in _routes)
+        foreach (var end in new[] { route.A, route.B })
+            Require(!maps.TryGetValue(areaOf[end], out var endMap) || endMap.Exits.ContainsKey(end),
+                $"Route '{route.A}'-'{route.B}' touches '{end}' on a mapped area, which has no exit (AddExit).");
     }
 
     private static void RequirePlaced(string what, LocationId location, GridPos? at, IReadOnlyDictionary<AreaId, GridMap> maps,

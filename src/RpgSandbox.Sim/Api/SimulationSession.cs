@@ -103,7 +103,7 @@ public sealed class SimulationSession
             Actors = Freeze(w.Actors.Values.Select(a => ToView(a, w))),
             Stores = Freeze(w.Stores.Values.Select(s => new StoreView
             {
-                Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food, Owner = s.Owner, Position = s.Position,
+                Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food, Owner = s.Owner, Position = s.Position, Access = Freeze(s.Access),
             })),
             Factions = Freeze(w.Factions.Values.Select(f => new FactionView
             {
@@ -255,7 +255,7 @@ public sealed class SimulationSession
                 ? w.Locations[s.Location].Area == map.Area && (SeenOnMap(sp) || me is { } m && m.IsAdjacentOrSame(sp))
                 : InArea(s.Location) && (s.Location == player.Location || PlaceVisible(s.Location))).Select(s => new StoreView
             {
-                Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food, Owner = s.Owner, Position = s.Position,
+                Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food, Owner = s.Owner, Position = s.Position, Access = Freeze(s.Access),
             })),
             Observations = Freeze(player.Knowledge.Select(o => ToView(o, w))),
             ReportOptions = Freeze(options),
@@ -311,6 +311,12 @@ public sealed class SimulationSession
             Area = map.Area, Width = map.Width, Height = map.Height,
             Rows = Freeze(rows.Select(r => new string(r))),
             Zones = new SortedDictionary<char, LocationId>(map.Zones.ToDictionary(z => z.Key, z => z.Value)).AsReadOnly(),
+            Exits = Freeze(map.Exits.Select(e => new ExitView
+            {
+                Location = e.Key, Name = w.Locations[e.Key].Name, At = e.Value,
+                Routes = Freeze(w.Routes.Where(r => r.Key.Item1 == e.Key).OrderBy(r => r.Key.Item2.Value, StringComparer.Ordinal)
+                    .Select(r => new RouteView { From = r.Key.Item1, To = r.Key.Item2, TravelTime = r.Value })),
+            })),
         };
     }
 

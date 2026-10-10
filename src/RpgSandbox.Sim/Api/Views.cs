@@ -219,6 +219,9 @@ public sealed record StoreView
 
     /// <summary>Square the store occupies on a mapped area (used from an adjacent square).</summary>
     public GridPos? Position { get; init; }
+
+    /// <summary>T6c: squares the store is used from, if declared (otherwise any adjacent square).</summary>
+    public IReadOnlyList<GridPos> Access { get; init; } = Array.Empty<GridPos>();
 }
 
 /// <summary>A fact recorded in the world history, as shown on the debug timeline.</summary>
@@ -273,4 +276,17 @@ public sealed record MapView
     /// <summary>'#' blocked, '.' open ground, a letter a square of the place in <see cref="Zones"/>, 'S' a store.</summary>
     public required IReadOnlyList<string> Rows { get; init; }
     public required IReadOnlyDictionary<char, LocationId> Zones { get; init; }
+
+    /// <summary>T6c: exits of the map (common knowledge, like the roads): where journeys start and where they lead.</summary>
+    public IReadOnlyList<ExitView> Exits { get; init; } = Array.Empty<ExitView>();
+}
+
+public sealed record ExitView
+{
+    public required LocationId Location { get; init; }
+    public required string Name { get; init; }
+    public required GridPos At { get; init; }
+
+    /// <summary>Places a journey from this exit can reach, with the time it takes.</summary>
+    public required IReadOnlyList<RouteView> Routes { get; init; }
 }

@@ -12,10 +12,14 @@ internal sealed class GridMap
 {
     private readonly char[,] _cells;
     private readonly HashSet<GridPos> _occupied;
+    private readonly SortedDictionary<LocationId, GridPos> _exits = new(Comparer<LocationId>.Create((a, b) => string.CompareOrdinal(a.Value, b.Value)));
+    private readonly SortedDictionary<(LocationId Location, PostKind Kind), GridPos> _posts =
+        new(Comparer<(LocationId Location, PostKind Kind)>.Create((a, b) => string.CompareOrdinal(a.Location.Value, b.Location.Value) is var c && c != 0 ? c : a.Kind.CompareTo(b.Kind)));
     private readonly SortedDictionary<GridPos, bool> _doors = new(Comparer<GridPos>.Create((a, b) => (a.Y, a.X).CompareTo((b.Y, b.X))));
 
     public GridMap(AreaId area, IReadOnlyList<string> rows, IReadOnlyDictionary<char, LocationId> zones, IEnumerable<GridPos> occupied,
-        IEnumerable<LightSource>? lights = null, IEnumerable<(GridPos At, bool Open)>? doors = null)
+        IEnumerable<LightSource>? lights = null, IEnumerable<(GridPos At, bool Open)>? doors = null,
+        IEnumerable<(LocationId Location, GridPos At)>? exits = null, IEnumerable<(LocationId Location, PostKind Kind, GridPos At)>? posts = null)
     {
         if (rows.Count == 0 || rows.Any(r => r.Length != rows[0].Length || r.Length == 0))
             throw new InvalidDataException($"la mappa dell'area '{area}' deve avere righe non vuote e della stessa lunghezza");
@@ -44,6 +48,12 @@ internal sealed class GridMap
         foreach (var (at, open) in doors ?? Array.Empty<(GridPos, bool)>())
             if (!IsWalkable(at) || !_doors.TryAdd(at, open) || Lights.Any(l => l.At == at))
                 throw new InvalidDataException($"porta non valida in {at}");
+        foreach (var (location, at) in exits ?? Array.Empty<(LocationId, GridPos)>())
+            if (!IsWalkable(at) || ZoneAt(at) != location || !_exits.TryAdd(location, at))
+                throw new InvalidDataException($"uscita di '{location}' non valida in {at}: deve essere una casella percorribile del Luogo, una per Luogo");
+        foreach (var (location, kind, at) in posts ?? Array.Empty<(LocationId, PostKind, GridPos)>())
+            if (!Enum.IsDefined(kind) || !IsWalkable(at) || ZoneAt(at) != location || !_posts.TryAdd((location, kind), at))
+                throw new InvalidDataException($"posto {kind} di '{location}' non valido in {at}: deve essere una casella percorribile del Luogo, uno per tipo");
     }
 
     public AreaId Area { get; }
@@ -58,6 +68,15 @@ internal sealed class GridMap
     public IReadOnlyCollection<GridPos> Occupied => _occupied;
 
     public IReadOnlyList<LightSource> Lights { get; }
+
+    /// <summary>
+    /// T6c: the exit square of each place on the map's edge that a Route leaves from (e.g. "the road to the woods").
+    /// A journey from that place starts on this square; a journey to it ends here.
+    /// </summary>
+    public IReadOnlyDictionary<LocationId, GridPos> Exits => _exits;
+
+    /// <summary>T6c: named squares of the places (work bench, home, guard post...).</summary>
+    public IReadOnlyDictionary<(LocationId Location, PostKind Kind), GridPos> Posts => _posts;
 
     /// <summary>Doors by square (true = open), in reading order.</summary>
     public IReadOnlyDictionary<GridPos, bool> Doors => _doors;
@@ -92,6 +111,10 @@ internal sealed class GridMap
         }
         return best;
     }
+
+    /// <summary>A step from <paramref name="from"/> to the adjacent <paramref name="to"/> does not squeeze past a blocked corner.</summary>
+    public bool DiagonalOpen(GridPos from, GridPos to) =>
+        from.X == to.X || from.Y == to.Y || (IsWalkable(new GridPos(to.X, from.Y)) && IsWalkable(new GridPos(from.X, to.Y)));
 
     public bool InBounds(GridPos p) => p.X >= 0 && p.Y >= 0 && p.X < Width && p.Y < Height;
 

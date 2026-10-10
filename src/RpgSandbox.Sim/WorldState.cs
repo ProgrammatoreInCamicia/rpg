@@ -180,6 +180,9 @@ internal sealed class Store
 
     /// <summary>Square the store occupies on a mapped area; it is used from an adjacent square.</summary>
     public GridPos? Position { get; init; }
+
+    /// <summary>T6c: the squares the store is used from, if declared; empty = any adjacent square (with an open diagonal).</summary>
+    public IReadOnlyList<GridPos> Access { get; init; } = Array.Empty<GridPos>();
     public FactionId? Owner { get; init; }
 
     /// <summary>Rations stored. Never negative.</summary>
@@ -404,10 +407,10 @@ internal sealed class WorldState
             });
         }
         foreach (var s in scenario.Stores)
-            world.Stores.Add(s.Id, new Store { Id = s.Id, Name = s.Name, Location = s.Location, Owner = s.Owner, Food = s.Food, Position = s.At });
+            world.Stores.Add(s.Id, new Store { Id = s.Id, Name = s.Name, Location = s.Location, Owner = s.Owner, Food = s.Food, Position = s.At, Access = s.Access?.ToArray() ?? Array.Empty<GridPos>() });
         foreach (var m in scenario.Maps)
             world.Maps.Add(m.Area, new GridMap(m.Area, m.Rows, m.Zones,
-                scenario.Stores.Where(s => s.At is not null && world.Locations[s.Location].Area == m.Area).Select(s => s.At!.Value), m.Lights, m.Doors));
+                scenario.Stores.Where(s => s.At is not null && world.Locations[s.Location].Area == m.Area).Select(s => s.At!.Value), m.Lights, m.Doors, m.Exits, m.Posts));
         return world;
     }
 

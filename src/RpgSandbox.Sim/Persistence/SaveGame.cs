@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 11;
+    public const int SchemaVersion = 12;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -178,6 +178,7 @@ internal static class SaveGame
         {
             Id = s.Id.Value, Name = s.Name, Location = s.Location.Value, Owner = s.Owner?.Value, Food = s.Food,
             Position = s.Position is { } sp ? new PosDto { X = sp.X, Y = sp.Y } : null,
+            Access = s.Access.Select(a => new PosDto { X = a.X, Y = a.Y }).ToList(),
         }).ToList(),
         Schedule = w.Scheduler.Entries.Select(e => new ScheduledDto
         {
@@ -201,6 +202,8 @@ internal static class SaveGame
             Area = m.Area.Value, Rows = m.Rows.ToList(), Zones = m.Zones.ToDictionary(z => z.Key.ToString(), z => z.Value.Value),
             Lights = m.Lights.Select(l => new LightDto { X = l.At.X, Y = l.At.Y, Bright = l.BrightFeet, Dim = l.DimFeet }).ToList(),
             Doors = m.Doors.Select(d => new DoorDto { X = d.Key.X, Y = d.Key.Y, Open = d.Value }).ToList(),
+            Exits = m.Exits.Select(e => new ExitDto { Location = e.Key.Value, X = e.Value.X, Y = e.Value.Y }).ToList(),
+            Posts = m.Posts.Select(p => new PostDto { Location = p.Key.Location.Value, Kind = p.Key.Kind.ToString(), X = p.Value.X, Y = p.Value.Y }).ToList(),
         }).ToList(),
     };
 
@@ -299,6 +302,8 @@ internal static class SaveGame
             {
                 Id = new StoreId(s.Id), Name = s.Name, Location = new LocationId(s.Location),
                 Owner = s.Owner is null ? null : new FactionId(s.Owner), Food = s.Food, Position = s.Position is { } sp ? new GridPos(sp.X, sp.Y) : null,
+                Access = (s.Access ?? throw new InvalidDataException($"accesso del deposito '{s.Id}' mancante"))
+                    .Select(a => a is null ? throw new InvalidDataException($"accesso del deposito '{s.Id}' non valido") : new GridPos(a.X, a.Y)).ToArray(),
             }, "deposito");
         }
         foreach (var m in d.Maps ?? throw new InvalidDataException("elenco delle mappe mancante"))
@@ -313,11 +318,24 @@ internal static class SaveGame
             var lights = m.Lights!.Select(l => new LightSource(new GridPos(l.X, l.Y), l.Bright, l.Dim));
             Check(m.Doors is not null && m.Doors.All(d => d is not null), $"porte della mappa '{area}' non valide");
             var doors = m.Doors!.Select(d => (new GridPos(d.X, d.Y), d.Open));
-            AddUnique(w.Maps, area, new GridMap(area, m.Rows!, zones, occupied, lights, doors), "mappa");
+            Check(m.Exits is not null && m.Exits.All(e => e is not null) && m.Posts is not null && m.Posts.All(p => p is not null),
+                $"uscite o posti della mappa '{area}' non validi");
+            var exits = m.Exits!.Select(e => (new LocationId(Required(e.Location, "luogo di un'uscita")), new GridPos(e.X, e.Y)));
+            var posts = m.Posts!.Select(p => (new LocationId(Required(p.Location, "luogo di un posto")),
+                Enum.TryParse<PostKind>(p.Kind, out var kind) && Enum.IsDefined(kind) ? kind : throw new InvalidDataException($"tipo di posto sconosciuto '{p.Kind}'"),
+                new GridPos(p.X, p.Y)));
+            AddUnique(w.Maps, area, new GridMap(area, m.Rows!, zones, occupied, lights, doors, exits, posts), "mappa");
         }
         foreach (var store in w.Stores.Values.Where(s => s.Position is not null))
             Check(w.Maps.TryGetValue(w.Locations[store.Location].Area, out var sm) && sm.ZoneAt(store.Position!.Value) == store.Location,
                 $"deposito '{store.Id}' fuori dalla sua zona");
+        foreach (var store in w.Stores.Values.Where(s => s.Access.Count > 0))
+            Check(store.Position is { } at && Invariants.StoreAccess(store.Id.Value, w.Maps[w.Locations[store.Location].Area], at, store.Access) is null,
+                $"accesso del deposito '{store.Id}' non valido");
+        foreach (var (from, to) in w.Routes.Keys)
+        foreach (var end in new[] { from, to })
+            Check(!w.Maps.TryGetValue(w.Locations[end].Area, out var endMap) || endMap.Exits.ContainsKey(end),
+                $"percorso '{from}'-'{to}' da un luogo mappato senza uscita");
         foreach (var f in d.Factions)
         {
             AddUnique(w.Factions, new FactionId(f.Id), new Faction
