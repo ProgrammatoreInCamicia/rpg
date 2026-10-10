@@ -71,6 +71,7 @@ public partial class Main : Node2D
 	private bool _showSheet;
 	private SpinBox _depositAmount = null!;
 	private HFlowContainer _peopleRow = null!;
+	private Label _unseenLabel = null!;
 	private VBoxContainer _talkBox = null!;
 	private Button _waitButton = null!;
 	private Button _saveButton = null!;
@@ -201,6 +202,11 @@ public partial class Main : Node2D
 	}
 
 	internal ActorId? TalkingTo => _talkingTo;
+	internal IReadOnlyList<string> TalkTopicTexts => _talkBox.GetChildren().OfType<Button>()
+		.Where(button => button.Text.StartsWith("Racconta: ", StringComparison.Ordinal))
+		.Select(button => button.Text).ToArray();
+	internal string JournalText => _journalLabel.Text;
+	internal string UnseenText => _unseenLabel.Text;
 
 	/// <summary>
 	/// Opens "Parla con…" for someone standing here. Talking to someone elsewhere is not possible: the player is
@@ -349,6 +355,8 @@ public partial class Main : Node2D
 			return;
 		}
 		_sim = result.Session!;
+		_talkingTo = null;
+		_talkKey = "";
 		RestorePlayback();
 		Refresh();
 		ShowMessage($"Partita caricata ({Clock(_player.Now)}).");
@@ -418,6 +426,10 @@ public partial class Main : Node2D
 			: "⚠ È un furto.";
 
 		RefreshTalk(busy);
+		_unseenLabel.Visible = _player.UnseenNearby > 0;
+		_unseenLabel.Text = _player.UnseenNearby == 1
+			? "Senti qualcuno vicino, ma è troppo buio per capire chi."
+			: $"Senti persone vicine ({_player.UnseenNearby}), ma è troppo buio per capire chi sono.";
 
 		// Store contents: what the player can see, or everything in debug mode.
 		var stores = _debug ? _world.Stores : _player.VisibleStores;
@@ -482,7 +494,9 @@ public partial class Main : Node2D
 	private static string JournalLine(ObservationView o)
 	{
 		var who = o.ThiefName ?? "qualcuno che non hai riconosciuto";
-		var how = o.SourceName is { } source ? $"te l'ha detto {source}" : "l'hai visto tu";
+		var how = o.SourceName is { } source
+			? $"te l'ha detto {source}; il primo testimone {(o.Perceived == "Heard" ? "ha sentito" : "ha visto")} il furto"
+			: o.Perceived == "Heard" ? "l'hai sentito tu" : "l'hai visto tu";
 		var told = o.ToldTo.Count > 0 ? $" Già raccontato a {o.ToldTo.Count} persona/e." : "";
 		return $"• Giorno {o.ObservedAt.Day + 1} {Clock(o.ObservedAt)}: {who} ha rubato {o.Amount} razioni da {o.StoreName} ({how}).{told}";
 	}
@@ -498,8 +512,8 @@ public partial class Main : Node2D
 		if (_talkingTo is not null && person is null)
 			_talkingTo = null; // they left, or the player did
 
-		var key = string.Join("|", people.Select(p => p.Id)) + "#" + _talkingTo + "#" +
-				  string.Join("|", person?.Topics.Select(t => t.Observation) ?? Array.Empty<ObservationId>()) + "#" + person?.Doing;
+		var key = string.Join("|", people.Select(p => $"{p.Id}:{p.Name}")) + "#" + _talkingTo + "#" +
+				  string.Join("|", person?.Topics.Select(t => $"{t.Kind}:{t.Observation}:{t.Summary}") ?? Array.Empty<string>()) + "#" + person?.Name + "#" + person?.Doing;
 		if (key != _talkKey)
 		{
 			_talkKey = key;
@@ -870,6 +884,9 @@ public partial class Main : Node2D
 		_peopleRow = new HFlowContainer();
 		_peopleRow.AddThemeConstantOverride("h_separation", 6);
 		details.AddChild(_peopleRow);
+		_unseenLabel = SmallLabel("");
+		_unseenLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		details.AddChild(_unseenLabel);
 		_talkBox = new VBoxContainer();
 		_talkBox.AddThemeConstantOverride("separation", 6);
 		details.AddChild(_talkBox);
