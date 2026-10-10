@@ -49,6 +49,12 @@ public sealed record ReportCommand : Command
 public sealed record MoveCommand : Command
 {
     public required GridPos To { get; init; }
+
+    /// <summary>
+    /// Walk up to <see cref="To"/> and stop on the square before it (to talk to someone or reach something there).
+    /// Rejected as already there if no step is needed.
+    /// </summary>
+    public bool StopNextTo { get; init; }
 }
 
 /// <summary>Stop walking, on the last square reached. Time then stands still until the next action.</summary>

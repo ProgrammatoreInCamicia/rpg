@@ -51,7 +51,10 @@ internal sealed record ActorDefinition(
     ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food, FactionId? Faction, WorkShift? Shift,
     CharacterSheet Sheet, GridPos? At);
 internal sealed record StoreDefinition(StoreId Id, string Name, LocationId Location, int Food, FactionId? Owner, GridPos? At);
-internal sealed record MapDefinition(AreaId Area, IReadOnlyList<string> Rows, IReadOnlyDictionary<char, LocationId> Zones);
+internal sealed record MapDefinition(AreaId Area, IReadOnlyList<string> Rows, IReadOnlyDictionary<char, LocationId> Zones)
+{
+    public List<LightSource> Lights { get; } = new();
+}
 internal sealed record FactionDefinition(
     FactionId Id, string Name, StoreId? HomeStore, int DailyUpkeep, Duration UpkeepTimeOfDay, RaidPolicy? Policy,
     ActorId? Authority);
@@ -144,6 +147,18 @@ public sealed class ScenarioBuilder
     {
         _maps.Add(new MapDefinition(new AreaId(areaId), rows.ToArray(),
             zones.ToDictionary(z => z.Key, z => new LocationId(z.Value))));
+        return this;
+    }
+
+    /// <summary>
+    /// Puts a light on a square of a mapped area: Bright Light within <paramref name="brightFeet"/>, Dim Light for
+    /// <paramref name="dimFeet"/> more (SRD: Lamp 15/30, Torch 20/20, Candle 5/5). Add the map first.
+    /// </summary>
+    public ScenarioBuilder AddLight(string areaId, (int X, int Y) at, int brightFeet, int dimFeet)
+    {
+        var map = _maps.LastOrDefault(m => m.Area.Value == areaId)
+                  ?? throw new InvalidOperationException($"Add the map of '{areaId}' before its lights.");
+        map.Lights.Add(new LightSource(new GridPos(at.X, at.Y), brightFeet, dimFeet));
         return this;
     }
 
@@ -241,7 +256,7 @@ public sealed class ScenarioBuilder
             var storeSquares = _stores.Where(s => areaOf[s.Location] == map.Area && s.At is not null).Select(s => s.At!.Value);
             try
             {
-                maps[map.Area] = new GridMap(map.Area, map.Rows, map.Zones, storeSquares);
+                maps[map.Area] = new GridMap(map.Area, map.Rows, map.Zones, storeSquares, map.Lights);
             }
             catch (InvalidDataException e)
             {

@@ -47,6 +47,15 @@ internal static class Perception
         return (Light)Math.Max((int)best, (int)LightAt(place, to));
     }
 
+    /// <summary>The best daylight between two instants (it only changes on the hour).</summary>
+    public static Light BestDaylightDuring(GameTime from, GameTime to)
+    {
+        var best = DaylightAt(from);
+        for (var t = (from.Seconds / 3600 + 1) * 3600; t <= to.Seconds && best < Light.Bright; t += 3600)
+            best = (Light)Math.Max((int)best, (int)DaylightAt(new GameTime(t)));
+        return (Light)Math.Max((int)best, (int)DaylightAt(to));
+    }
+
     public static string Describe(Light light) => light switch
     {
         Light.Bright => "luce piena",

@@ -5,15 +5,14 @@ namespace RpgSandbox.Sim;
 // T6b: sight and hearing on area maps (ADAPTATION, see the contract). Off the maps, perception stays place-based.
 internal sealed partial class Simulation
 {
-    /// <summary>Light on a square: its place's light (lamps included), or daylight on open ground.</summary>
-    internal Light LightOn(GridMap map, GridPos square) =>
-        map.ZoneAt(square) is { } zone ? Perception.LightAt(World.Locations[zone], World.Now) : Perception.DaylightAt(World.Now);
+    /// <summary>Light on a square: the better of daylight and the map's light sources (lamps, torches).</summary>
+    internal Light LightOn(GridMap map, GridPos square) => Max(Perception.DaylightAt(World.Now), map.SourceLight(square));
 
-    /// <summary>The best light on a square over a stretch of time (light only changes on the hour).</summary>
+    /// <summary>The best light on a square over a stretch of time: sources are steady, daylight changes on the hour.</summary>
     private Light BestLightOn(GridMap map, GridPos square, GameTime from, GameTime to) =>
-        map.ZoneAt(square) is { } zone
-            ? Perception.BestLightDuring(World.Locations[zone], from, to)
-            : Perception.BestLightDuring(new Location { Id = default, Name = "", Area = map.Area }, from, to);
+        Max(Perception.BestDaylightDuring(from, to), map.SourceLight(square));
+
+    private static Light Max(Light a, Light b) => a > b ? a : b;
 
     /// <summary>Whether <paramref name="watcher"/> can see what stands on <paramref name="square"/> right now.</summary>
     internal bool CanSee(GridMap map, GridPos watcher, GridPos square) =>

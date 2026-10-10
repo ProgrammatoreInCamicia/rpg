@@ -29,8 +29,17 @@ public sealed record PlayerView
     /// <summary>The map of the player's area, if it has one (common knowledge, like the place names).</summary>
     public MapView? Map { get; init; }
 
-    /// <summary>Light where the player is, by time of day: it decides what can be seen (see the rules notes).</summary>
+    /// <summary>
+    /// Light on each square of <see cref="Map"/> right now, one character per square: '0' dark, '1' dim, '2' bright.
+    /// These are the levels the rules use; any softening between them is presentation.
+    /// </summary>
+    public IReadOnlyList<string>? MapLight { get; init; }
+
+    /// <summary>Light where the player stands (daylight, lamps): it decides what can be seen (see the rules notes).</summary>
     public Light Light { get; init; }
+
+    /// <summary>Daylight outdoors right now, whatever lamps are near: day, dawn or dusk, night.</summary>
+    public Light Daylight { get; init; }
 
     /// <summary>People right next to the player that it cannot see (darkness): only their presence is known.</summary>
     public int UnseenNearby { get; init; }

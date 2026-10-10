@@ -6,7 +6,8 @@ using RpgSandbox.Sim.Scenarios;
 namespace RpgSandbox.Game;
 
 /// <summary>
-/// T6a client: the village as an isometric grid drawn from <see cref="MapView"/>. Click a square to walk there,
+/// T6a client: the village as an isometric grid drawn from <see cref="MapView"/>. Click a square to walk there, click
+/// someone to walk up to them and talk; each square is shaded by its own light (T6b),
 /// Space or "Fermati" to stop. Walking plays out at one game second per real second (Speed 30 = one square per
 /// second), so stopping stops the clock. Positions, paths, reach and timing all come from the core.
 /// </summary>
@@ -33,7 +34,9 @@ public partial class VillageMap : Node2D
 	private Camera2D _camera = null!;
 	private Polygon2D _hover = null!;
 	private Polygon2D _target = null!;
-	private CanvasModulate _daylight = null!;
+	private readonly Dictionary<GridPos, CanvasItem> _lit = new(); // floor, walls and stores, shaded by their square's light
+	private float[,] _glow = new float[0, 0];
+	private string _lightKey = "";
 	private readonly Dictionary<ActorId, Node2D> _tokens = new();
 	private readonly Dictionary<StoreId, Label> _storeLabels = new();
 
@@ -47,6 +50,8 @@ public partial class VillageMap : Node2D
 	private Label _message = null!;
 
 	private ActionId? _running;
+	private ActorId? _approaching; // walking up to someone to talk to them
+	private ActorId? _talkingTo;
 	private bool _walking;
 	private double _speed = 1;
 	private double _pending;
@@ -57,8 +62,6 @@ public partial class VillageMap : Node2D
 		_sim = SimulationSession.Create(MappedVillageScenario.Create());
 		_view = _sim.GetPlayerView();
 
-		_daylight = new CanvasModulate();
-		AddChild(_daylight);
 		BuildMap();
 		BuildUi();
 		Refresh();
@@ -81,13 +84,19 @@ public partial class VillageMap : Node2D
 			{
 				_pending -= whole;
 				var result = _sim.AdvanceUntilCompleted(action, Duration.FromSeconds(whole));
+				ActorId? arrived = null;
 				if (result.Outcome != AdvanceOutcome.TimeLimitReached)
 				{
 					_running = null;
 					_walking = false;
 					_pending = 0;
+					if (result.Outcome == AdvanceOutcome.Completed)
+						arrived = _approaching;
+					_approaching = null;
 				}
 				Refresh();
+				if (arrived is { } who)
+					OpenTalk(who);
 			}
 		}
 		PlaceTokens();
@@ -106,7 +115,11 @@ public partial class VillageMap : Node2D
 		{
 			case MouseButton.Left:
 				var point = GetGlobalTransformWithCanvas().AffineInverse() * mouse.Position;
-				MoveTo(ScreenToCell(point));
+				// A figure stands above its square: clicking on its body means that person, not the square behind.
+				if (PersonAt(point) is { } person)
+					TalkTo(person);
+				else
+					MoveTo(ScreenToCell(point));
 				break;
 			case MouseButton.WheelUp:
 				_camera.Zoom = (_camera.Zoom * 1.1f).Clamp(new Vector2(0.5f, 0.5f), new Vector2(3f, 3f));
@@ -123,23 +136,74 @@ public partial class VillageMap : Node2D
 	internal bool IsBusy => _running is not null;
 	internal bool IsWalking => _walking;
 	internal string LastMessage => _message.Text;
+	internal ActorId? TalkingTo => _talkingTo;
+
+	/// <summary>World position of a visible figure's body (used by the smoke runner to click on it).</summary>
+	internal Vector2? BodyPointOf(ActorId id) =>
+		_tokens.TryGetValue(id, out var token) && token.Visible ? token.Position + new Vector2(0, -18) : null;
 
 	/// <summary>Walk to a square. A walk in progress is replaced (the core stops it on the square reached).</summary>
 	public void MoveTo(GridPos cell)
 	{
+		if (Walk(new MoveCommand { Actor = _sim.Player, To = cell }))
+			_approaching = null;
+	}
+
+	/// <summary>
+	/// Click on someone: talk to them if they are next to you, otherwise walk up to them (the core picks the square
+	/// before theirs on the way) and talk on arrival.
+	/// </summary>
+	public void TalkTo(ActorId person)
+	{
+		if (_view.PeopleHere.Any(p => p.Id == person))
+		{
+			OpenTalk(person);
+			return;
+		}
+		if (_view.VisibleActors.FirstOrDefault(a => a.Id == person) is not { Position: { } there } seen)
+			return;
+		if (Walk(new MoveCommand { Actor = _sim.Player, To = there, StopNextTo = true }))
+		{
+			_approaching = person;
+			ShowMessage($"Vai da {seen.Name}.");
+		}
+	}
+
+	private bool Walk(MoveCommand command)
+	{
 		if (_running is not null && !_walking)
-			return; // busy with a fixed-length activity
-		var result = _sim.Execute(new MoveCommand { Actor = _sim.Player, To = cell });
+			return false; // busy with a fixed-length activity
+		var result = _sim.Execute(command);
 		if (!result.Success)
 		{
 			ShowMessage(result.Message);
-			return;
+			return false;
 		}
 		_running = result.Action;
 		_walking = true;
 		_speed = 1; // one game second per real second while walking
-		_target.Position = CellToScreen(cell);
+		_target.Position = CellToScreen(_sim.GetPlayerView().Move!.Path[^1]);
 		_target.Visible = true;
+		Refresh();
+		return true;
+	}
+
+	private void OpenTalk(ActorId person)
+	{
+		if (_view.PeopleHere.FirstOrDefault(p => p.Id == person) is not { } there)
+		{
+			var name = _view.VisibleActors.FirstOrDefault(a => a.Id == person)?.Name ?? "Chi cercavi";
+			ShowMessage($"{name} non è più lì.");
+			return;
+		}
+		_talkingTo = person;
+		ShowMessage($"Parli con {there.Name}.");
+		Refresh();
+	}
+
+	private void CloseTalk()
+	{
+		_talkingTo = null;
 		Refresh();
 	}
 
@@ -150,6 +214,7 @@ public partial class VillageMap : Node2D
 		var result = _sim.Execute(new StopCommand { Actor = _sim.Player });
 		_running = null;
 		_walking = false;
+		_approaching = null;
 		_pending = 0;
 		_target.Visible = false;
 		ShowMessage(result.Message);
@@ -226,6 +291,9 @@ public partial class VillageMap : Node2D
 		}
 		_sim = result.Session!;
 		_peopleKey = "";
+		_lightKey = "";
+		_approaching = null;
+		_talkingTo = null;
 		// Resume a walk or activity that was in progress when saving.
 		var view = _sim.GetPlayerView();
 		_running = view.Action?.Id;
@@ -244,17 +312,12 @@ public partial class VillageMap : Node2D
 	{
 		_view = _sim.GetPlayerView();
 		var now = _view.Now;
-		_clock.Text = $"Giorno {now.Day + 1}   {now.Hour:00}:{now.Minute:00}:{now.Second:00}   {LightName(_view.Light)}";
+		_clock.Text = $"Giorno {now.Day + 1}   {now.Hour:00}:{now.Minute:00}:{now.Second:00}   {DayName(_view.Daylight)}   ({HereName(_view.Light)})";
 		var where = _view.Location is { } here ? _view.Locations.Single(l => l.Id == here).Name : "strada";
 		_status.Text = _walking ? $"Cammini… ({where})" : $"Sei qui: {where}. Clicca dove vuoi andare.";
 		_food.Text = $"Razioni con te: {_view.Food}";
 		_stop.Disabled = !_walking;
-		_daylight.Color = _view.Light switch
-		{
-			Light.Bright => Colors.White,
-			Light.Dim => new Color(0.78f, 0.72f, 0.82f),
-			_ => new Color(0.38f, 0.42f, 0.62f),
-		};
+		ShadeMap();
 		if (!_walking)
 			_target.Visible = false;
 
@@ -270,7 +333,10 @@ public partial class VillageMap : Node2D
 
 	private void RefreshPeople()
 	{
-		var key = string.Join("|", _view.PeopleHere.Select(p => $"{p.Id}:{p.Topics.Count}")) + "#" + _view.UnseenNearby;
+		// The conversation ends by itself when you walk away (or the other does).
+		if (_talkingTo is { } talking && _view.PeopleHere.All(p => p.Id != talking))
+			_talkingTo = null;
+		var key = string.Join("|", _view.PeopleHere.Select(p => $"{p.Id}:{p.Topics.Count}:{p.Doing}")) + "#" + _view.UnseenNearby + "#" + _talkingTo;
 		if (key == _peopleKey)
 			return;
 		_peopleKey = key;
@@ -278,10 +344,17 @@ public partial class VillageMap : Node2D
 			child.QueueFree();
 		foreach (var person in _view.PeopleHere)
 		{
-			var title = new Label { Text = $"Accanto a te: {person.Name}" + (person.Doing is { } d ? $" ({d})" : "") };
+			var doing = person.Doing is { } d ? $" ({d})" : "";
+			if (person.Id != _talkingTo)
+			{
+				_people.AddChild(new Label { Text = $"Accanto a te: {person.Name}{doing}. Clicca sul personaggio per parlare." });
+				continue;
+			}
+			var title = new Label { Text = $"Parli con {person.Name}{doing}" };
+			title.AddThemeFontSizeOverride("font_size", 16);
 			_people.AddChild(title);
 			if (person.Topics.Count == 0)
-				_people.AddChild(new Label { Text = "  Non hai niente di nuovo da raccontargli." });
+				_people.AddChild(new Label { Text = "  Non hai niente di nuovo da raccontare." });
 			foreach (var topic in person.Topics)
 			{
 				var id = person.Id;
@@ -289,6 +362,9 @@ public partial class VillageMap : Node2D
 				tell.Pressed += () => Tell(id, topic);
 				_people.AddChild(tell);
 			}
+			var bye = new Button { Text = "Congedati" };
+			bye.Pressed += CloseTalk;
+			_people.AddChild(bye);
 		}
 		if (_view.UnseenNearby > 0)
 			_people.AddChild(new Label { Text = "Senti qualcuno vicino, ma è troppo buio per capire chi." });
@@ -315,6 +391,7 @@ public partial class VillageMap : Node2D
 				_sorted.AddChild(token);
 			}
 			token.Position = SmoothPosition(figure.Position.Value, figure.Move);
+			token.Modulate = Shade(ScreenToCell(token.Position));
 			shown.Add(figure.Id);
 		}
 		foreach (var (id, token) in _tokens)
@@ -341,11 +418,58 @@ public partial class VillageMap : Node2D
 		return CellToScreen(from).Lerp(CellToScreen(to), (float)(steps - reached));
 	}
 
-	private static string LightName(Light light) => light switch
+	/// <summary>
+	/// Presentation of the core's light levels (<see cref="PlayerView.MapLight"/>): each square is shaded by its own
+	/// level, softened towards its neighbours so lamplight fades out instead of stopping at a hard edge.
+	/// </summary>
+	private void ShadeMap()
+	{
+		if (_view.MapLight is not { } rows)
+			return;
+		var key = string.Concat(rows);
+		if (key == _lightKey)
+			return;
+		_lightKey = key;
+		int h = rows.Count, w = rows[0].Length;
+		float Level(int x, int y) => rows[y][x] switch { '2' => 1f, '1' => 0.55f, _ => 0f };
+		_glow = new float[w, h];
+		for (var y = 0; y < h; y++)
+		for (var x = 0; x < w; x++)
+		{
+			float sum = 0;
+			var count = 0;
+			for (var dy = -1; dy <= 1; dy++)
+			for (var dx = -1; dx <= 1; dx++)
+				if (x + dx >= 0 && y + dy >= 0 && x + dx < w && y + dy < h && (dx != 0 || dy != 0))
+				{
+					sum += Level(x + dx, y + dy);
+					count++;
+				}
+			_glow[x, y] = 0.6f * Level(x, y) + 0.4f * sum / count;
+		}
+		foreach (var (cell, item) in _lit)
+			item.Modulate = Shade(cell);
+	}
+
+	private static readonly Color Night = new(0.22f, 0.25f, 0.42f);
+
+	private Color Shade(GridPos cell) =>
+		cell.X >= 0 && cell.Y >= 0 && cell.X < _glow.GetLength(0) && cell.Y < _glow.GetLength(1)
+			? Night.Lerp(Colors.White, _glow[cell.X, cell.Y])
+			: Colors.White;
+
+	private static string DayName(Light daylight) => daylight switch
 	{
 		Light.Bright => "giorno",
-		Light.Dim => "luce fioca",
+		Light.Dim => "crepuscolo",
 		_ => "notte",
+	};
+
+	private static string HereName(Light light) => light switch
+	{
+		Light.Bright => "qui luce piena",
+		Light.Dim => "qui luce fioca",
+		_ => "qui buio",
 	};
 
 	// ---------------------------------------------------------------- iso grid
@@ -370,12 +494,24 @@ public partial class VillageMap : Node2D
 
 	private void UpdateHover()
 	{
-		var cell = ScreenToCell(GetGlobalMousePosition());
+		var mouse = GetGlobalMousePosition();
+		var person = PersonAt(mouse);
+		Input.SetDefaultCursorShape(person is null ? Input.CursorShape.Arrow : Input.CursorShape.PointingHand);
+		var cell = person is { } id && _tokens.TryGetValue(id, out var token) ? ScreenToCell(token.Position) : ScreenToCell(mouse);
 		var map = _view.Map;
 		_hover.Visible = map is not null && cell.X >= 0 && cell.Y >= 0 && cell.X < map.Width && cell.Y < map.Height
 						 && map.Rows[cell.Y][cell.X] != '#';
 		_hover.Position = CellToScreen(cell);
 	}
+
+	/// <summary>The visible person (not you) whose figure is under a world point, the nearest in front if several.</summary>
+	private ActorId? PersonAt(Vector2 point) =>
+		_view.VisibleActors
+			.Where(a => _tokens.TryGetValue(a.Id, out var t) && t.Visible
+						&& new Rect2(t.Position + new Vector2(-12, -38), new Vector2(24, 44)).HasPoint(point))
+			.OrderByDescending(a => _tokens[a.Id].Position.Y)
+			.Select(a => (ActorId?)a.Id)
+			.FirstOrDefault();
 
 	// ---------------------------------------------------------------- construction
 
@@ -400,9 +536,15 @@ public partial class VillageMap : Node2D
 				_ => map.Zones.TryGetValue(c, out var zone) && zone == MappedVillageScenario.Ids.Inn ? InnFloor : Yard,
 			};
 			var shade = (x + y) % 2 == 0 ? 0f : 0.05f;
-			floor.AddChild(new Polygon2D { Polygon = Diamond(), Position = CellToScreen(cell), Color = color.Darkened(shade) });
+			var tile = new Polygon2D { Polygon = Diamond(), Position = CellToScreen(cell), Color = color.Darkened(shade) };
+			floor.AddChild(tile);
+			_lit[cell] = tile;
 			if (c == '#')
-				_sorted.AddChild(MakeBlock(cell, Wall, WallHeight));
+			{
+				var wall = MakeBlock(cell, Wall, WallHeight);
+				_sorted.AddChild(wall);
+				_lit[cell] = wall; // the floor under a wall is hidden anyway
+			}
 		}
 
 		foreach (var store in _sim.GetWorldView().Stores.Where(s => s.Position is not null))
@@ -415,6 +557,7 @@ public partial class VillageMap : Node2D
 			block.AddChild(label);
 			_storeLabels[store.Id] = label;
 			_sorted.AddChild(block);
+			_lit[store.Position.Value] = block;
 		}
 
 		_hover = new Polygon2D { Polygon = Diamond(), Color = Hover, ZIndex = -5 };

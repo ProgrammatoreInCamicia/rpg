@@ -189,7 +189,8 @@ public sealed class SimulationSession
         // Within talking distance: an adjacent square on a mapped area, the same place elsewhere.
         var nearby = w.Actors.Values.Where(a => a.Id != player.Id && _sim.CanTalk(player, a)).ToList();
         var present = nearby.Where(Visible).ToList();
-        var light = player.Location is { } spot ? Perception.LightAt(w.Locations[spot], w.Now) : Perception.DaylightAt(w.Now);
+        var light = map is not null && me is { } mine ? _sim.LightOn(map, mine)
+            : player.Location is { } spot ? Perception.LightAt(w.Locations[spot], w.Now) : Perception.DaylightAt(w.Now);
         var options = present
             .SelectMany(recipient => player.Knowledge
                 .Where(o => !o.ToldTo.Contains(recipient.Id))
@@ -210,6 +211,8 @@ public sealed class SimulationSession
             Position = PositionOf(player, w),
             Move = MoveOf(player),
             Map = w.Maps.TryGetValue(area, out var areaMap) ? MapOf(areaMap, w) : null,
+            MapLight = map is null ? null : Freeze(Enumerable.Range(0, map.Height).Select(y =>
+                new string(Enumerable.Range(0, map.Width).Select(x => (char)('0' + (int)_sim.LightOn(map, new GridPos(x, y)))).ToArray()))),
             Sheet = player.Sheet,
             Action = player.CurrentAction is { } a
                 ? new ActionView { Id = a.Id, Kind = a.Kind, StartedAt = a.StartedAt, CompletesAt = a.CompletesAt, Description = a.Description }
@@ -219,6 +222,7 @@ public sealed class SimulationSession
                 : new TravelView { Action = travel.Id, Origin = travel.Origin, Destination = travel.Destination, DepartedAt = travel.StartedAt, ArrivesAt = travel.CompletesAt },
             Area = area,
             Light = light,
+            Daylight = Perception.DaylightAt(w.Now),
             UnseenNearby = nearby.Count - present.Count,
             Areas = Freeze(w.Areas.Values.Select(x => new AreaView { Id = x.Id, Name = x.Name })),
             Locations = Freeze(w.Locations.Values.Select(l => new LocationView { Id = l.Id, Name = l.Name, Area = l.Area })),

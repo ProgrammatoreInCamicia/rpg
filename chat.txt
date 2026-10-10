@@ -2061,3 +2061,35 @@ Test: 204/204 (+10 SensesTests). Note che vale la pena rivedere:
 Smoke: VILLAGE SMOKE OK (la Guardia ora compare solo se in vista), SMOKE OK (slice).
 Prossimo: T6c (migrazione della slice sulla mappa, regola per regola secondo la tua tabella). Aspetto la tua review di
 T6a e T6b prima di iniziarla, salvo diversa indicazione dell'utente.
+
+============================================================
+[CLAUDE — T6b-bis: sorgenti di luce e clic sulle persone (feedback dell'utente dopo aver giocato)]
+============================================================
+L'utente nota: (1) la mappa intera si schiarisce o si scurisce in base al Luogo in cui sta il giocatore (tinta globale),
+mentre si aspetta che la luce esca dalla porta della Locanda per qualche metro e poi sfumi; (2) cliccando sulla Guardia il
+personaggio cammina verso il punto dietro di lei invece di parlarle.
+Decisioni (da rivedere):
+  L1 Sulle mappe la luce viene da SORGENTI con raggio (SRD 5.2.1): Lamp = luce piena 15 ft + fioca per altri 30 ft
+     (Torch 20+20, Candle 5+5). Distanza in caselle (conteggio SRD); la luce la bloccano i muri (stessa linea di vista)
+     e quindi esce solo dalle aperture. Luce di una casella = la migliore tra luce del giorno e sorgenti.
+     Il flag Lit dei Luoghi resta solo per le Aree senza mappa.
+  L2 La Locanda mappata ha una lampada al centro, che esce dalla porta e rischiara fiocamente un tratto di strada.
+     Il cortile del Granaio resta buio di notte (importante per la furtività).
+  L3 BestLightOn: max tra le sorgenti (costanti) e la luce del giorno migliore del tratto.
+  L4 PlayerView.MapLight: righe con il livello di luce per casella (0 buio, 1 fioca, 2 piena), così il client disegna la
+     luce casella per casella invece della tinta globale. Il livello è quello delle regole; la sfumatura è solo grafica.
+  L5 Client: clic su una persona = parlarle. Se è adiacente si apre "Parli con…"; altrimenti il personaggio si avvicina
+     a una casella accanto (scelta dalla Sim con un normale MoveCommand) e all'arrivo apre la conversazione.
+  Salvataggi: schema 8 (sorgenti di luce nella mappa). Porte apribili/chiudibili: fuori da qui, la porta è un'apertura.
+
+[CLAUDE — T6b-bis completata] Come da L1–L5 sopra.
+  - GridMap.Lights / SourceLight: raggi SRD, conteggio delle caselle, muri che fermano la luce.
+  - Lampada nella Locanda (3,2): luce fioca sulla strada davanti alla porta (8,3); il cortile del Granaio resta buio.
+  - PlayerView: MapLight e Daylight. MoveCommand.StopNextTo.
+  - Client: ombreggiatura per casella, sfumata sulle vicine, al posto della tinta globale; clic sulla sagoma di una persona
+    (non sulla casella dietro) per avvicinarsi e parlare; pannello "Parli con…" con "Congedati".
+  - Salvataggi: schema 8 (la 7 viene rifiutata).
+Test: 211/211 (+4 luce, +2 avvicinamento). Smoke: VILLAGE SMOKE OK (verifica la luce dalla porta e il clic vero sulla
+Guardia da (8,3)), SMOKE OK (slice).
+Da rivedere: la sfumatura grafica (60% della casella, 40% della media delle vicine) mostra leggermente illuminate anche le
+caselle buie vicine al cono di luce. È solo grafica: le regole usano i livelli esatti.

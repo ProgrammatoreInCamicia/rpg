@@ -25,6 +25,13 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(RejectionReason.AlreadyThere, $"{actor.Name} è già lì.");
         if (map.FindPath(from, command.To) is not { } path)
             return CommandResult.Rejected(RejectionReason.Unreachable, "Non si può raggiungere quel punto.");
+        if (command.StopNextTo)
+        {
+            // The last step of a path is always a legal move, so the square before it is next to the goal.
+            if (path.Count == 1)
+                return CommandResult.Rejected(RejectionReason.AlreadyThere, $"{actor.Name} è già lì accanto.");
+            path = path.Take(path.Count - 1).ToList();
+        }
 
         // A new order replaces the walk in progress: stop on the square reached, then set off from there.
         if (actor.CurrentAction is MoveAction)

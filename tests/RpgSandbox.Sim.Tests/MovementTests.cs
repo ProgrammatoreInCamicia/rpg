@@ -254,4 +254,34 @@ public class MovementTests
             .AddMap("v", new[] { "P?" }, new Dictionary<char, string> { ['P'] = "p" })
             .AddActor("me", "Me", "p", isPlayer: true, at: (0, 0)).Build()); // unknown character
     }
+
+    [Fact]
+    public void Walking_up_to_someone_stops_next_to_them_and_lets_you_talk()
+    {
+        var s = SimulationSession.Create(MappedVillageScenario.Create());
+        s.AdvanceTo(At(1, 12));
+        var leave = s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(12, 7) });
+        s.AdvanceUntilCompleted(leave.Action!.Value, Duration.FromHours(1));
+        Assert.DoesNotContain(s.GetPlayerView().PeopleHere, p => p.Id == MappedVillageScenario.Ids.Guard);
+
+        var approach = s.Execute(new MoveCommand { Actor = s.Player, To = MappedVillageScenario.Ids.GuardStart, StopNextTo = true });
+        Assert.True(approach.Success, approach.Message);
+        s.AdvanceUntilCompleted(approach.Action!.Value, Duration.FromHours(1));
+
+        var here = s.GetPlayerView().Position!.Value;
+        Assert.NotEqual(MappedVillageScenario.Ids.GuardStart, here);
+        Assert.Contains(s.GetPlayerView().PeopleHere, p => p.Id == MappedVillageScenario.Ids.Guard);
+    }
+
+    [Fact]
+    public void Walking_up_to_someone_already_next_to_you_is_rejected_as_already_there()
+    {
+        var s = SimulationSession.Create(MappedVillageScenario.Create());
+        var first = s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(4, 2) });
+        s.AdvanceUntilCompleted(first.Action!.Value, Duration.FromHours(1));
+
+        var again = s.Execute(new MoveCommand { Actor = s.Player, To = MappedVillageScenario.Ids.GuardStart, StopNextTo = true });
+
+        Assert.Equal(RejectionReason.AlreadyThere, again.Rejection);
+    }
 }

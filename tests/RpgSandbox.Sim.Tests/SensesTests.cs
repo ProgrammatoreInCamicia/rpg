@@ -24,9 +24,10 @@ public class SensesTests
         new ScenarioBuilder()
             .WithSeed(seed)
             .AddArea("a", "A")
-            .AddLocation("room", "Stanza", "a", lit: true)
+            .AddLocation("room", "Stanza", "a")
             .AddLocation("yard", "Cortile", "a")
             .AddMap("a", Rows, new Dictionary<char, string> { ['R'] = "room", ['Y'] = "yard" })
+            .AddLight("a", (2, 2), brightFeet: 15, dimFeet: 30) // a lamp in the room
             .AddFaction("village", "Villaggio", homeStoreId: "store", authorityId: Watcher.Value)
             .AddStore("store", "Scorte", "yard", 40, "village", at: (8, 1))
             .AddActor("player", "Protagonista", (playerAt ?? (7, 2)).X <= 4 ? "room" : "yard", isPlayer: true,
@@ -179,5 +180,57 @@ public class SensesTests
         var inYard = SimulationSession.Create(Yard((1, 1), playerAt: (6, 3)));
         inYard.AdvanceTo(At(1, 12));
         Assert.Contains(inYard.GetPlayerView().VisibleStores, x => x.Id == new StoreId("store"));
+    }
+
+    // ---------------------------------------------------------------- light sources
+
+    [Fact]
+    public void A_lamp_is_bright_nearby_dim_farther_and_dark_beyond_its_radius()
+    {
+        var map = new GridMap(new AreaId("a"), new[] { "............" }, new Dictionary<char, LocationId>(), Array.Empty<GridPos>(),
+            new[] { new LightSource(new GridPos(0, 0), 15, 30) }); // SRD Lamp
+
+        Assert.Equal(Light.Bright, map.SourceLight(new GridPos(3, 0)));  // 15 ft
+        Assert.Equal(Light.Dim, map.SourceLight(new GridPos(4, 0)));     // 20 ft
+        Assert.Equal(Light.Dim, map.SourceLight(new GridPos(9, 0)));     // 45 ft
+        Assert.Equal(Light.Dark, map.SourceLight(new GridPos(10, 0)));   // 50 ft
+    }
+
+    [Fact]
+    public void Lamplight_leaks_out_of_the_inn_door_only_and_fades_along_the_road()
+    {
+        var s = SimulationSession.Create(MappedVillageScenario.Create());
+        s.AdvanceTo(At(1, 2)); // night
+        var lights = s.GetPlayerView().MapLight!;
+        char LightAt(int x, int y) => lights[y][x];
+
+        Assert.Equal('2', LightAt(3, 2));  // by the lamp
+        Assert.Equal('1', LightAt(8, 3));  // on the road, just outside the door
+        Assert.Equal('0', LightAt(9, 1));  // on the road, but the inn wall is in the way
+        Assert.Equal('0', LightAt(17, 6)); // the granary yard stays dark
+    }
+
+    [Fact]
+    public void By_night_from_the_dark_yard_the_player_still_sees_the_guard_in_the_lamplit_inn()
+    {
+        var lit = SimulationSession.Create(MappedVillageScenario.Create());
+        lit.AdvanceTo(At(1, 2));
+        var view = lit.GetPlayerView();
+        Assert.Contains(view.VisibleActors, a => a.Id == MappedVillageScenario.Ids.Guard); // both in the lit inn
+
+        var walk = lit.Execute(new MoveCommand { Actor = lit.Player, To = new GridPos(16, 5) });
+        lit.AdvanceUntilCompleted(walk.Action!.Value, Duration.FromHours(1));
+        Assert.Equal(Light.Dark, lit.GetPlayerView().Light);
+        Assert.Contains(lit.GetPlayerView().VisibleActors, a => a.Id == MappedVillageScenario.Ids.Guard); // she is in the light
+    }
+
+    [Fact]
+    public void Light_sources_survive_save_and_load()
+    {
+        var s = SimulationSession.Create(MappedVillageScenario.Create());
+        s.AdvanceTo(At(1, 2));
+        var before = s.GetPlayerView().MapLight!;
+
+        Assert.Equal(before, s.SaveAndReload().GetPlayerView().MapLight!);
     }
 }

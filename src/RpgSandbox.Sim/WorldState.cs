@@ -377,7 +377,7 @@ internal sealed class WorldState
             world.Stores.Add(s.Id, new Store { Id = s.Id, Name = s.Name, Location = s.Location, Owner = s.Owner, Food = s.Food, Position = s.At });
         foreach (var m in scenario.Maps)
             world.Maps.Add(m.Area, new GridMap(m.Area, m.Rows, m.Zones,
-                scenario.Stores.Where(s => s.At is not null && world.Locations[s.Location].Area == m.Area).Select(s => s.At!.Value)));
+                scenario.Stores.Where(s => s.At is not null && world.Locations[s.Location].Area == m.Area).Select(s => s.At!.Value), m.Lights));
         return world;
     }
 

@@ -82,11 +82,29 @@ public partial class VillageSmoke : Node
 		Require(_map.View.Food == 8, $"Deposit failed: {_map.LastMessage}");
 		Capture("3-deposited.png");
 
-		// Walk up to the guard: only next to him can you talk.
-		_map.MoveTo(new GridPos(4, 2));
+		// At night the inn lamp spills out of the door; the granary yard stays dark.
+		var light = _map.View.MapLight!;
+		Require(light[3][8] == '1' && light[6][17] == '0', "Lamplight should reach the road by the door, not the granary yard");
+
+		// From the road in front of the door the guard is in sight: a real click on her figure (not on her square)
+		// walks up to her and opens the conversation.
+		var guard = MappedVillageScenario.Ids.Guard;
+		_map.MoveTo(new GridPos(8, 3));
 		await UntilIdle(40);
-		Require(_map.View.PeopleHere.Any(p => p.Id == MappedVillageScenario.Ids.Guard), "The guard should be within talking distance");
-		Capture("4-next-to-guard.png");
+		Require(_map.View.VisibleActors.Any(a => a.Id == guard), "The guard should be visible through the door");
+		Require(_map.View.PeopleHere.All(p => p.Id != guard), "The guard should not be next to you yet");
+		await Frames(3);
+		var body = _map.GetViewport().GetCanvasTransform() * _map.BodyPointOf(guard)!.Value;
+		Input.WarpMouse(body);
+		await Frames(3);
+		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true, Position = body, GlobalPosition = body });
+		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = body, GlobalPosition = body });
+		await Frames(2);
+		Require(_map.IsWalking, $"Clicking on the guard did not walk up to her: {_map.LastMessage}");
+		await UntilIdle(40);
+		Require(_map.View.PeopleHere.Any(p => p.Id == guard), "The guard should be within talking distance");
+		Require(_map.TalkingTo == guard, $"The conversation did not open: {_map.LastMessage}");
+		Capture("4-talking-to-guard.png");
 	}
 
 	private static void Require(bool condition, string message)

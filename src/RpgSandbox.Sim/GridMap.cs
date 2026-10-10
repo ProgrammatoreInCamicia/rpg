@@ -12,7 +12,8 @@ internal sealed class GridMap
     private readonly char[,] _cells;
     private readonly HashSet<GridPos> _occupied;
 
-    public GridMap(AreaId area, IReadOnlyList<string> rows, IReadOnlyDictionary<char, LocationId> zones, IEnumerable<GridPos> occupied)
+    public GridMap(AreaId area, IReadOnlyList<string> rows, IReadOnlyDictionary<char, LocationId> zones, IEnumerable<GridPos> occupied,
+        IEnumerable<LightSource>? lights = null)
     {
         if (rows.Count == 0 || rows.Any(r => r.Length != rows[0].Length || r.Length == 0))
             throw new InvalidDataException($"la mappa dell'area '{area}' deve avere righe non vuote e della stessa lunghezza");
@@ -33,6 +34,11 @@ internal sealed class GridMap
         foreach (var cell in _occupied)
             if (!InBounds(cell) || _cells[cell.X, cell.Y] == '#')
                 throw new InvalidDataException($"oggetto fuori mappa o dentro un muro in {cell}");
+        Lights = (lights ?? Array.Empty<LightSource>()).ToArray();
+        foreach (var light in Lights)
+            if (!InBounds(light.At) || BlocksSight(light.At) || light.BrightFeet < 0 || light.DimFeet < 0
+                || light.BrightFeet % 5 != 0 || light.DimFeet % 5 != 0)
+                throw new InvalidDataException($"sorgente di luce non valida in {light.At}");
     }
 
     public AreaId Area { get; }
@@ -45,6 +51,28 @@ internal sealed class GridMap
         .Select(y => new string(Enumerable.Range(0, Width).Select(x => _cells[x, y]).ToArray())).ToArray();
 
     public IReadOnlyCollection<GridPos> Occupied => _occupied;
+
+    public IReadOnlyList<LightSource> Lights { get; }
+
+    /// <summary>
+    /// Light cast on a square by the map's sources (SRD: Bright Light within the first radius, Dim Light for the
+    /// additional one). Distances are counted in 5-ft squares; walls stop light like sight, so it only leaks out
+    /// through openings.
+    /// </summary>
+    public Light SourceLight(GridPos square)
+    {
+        var best = Light.Dark;
+        foreach (var source in Lights)
+        {
+            var feet = source.At.StepsTo(square) * 5;
+            if (feet > source.BrightFeet + source.DimFeet || !HasLineOfSight(source.At, square))
+                continue;
+            var level = feet <= source.BrightFeet ? Light.Bright : Light.Dim;
+            if (level > best)
+                best = level;
+        }
+        return best;
+    }
 
     public bool InBounds(GridPos p) => p.X >= 0 && p.Y >= 0 && p.X < Width && p.Y < Height;
 
@@ -167,3 +195,6 @@ internal sealed class GridMap
         return path;
     }
 }
+
+/// <summary>A lamp, torch or other light on a map square (radii in feet, as in the SRD equipment list).</summary>
+internal sealed record LightSource(GridPos At, int BrightFeet, int DimFeet);
