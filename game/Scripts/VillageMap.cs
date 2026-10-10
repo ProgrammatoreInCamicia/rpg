@@ -182,11 +182,10 @@ public partial class VillageMap : Node2D
 	private void Tell(ActorId listener, TopicView topic) =>
 		StartActivity(new ReportCommand { Actor = _sim.Player, Recipient = listener, Observation = topic.Observation });
 
-	private void SaveGame()
+	private void SaveGame() => SaveGameToPath(ProjectSettings.GlobalizePath(SavePath));
+
+	internal void SaveGameToPath(string path)
 	{
-		if (_running is not null)
-			return;
-		var path = ProjectSettings.GlobalizePath(SavePath);
 		try
 		{
 			using (var stream = File.Create(path + ".tmp"))
@@ -200,19 +199,26 @@ public partial class VillageMap : Node2D
 		}
 	}
 
-	private void LoadGame()
+	private void LoadGame() => LoadGameFromPath(ProjectSettings.GlobalizePath(SavePath));
+
+	internal void LoadGameFromPath(string path)
 	{
-		if (_running is not null)
-			return;
-		var path = ProjectSettings.GlobalizePath(SavePath);
 		if (!File.Exists(path))
 		{
 			ShowMessage("Nessun salvataggio da caricare.");
 			return;
 		}
 		LoadResult result;
-		using (var stream = File.OpenRead(path))
+		try
+		{
+			using var stream = File.OpenRead(path);
 			result = SimulationSession.TryLoad(stream);
+		}
+		catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+		{
+			ShowMessage($"Caricamento non riuscito: {e.Message}");
+			return;
+		}
 		if (!result.Success)
 		{
 			ShowMessage($"Caricamento non riuscito: {result.Error}");

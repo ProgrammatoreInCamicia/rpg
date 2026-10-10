@@ -56,12 +56,21 @@ public partial class VillageSmoke : Node
 		// Walk a little, then stop: the clock and the position must stay where they are.
 		await Seconds(2.5);
 		Capture("2-walking.png");
+		var walkingSave = System.IO.Path.Combine(_outputDir, "walking.json");
+		_map.SaveGameToPath(walkingSave);
+		Require(File.Exists(walkingSave), "Saving during a walk did not create a snapshot");
 		_map.Stop();
 		var stoppedAt = _map.View.Position;
 		var stoppedTime = _map.View.Now;
 		Require(stoppedTime.Seconds is >= 2 and <= 3, $"After 2.5 real seconds the clock should show 2–3 s, not {stoppedTime.Seconds}");
 		await Seconds(1.5);
 		Require(!_map.IsBusy && _map.View.Now == stoppedTime && _map.View.Position == stoppedAt, "Time or position moved after stopping");
+		_map.LoadGameFromPath(walkingSave);
+		Require(_map.IsWalking && _map.View.Now == stoppedTime && _map.View.Position == stoppedAt,
+			"Loading the mid-walk save did not resume the walk at the saved square");
+		await Seconds(1.2);
+		Require(_map.View.Now > stoppedTime, "The loaded walk did not advance");
+		_map.Stop();
 
 		// Reach the square next to the granary store and deposit.
 		_map.MoveTo(new GridPos(16, 5));

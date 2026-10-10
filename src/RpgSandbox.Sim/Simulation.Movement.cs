@@ -90,14 +90,26 @@ internal sealed partial class Simulation
     /// <summary>
     /// Within reach for using a store: on a mapped area, the square next to the store's; elsewhere, the same place.
     /// </summary>
-    private bool InReach(Actor actor, Store store) =>
-        store.Position is { } at
-            ? CurrentPosition(actor) is { } here && here != at && here.IsAdjacentOrSame(at)
-            : actor.Location is not null && actor.Location == store.Location;
+    private bool InReach(Actor actor, Store store)
+    {
+        if (store.Position is not { } at)
+            return actor.Location is not null && actor.Location == store.Location;
+        var area = World.Locations[store.Location].Area;
+        return actor.MapArea == area && CurrentPosition(actor) is { } here && here != at
+            && here.IsAdjacentOrSame(at) && OpenDiagonal(World.Maps[area], here, at);
+    }
 
     /// <summary>Close enough to talk: adjacent squares on a mapped area, otherwise the same place.</summary>
-    internal bool CanTalk(Actor a, Actor b) =>
-        CurrentPosition(a) is { } pa && CurrentPosition(b) is { } pb
-            ? pa.IsAdjacentOrSame(pb)
-            : a.Location is not null && a.Location == b.Location;
+    internal bool CanTalk(Actor a, Actor b)
+    {
+        if (CurrentPosition(a) is { } pa && CurrentPosition(b) is { } pb)
+            return a.MapArea is { } area && b.MapArea == area && pa.IsAdjacentOrSame(pb)
+                && OpenDiagonal(World.Maps[area], pa, pb);
+        return a.Location is not null && a.Location == b.Location;
+    }
+
+    /// <summary>A diagonal interaction cannot pass through the corner of two blocked squares.</summary>
+    private static bool OpenDiagonal(GridMap map, GridPos from, GridPos to) =>
+        from.X == to.X || from.Y == to.Y ||
+        (map.IsWalkable(new GridPos(to.X, from.Y)) && map.IsWalkable(new GridPos(from.X, to.Y)));
 }

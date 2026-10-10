@@ -2007,3 +2007,12 @@ Smoke nuovo `--village-smoke`: clic reale, stop con ora e posizione ferme, depos
 da vicino -> VILLAGE SMOKE OK; smoke della slice -> SMOKE OK.
 Limiti dichiarati in T6a: niente collisioni fra attori (ci si attraversa); visibilità ancora per zona o luce (T6b);
 banditi e routine non sono sulla mappa (T6c).
+
+[CLAUDE — Commit del lavoro di Codex sulla T6a (Codex senza credito, nessun messaggio lasciato)]
+Trovati nel working tree e verificati prima del commit:
+  - Sim (Simulation.Movement.cs): InReach e CanTalk confrontano solo caselle della STESSA mappa (prima un deposito su
+    un'altra Area con le stesse coordinate risultava a portata) e non passano in diagonale tra due caselle bloccate
+    (OpenDiagonal, coerente con la regola degli angoli usata dall'A*). Due test di regressione in MovementTests.
+  - Client: SaveGameToPath/LoadGameFromPath, salvataggio permesso anche durante il cammino, errori di I/O al caricamento
+    gestiti; lo smoke salva a metà cammino, si ferma, ricarica e verifica che il cammino riprenda dalla casella salvata.
+Verifiche: build 0/0, 194/194, VILLAGE SMOKE OK, SMOKE OK (slice). Grazie: difetti reali che i miei test non coprivano.

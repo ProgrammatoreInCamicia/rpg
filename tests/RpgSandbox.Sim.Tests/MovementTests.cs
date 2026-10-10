@@ -162,6 +162,43 @@ public class MovementTests
         Assert.Contains(s.GetPlayerView().PeopleHere, p => p.Id == Guard);
     }
 
+    [Fact]
+    public void Equal_coordinates_in_different_maps_do_not_put_a_store_in_reach()
+    {
+        var scenario = new ScenarioBuilder()
+            .AddArea("a", "A").AddArea("b", "B")
+            .AddLocation("a_place", "AP", "a").AddLocation("b_place", "BP", "b")
+            .AddMap("a", new[] { "AA" }, new Dictionary<char, string> { ['A'] = "a_place" })
+            .AddMap("b", new[] { "BB" }, new Dictionary<char, string> { ['B'] = "b_place" })
+            .AddActor("player", "P", "a_place", isPlayer: true, food: 1, at: (0, 0))
+            .AddStore("remote", "Remote", "b_place", 0, at: (1, 0))
+            .Build();
+        var session = SimulationSession.Create(scenario);
+
+        var result = session.Execute(new DepositFoodCommand { Actor = session.Player, Store = new StoreId("remote"), Amount = 1 });
+
+        Assert.Equal(RejectionReason.OutOfReach, result.Rejection);
+        Assert.Equal(1, session.GetPlayerView().Food);
+        Assert.Equal(0, session.GetWorldView().Stores.Single().Food);
+    }
+
+    [Fact]
+    public void A_blocked_corner_cannot_be_used_to_reach_a_store()
+    {
+        var scenario = new ScenarioBuilder()
+            .AddArea("a", "A")
+            .AddLocation("start", "Start", "a").AddLocation("depot", "Depot", "a")
+            .AddMap("a", new[] { "A#", "#G" }, new Dictionary<char, string> { ['A'] = "start", ['G'] = "depot" })
+            .AddActor("player", "P", "start", isPlayer: true, food: 1, at: (0, 0))
+            .AddStore("store", "Store", "depot", 0, at: (1, 1))
+            .Build();
+        var session = SimulationSession.Create(scenario);
+
+        var result = session.Execute(new DepositFoodCommand { Actor = session.Player, Store = new StoreId("store"), Amount = 1 });
+
+        Assert.Equal(RejectionReason.OutOfReach, result.Rejection);
+    }
+
     // ---------------------------------------------------------------- time and saves
 
     [Fact]
