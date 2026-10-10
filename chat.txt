@@ -2884,3 +2884,51 @@ Per me il punto 1 è il difetto funzionale da sistemare subito; 2 e 3 possono en
      completamento. Test: Speed 120 attraverso una porta chiusa in un solo secondo, la porta risulta aperta.
 Controllo per mutazione: ciascuno dei quattro test fallisce senza la sua correzione. 280/280, VILLAGE e slice OK.
 Commit e push (autorizzati dall'utente), poi la T6c-2.
+
+============================================================
+[CLAUDE — T6c-2 "Routine sulla mappa": contratto]
+============================================================
+1. "Andare in un posto" per un NPC diventa un passo alla volta (StepTowards), uguale per ogni regola:
+   - sulla mappa, verso un luogo della stessa mappa: cammina fino alla CASELLA BERSAGLIO del luogo:
+       - il posto del tipo richiesto (Work per il turno, Home per tornare a casa, Guard per il presidio);
+       - per Home senza posto Home: il posto Rest (la Guardia alla Locanda);
+       - senza posti: la prima casella percorribile del luogo, in ordine di lettura;
+   - sulla mappa, verso un luogo di un'altra Area: cammina fino all'uscita migliore della mappa, poi parte lungo la
+     Route. "Migliore" = minimo costo del viaggio a valle, poi ID dell'uscita;
+   - fuori mappa: viaggia lungo le Route come oggi; se la destinazione sta su un'Area mappata, il viaggio punta alla
+     sua uscita più conveniente e da lì prosegue a piedi;
+   - arrivato = sulla casella bersaglio (sulla mappa) oppure nel luogo (fuori mappa). Nella slice a Luoghi non cambia
+     nulla.
+2. Routine: il turno di lavoro porta al posto Work, il resto del tempo al posto Home (o Rest). Il presidio (GuardStep)
+   porta al posto Guard del luogo del deposito. Un NPC libero su strada aperta (fuori da ogni luogo) torna a casa
+   invece di andare in errore. Le porte si aprono camminando (T6c-1), e restano aperte: la chiusura delle porte da
+   parte degli NPC verrà dopo.
+3. Villaggio vivo: aggiungo al contadino il turno al Granaio dalle 13 alle 18, come nella slice (unica modifica al tuo
+   MappedVillageScenario, una riga).
+4. Fuori dalla T6c-2, restano alle tappe successive: la razzia (T6c-3); segnalazioni, vigilanza e confisca con adiacenza
+   (T6c-4). Quelle regole usano ancora "nel luogo" come criterio.
+Test previsti:
+  - una giornata del contadino (casa → lavoro → casa, porta aperta lungo la strada);
+  - la Guardia spostata torna al suo posto;
+  - un NPC su strada aperta torna a casa;
+  - viaggio fra aree di un NPC (dal villaggio al campo e ritorno a un posto);
+  - Advance(24h) uguale a 24 × Advance(1h).
+
+[CLAUDE — T6c-2 completata] Come da contratto (Simulation.Going.cs: TargetSquare, IsAt, StepTowards, JourneyTargets;
+Go usa StepTowards; Routine e GuardStep usano i posti).
+  - Ho dovuto precisare una cosa: la casella esatta conta solo se il luogo HA quel posto. Altrimenti basta essere nel
+    luogo, perché un NPC in una mappa senza posti non deve spostarsi alla "prima casella" del luogo. Senza questo, 8 test
+    T6a/T6b fallivano.
+  - Il tuo MappedVillageScenario: aggiunto solo il turno del contadino al Granaio, 13–18 (riga marcata T6c-2).
+  - Test (NpcRoutineTests, 6):
+      - giornata del contadino (porta di casa aperta uscendo);
+      - Guardia portata su strada aperta: decide senza errore e torna;
+      - Guardia dentro la Locanda ma fuori posto: torna al posto Rest;
+      - taglialegna dal bosco al lavoro sulla mappa e ritorno, attraverso l'uscita;
+      - 24h in un colpo uguali a 24 × 1h;
+      - routine salvata a metà cammino.
+  - Controllo per mutazione: con "arrivato = nel luogo" fallisce il test della Guardia fuori posto (all'inizio la
+    mutazione passava: mancava proprio quel caso, l'ho aggiunto).
+  - 286/286, VILLAGE e slice OK.
+Per G6: il contadino ora esce di casa alle 13 e rientra alle 18; la Guardia resta al suo posto Rest. Prossimo: T6c-3,
+il Razziatore sulla mappa.

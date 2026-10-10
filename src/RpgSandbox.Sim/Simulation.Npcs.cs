@@ -20,7 +20,7 @@ internal sealed partial class Simulation
     {
         var inputs = new List<string>
         {
-            $"Luogo: {(npc.Location is { } here ? World.Locations[here].Name : "in viaggio")}",
+            $"Luogo: {(npc.Location is { } here ? World.Locations[here].Name : npc.MapArea is not null ? "per strada" : "in viaggio")}",
             $"Razioni con sé: {npc.Food}",
         };
 
@@ -218,8 +218,8 @@ internal sealed partial class Simulation
 
         var store = World.Stores[duty.Store];
         inputs.Add($"Presidio di {store.Name} fino a {Clock(duty.Until)} del giorno {duty.Until.Day + 1}");
-        if (npc.Location != store.Location)
-            return Go("Raggiungi il presidio", $"Va a sorvegliare {store.Name}.", npc, store.Location);
+        if (!IsAt(npc, store.Location, PostKind.Guard))
+            return Go("Raggiungi il presidio", $"Va a sorvegliare {store.Name}.", npc, store.Location, PostKind.Guard);
         return new Plan("Presidia il deposito", $"Sorveglia {store.Name}.", () => StartGuard(npc, store, duty.Until));
     }
 
@@ -308,17 +308,17 @@ internal sealed partial class Simulation
 
     private Plan Routine(Actor npc)
     {
-        var here = npc.Location!.Value;
+        // On a map "being there" means being on the place's post (T6c-2); off the maps, being in the place.
         if (npc.Shift is { } shift && shift.Covers(World.Now))
         {
-            if (here != shift.Location)
-                return Go("Routine: va al lavoro", $"Turno a {World.Locations[shift.Location].Name}.", npc, shift.Location);
+            if (!IsAt(npc, shift.Location, PostKind.Work))
+                return Go("Routine: va al lavoro", $"Turno a {World.Locations[shift.Location].Name}.", npc, shift.Location, PostKind.Work);
             var end = TodayAt(shift.End);
             return Rest("Routine: lavora", "Lavora fino alla fine del turno o per un'ora.", npc, "Lavora", end);
         }
 
-        if (npc.Home is { } home && here != home)
-            return Go("Routine: torna a casa", $"Rientra a {World.Locations[home].Name}.", npc, home);
+        if (npc.Home is { } home && !IsAt(npc, home, PostKind.Home))
+            return Go("Routine: torna a casa", $"Rientra a {World.Locations[home].Name}.", npc, home, PostKind.Home);
 
         // Wake up exactly when the next commitment starts: the work shift or, while vigilant, the watch.
         var nextShift = npc.Shift is { } s ? NextTimeOfDay(s.Start) : (GameTime?)null;
@@ -350,13 +350,9 @@ internal sealed partial class Simulation
 
     private Plan Do(string rule, string reason, Command command) => new(rule, reason, () => Execute(command));
 
-    private Plan Go(string rule, string reason, Actor npc, LocationId destination)
-    {
-        var next = NextHop(npc.Location!.Value, destination);
-        return new Plan(rule, reason, () => next is null
-            ? null
-            : Execute(new TravelCommand { Actor = npc.Id, Destination = next.Value }));
-    }
+    /// <summary>One step towards a place (and, on a map, a post of it): see <see cref="StepTowards"/>.</summary>
+    private Plan Go(string rule, string reason, Actor npc, LocationId destination, PostKind? post = null) =>
+        new(rule, reason, () => StepTowards(npc, destination, post) is { } step ? Execute(step) : null);
 
     // ---------------------------------------------------------------- pathfinding (Dijkstra, deterministic ties)
 

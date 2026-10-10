@@ -145,6 +145,7 @@ public static class MappedVillageScenario
             .AddActor(Ids.Guard.Value, "Guardia", Ids.Inn.Value, factionId: Ids.VillageFaction.Value,
                 sheet: Sheets.VillageGuard(), at: (Ids.GuardStart.X, Ids.GuardStart.Y))
             .AddActor(Ids.Farmer.Value, "Contadino", Ids.FarmerHouse.Value, factionId: Ids.VillageFaction.Value,
+                workLocationId: Ids.Granary.Value, shiftStart: Duration.FromHours(13), shiftEnd: Duration.FromHours(18), // T6c-2
                 sheet: Sheets.Farmer(), at: (Ids.FarmerHome.X, Ids.FarmerHome.Y))
             .AddActor(Ids.Raider.Value, "Razziatore", Ids.BanditCamp.Value, factionId: Ids.Bandits.Value,
                 sheet: Sheets.Raider())

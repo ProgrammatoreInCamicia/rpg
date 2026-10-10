@@ -323,3 +323,15 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
   - `MapView.Exits` elenca le uscite con le loro Route.
 - **Posti** (`AddPost(area, luogo, PostKind, casella)`; `PostKind`: Work, Home, Guard, Rest): caselle percorribili nella zona del Luogo, uno per tipo. Sono destinazioni delle routine: non danno né portata né vista.
 - **Accessi** (`AddStore(..., access: caselle)`): caselle percorribili adiacenti al deposito, con la diagonale libera. Se sono dichiarati, il deposito si usa **solo** da lì; altrimenti da qualunque casella adiacente, come prima. `StoreView.Access` li espone.
+
+## T6c-2 — Routine degli NPC sulla mappa
+
+- **Andare in un posto** (`StepTowards`, un passo alla volta, uguale per tutte le regole):
+  - sulla mappa, verso un luogo della stessa mappa: si cammina fino al **posto** del tipo richiesto (Work per il turno, Home per tornare a casa e, se manca, Rest; Guard per il presidio). Senza posti si va alla prima casella percorribile del luogo;
+  - verso un'altra Area: si cammina fino all'uscita più conveniente (costo minimo del viaggio a valle, poi ID) e si parte lungo la Route;
+  - fuori mappa: si viaggia lungo le Route; se la destinazione è su un'Area mappata, il viaggio punta alla sua uscita più conveniente e si prosegue a piedi.
+- **Arrivato** (`IsAt`): sul posto, se il luogo ne ha uno di quel tipo; altrimenti basta essere nel luogo. Un NPC già in un luogo senza posti resta dov'è.
+- **Routine**: il turno porta al posto Work, il resto del tempo al posto Home (o Rest); il presidio porta al posto Guard. Un NPC libero su strada aperta, fuori da ogni luogo, torna a casa.
+- Le porte si aprono camminando e restano aperte (la chiusura da parte degli NPC verrà dopo).
+- **Restano a "nel luogo"** fino alle prossime tappe: la razzia (T6c-3), le segnalazioni, la vigilanza e la confisca (T6c-4).
+- Villaggio vivo: il contadino lavora al Granaio dalle 13 alle 18.
