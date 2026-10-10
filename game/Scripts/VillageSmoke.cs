@@ -167,6 +167,8 @@ public partial class VillageSmoke : Node
 		Require(_map.View.Doors.Single().Open == false, $"Clicking the door did not close it: {_map.LastMessage}");
 		Require(_map.View.VisibleActors.All(a => a.Id != guard), "The guard should be hidden by the closed door");
 		Require(_map.View.MapLight![3][9] == '0', "The lamplight should not reach the road with the door closed");
+		Require(_map.DisplayGlowAt(new GridPos(8, 3)) == 0f,
+			"The road beyond a closed door should stay visually dark, not inherit glow through the door");
 
 		// A torch lights the dark road around the paladin.
 		_map.ToggleTorch();
@@ -174,6 +176,21 @@ public partial class VillageSmoke : Node
 		Require(_map.View.MapLight![3][9] == '2', "The torch should light the squares around");
 		await Frames(3);
 		Capture("6-door-closed-torch.png");
+
+		// Shift-click uses a door square as a walking destination, even from next to it.
+		var doorNow = _map.GetViewport().GetCanvasTransform() * VillageMap.ScreenPointOf(MappedVillageScenario.Ids.InnDoor);
+		Input.WarpMouse(doorNow);
+		await Frames(3);
+		doorNow = _map.GetViewport().GetCanvasTransform() * VillageMap.ScreenPointOf(MappedVillageScenario.Ids.InnDoor);
+		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, ShiftPressed = true,
+			Pressed = true, Position = doorNow, GlobalPosition = doorNow });
+		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, ShiftPressed = true,
+			Pressed = false, Position = doorNow, GlobalPosition = doorNow });
+		await Frames(2);
+		Require(_map.IsWalking && _map.View.Move!.Path[^1] == MappedVillageScenario.Ids.InnDoor,
+			$"Shift-clicking the adjacent door should walk onto it: {_map.LastMessage}");
+		await UntilIdle(10);
+		Require(_map.View.Position == MappedVillageScenario.Ids.InnDoor, "The player did not enter the door square");
 	}
 
 	private static void Require(bool condition, string message)

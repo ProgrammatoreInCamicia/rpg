@@ -157,7 +157,12 @@ public partial class VillageMap : Node2D
 				if (PersonAt(point) is { } person)
 					TalkTo(person);
 				else if (DoorAt(point) is { } door)
-					ClickDoor(door);
+				{
+					if (mouse.ShiftPressed)
+						MoveTo(door); // walk onto an adjacent door instead of operating it
+					else
+						ClickDoor(door);
+				}
 				else
 					MoveTo(ScreenToCell(point));
 				break;
@@ -607,11 +612,17 @@ public partial class VillageMap : Node2D
 	{
 		if (_view.MapLight is not { } rows)
 			return;
-		var key = string.Concat(rows);
+		var key = string.Concat(rows) + "|" + string.Join(",", _view.Doors.Select(d => $"{d.At}:{d.Open}"));
 		if (key == _lightKey)
 			return;
 		_lightKey = key;
 		int h = rows.Count, w = rows[0].Length;
+		var map = _view.Map!;
+		var closedDoors = _view.Doors.Where(d => !d.Open).Select(d => d.At).ToHashSet();
+		bool Blocked(int x, int y) => map.Rows[y][x] == '#' || closedDoors.Contains(new GridPos(x, y));
+		bool Connected(int x, int y, int nx, int ny) =>
+			!Blocked(x, y) && !Blocked(nx, ny) &&
+			(x == nx || y == ny || !Blocked(nx, y) || !Blocked(x, ny));
 		float Level(int x, int y) => rows[y][x] switch { '2' => 1f, '1' => 0.55f, _ => 0f };
 		_glow = new float[w, h];
 		for (var y = 0; y < h; y++)
@@ -621,12 +632,13 @@ public partial class VillageMap : Node2D
 			var count = 0;
 			for (var dy = -1; dy <= 1; dy++)
 			for (var dx = -1; dx <= 1; dx++)
-				if (x + dx >= 0 && y + dy >= 0 && x + dx < w && y + dy < h && (dx != 0 || dy != 0))
+				if (x + dx >= 0 && y + dy >= 0 && x + dx < w && y + dy < h && (dx != 0 || dy != 0)
+					&& Connected(x, y, x + dx, y + dy))
 				{
 					sum += Level(x + dx, y + dy);
 					count++;
 				}
-			_glow[x, y] = 0.6f * Level(x, y) + 0.4f * sum / count;
+			_glow[x, y] = count == 0 ? Level(x, y) : 0.6f * Level(x, y) + 0.4f * sum / count;
 		}
 		foreach (var (cell, item) in _lit)
 			item.Modulate = Shade(cell);
@@ -640,6 +652,9 @@ public partial class VillageMap : Node2D
 		cell.X >= 0 && cell.Y >= 0 && cell.X < _glow.GetLength(0) && cell.Y < _glow.GetLength(1)
 			? Night.Lerp(Colors.White, _glow[cell.X, cell.Y])
 			: Colors.White;
+
+	/// <summary>Visual glow, exposed to the village smoke to check that walls do not leak light.</summary>
+	internal float DisplayGlowAt(GridPos cell) => _glow[cell.X, cell.Y];
 
 	private static string DayName(Light daylight) => daylight switch
 	{
@@ -847,6 +862,7 @@ public partial class VillageMap : Node2D
 		_stop = new Button { Text = "Fermati (X)" };
 		_stop.Pressed += Stop;
 		box.AddChild(_stop);
+		box.AddChild(new Label { Text = "Maiusc+clic su una porta: cammina sulla sua casella." });
 		var paceRow = new HBoxContainer();
 		paceRow.AddThemeConstantOverride("separation", 6);
 		paceRow.AddChild(new Label { Text = "Ritmo:", TooltipText = "Quanto scorre veloce il tempo mentre cammini. Le regole non cambiano: cambia solo quanto aspetti." });
