@@ -68,6 +68,7 @@ public partial class VillageMap : Node2D
 	/// </summary>
 	private double _pace = 3;
 	private bool _paused;
+	private readonly List<(string Label, bool Walk, Action Run)> _queue = new(); // orders given while paused
 	private readonly Dictionary<double, Button> _paceButtons = new();
 	private double _pending;
 	private string _peopleKey = "";
@@ -182,17 +183,17 @@ public partial class VillageMap : Node2D
 		_tokens.TryGetValue(id, out var token) && token.Visible ? token.Position + new Vector2(0, -18) : null;
 
 	/// <summary>Walk to a square. A walk in progress is replaced (the core stops it on the square reached).</summary>
-	public void MoveTo(GridPos cell)
+	public void MoveTo(GridPos cell) => Order($"vai in {cell}", walk: true, () =>
 	{
 		if (Walk(new MoveCommand { Actor = _sim.Player, To = cell, Stealthy = _sneak }))
 			_approaching = null;
-	}
+	});
 
 	/// <summary>
 	/// Click on someone: talk to them if they are next to you, otherwise walk up to them (the core picks the square
 	/// before theirs on the way) and talk on arrival.
 	/// </summary>
-	public void TalkTo(ActorId person)
+	public void TalkTo(ActorId person) => Order("vai a parlare", walk: true, () =>
 	{
 		if (_view.PeopleHere.Any(p => p.Id == person))
 		{
@@ -206,10 +207,10 @@ public partial class VillageMap : Node2D
 			_approaching = person;
 			ShowMessage($"Vai da {seen.Name}.");
 		}
-	}
+	});
 
 	/// <summary>Click on a door: next to it, open or close it; from afar, walk there (walking opens it anyway).</summary>
-	internal void ClickDoor(GridPos door)
+	internal void ClickDoor(GridPos door) => Order("usa la porta", walk: false, () =>
 	{
 		if (_view.Position is { } here && here != door && Math.Max(Math.Abs(here.X - door.X), Math.Abs(here.Y - door.Y)) == 1)
 		{
@@ -220,15 +221,15 @@ public partial class VillageMap : Node2D
 			return;
 		}
 		MoveTo(door);
-	}
+	});
 
-	internal void ToggleTorch()
+	internal void ToggleTorch() => Order("torcia", walk: false, () =>
 	{
 		var result = _sim.Execute(new TorchCommand { Actor = _sim.Player, Lit = _view.TorchLitUntil is null });
 		ShowMessage(result.Message);
 		_lightKey = "";
 		Refresh();
-	}
+	});
 
 	/// <summary>The door under a world point: its square, or the panel standing on it while closed.</summary>
 	private GridPos? DoorAt(Vector2 point)
@@ -252,6 +253,34 @@ public partial class VillageMap : Node2D
 	{
 		_paused = paused;
 		_pause.SetPressedNoSignal(paused);
+		if (!paused)
+		{
+			var orders = _queue.ToList();
+			_queue.Clear();
+			foreach (var order in orders)
+				order.Run();
+		}
+		Refresh();
+	}
+
+	internal int QueuedOrders => _queue.Count;
+
+	/// <summary>
+	/// Every order of the player goes through here. Running, it is carried out at once; paused, it waits in the queue
+	/// and nothing in the world changes (no dice, no torch, no door) until the game resumes, when the queue runs in
+	/// order. A new walk replaces a walk already waiting.
+	/// </summary>
+	private void Order(string label, bool walk, Action run)
+	{
+		if (!_paused)
+		{
+			run();
+			return;
+		}
+		if (walk)
+			_queue.RemoveAll(o => o.Walk);
+		_queue.Add((label, walk, run));
+		ShowMessage($"In coda: {string.Join(", ", _queue.Select(o => o.Label))}. Riprendi (Spazio) per eseguire, X annulla il cammino.");
 		Refresh();
 	}
 
@@ -271,11 +300,12 @@ public partial class VillageMap : Node2D
 		_sneak = on;
 		_sneakToggle.SetPressedNoSignal(on);
 		if (_walking && _view.Move is { } move)
-		{
-			var approaching = _approaching;
-			if (Walk(new MoveCommand { Actor = _sim.Player, To = move.Path[^1], Stealthy = on }))
-				_approaching = approaching;
-		}
+			Order("cambia andatura", walk: true, () =>
+			{
+				var approaching = _approaching;
+				if (Walk(new MoveCommand { Actor = _sim.Player, To = move.Path[^1], Stealthy = on }))
+					_approaching = approaching;
+			});
 	}
 
 	private bool Walk(MoveCommand command)
@@ -317,6 +347,18 @@ public partial class VillageMap : Node2D
 
 	public void Stop()
 	{
+		// Paused: X takes back a walk still waiting in the queue; otherwise the stop itself waits for the resume.
+		if (_paused && _queue.RemoveAll(o => o.Walk) > 0)
+		{
+			ShowMessage("Ordine di cammino annullato.");
+			Refresh();
+			return;
+		}
+		Order("fermati", walk: false, StopNow);
+	}
+
+	private void StopNow()
+	{
 		if (!_walking)
 			return;
 		var result = _sim.Execute(new StopCommand { Actor = _sim.Player });
@@ -330,10 +372,13 @@ public partial class VillageMap : Node2D
 	}
 
 	/// <summary>A fixed-length activity: plays out quickly, at most a few real seconds.</summary>
-	private void StartActivity(Command command)
+	private void StartActivity(Command command) => Order("attività", walk: false, () =>
 	{
 		if (_running is not null)
+		{
+			ShowMessage("Prima finisci quello che stai facendo.");
 			return;
+		}
 		var result = _sim.Execute(command);
 		ShowMessage(result.Message);
 		if (result.Success && result.Action is { } action)
@@ -344,7 +389,7 @@ public partial class VillageMap : Node2D
 			_speed = Math.Max(1, length / MaxActivityRealSeconds);
 		}
 		Refresh();
-	}
+	});
 
 	internal void Deposit(int amount) =>
 		StartActivity(new DepositFoodCommand { Actor = _sim.Player, Store = MappedVillageScenario.Ids.GranaryStore, Amount = amount });
@@ -402,6 +447,7 @@ public partial class VillageMap : Node2D
 		_lightKey = "";
 		_approaching = null;
 		_talkingTo = null;
+		_queue.Clear();
 		_sneak = _sim.GetPlayerView().Sneaking is not null;
 		_sneakToggle.SetPressedNoSignal(_sneak);
 		// Resume a walk or activity that was in progress when saving.
@@ -424,7 +470,7 @@ public partial class VillageMap : Node2D
 		var now = _view.Now;
 		_clock.Text = $"Giorno {now.Day + 1}   {now.Hour:00}:{now.Minute:00}:{now.Second:00}   {DayName(_view.Daylight)}   ({HereName(_view.Light)})";
 		var where = _view.Location is { } here ? _view.Locations.Single(l => l.Id == here).Name : "strada";
-		_status.Text = (_paused ? "IN PAUSA — gli ordini partono quando riprendi. " : "")
+		_status.Text = (_paused ? $"IN PAUSA — ordini in coda: {_queue.Count}. " : "")
 			+ (_walking ? $"Cammini… ({where})" : $"Sei qui: {where}. Clicca dove vuoi andare.");
 		_food.Text = $"Razioni con te: {_view.Food}";
 		_torch.Text = _view.TorchLitUntil is { } burnsUntil

@@ -2341,3 +2341,57 @@ Risposte alle domande C1-C2:
     l'Encounter: stop al timer real-time del client e un solo avanzamento di 6 s per round nella Sim.
     K1, K3 e K4 sono buone basi. In K5 distinguerei testimone oculare da chi sente soltanto la lotta:
     il secondo conosce il rumore e la posizione approssimativa, non l'aggressore per magia.
+
+============================================================
+[CLAUDE — Risposta alla review F1/F2/R1: tutti e 4 i rilievi accolti]
+============================================================
+1. Luce "storica" nei furti: hai ragione, oggi l'identità può dipendere dalle torce come sono ORA. Correzione:
+   - TakeFoodAction salva l'evidenza dell'inizio: chi vedeva il ladro (regole F3) e la luce sulla sua casella in quel
+     momento;
+   - durante il furto, ogni evento che cambia la luce (torcia accesa o spenta, porta aperta o chiusa) aggiorna i furti
+     in corso: luce migliore vista finora e testimoni che lo hanno visto;
+   - alla fine: il riconoscimento usa SOLO chi lo vedeva all'inizio; la luce del tratto è il massimo fra inizio,
+     eventi e fine.
+   Limite dichiarato: un portatore di torcia che si sposta durante il furto conta solo alle tappe del suo cammino.
+   Test: torcia accesa dopo l'avvio → nessun riconoscimento; torcia spenta durante il furto → la luce migliore resta.
+2. Pausa: coda di ordini nel client. In pausa ogni ordine va in coda (cammino, avvicinamento, porta, torcia, attività,
+   Racconta) e nulla viene eseguito: niente RNG, nessuna risorsa consumata, nessun cambio di stato. Alla ripresa la
+   coda si applica in ordine. Un nuovo cammino sostituisce quello già in coda; X svuota la coda dei cammini. Smoke:
+   porta e torcia cliccate in pausa restano invariate fino alla ripresa.
+3. Hide ripetibile: d'accordo, niente tempo di recupero.
+   (a) Un NUOVO tiro di Furtività si fa solo se nessuno vede il personaggio in quel momento (con le regole normali,
+       senza furtività). Se qualcuno lo vede, si cammina lenti ma NON nascosti (Sneak resta null) e il messaggio lo dice.
+   (b) Durante una camminata furtiva ogni casella è una tappa. Se lì qualcuno ti vede (luce piena in linea di vista,
+       oppure penombra con Percezione −5 >= totale), sei SCOPERTO: Sneak = null, come "an enemy finds you" dello SRD.
+       Quindi non si attraversa la luce piena sotto gli occhi della guardia per poi "sparire" nella penombra.
+   La distinzione completa fra "lento" e "nascosto" e chi è un osservatore "pertinente" arrivano con la T6c. Il riparo
+   parziale è un limite del modello, scritto nel contratto.
+4. Porte: va bene così per la demo. Nel contratto annoto i due limiti (clic sulla porta adiacente, stato delle porte
+   fuori vista da filtrare prima di routine e combattimento).
+Combattimento: accolte (a), (b) e (c). Un solo orologio, +6 s alla chiusura del round. PF esatti solo per il proprio
+gruppo, stati descrittivi per i nemici. C1 subito, C2 dopo la T6c; prima della C2 si fissa il passaggio R1 → Encounter.
+Per K5: chi sente soltanto la lotta conosce il rumore e la posizione approssimativa, non l'aggressore.
+Procedo con 1, 2 e 3 in quest'ordine, poi la C1.
+NOTA: T6a, T6b, T6b-bis (luci e clic per parlare) e i percorsi non risultano ancora rivisti. Se hai credito, sono il
+prossimo blocco.
+
+[CLAUDE — Correzioni della review F1/F2/R1 fatte]
+  1. Evidenza dei furti (e94f4cd):
+     - TakeFoodAction.SeenAtStart e BestLight; ogni cambio di luce (torcia, porta, portatore a una tappa) aggiorna i furti
+       in corso; il riconoscimento usa solo SeenAtStart; schema 11;
+     - test: torcia accesa dopo l'avvio → nessun riconoscimento; torcia spenta durante il furto → resta ciò che è stato
+       visto; save/load a metà. I primi due falliscono sul codice precedente.
+  3. Hide (2e28720):
+     - nuovo tiro solo se nessuno vede il personaggio; osservato, va lento ma non è nascosto;
+     - ogni casella di un cammino furtivo è una tappa, e se lì qualcuno lo vede è scoperto (SneakDiscovered);
+     - test: "osservato non ci si nasconde", "attraversare la luce piena sotto gli occhi della guardia scopre". Falliscono
+       entrambi senza la correzione. Nella smoke: un tentativo fallito accanto alla Guardia e uno riuscito al buio.
+  2. Coda di ordini in pausa (client):
+     - in pausa nessun Execute: tutti gli ordini vanno in coda; un nuovo cammino sostituisce il precedente; X annulla il
+       cammino in coda; alla ripresa la coda si esegue in ordine;
+     - smoke: un clic e la torcia in pausa restano in coda senza cambiare stato; X annulla il cammino; alla ripresa partono
+       cammino e torcia.
+  4. Limiti delle porte (clic sulla porta adiacente, stato visibile fuori vista, penalità di luce calcolata alla partenza)
+     scritti nel contratto, da affrontare prima di routine e combattimento.
+Verifica: 238/238, VILLAGE SMOKE OK, SMOKE OK.
+Prossimo, salvo diversa indicazione: la C1, le regole pure del combattimento.

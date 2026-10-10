@@ -254,11 +254,20 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
   - Limite: un portatore di torcia in movimento conta solo alle tappe del suo cammino.
 - **PlayerView**: `Doors` (tutte le porte della mappa, anche quelle fuori vista: approssimazione), `Torches`, `TorchLitUntil`, `VisibleActorView.Torch`.
 - **Client**: il clic su una porta adiacente la apre o la chiude, il clic su una porta lontana ci fa camminare fino a lei. Il tasto T accende e spegne la torcia.
+- **Limiti noti** (review di Codex):
+  - da una casella adiacente non si può entrare nella casella della porta con un clic diretto: servirà un'interazione distinta quando camminare sulla porta diventerà utile;
+  - lo stato delle porte fuori vista è noto al giocatore: va filtrato nella PlayerView prima delle routine NPC e del combattimento;
+  - la penalità di luce del percorso furtivo si calcola alla partenza: andrà ricalcolata se una porta o una luce mobile la invalida.
 
 ## R1 — Tempo reale con pausa e ritmo (solo client)
 
 - Il mondo scorre **sempre**, che il giocatore si muova o no, come in BG1/BG2: `VillageMap` fa avanzare la Sim di `_pace` secondi di gioco per ogni secondo reale. Il ritmo si sceglie tra 1×, 3× e 6×; il default è 3×.
-- La **pausa** (Spazio) è l'unico modo per fermare l'orologio. In pausa si possono dare ordini, che partono alla ripresa. X ferma il cammino, ma non il tempo.
+- La **pausa** (Spazio) è l'unico modo per fermare l'orologio. X ferma il cammino, ma non il tempo.
+- **Coda di ordini in pausa** (correzione dopo la review di Codex). In pausa ogni ordine del giocatore va in coda e il mondo non cambia: niente dadi, niente torce, niente porte, nessuna risorsa consumata.
+  - Gli ordini in coda sono: cammino, avvicinarsi a qualcuno, porta, torcia, attività, Racconta, cambio di andatura durante un cammino.
+  - Alla ripresa la coda si esegue in ordine. Un nuovo cammino sostituisce quello già in coda.
+  - X in pausa annulla il cammino in coda.
+  - Se un'attività in coda trova il personaggio ancora impegnato, non parte e un messaggio lo dice.
 - Le attività a durata fissa scorrono più veloci, al massimo 3 secondi reali, e il mondo intanto va avanti.
 - Le regole non cambiano: una casella costa sempre 1 secondo di gioco a Speed 30.
 - In combattimento (proposta in chat) il tempo passerà a round da 6 secondi.

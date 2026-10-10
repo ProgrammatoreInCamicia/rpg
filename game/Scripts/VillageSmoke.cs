@@ -59,10 +59,20 @@ public partial class VillageSmoke : Node
 		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true, Position = screen, GlobalPosition = screen });
 		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = screen, GlobalPosition = screen });
 		await Frames(2);
-		Require(_map.IsWalking, "Clicking a square did not start walking");
+		Require(!_map.IsWalking && _map.QueuedOrders == 1, "A click while paused should wait in the queue, not start walking");
+		_map.ToggleTorch();
+		Require(_map.View.TorchLitUntil is null && _map.View.Torches == 3 && _map.QueuedOrders == 2,
+			"A torch ordered while paused must not light (nor be spent) before the resume");
+		_map.Stop(); // X while paused takes back the queued walk
+		Require(_map.QueuedOrders == 1, "X should take back the queued walk");
+		_map.MoveTo(target);
 		await Seconds(1.0);
 		Require(_map.View.Now == pausedAt && _map.View.Position == MappedVillageScenario.Ids.PlayerStart, "Time or position moved while paused");
 		_map.SetPaused(false);
+		Require(_map.IsWalking && _map.View.TorchLitUntil is not null && _map.View.Torches == 2 && _map.QueuedOrders == 0,
+			"On resume the queued orders should run in order");
+		_map.ToggleTorch(); // put it out: torchlight would spoil the sneaking below
+		Require(_map.View.TorchLitUntil is null, "The torch did not go out");
 
 		// Walk a little at the exploration pace (several game seconds per real second, rules unchanged), save, stop.
 		await Seconds(2.5);
@@ -160,7 +170,7 @@ public partial class VillageSmoke : Node
 
 		// A torch lights the dark road around the paladin.
 		_map.ToggleTorch();
-		Require(_map.View.TorchLitUntil is not null && _map.View.Torches == 2, $"The torch did not light: {_map.LastMessage}");
+		Require(_map.View.TorchLitUntil is not null && _map.View.Torches == 1, $"The torch did not light: {_map.LastMessage}");
 		Require(_map.View.MapLight![3][9] == '2', "The torch should light the squares around");
 		await Frames(3);
 		Capture("6-door-closed-torch.png");
