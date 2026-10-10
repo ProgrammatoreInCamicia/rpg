@@ -30,7 +30,7 @@ public partial class CombatPreview : Node2D
 	private readonly int[] _sampleD20 = { 14, 7, 20, 12 };
 	private Vector2I _player = new(2, 3);
 	private Vector2I? _selected;
-	private int _moveLeft = 3;
+	private int _moveLeft = 6;
 	private int _rollIndex;
 	private int _round = 1;
 	private bool _actionAvailable = true;
@@ -45,9 +45,10 @@ public partial class CombatPreview : Node2D
 		public string Name { get; } = name;
 		public int Hp { get; set; } = hp;
 		public int Max { get; } = max;
-		public string Condition => Hp == 0 ? "Fuori combattimento"
-			: Hp == Max ? "Integro"
-			: Hp * 2 > Max ? "Ferito" : "Malconcio";
+		// The mock uses the same descriptive names and thresholds as C1 Vitality.Describe().
+		public string Condition => Hp == 0 ? "morto"
+			: Hp == Max ? "illeso"
+			: Hp * 2 > Max ? "ferito" : "malconcio";
 	}
 
 	public override async void _Ready()
@@ -185,7 +186,7 @@ public partial class CombatPreview : Node2D
 	private void EndTurn()
 	{
 		_round++;
-		_moveLeft = 3;
+		_moveLeft = 6;
 		_actionAvailable = true;
 		AddLog($"Round {_round} · Turno del Paladino (anteprima: nessuna IA). ");
 		Refresh();
@@ -201,8 +202,8 @@ public partial class CombatPreview : Node2D
 	{
 		_roundLabel.Text = $"Round {_round} · Paladino 11/11 PF\nMovimento: {_moveLeft} caselle · Azione: {(_actionAvailable ? "disponibile" : "usata")}";
 		_selectionLabel.Text = _selected is { } cell && _enemies.TryGetValue(cell, out var enemy)
-			? $"Selezionato: {enemy.Name}\nStato: {enemy.Condition}" : "Seleziona un bersaglio rosso.";
-		_enemyLabel.Text = string.Join("\n", _enemies.Values.Select(e => $"{e.Name}: {e.Condition}"));
+			? $"Selezionato: {enemy.Name}\nStato: {UpperFirst(enemy.Condition)}" : "Seleziona un bersaglio rosso.";
+		_enemyLabel.Text = string.Join("\n", _enemies.Values.Select(e => $"{e.Name}: {UpperFirst(e.Condition)}"));
 		_attack.Disabled = _selected is null || !_actionAvailable;
 		QueueRedraw();
 	}
@@ -243,6 +244,8 @@ public partial class CombatPreview : Node2D
 	private static Vector2 ScreenOf(Vector2I cell) => Origin + new Vector2((cell.X - cell.Y) * TileW / 2,
 		(cell.X + cell.Y) * TileH / 2);
 
+	private static string UpperFirst(string value) => char.ToUpperInvariant(value[0]) + value[1..];
+
 	private static Vector2[] Diamond(Vector2 c) =>
 		new[] { c + new Vector2(0, -16), c + new Vector2(32, 0), c + new Vector2(0, 16), c + new Vector2(-32, 0) };
 
@@ -259,7 +262,7 @@ public partial class CombatPreview : Node2D
 		if (_selected != cell || _selectionLabel.Text.Contains("11/11"))
 			throw new InvalidOperationException("The target was not selected or its exact HP leaked");
 		AttackSelected();
-		if (!_dice.Any(d => d.Contains("d20 14 + 4 = 18")) || _enemies[cell].Condition != "Ferito")
+		if (!_dice.Any(d => d.Contains("d20 14 + 4 = 18")) || _enemies[cell].Condition != "ferito" || _moveLeft != 6)
 			throw new InvalidOperationException("Attack or descriptive condition did not update");
 		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 		var file = Path.Combine(directory, "combat-preview.png");
