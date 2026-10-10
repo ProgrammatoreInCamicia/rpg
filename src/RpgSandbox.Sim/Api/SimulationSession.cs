@@ -229,7 +229,7 @@ public sealed class SimulationSession
             Sneaking = player.Sneak,
             Torches = player.Torches,
             TorchLitUntil = _sim.TorchLit(player) ? player.TorchLitUntil : null,
-            Doors = map is null ? Array.Empty<DoorView>() : Freeze(map.Doors.Select(d => new DoorView { At = d.Key, Open = d.Value })),
+            Doors = map is null ? Array.Empty<DoorView>() : Freeze(map.Doors.Select(d => new DoorView { At = d.Key, Known = DoorKnowledge.Seen, Open = d.Value, SeenAt = w.Now })), // T6c-5: memory still to come
             UnseenNearby = nearby.Count - present.Count,
             Areas = Freeze(w.Areas.Values.Select(x => new AreaView { Id = x.Id, Name = x.Name })),
             Locations = Freeze(w.Locations.Values.Select(l => new LocationView { Id = l.Id, Name = l.Name, Area = l.Area })),

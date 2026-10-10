@@ -113,10 +113,29 @@ public sealed record VisibleActorView
     public bool Torch { get; init; }
 }
 
+/// <summary>T6c-5: how much the player knows of a door.</summary>
+public enum DoorKnowledge
+{
+    /// <summary>Never seen: whether it is open is unknown.</summary>
+    Unknown,
+
+    /// <summary>Seen before: its state is the one seen then.</summary>
+    Remembered,
+
+    /// <summary>In sight (or next to the player) right now: its state is the current one.</summary>
+    Seen,
+}
+
 public sealed record DoorView
 {
     public required GridPos At { get; init; }
-    public required bool Open { get; init; }
+    public required DoorKnowledge Known { get; init; }
+
+    /// <summary>Open or closed as the player knows it (now if Seen, then if Remembered); null if Unknown.</summary>
+    public bool? Open { get; init; }
+
+    /// <summary>When the player last saw it (now if Seen); null if Unknown.</summary>
+    public GameTime? SeenAt { get; init; }
 }
 
 public sealed record ReportOptionView

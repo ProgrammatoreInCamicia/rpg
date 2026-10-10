@@ -39,7 +39,7 @@ public class DoorsAndTorchesTests
 
         Assert.Equal('0', LightAt(s, 9, 3));
         Assert.DoesNotContain(s.GetPlayerView().VisibleActors, a => a.Id == Guard);
-        Assert.Contains(s.GetPlayerView().Doors, d => d.At == InnDoor && !d.Open);
+        Assert.Contains(s.GetPlayerView().Doors, d => d.At == InnDoor && d.Open == false);
     }
 
     [Fact]

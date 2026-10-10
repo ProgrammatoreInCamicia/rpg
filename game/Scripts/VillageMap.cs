@@ -307,7 +307,7 @@ public partial class VillageMap : Node2D
 		{
 			if (door.At == cell)
 				return door.At;
-			if (!door.Open && _doorPanels.TryGetValue(door.At, out var panel)
+			if (door.Open == false && _doorPanels.TryGetValue(door.At, out var panel)
 				&& new Rect2(panel.Position + new Vector2(-TileW / 4f, -WallHeight - TileH / 2f), new Vector2(TileW / 2f, WallHeight + TileH)).HasPoint(point))
 				return door.At;
 		}
@@ -570,7 +570,7 @@ public partial class VillageMap : Node2D
 		_torch.Disabled = _view.TorchLitUntil is null && _view.Torches == 0;
 		foreach (var door in _view.Doors)
 			if (_doorPanels.TryGetValue(door.At, out var panel))
-				panel.Visible = !door.Open;
+				panel.Visible = door.Open == false;
 		var watchers = _view.VisibleActors.Where(a => a.SeesYou == true).Select(a => a.Name).ToList();
 		var hidden = _view.Sneaking is { } total ? $"Di soppiatto (Furtività {total}). "
 			: _view.Move is { Stealthy: true } ? "Vai piano, ma ti vedono: non sei nascosto. " : "";
@@ -720,7 +720,7 @@ public partial class VillageMap : Node2D
 		_lightKey = key;
 		int h = rows.Count, w = rows[0].Length;
 		var map = _view.Map!;
-		var closedDoors = _view.Doors.Where(d => !d.Open).Select(d => d.At).ToHashSet();
+		var closedDoors = _view.Doors.Where(d => d.Open == false).Select(d => d.At).ToHashSet();
 		bool Blocked(int x, int y) => map.Rows[y][x] == '#' || closedDoors.Contains(new GridPos(x, y));
 		bool Connected(int x, int y, int nx, int ny) =>
 			!Blocked(x, y) && !Blocked(nx, ny) &&
