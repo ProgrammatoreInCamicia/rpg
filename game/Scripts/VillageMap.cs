@@ -53,6 +53,8 @@ public partial class VillageMap : Node2D
 	private Label _watched = null!;
 	private Button _torch = null!;
 	private readonly Dictionary<GridPos, Node2D> _doorPanels = new(); // shown while the door is closed
+	private readonly Dictionary<GridPos, Polygon2D> _doorFloors = new();
+	private readonly Dictionary<GridPos, Line2D> _doorOutlines = new();
 	private bool _sneak;
 	private HBoxContainer _storeRow = null!;
 	private SpinBox _amount = null!;
@@ -282,7 +284,12 @@ public partial class VillageMap : Node2D
 	{
 		if (_view.Position is { } here && here != door && Math.Max(Math.Abs(here.X - door.X), Math.Abs(here.Y - door.Y)) == 1)
 		{
-			var open = _view.Doors.FirstOrDefault(d => d.At == door)?.Open ?? true;
+			var knowledge = _view.Doors.FirstOrDefault(d => d.At == door);
+			if (knowledge is not { Known: DoorKnowledge.Seen, Open: { } open })
+			{
+				MoveTo(door); // walking to the door follows the usual movement rules; do not toggle stale knowledge
+				return;
+			}
 			var result = _sim.Execute(new DoorCommand { Actor = _sim.Player, At = door, Open = !open });
 			ShowMessage(result.Message);
 			Refresh();
@@ -569,8 +576,20 @@ public partial class VillageMap : Node2D
 			: $"Accendi una torcia (T) — te ne restano {_view.Torches}";
 		_torch.Disabled = _view.TorchLitUntil is null && _view.Torches == 0;
 		foreach (var door in _view.Doors)
-			if (_doorPanels.TryGetValue(door.At, out var panel))
-				panel.Visible = door.Open == false;
+		{
+			if (!_doorPanels.TryGetValue(door.At, out var panel))
+				continue;
+			panel.Visible = door.Known != DoorKnowledge.Unknown && door.Open == false;
+			panel.SelfModulate = door.Known == DoorKnowledge.Remembered
+				? new Color(0.72f, 0.72f, 0.72f, 0.55f) : Colors.White;
+			_doorFloors[door.At].Color = door.Known == DoorKnowledge.Unknown ? Road
+				: door.Known == DoorKnowledge.Remembered ? DoorWood.Lerp(Colors.Gray, 0.5f).Darkened(0.25f)
+				: DoorWood.Darkened(0.25f);
+			var outline = _doorOutlines[door.At];
+			outline.Visible = door.Known != DoorKnowledge.Seen;
+			outline.DefaultColor = door.Known == DoorKnowledge.Unknown
+				? new Color(0.78f, 0.78f, 0.74f, 0.8f) : new Color(0.72f, 0.58f, 0.40f, 0.7f);
+		}
 		var watchers = _view.VisibleActors.Where(a => a.SeesYou == true).Select(a => a.Name).ToList();
 		var hidden = _view.Sneaking is { } total ? $"Di soppiatto (Furtività {total}). "
 			: _view.Move is { Stealthy: true } ? "Vai piano, ma ti vedono: non sei nascosto. " : "";
@@ -868,7 +887,13 @@ public partial class VillageMap : Node2D
 		foreach (var door in _view.Doors)
 		{
 			if (_lit.TryGetValue(door.At, out var tile) && tile is Polygon2D floorTile)
-				floorTile.Color = DoorWood.Darkened(0.25f);
+				_doorFloors[door.At] = floorTile;
+			var diamond = Diamond(0.7f);
+			var outline = new Line2D { Position = CellToScreen(door.At), Points = new[]
+				{ diamond[0], diamond[1], diamond[2], diamond[3], diamond[0] },
+				Width = 2f, Visible = false };
+			_floor.AddChild(outline);
+			_doorOutlines[door.At] = outline;
 			var panel = MakeBlock(door.At, DoorWood, WallHeight);
 			_sorted.AddChild(panel);
 			_doorPanels[door.At] = panel;
