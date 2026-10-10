@@ -331,6 +331,7 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
   - verso un'altra Area: si cammina fino all'uscita più conveniente (costo minimo del viaggio a valle, poi ID) e si parte lungo la Route;
   - fuori mappa: si viaggia lungo le Route; se la destinazione è su un'Area mappata, il viaggio punta alla sua uscita più conveniente e si prosegue a piedi.
 - **Arrivato** (`IsAt`): sul posto, se il luogo ne ha uno di quel tipo; altrimenti basta essere nel luogo. Un NPC già in un luogo senza posti resta dov'è.
+- **Solo destinazioni raggiungibili** (review di Codex): si sceglie un posto o una casella del luogo raggiungibile dalla posizione dell'NPC, e un'uscita raggiungibile a piedi, anche se un'uscita isolata da muri sarebbe più conveniente. Se non c'è alcuna via (un luogo fatto solo dal deposito, o tagliato fuori dai muri), l'NPC esita e riprova più tardi, senza errori.
 - **Routine**: il turno porta al posto Work, il resto del tempo al posto Home (o Rest); il presidio porta al posto Guard. Un NPC libero su strada aperta, fuori da ogni luogo, torna a casa.
 - Le porte si aprono camminando e restano aperte (la chiusura da parte degli NPC verrà dopo).
 - **Restano a "nel luogo"** fino alle prossime tappe: la razzia (T6c-3), le segnalazioni, la vigilanza e la confisca (T6c-4).

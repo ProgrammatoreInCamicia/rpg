@@ -113,4 +113,50 @@ public class NpcRoutineTests
 
         Assert.Equal(GuardStart, Square(s, Guard));
     }
+
+    // ---------------------------------------------------------------- review of T6c-2: unreachable destinations
+
+    [Fact]
+    public void An_npc_leaves_by_an_exit_it_can_reach_even_if_a_walled_off_one_is_cheaper()
+    {
+        // West road: 60 minutes to the hut, reachable. East road: 5 minutes, but behind a wall.
+        var s = SimulationSession.Create(new ScenarioBuilder()
+            .AddArea("village", "Villaggio").AddArea("woods", "Bosco")
+            .AddLocation("yard", "Cortile", "village").AddLocation("west", "Strada ovest", "village")
+            .AddLocation("east", "Strada est", "village").AddLocation("hut", "Capanna", "woods")
+            .AddRoute("west", "hut", Duration.FromMinutes(60)).AddRoute("east", "hut", Duration.FromMinutes(5))
+            .AddMap("village", new[] { "#######", "WYYYY#E", "#######" },
+                new Dictionary<char, string> { ['Y'] = "yard", ['W'] = "west", ['E'] = "east" })
+            .AddExit("village", "west", (0, 1)).AddExit("village", "east", (6, 1))
+            .AddActor("player", "P", "yard", isPlayer: true, at: (1, 1))
+            .AddActor("woodcutter", "Taglialegna", "yard", at: (3, 1), // lives in the yard, works at the hut in the woods
+                workLocationId: "hut", shiftStart: Duration.Zero, shiftEnd: Duration.FromHours(23))
+            .Build());
+        var woodcutter = s.Engine.World.Actors[new ActorId("woodcutter")];
+
+        s.Advance(Duration.FromHours(2));
+
+        Assert.Equal(new LocationId("hut"), s.GetWorldView().Actor(woodcutter.Id).Location);
+    }
+
+    [Fact]
+    public void A_place_that_cannot_be_reached_makes_the_npc_hesitate_instead_of_failing()
+    {
+        // The depot's only square is its store: there is nowhere to stand in it.
+        var s = SimulationSession.Create(new ScenarioBuilder()
+            .AddArea("a", "A")
+            .AddLocation("start", "Start", "a").AddLocation("depot", "Depot", "a")
+            .AddMap("a", new[] { "AA#", "AAG" }, new Dictionary<char, string> { ['A'] = "start", ['G'] = "depot" })
+            .AddStore("store", "Store", "depot", 0, at: (2, 1))
+            .AddActor("player", "P", "start", isPlayer: true, at: (0, 0))
+            .AddActor("clerk", "Commesso", "start", workLocationId: "depot",
+                shiftStart: Duration.Zero, shiftEnd: Duration.FromHours(23), at: (1, 1))
+            .Build());
+
+        s.Advance(Duration.FromHours(1));
+
+        var clerk = s.GetWorldView().Actor(new ActorId("clerk"));
+        Assert.Equal("Routine: va al lavoro", clerk.LastDecision!.Rule);
+        Assert.Contains("Nessuna azione possibile", clerk.LastDecision.Reason);
+    }
 }

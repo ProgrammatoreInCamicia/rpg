@@ -7,22 +7,26 @@ namespace RpgSandbox.Sim;
 internal sealed partial class Simulation
 {
     /// <summary>
-    /// The square an NPC heads for in a place on a map: the post of the given kind; for Home without a Home post, the
-    /// place's Rest post; otherwise the first walkable square of the place in reading order.
+    /// The square an NPC standing on <paramref name="from"/> heads for in a place on a map: the post of the given kind (for
+    /// Home without a Home post, the Rest post), if it can be reached; otherwise the first square of the place in reading
+    /// order that can be reached. Null when there is no way there (a place cut off by walls): the NPC then hesitates and
+    /// decides again later, instead of failing.
     /// </summary>
-    private static GridPos TargetSquare(GridMap map, LocationId place, PostKind? kind)
+    private static GridPos? TargetSquare(GridMap map, LocationId place, PostKind? kind, GridPos from)
     {
         if (PostOf(map, place, kind) is { } post)
-            return post;
+            return Reachable(map, from, post) ? post : null;
         for (var y = 0; y < map.Height; y++)
         for (var x = 0; x < map.Width; x++)
         {
             var square = new GridPos(x, y);
-            if (map.ZoneAt(square) == place && map.IsWalkable(square))
+            if (map.ZoneAt(square) == place && map.IsWalkable(square) && Reachable(map, from, square))
                 return square;
         }
-        throw new InvalidOperationException($"Il luogo '{place}' non ha caselle percorribili sulla mappa.");
+        return null;
     }
+
+    private static bool Reachable(GridMap map, GridPos from, GridPos to) => from == to || map.FindPath(from, to) is not null;
 
     /// <summary>
     /// Where the NPC was going: on the place's post when it has one of that kind (or Rest for Home); otherwise anywhere
@@ -55,13 +59,15 @@ internal sealed partial class Simulation
         {
             if (area == destinationArea)
             {
-                if (IsAt(npc, place, kind))
+                if (IsAt(npc, place, kind) || CurrentPosition(npc) is not { } standing)
                     return null;
-                return new MoveCommand { Actor = npc.Id, To = TargetSquare(map, place, kind) };
+                return TargetSquare(map, place, kind, standing) is { } target ? new MoveCommand { Actor = npc.Id, To = target } : null;
             }
 
-            // Leave by the exit that makes the rest of the way shortest.
+            // Leave by the exit that makes the rest of the way shortest, among those that can be walked to from here.
+            var from = CurrentPosition(npc)!.Value;
             var best = map.Exits
+                .Where(exit => Reachable(map, from, exit.Value))
                 .SelectMany(exit => JourneyTargets(place).Select(t => (Exit: exit, Target: t, Cost: PathCost(exit.Key, t))))
                 .Where(c => c.Cost is not null)
                 .OrderBy(c => c.Cost!.Value.Seconds).ThenBy(c => c.Exit.Key.Value, StringComparer.Ordinal)
