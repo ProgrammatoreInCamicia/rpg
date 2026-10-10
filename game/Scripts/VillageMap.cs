@@ -58,6 +58,7 @@ public partial class VillageMap : Node2D
 	private SpinBox _amount = null!;
 	private VBoxContainer _people = null!;
 	private Label _message = null!;
+	private Label _events = null!;
 	private PanelContainer _offMapPanel = null!;
 	private Label _offMapLabel = null!;
 	private Button _returnToVillage = null!;
@@ -200,6 +201,7 @@ public partial class VillageMap : Node2D
 	internal bool IsBusy => _running is not null;
 	internal bool IsWalking => _walking;
 	internal string LastMessage => _message.Text;
+	internal string EventText => _events.Text;
 	internal ActorId? TalkingTo => _talkingTo;
 	internal bool OffMapPanelVisible => _offMapPanel.Visible;
 
@@ -464,6 +466,8 @@ public partial class VillageMap : Node2D
 	private void Take(int amount) =>
 		StartActivity(new TakeFoodCommand { Actor = _sim.Player, Store = MappedVillageScenario.Ids.GranaryStore, Amount = amount });
 
+	internal void TakeViaUi(int amount) => Take(amount); // same handler as the Prendi button, used by the village smoke
+
 	private void Tell(ActorId listener, TopicView topic) =>
 		StartActivity(new ReportCommand { Actor = _sim.Player, Recipient = listener, Observation = topic.Observation });
 
@@ -555,6 +559,11 @@ public partial class VillageMap : Node2D
 			+ (_walking ? $"Cammini… ({where})" : _view.Travel is not null ? "Sei in viaggio."
 				: onMap ? $"Sei qui: {where}. Clicca dove vuoi andare." : $"Sei qui: {where}.");
 		_food.Text = $"Razioni con te: {_view.Food}";
+		var eventsText = _view.RecentEvents.Count == 0 ? "Nessun evento recente."
+			: string.Join("\n\n", _view.RecentEvents.Reverse().Select(e =>
+				$"G{e.At.Day + 1} {e.At.Hour:00}:{e.At.Minute:00} · {e.Description}"));
+		if (_events.Text != eventsText)
+			_events.Text = eventsText;
 		_torch.Text = _view.TorchLitUntil is { } burnsUntil
 			? $"Spegni la torcia (T) — ancora {Math.Max(1, burnsUntil.Since(_view.Now).Seconds / 60)} min"
 			: $"Accendi una torcia (T) — te ne restano {_view.Torches}";
@@ -1007,6 +1016,20 @@ public partial class VillageMap : Node2D
 		_message = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		_message.AddThemeFontSizeOverride("font_size", 13);
 		box.AddChild(_message);
+
+		var eventsPanel = new PanelContainer();
+		var eventsBox = new VBoxContainer();
+		eventsPanel.AddChild(eventsBox);
+		var eventsTitle = new Label { Text = "Eventi" };
+		eventsTitle.AddThemeFontSizeOverride("font_size", 16);
+		eventsBox.AddChild(eventsTitle);
+		var eventScroll = new ScrollContainer { CustomMinimumSize = new Vector2(0, 112) };
+		_events = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart,
+			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_events.AddThemeFontSizeOverride("font_size", 12);
+		eventScroll.AddChild(_events);
+		eventsBox.AddChild(eventScroll);
+		box.AddChild(eventsPanel);
 
 		_offMapPanel = new PanelContainer { OffsetLeft = 440, OffsetRight = 840, OffsetTop = 100, OffsetBottom = 245,
 			Visible = false };

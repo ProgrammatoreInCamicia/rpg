@@ -73,6 +73,9 @@ public partial class VillageSmoke : Node
 			"On resume the queued orders should run in order");
 		_map.ToggleTorch(); // put it out: torchlight would spoil the sneaking below
 		Require(_map.View.TorchLitUntil is null, "The torch did not go out");
+		Require(_map.EventText.Contains("G1 00:") && _map.EventText.Contains("accende una torcia")
+			&& _map.EventText.Contains("spegne la torcia"),
+			"The Events panel did not show the player's torch events with game time");
 
 		// Walk a little at the exploration pace (several game seconds per real second, rules unchanged), save, stop.
 		await Seconds(2.5);
@@ -166,6 +169,7 @@ public partial class VillageSmoke : Node
 		await Frames(3);
 		Require(_map.View.Doors.Single(d => d.At == MappedVillageScenario.Ids.InnDoor).Open == false,
 			$"Clicking the door did not close it: {_map.LastMessage}");
+		Require(_map.EventText.Contains("chiude la porta"), "The Events panel did not show the door action");
 		Require(_map.View.VisibleActors.All(a => a.Id != guard), "The guard should be hidden by the closed door");
 		Require(_map.View.MapLight![3][9] == '0', "The lamplight should not reach the road with the door closed");
 		Require(_map.DisplayGlowAt(new GridPos(8, 3)) == 0f,
@@ -226,6 +230,7 @@ public partial class VillageSmoke : Node
 		Require(!_map.OffMapPanelVisible, "The village map did not return");
 		Capture("10-village-return.png");
 		await NightRaid();
+		await DiscoveredTheft();
 	}
 
 	/// <summary>G6: show the raid through the actual village view, with a reproducible saved world at each long gap.</summary>
@@ -307,6 +312,98 @@ public partial class VillageSmoke : Node
 		Require(_map.SmokeWorld.Stores.Single(s => s.Id == camp).Food == 16,
 			"The stolen rations were not delivered to the camp");
 		Capture("15-raid-returned.png");
+	}
+
+	/// <summary>G8: the player is seen stealing, the guard catches up, and the farmer reports the theft.</summary>
+	private async Task DiscoveredTheft()
+	{
+		var session = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
+		session.Advance(new GameTime(13 * 3600 + 30 * 60).Since(session.Now));
+		var toAccess = session.Execute(new MoveCommand { Actor = session.Player, To = MappedVillageScenario.Ids.GranaryAccess });
+		Require(toAccess.Success, "Cannot place the player at the granary access for G8");
+		session.AdvanceUntilCompleted(toAccess.Action!.Value, Duration.FromMinutes(5));
+		var guard = MappedVillageScenario.Ids.Guard;
+		var farmer = MappedVillageScenario.Ids.Farmer;
+		var granary = MappedVillageScenario.Ids.GranaryStore;
+		Require(session.GetWorldView().Actors.Single(a => a.Id == farmer).Position == MappedVillageScenario.Ids.FarmerWork,
+			"The farmer is not at work for the daylight theft");
+		var beforeTheft = System.IO.Path.Combine(_outputDir, "discovered-before-theft.json");
+		using (var stream = File.Create(beforeTheft)) session.Save(stream);
+		_map.SetPaused(true);
+		_map.LoadGameFromPath(beforeTheft);
+		await Frames(3);
+		Require(_map.View.Position == MappedVillageScenario.Ids.GranaryAccess,
+			"The UI did not load the player at the granary entrance");
+		Capture("16-daylight-granary.png");
+
+		_map.SetPaused(false);
+		_map.TakeViaUi(3);
+		Require(_map.IsBusy, $"The Prendi handler did not start the theft: {_map.LastMessage}");
+		await UntilIdle(8);
+		Require(_map.View.Food == 13 && _map.SmokeWorld.Stores.Single(s => s.Id == granary).Food == 37,
+			"The player's daylight theft did not take three rations");
+		Require(_map.EventText.Contains("ruba 3 razioni") && _map.EventText.Contains("G1 13:"),
+			"The Events panel did not show the daylight theft with its game time");
+		Capture("17-theft-discovered.png");
+
+		_map.MoveTo(new GridPos(12, 9));
+		await UntilIdle(10);
+		Require(_map.View.Position == new GridPos(12, 9), "The player did not retreat to the road");
+		var midContact = System.IO.Path.Combine(_outputDir, "discovered-mid-contact.json");
+		_map.SaveGameToPath(midContact);
+		using (var stream = File.OpenRead(midContact))
+		{
+			var loaded = SimulationSession.TryLoad(stream);
+			Require(loaded.Success, $"The UI's daylight theft save did not load: {loaded.Error}");
+			session = loaded.Session!;
+		}
+
+		for (var i = 0; i < 600 && session.GetWorldView().Actors.Single(a => a.Id == guard).Action?.Kind != "Confiscate"; i++)
+			session.Advance(Duration.FromSeconds(1));
+		Require(session.GetWorldView().Actors.Single(a => a.Id == guard).Action?.Kind == "Confiscate",
+			"The guard did not reach the player to confiscate the stolen food");
+		var confronted = System.IO.Path.Combine(_outputDir, "discovered-confronted.json");
+		using (var stream = File.Create(confronted)) session.Save(stream);
+		_map.SetPaused(true);
+		_map.LoadGameFromPath(confronted);
+		await Frames(3);
+		Require(_map.View.PeopleHere.Any(p => p.Id == guard), "The guard is not next to the player during confiscation");
+		Capture("18-guard-confronts.png");
+
+		for (var i = 0; i < 300 && session.GetPlayerView().Food != 10; i++)
+			session.Advance(Duration.FromSeconds(1));
+		Require(session.GetPlayerView().Food == 10, "The guard did not recover three stolen rations");
+		var confiscated = System.IO.Path.Combine(_outputDir, "discovered-confiscated.json");
+		using (var stream = File.Create(confiscated)) session.Save(stream);
+		_map.LoadGameFromPath(confiscated);
+		await Frames(3);
+		Require(_map.EventText.Contains("si fa restituire") && _map.View.Food == 10,
+			"The Events panel did not show the confiscation to the player");
+		Capture("19-food-confiscated.png");
+
+		for (var i = 0; i < 900 && session.GetWorldView().Stores.Single(s => s.Id == granary).Food != 40; i++)
+			session.Advance(Duration.FromSeconds(1));
+		Require(session.GetWorldView().Stores.Single(s => s.Id == granary).Food == 40,
+			"The guard did not return the recovered food through the granary access");
+		var restored = System.IO.Path.Combine(_outputDir, "discovered-restored.json");
+		using (var stream = File.Create(restored)) session.Save(stream);
+		_map.LoadGameFromPath(restored);
+		await Frames(3);
+		Capture("20-granary-restored.png");
+
+		for (var i = 0; i < 900 && !session.GetWorldView().RecentFacts.Any(f => f.Kind == "InformationShared"
+			&& f.Description.Contains("Contadino racconta a Guardia")); i++)
+			session.Advance(Duration.FromSeconds(1));
+		Require(session.GetWorldView().RecentFacts.Any(f => f.Kind == "ReportFailed" && f.Description.Contains("Contadino")),
+			"The farmer's interrupted report was not recorded");
+		Require(session.GetWorldView().RecentFacts.Any(f => f.Kind == "InformationShared"
+			&& f.Description.Contains("Contadino racconta a Guardia")),
+			"The farmer did not reach the guard to report the theft again");
+		var reported = System.IO.Path.Combine(_outputDir, "discovered-reported.json");
+		using (var stream = File.Create(reported)) session.Save(stream);
+		_map.LoadGameFromPath(reported);
+		await Frames(3);
+		Capture("21-farmer-reports.png");
 	}
 
 	private static void Require(bool condition, string message)
