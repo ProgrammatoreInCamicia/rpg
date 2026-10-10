@@ -218,6 +218,10 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
 - `MoveCommand { Stealthy = true }`: si cammina all'andatura **Lenta** (velocità × 2/3: per Speed 30, una casella ogni 1,5 s).
   - Alla prima camminata furtiva si tira **una** prova di Furtività, con svantaggio se l'armatura lo impone. Il totale resta in `Actor.Sneak` finché si resta furtivi: un nuovo clic non ritira.
   - Il percorso furtivo considera la luce: ogni casella costa 1, più 1 se è in luce fioca e 3 se è in luce piena. Il personaggio allunga un po' il giro per restare al buio, ma il tempo si conta sempre in caselle percorse.
+- **Nascondersi richiede di non essere visti** (correzione dopo la review di Codex):
+  - un **nuovo** tiro di Furtività si fa solo se in quel momento nessuno vede il personaggio (regole normali); se qualcuno lo vede, il personaggio va all'andatura lenta ma **non** è nascosto (`Sneak` resta null) e il messaggio dice chi lo vede;
+  - durante un cammino furtivo **ogni casella è una tappa**: se lì qualcuno vede il personaggio (luce piena in linea di vista, oppure luce fioca con Percezione −5 che raggiunge il totale), è **scoperto** (`Sneak` = null, fatto `SneakDiscovered`), come "an enemy finds you" dello SRD;
+  - limiti: la distinzione completa tra andatura lenta e stato nascosto, e chi conta come osservatore "pertinente", arrivano con la T6c; il riparo parziale (Three-Quarters Cover) non esiste ancora nel modello delle mappe.
 - **Fine della furtività**: una camminata normale, oppure qualunque comando riuscito diverso da muoversi, fermarsi o prendere razioni. Quindi conversazione, consegna, attesa.
 - **Chi vede chi** sulle mappe (`Simulation.Sees`): serve la linea di vista, poi conta la luce sulla casella del bersaglio:
   - buio: non si vede nessuno;

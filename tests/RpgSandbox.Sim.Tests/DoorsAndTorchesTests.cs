@@ -135,9 +135,13 @@ public class DoorsAndTorchesTests
         var s = Village();
         // A dark square of the road in view of the lamplit guard, through the door.
         var map = s.Engine.World.Maps[MappedVillageScenario.Ids.Village];
-        var dark = Enumerable.Range(8, 15).SelectMany(x => Enumerable.Range(1, 9).Select(y => new GridPos(x, y)))
-            .First(p => map.IsWalkable(p) && map.SourceLight(p) == Light.Dark && map.HasLineOfSight(GuardStart, p));
-        WalkTo(s, dark, stealthy: true);
+        bool DarkInView(GridPos p) => map.IsWalkable(p) && map.SourceLight(p) == Light.Dark && map.HasLineOfSight(GuardStart, p);
+        var squares = Enumerable.Range(8, 15).SelectMany(x => Enumerable.Range(1, 9).Select(y => new GridPos(x, y))).ToList();
+        var dark = squares.First(p => DarkInView(p) && squares.Any(q => q != p && q.IsAdjacentOrSame(p) && DarkInView(q)));
+        var next = squares.First(q => q != dark && q.IsAdjacentOrSame(dark) && DarkInView(q));
+        WalkTo(s, dark); // out of the lit inn first: watched, one cannot hide
+        WalkTo(s, next, stealthy: true); // in the dark, unseen: hidden
+
         var guard = s.GetPlayerView().VisibleActors.Single(a => a.Id == Guard);
         Assert.False(guard.SeesYou);
 

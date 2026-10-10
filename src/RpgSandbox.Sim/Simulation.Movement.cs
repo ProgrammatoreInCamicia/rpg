@@ -39,11 +39,13 @@ internal sealed partial class Simulation
             CancelAction(actor);
 
         // Sneaking: SRD Slow pace and one Stealth check for as long as the actor keeps sneaking (no reroll per walk).
+        // Hiding anew takes being out of everyone's sight (SRD Hide): watched, the actor only goes slowly.
         var speed = command.Stealthy ? Math.Max(1, actor.Sheet.Speed * 2 / 3) : actor.Sheet.Speed;
         D20Roll? stealth = null;
+        var watchedBy = new List<string>();
         if (!command.Stealthy)
             actor.Sneak = null;
-        else if (actor.Sneak is null)
+        else if (actor.Sneak is null && (watchedBy = WhoSeesOnMap(actor).Select(id => World.Actors[id].Name).Order(StringComparer.Ordinal).ToList()).Count == 0)
         {
             stealth = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Stealth), disadvantage: actor.Sheet.StealthDisadvantage);
             actor.Sneak = stealth.Total;
@@ -74,12 +76,13 @@ internal sealed partial class Simulation
         {
             var next = map.ZoneAt(path[step - 1]);
             var door = map.IsDoor(path[step]);
-            if (next == zone && !door)
+            if (next == zone && !door && !move.Stealthy) // a sneaking walk checks every square: one may be seen there
                 continue;
             zone = next;
             World.Scheduler.Schedule(move.StartedAt.Plus(Duration.FromSeconds(MoveAction.SecondsFor(step, move.Speed))), new MoveWaypoint(move.Id, step));
         }
-        var how = stealth is null ? "" : $" Furtività: {stealth.Describe()}.";
+        var how = stealth is not null ? $" Furtività: {stealth.Describe()}."
+            : watchedBy.Count > 0 ? $" Ti vede {string.Join(", ", watchedBy)}: vai piano, ma non puoi nasconderti." : "";
         return CommandResult.Started(move.Id, move.CompletesAt,
             command.Stealthy ? $"{actor.Name} avanza di soppiatto.{how}" : $"{actor.Name} si incammina.");
     }
@@ -99,6 +102,8 @@ internal sealed partial class Simulation
     {
         actor.Position = square;
         var map = World.Maps[actor.MapArea!.Value];
+        if (actor.Sneak is not null)
+            CheckDiscovered(actor);
         if (TorchLit(actor))
             NoteLightChange(map); // the light moved with its bearer
         var zone = map.ZoneAt(square);

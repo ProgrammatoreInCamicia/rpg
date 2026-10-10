@@ -435,7 +435,8 @@ public partial class VillageMap : Node2D
 			if (_doorPanels.TryGetValue(door.At, out var panel))
 				panel.Visible = !door.Open;
 		var watchers = _view.VisibleActors.Where(a => a.SeesYou == true).Select(a => a.Name).ToList();
-		var hidden = _view.Sneaking is { } total ? $"Di soppiatto (Furtività {total}). " : "";
+		var hidden = _view.Sneaking is { } total ? $"Di soppiatto (Furtività {total}). "
+			: _view.Move is { Stealthy: true } ? "Vai piano, ma ti vedono: non sei nascosto. " : "";
 		_watched.Text = hidden + (watchers.Count > 0 ? $"Ti vede: {string.Join(", ", watchers)}." : _view.VisibleActors.Count > 0 ? "Nessuno di quelli che vedi ti vede." : "");
 		_stop.Disabled = !_walking;
 		ShadeMap();

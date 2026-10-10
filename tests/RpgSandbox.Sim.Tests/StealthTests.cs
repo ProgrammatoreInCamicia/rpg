@@ -50,7 +50,7 @@ public class StealthTests
     [Fact]
     public void One_stealth_check_lasts_while_sneaking_and_noise_ends_it()
     {
-        var s = SimulationSession.Create(Field(3, (0, 0), 5, 5, (0, 2), (10, 0), (10, 4)));
+        var s = SimulationSession.Create(Field(3, (9, 4), 0, 0, (0, 2), (10, 0), (10, 4)));
         Walk(s, new GridPos(3, 2), stealthy: true);
         var total = s.GetPlayerView().Sneaking;
         Assert.NotNull(total);
@@ -65,7 +65,7 @@ public class StealthTests
         Assert.True(s.Execute(new WaitCommand { Actor = s.Player, Duration = Duration.FromMinutes(1) }).Success);
         Assert.Null(s.GetPlayerView().Sneaking); // waiting is not sneaking any more
 
-        var again = SimulationSession.Create(Field(3, (0, 0), 5, 5, (0, 2), (10, 0), (10, 4)));
+        var again = SimulationSession.Create(Field(3, (9, 4), 0, 0, (0, 2), (10, 0), (10, 4)));
         Walk(again, new GridPos(3, 2), stealthy: true);
         Walk(again, new GridPos(5, 2), stealthy: false);
         Assert.Null(again.GetPlayerView().Sneaking); // a normal walk ends it
@@ -122,7 +122,10 @@ public class StealthTests
             Walk(s, new GridPos(5, 2), stealthy: true); // dim light, 15 ft from the lamp
             var view = s.GetPlayerView();
             var seesYou = view.VisibleActors.Single(a => a.Id == Watcher).SeesYou!.Value;
-            Assert.Equal(dimPassive >= view.Sneaking, seesYou);
+            // Crept into dim light: found (no longer hidden) if the guard's eye reaches the Stealth total, else unseen.
+            Assert.Equal(view.Sneaking is null, seesYou);
+            if (view.Sneaking is { } total)
+                Assert.True(dimPassive < total);
             if (seesYou) seen++; else unseen++;
         }
         Assert.True(seen > 0 && unseen > 0);
@@ -139,7 +142,7 @@ public class StealthTests
         {
             foreach (var stealthy in new[] { true, false })
             {
-                var s = SimulationSession.Create(Field(seed, (1, 2), 5, 15, (2, 2), (8, 2), (5, 2)));
+                var s = SimulationSession.Create(Field(seed, (1, 2), 5, 15, (7, 4), (8, 2), (5, 2)));
                 s.AdvanceTo(At(1, 2));
                 Walk(s, new GridPos(4, 2), stealthy);
                 var sneak = s.GetPlayerView().Sneaking;
@@ -180,8 +183,11 @@ public class StealthTests
     [Fact]
     public void The_paladin_in_chain_mail_sneaks_with_disadvantage()
     {
+        // At night, out in the dark far from the inn: nobody sees the paladin, so it can try to hide.
         var s = SimulationSession.Create(MappedVillageScenario.Create());
-        var sneak = s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(4, 3), Stealthy = true });
+        s.AdvanceTo(At(1, 2));
+        Walk(s, new GridPos(21, 9), stealthy: false);
+        var sneak = s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(20, 9), Stealthy = true });
 
         Assert.Contains("svantaggio", sneak.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -259,5 +265,48 @@ public class StealthTests
 
         Assert.Equal(s.SaveToString(), loaded.SaveToString());
         Assert.Null(Assert.Single(loaded.GetWorldView().Actor(Watcher).Knowledge).Thief);
+    }
+
+    // ---------------------------------------------------------------- hiding takes being unseen (review F1)
+
+    [Fact]
+    public void Watched_you_go_slowly_but_cannot_hide()
+    {
+        // Broad daylight, the watcher in plain view.
+        var s = SimulationSession.Create(Field(1, (9, 4), 0, 0, (0, 2), (10, 2), (10, 4)));
+        s.AdvanceTo(At(1, 12));
+
+        var sneak = s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(3, 2), Stealthy = true });
+
+        Assert.Contains("non puoi nasconderti", sneak.Message);
+        Assert.Null(s.GetPlayerView().Sneaking);
+        Assert.Equal(5, sneak.CompletesAt!.Value.Since(s.Now).Seconds); // 3 squares at the slow pace: 4.5 s, rounded up
+        Assert.DoesNotContain(s.GetWorldView().RecentFacts, f => f.Kind == "Roll"); // no Stealth check at all
+    }
+
+    [Fact]
+    public void Crossing_bright_light_in_someone_s_view_gives_a_hidden_walker_away()
+    {
+        // Night. A corridor with a lamp in the middle (bright on 3 squares) and the watcher at its far end, looking along
+        // it. The player hides in the dark at one end and creeps along: there is no way around the light.
+        var scenario = new ScenarioBuilder()
+            .AddArea("a", "A")
+            .AddLocation("hall", "Corridoio", "a")
+            .AddMap("a", new[] { "###########", "YYYYYYYYYYY", "###########" }, new Dictionary<char, string> { ['Y'] = "hall" })
+            .AddLight("a", (5, 1), 5, 0)
+            .AddActor("player", "Protagonista", "hall", isPlayer: true, sheet: Sheets.Raider(), at: (0, 1))
+            .AddActor(Watcher.Value, "Guardia", "hall", sheet: Sheets.VillageGuard(), at: (10, 1))
+            .Build();
+        var s = SimulationSession.Create(scenario);
+        s.AdvanceTo(At(1, 2));
+        var map = s.Engine.World.Maps[new AreaId("a")];
+
+        var sneak = s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(8, 1), Stealthy = true });
+        Assert.NotNull(s.GetPlayerView().Sneaking);
+        Assert.Contains(s.GetPlayerView().Move!.Path, p => map.SourceLight(p) == Light.Bright); // no way around it
+        s.AdvanceUntilCompleted(sneak.Action!.Value, Duration.FromHours(1));
+
+        Assert.Null(s.GetPlayerView().Sneaking); // found on the way, and the dark beyond does not hide again
+        Assert.Contains(s.GetWorldView().RecentFacts, f => f.Kind == "SneakDiscovered");
     }
 }

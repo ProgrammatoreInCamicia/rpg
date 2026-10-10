@@ -80,6 +80,20 @@ internal sealed partial class Simulation
     }
 
     /// <summary>
+    /// A hidden actor seen by someone stops being hidden (SRD Hide: "an enemy finds you"). Checked on every square of a
+    /// sneaking walk, so crossing bright light in someone's view gives one away.
+    /// </summary>
+    private void CheckDiscovered(Actor actor)
+    {
+        var finders = WhoSeesOnMap(actor);
+        if (finders.Count == 0)
+            return;
+        actor.Sneak = null;
+        var names = string.Join(", ", finders.Select(id => World.Actors[id].Name).Order(StringComparer.Ordinal));
+        World.RecordFact("SneakDiscovered", $"{actor.Name} è scoperto: lo vede {names}.", actor.Id);
+    }
+
+    /// <summary>
     /// Light may have changed on a map (a torch, a door, a torch bearer on the move): thefts in progress keep the best
     /// light seen so far on the thief's square. Called before and after each change.
     /// </summary>

@@ -123,7 +123,15 @@ public partial class VillageSmoke : Node
 		Require(_map.TalkingTo == guard, $"The conversation did not open: {_map.LastMessage}");
 		Capture("4-talking-to-guard.png");
 
-		// Sneak out into the dark road: slow pace, one Stealth check, and the guard in the lamplight no longer sees you.
+		// Next to the guard you cannot hide (watched: slow, not hidden). Out on the dark road, unseen, you can: slow pace,
+		// one Stealth check.
+		_map.SetSneak(true);
+		_map.MoveTo(new GridPos(4, 3));
+		Require(_map.IsWalking && _map.View.Sneaking is null, "Watched by the guard, the player should not be able to hide");
+		await UntilIdle(20);
+		_map.SetSneak(false);
+		_map.MoveTo(new GridPos(20, 8));
+		await UntilIdle(40);
 		_map.SetSneak(true);
 		var before = _map.View.Now;
 		_map.MoveTo(new GridPos(14, 2));
