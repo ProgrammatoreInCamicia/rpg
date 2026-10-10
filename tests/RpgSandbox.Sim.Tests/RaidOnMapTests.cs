@@ -82,6 +82,11 @@ public class RaidOnMapTests
         Assert.DoesNotContain(s.GetWorldView().RecentFacts, f => f.Kind == "RaidDeterred"); // he did not see the guard
         Assert.Contains(s.GetWorldView().RecentFacts, f => f.Kind == "RaidFoiled");          // but was stopped at the store
         Assert.True(s.Engine.World.Factions[Bandits].AvoidUntil.ContainsKey(GranaryStore));  // so the band learns it
+        // Stopped, he flees at once: on his way out within moments, not after hesitating at the entrance.
+        var facts = s.GetWorldView().RecentFacts;
+        var foiled = facts.Single(f => f.Kind == "RaidFoiled").At;
+        var leaves = facts.First(f => f.Kind == "TravelStarted" && f.At >= foiled).At;
+        Assert.True(leaves.Since(foiled).Seconds < 120, $"left {leaves.Since(foiled).Seconds} s after being stopped");
         Assert.Equal(40 - 8, Food(s, GranaryStore)); // the second attempt was refused at the store
         Assert.Equal(BanditCamp, s.GetWorldView().Actor(Raider).Location);
     }

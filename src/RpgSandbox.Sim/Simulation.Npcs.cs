@@ -139,6 +139,9 @@ internal sealed partial class Simulation
             {
                 raid.Aborted = true;
                 World.RecordFact("RaidFoiled", $"{npc.Name} viene fermato a {target.Name}: è sorvegliato.");
+                // Stopped at the store, it flees at once instead of hesitating there (review T6c-3).
+                if (StepToStore(npc, home, stealthy: true) is { } flee)
+                    return Execute(flee);
             }
             else if (!result.Success)
                 raid.TakeAttempted = true;
