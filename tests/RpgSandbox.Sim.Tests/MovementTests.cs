@@ -35,6 +35,24 @@ public class MovementTests
     }
 
     [Fact]
+    public void The_player_map_does_not_show_a_store_from_another_area_at_the_same_coordinates()
+    {
+        var scenario = new ScenarioBuilder()
+            .AddArea("a", "A").AddArea("b", "B")
+            .AddLocation("a_place", "AP", "a").AddLocation("b_place", "BP", "b")
+            .AddMap("a", new[] { "AA" }, new Dictionary<char, string> { ['A'] = "a_place" })
+            .AddMap("b", new[] { "BB" }, new Dictionary<char, string> { ['B'] = "b_place" })
+            .AddActor("player", "P", "a_place", isPlayer: true, at: (0, 0))
+            .AddStore("remote", "Remote", "b_place", 1, at: (1, 0))
+            .Build();
+
+        var view = SimulationSession.Create(scenario).GetPlayerView();
+
+        Assert.Equal("AA", Assert.Single(view.Map!.Rows));
+        Assert.Empty(view.VisibleStores);
+    }
+
+    [Fact]
     public void Walking_takes_one_second_per_square_including_diagonals()
     {
         var s = NewVillage();

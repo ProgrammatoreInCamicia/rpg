@@ -163,7 +163,7 @@ internal sealed partial class Simulation
 
             // F4: recognising takes having SEEN the thief when the theft began, as recorded then: later changes of light
             // (a torch lit afterwards) cannot reveal who started it.
-            var recognised = seen && witness.ArrivedAt <= take.StartedAt && take.SeenAtStart.Contains(witness.Id);
+            var recognised = seen && take.SeenAtStart.Contains(witness.Id);
             Witnessed(witness, thief, store, amount, fact, recognised, seen ? PerceptionMode.Seen : PerceptionMode.Heard, light);
         }
     }

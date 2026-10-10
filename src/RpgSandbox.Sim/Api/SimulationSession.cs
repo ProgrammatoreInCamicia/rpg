@@ -303,7 +303,8 @@ public sealed class SimulationSession
     private static MapView MapOf(GridMap map, WorldState w)
     {
         var rows = map.Rows.Select(r => r.ToCharArray()).ToArray();
-        foreach (var store in w.Stores.Values.Where(s => s.Position is { } p && map.InBounds(p)))
+        foreach (var store in w.Stores.Values.Where(s => s.Position is { } p
+            && w.Locations[s.Location].Area == map.Area && map.InBounds(p)))
             rows[store.Position!.Value.Y][store.Position.Value.X] = 'S';
         return new MapView
         {

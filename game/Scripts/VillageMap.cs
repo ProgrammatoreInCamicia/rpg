@@ -584,13 +584,19 @@ public partial class VillageMap : Node2D
 		if (move is null || !_walking)
 			return CellToScreen(square);
 		var elapsed = _view.Now.Since(move.DepartedAt).Seconds + _pending;
-		var steps = elapsed * move.Speed / 30.0;
-		var reached = (int)Math.Floor(steps);
+		// The Sim reaches step i at ceil(i*30/Speed) whole game seconds. Interpolate between those
+		// actual deadlines, including speeds where a square takes more than one second.
+		double AtStep(int step) => Math.Ceiling(step * 30.0 / move.Speed);
+		var reached = 0;
+		while (reached < move.Path.Count && AtStep(reached + 1) <= elapsed)
+			reached++;
 		if (reached >= move.Path.Count)
 			return CellToScreen(move.Path[^1]);
 		var from = reached == 0 ? move.From : move.Path[reached - 1];
 		var to = move.Path[reached];
-		return CellToScreen(from).Lerp(CellToScreen(to), (float)(steps - reached));
+		var start = AtStep(reached);
+		var end = AtStep(reached + 1);
+		return CellToScreen(from).Lerp(CellToScreen(to), (float)((elapsed - start) / (end - start)));
 	}
 
 	/// <summary>
@@ -724,7 +730,8 @@ public partial class VillageMap : Node2D
 			}
 		}
 
-		foreach (var store in _sim.GetWorldView().Stores.Where(s => s.Position is not null))
+		foreach (var store in _sim.GetWorldView().Stores.Where(s => s.Position is not null
+			&& _view.Locations.Any(l => l.Id == s.Location && l.Area == map.Area)))
 		{
 			var block = MakeBlock(store.Position!.Value, new Color(0.65f, 0.45f, 0.30f), 34f);
 			var label = new Label { Text = store.Name, Position = new Vector2(-50, -70) };

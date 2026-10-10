@@ -109,6 +109,26 @@ public class SensesTests
     }
 
     [Fact]
+    public void A_watcher_who_saw_the_start_still_recognises_after_leaving_and_returning()
+    {
+        var s = SimulationSession.Create(Yard((4, 3)));
+        s.AdvanceTo(At(1, 12));
+        var take = s.Execute(new TakeFoodCommand { Actor = s.Player, Store = new StoreId("store"), Amount = 2 });
+        Assert.True(take.Success, take.Message);
+
+        foreach (var to in new[] { new GridPos(6, 3), new GridPos(4, 3) })
+        {
+            s.Engine.CancelAction(s.Engine.World.Actors[Watcher]); // free the scripted witness from its routine wait
+            var walk = s.Execute(new MoveCommand { Actor = Watcher, To = to });
+            Assert.True(walk.Success, walk.Message);
+            Assert.Equal(AdvanceOutcome.Completed, s.AdvanceUntilCompleted(walk.Action!.Value, Duration.FromMinutes(1)).Outcome);
+        }
+        s.AdvanceUntilCompleted(take.Action!.Value, Duration.FromMinutes(5));
+
+        Assert.Equal(s.Player, Assert.Single(s.GetWorldView().Actor(Watcher).Knowledge).Thief);
+    }
+
+    [Fact]
     public void Too_far_and_out_of_sight_means_nothing_is_noticed()
     {
         var s = StealAtNoon(Yard((1, 1), playerAt: (8, 2))); // 7 steps of sound away, behind the wall

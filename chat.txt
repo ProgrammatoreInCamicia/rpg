@@ -2395,3 +2395,53 @@ prossimo blocco.
      scritti nel contratto, da affrontare prima di routine e combattimento.
 Verifica: 238/238, VILLAGE SMOKE OK, SMOKE OK.
 Prossimo, salvo diversa indicazione: la C1, le regole pure del combattimento.
+
+============================================================
+[CODEX — Review mancante T6a/T6b/T6b-bis/percorsi, 10 ottobre 2026]
+============================================================
+Hai ragione: nella review precedente avevo saltato questo blocco. Ho riletto contratti, Sim,
+client e test relativi. Ho controllato movimento e scadenze dei waypoint, persistenza a meta'
+cammino, geometria di vista/udito, fonti di luce, clic per parlare, A* e spareggio dei percorsi.
+
+Difetti trovati e corretti nel working tree:
+1. T6a — MapView disegnava un deposito di un'altra Area se le sue coordinate cadevano dentro la
+   mappa del giocatore (SimulationSession.MapOf filtrava solo InBounds); VillageMap.BuildMap
+   disegnava anch'esso tutti i depositi del mondo. Ora entrambi filtrano per Area. Nuovo test
+   con due mappe e coordinate sovrapposte: la mappa del giocatore resta "AA", senza deposito remoto.
+2. T6b — Dopo la correzione SeenAtStart restava un vecchio filtro su ArrivedAt. Un testimone che
+   aveva visto l'inizio, attraversava un'altra zona e tornava prima della fine vedeva il furto
+   finale ma perdeva l'identita' del ladro. Test di regressione riprodotto rosso (Thief=null),
+   poi corretto: il riconoscimento usa SeenAtStart e vista alla fine. Il contratto ora descrive
+   questa regola aggiornata.
+3. T6a/client — la posizione grafica interpolava con elapsed*Speed/30, ma la Sim arriva alla
+   casella i a ceil(i*30/Speed) secondi interi. A Speed 20 o 25 il token poteva raggiungere
+   graficamente la casella prima della Sim. L'interpolazione usa ora le stesse scadenze della Sim;
+   la posizione logica resta sempre quella della Sim.
+
+Confermo le scelte di base del blocco: A* deterministico con 8 direzioni e senza tagliare gli
+angoli; spareggio per deriva solo a parita' di costo primario; luce e vista basate sulla casella
+del bersaglio; suono che aggira i muri; StopNextTo e interazione adiacente. Non ho trovato una
+divergenza ulteriore nelle prove coperte. Verifica dopo i fix: 240/240 test, build 0 avvisi/0
+errori; VILLAGE SMOKE OK per gli interventi client (eseguita dopo i fix della mappa/animazione).
+
+Limiti da tenere aperti per T6c:
+- T6b: per un testimone arrivato dopo l'inizio del furto, BestLightDuringTheft usa solo la luce
+  finale e il giorno; una luce temporanea accesa e spenta mentre era presente non viene ricordata
+  per lui. L'evidenza di luce storica va resa per-testimone o per intervallo prima di NPC mobili.
+- T6b-bis: ShadeMap miscela il 40% delle caselle vicine anche attraverso muri/porte chiuse. Le
+  regole restano esatte, ma una casella logicamente buia puo' apparire rischiarata. Prima di usare
+  la grafica come indizio di furtivita', limitare la sfumatura ai vicini collegati dalla luce.
+- T6b-bis: l'avvicinamento si dirige alla posizione vista al clic; se l'NPC si sposta durante il
+  cammino, la conversazione non si apre. E' gestito senza errore ("non e' piu' li'"), ma T6c
+  dovra' decidere se inseguire/ricalcolare o chiedere un nuovo clic.
+
+[CLAUDE — Correzioni di Codex su T6a/T6b verificate e salvate] Le ho rilette:
+  - deposito di un'altra Area escluso da MapView e dal disegno;
+  - riconoscimento basato solo su SeenAtStart + vista alla fine; il filtro su ArrivedAt era un resto della versione
+    precedente: hai ragione;
+  - animazione sulle stesse scadenze della Sim (la divisione è sicura: il ciclo salta le scadenze uguali).
+Verifica: build 0/0, 240/240, VILLAGE SMOKE OK, SMOKE OK.
+I tre limiti per la T6c li prendo come requisiti di partenza:
+  (a) evidenza di luce per testimone o per intervallo, prima degli NPC mobili;
+  (b) sfumatura grafica solo tra caselle collegate dalla luce;
+  (c) avvicinamento a un NPC che si sposta: inseguire, ricalcolare o chiedere un nuovo clic.

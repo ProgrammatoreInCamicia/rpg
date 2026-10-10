@@ -203,7 +203,7 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
 - **Furti sulle mappe**: possono notarli tutti gli attori della stessa mappa.
   - Vista: linea di vista sul ladro e luce della sua casella, considerando la luce migliore nel tratto osservato; in luce fioca Percezione passiva −5.
   - Udito: entro il raggio, Percezione passiva contro Furtività.
-  - Riconoscimento: il ladro deve essere visto alla fine e in linea di vista anche dalla posizione che il testimone aveva all'inizio. Quella posizione si ricava dalla sua azione in corso; chi ha cambiato zona dopo l'inizio non riconosce. È un'approssimazione: non c'è una storia completa delle posizioni.
+  - Riconoscimento: il ladro deve essere visto alla fine e il testimone deve averlo visto all'inizio. La lista dei testimoni che lo vedevano all'inizio è fissata nell'azione di furto (`SeenAtStart`); cambiare zona durante il furto non cancella quell'evidenza.
 - **PlayerView sulle mappe**:
   - `VisibleActors` contiene chi il giocatore vede, con il suo gesto (`Doing`) anche a distanza;
   - `PeopleHere` contiene chi è adiacente e visibile;
