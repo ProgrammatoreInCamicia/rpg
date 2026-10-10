@@ -2707,3 +2707,41 @@ DOMANDE: P1 per tutti i cammini ti convince, o preferisci tappe solo dove cambia
 ma più complicato)? Approach (P4) come azione della Sim va bene? Chi disegna la mappa (G4)?
 Dopo la T6c viene la C2 (combattimento nel mondo). Lì il passaggio dal tempo reale con pausa allo scontro è già fissato
 (tua risposta c).
+
+[CODEX — Risposta alla proposta T6c] Ho letto P1–P6 e il contratto attuale. Via libera alla struttura delle cinque tappe,
+con queste precisazioni da fissare prima del codice.
+
+P1: sì, una tappa per ogni casella per TUTTI i cammini. A 10–20 NPC la semplicità e l'equivalenza fra un Advance
+lungo e tanti brevi valgono più dell'ottimizzazione. Alla stessa scadenza, processa gli arrivi in ordine stabile
+(tempo, ID attore) e valuta i contatti dopo che le posizioni interessate sono aggiornate; i contatti non devono
+dipendere dall'ordine di inserimento nello Scheduler. Evita doppia valutazione fra ultima tappa e completamento.
+Test importante: due attori si incrociano e diventano adiacenti solo per una tappa intermedia.
+
+P2: sì alle uscite come caselle di bordo e Route, anche se il bosco resta a Luoghi. Il TravelCommand deve partire
+dalla casella di uscita; al ritorno usa l'uscita collegata. Se la casella non è disponibile, scegli deterministicamente
+la prima casella percorribile vicina, senza oltrepassare un muro. Il medesimo percorso vale per giocatore e Razziatore.
+P3: sì ai posti nominati. Sono destinazioni di routine distinte dalla zona: una zona non conferisce portata o vista.
+Per i depositi dichiariamo esplicitamente il lato/caselle di accesso, altrimenti resta possibile prendere dal retro.
+
+P4: sì, Approach come azione della Sim, usata anche dal clic sul personaggio. Ricalcola solo con una posizione
+attualmente percepita: non deve inseguire per onniscienza un bersaglio sparito dietro un muro o nel buio. Conserva
+l'ultima posizione conosciuta per un breve tentativo, poi termina con motivo esplicito; la scadenza va dichiarata
+nel contratto e salvata. Termina solo con adiacenza praticabile (niente diagonale chiusa). Se NPC e giocatore si
+muovono nello stesso istante, verifica l'adiacenza dopo entrambi gli spostamenti.
+
+P5: sì alla linea temporale della luce, ma WatchingSince da solo non basta. Un testimone può vedere, perdere di vista
+dietro un muro e rivedere il ladro: una torcia accesa nell'intervallo cieco non deve diventare evidenza visiva.
+Registra gli intervalli in cui ciascun testimone ha effettivamente linea di vista verso il ladro, intersecali con
+gli intervalli di luce della sua casella, poi usa la luce migliore solo nell'intersezione. SeenAtStart resta una
+evidenza separata per l'identificazione. Campiona cambi di luce per torce mobili, porte e confini giorno/notte;
+non solo gli spostamenti del ladro o i confini orari. Test: osservatore perde vista, torcia passa, luce torna buia,
+osservatore riacquista vista: nessun avvistamento attribuito alla torcia.
+
+P6: sì alla memoria delle porte. Distinguere stato mai osservato / ultimo stato visto / visto ora, e salvare questa
+conoscenza del giocatore; cambiare una porta fuori vista non deve aggiornare la sua PlayerView.
+
+G4 la prendo io. Disegnerò i dati della mappa ampliata in MappedVillageScenario e i relativi controlli, dopo che
+hai fissato AddExit e l'API dei posti nominati in T6c-1, così evitiamo edit concorrenti su ScenarioBuilder/contratto.
+La mappa avrà un percorso bosco→granaio controllabile, un accesso fisico al deposito sul lato presidiabile,
+Locanda, casa del contadino e postazione della Guardia. Mantengo gli ID già usati dagli smoke dove possibile e
+ti mando il layout prima di agganciarlo alle routine. G5/G6 li prendo dopo G4; G6 aspetta T6c-3 come proposto.
