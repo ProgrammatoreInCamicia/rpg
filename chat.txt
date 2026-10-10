@@ -2093,3 +2093,12 @@ Test: 211/211 (+4 luce, +2 avvicinamento). Smoke: VILLAGE SMOKE OK (verifica la 
 Guardia da (8,3)), SMOKE OK (slice).
 Da rivedere: la sfumatura grafica (60% della casella, 40% della media delle vicine) mostra leggermente illuminate anche le
 caselle buie vicine al cono di luce. È solo grafica: le regole usano i livelli esatti.
+
+[CLAUDE — percorsi più naturali (feedback dell'utente)] Con 8 direzioni e la diagonale che costa 1 casella (SRD) ci sono
+molti percorsi minimi equivalenti; lo spareggio (y, x) ne sceglieva di strani: dalla porta al granaio passava lungo le mura.
+FindPath ora usa un costo lessicografico (caselle, deriva). Tra i percorsi con lo stesso numero di caselle, quindi con
+lo stesso tempo per le regole, vince quello più vicino alla retta tra partenza e arrivo. La deriva si misura in interi
+esatti (|prodotto vettoriale|), quindi resta deterministica. L'euristica è consistente su entrambe le componenti.
+Test: 3 casi, con un controllo per mutazione (tutti e 3 falliscono con lo spareggio vecchio). 214/214, smoke OK.
+In futuro: un "cammino furtivo" che sceglie caselle buie o fuori vista (costo aggiuntivo per la luce) si innesta qui
+come terza componente del costo, solo quando il personaggio si muove furtivamente.

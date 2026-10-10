@@ -284,4 +284,25 @@ public class MovementTests
 
         Assert.Equal(RejectionReason.AlreadyThere, again.Rejection);
     }
+
+    [Theory]
+    [InlineData(7, 3, 14, 8)]  // from the inn door to the front of the granary
+    [InlineData(7, 3, 20, 9)]
+    [InlineData(1, 9, 22, 2)]  // across the whole village
+    public void Among_equally_short_paths_the_walk_keeps_close_to_the_straight_line(int fx, int fy, int tx, int ty)
+    {
+        var map = SimulationSession.Create(MappedVillageScenario.Create()).Engine.World.Maps[MappedVillageScenario.Ids.Village];
+        var from = new GridPos(fx, fy);
+        var to = new GridPos(tx, ty);
+
+        var path = map.FindPath(from, to)!;
+
+        Assert.Equal(from.StepsTo(to), path.Count); // still the fewest squares: same time as before
+        var length = Math.Sqrt((tx - fx) * (tx - fx) + (ty - fy) * (ty - fy));
+        foreach (var p in path)
+        {
+            var offLine = Math.Abs((tx - fx) * (p.Y - fy) - (ty - fy) * (p.X - fx)) / length;
+            Assert.True(offLine <= 1.0, $"{p} is {offLine:0.0} squares off the straight line");
+        }
+    }
 }

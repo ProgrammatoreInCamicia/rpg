@@ -148,7 +148,7 @@ internal sealed class GridMap
 
     /// <summary>
     /// Shortest path by the SRD grid rules: 8 directions, 1 square each, no diagonal across the corner of a blocked
-    /// square. Deterministic A*: ties broken by (estimate, y, x). Returns the squares after <paramref name="from"/>,
+    /// square. Deterministic A*: among paths of the same length (same time) the one closest to the straight line wins, then (estimate, y, x). Returns the squares after <paramref name="from"/>,
     /// ending at <paramref name="to"/>, or null when unreachable.
     /// </summary>
     public IReadOnlyList<GridPos>? FindPath(GridPos from, GridPos to)
@@ -158,9 +158,12 @@ internal sealed class GridMap
         if (from == to)
             return Array.Empty<GridPos>();
 
-        var cost = new Dictionary<GridPos, int> { [from] = 0 };
+        // Cost = (squares, drift): first the fewest squares (the rules), then, among paths that take the same time, the
+        // one staying closest to the straight line, so the walk looks natural. Drift is in exact integers.
+        long Drift(GridPos p) => Math.Abs((long)(to.X - from.X) * (p.Y - from.Y) - (long)(to.Y - from.Y) * (p.X - from.X));
+        var cost = new Dictionary<GridPos, (int Steps, long Drift)> { [from] = (0, 0) };
         var cameFrom = new Dictionary<GridPos, GridPos>();
-        var open = new SortedSet<(int F, int H, int Y, int X)> { (from.StepsTo(to), from.StepsTo(to), from.Y, from.X) };
+        var open = new SortedSet<(int F, long Drift, int H, int Y, int X)> { (from.StepsTo(to), 0, from.StepsTo(to), from.Y, from.X) };
         while (open.Count > 0)
         {
             var current = open.Min;
@@ -175,14 +178,14 @@ internal sealed class GridMap
                     continue;
                 if (dx != 0 && dy != 0 && (!IsWalkable(new GridPos(here.X + dx, here.Y)) || !IsWalkable(new GridPos(here.X, here.Y + dy))))
                     continue; // no cutting corners
-                var nextCost = cost[here] + 1;
-                if (cost.TryGetValue(next, out var known) && known <= nextCost)
+                var nextCost = (Steps: cost[here].Steps + 1, Drift: cost[here].Drift + Drift(next));
+                if (cost.TryGetValue(next, out var known) && known.CompareTo(nextCost) <= 0)
                     continue;
                 if (cost.TryGetValue(next, out var old))
-                    open.Remove((old + next.StepsTo(to), next.StepsTo(to), next.Y, next.X));
+                    open.Remove((old.Steps + next.StepsTo(to), old.Drift, next.StepsTo(to), next.Y, next.X));
                 cost[next] = nextCost;
                 cameFrom[next] = here;
-                open.Add((nextCost + next.StepsTo(to), next.StepsTo(to), next.Y, next.X));
+                open.Add((nextCost.Steps + next.StepsTo(to), nextCost.Drift, next.StepsTo(to), next.Y, next.X));
             }
         }
 
