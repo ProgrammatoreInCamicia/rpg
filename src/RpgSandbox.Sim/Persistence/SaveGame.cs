@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 9;
+    public const int SchemaVersion = 10;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -169,6 +169,8 @@ internal static class SaveGame
             Position = a.Position is { } p ? new PosDto { X = p.X, Y = p.Y } : null,
             MapArea = a.MapArea?.Value,
             Sneak = a.Sneak,
+            Torches = a.Torches,
+            TorchLitUntil = a.TorchLitUntil?.Seconds,
             Knowledge = a.Knowledge.Select(ToDto).ToList(),
             ActedOn = a.ActedOn.Select(o => o.Value).ToList(),
         }).ToList(),
@@ -198,6 +200,7 @@ internal static class SaveGame
         {
             Area = m.Area.Value, Rows = m.Rows.ToList(), Zones = m.Zones.ToDictionary(z => z.Key.ToString(), z => z.Value.Value),
             Lights = m.Lights.Select(l => new LightDto { X = l.At.X, Y = l.At.Y, Bright = l.BrightFeet, Dim = l.DimFeet }).ToList(),
+            Doors = m.Doors.Select(d => new DoorDto { X = d.Key.X, Y = d.Key.Y, Open = d.Value }).ToList(),
         }).ToList(),
     };
 
@@ -303,7 +306,9 @@ internal static class SaveGame
             var occupied = w.Stores.Values.Where(s => s.Position is not null && w.Locations[s.Location].Area == area).Select(s => s.Position!.Value);
             Check(m.Lights is not null && m.Lights.All(l => l is not null), $"luci della mappa '{area}' non valide");
             var lights = m.Lights!.Select(l => new LightSource(new GridPos(l.X, l.Y), l.Bright, l.Dim));
-            AddUnique(w.Maps, area, new GridMap(area, m.Rows!, zones, occupied, lights), "mappa");
+            Check(m.Doors is not null && m.Doors.All(d => d is not null), $"porte della mappa '{area}' non valide");
+            var doors = m.Doors!.Select(d => (new GridPos(d.X, d.Y), d.Open));
+            AddUnique(w.Maps, area, new GridMap(area, m.Rows!, zones, occupied, lights, doors), "mappa");
         }
         foreach (var store in w.Stores.Values.Where(s => s.Position is not null))
             Check(w.Maps.TryGetValue(w.Locations[store.Location].Area, out var sm) && sm.ZoneAt(store.Position!.Value) == store.Location,
@@ -366,6 +371,8 @@ internal static class SaveGame
                 Position = a.Position is { } ap ? new GridPos(ap.X, ap.Y) : null,
                 MapArea = a.MapArea is null ? null : new AreaId(a.MapArea),
                 Sneak = a.Sneak,
+                Torches = a.Torches,
+                TorchLitUntil = a.TorchLitUntil is { } lit ? new GameTime(lit) : null,
                 Sheet = FromDto(a.Sheet!),
             };
             foreach (var o in a.Knowledge)
@@ -497,12 +504,14 @@ internal static class SaveGame
         if (a.CurrentAction is GuardAction guard)
             Check(w.Stores.ContainsKey(guard.Store), $"sorveglianza di '{a.Id}' su deposito sconosciuto");
         Check(a.Food >= 0, $"attore '{a.Id}' con razioni negative");
+        Check(a.Torches >= 0, $"attore '{a.Id}' con torce negative");
         Check(a.Faction is null || w.Factions.ContainsKey(a.Faction.Value), $"attore '{a.Id}' di fazione sconosciuta");
         Check(a.Location is null || w.Locations.ContainsKey(a.Location.Value), $"attore '{a.Id}' in luogo sconosciuto");
         if (a.Position is { } pos)
         {
             // On a map: the square is real and walkable, and its zone is the actor's place (null on open ground).
-            Check(a.MapArea is { } area && w.Maps.TryGetValue(area, out var map) && map.IsWalkable(pos) && map.ZoneAt(pos) == a.Location,
+            Check(a.MapArea is { } area && w.Maps.TryGetValue(area, out var map) && map.IsWalkable(pos) && map.ZoneAt(pos) == a.Location
+                  && !map.IsClosedDoor(pos),
                 $"attore '{a.Id}' in una casella non valida {pos}");
             Check(a.CurrentAction is not TravelAction, $"attore '{a.Id}' in viaggio e su una mappa");
             if (a.CurrentAction is MoveAction mv)

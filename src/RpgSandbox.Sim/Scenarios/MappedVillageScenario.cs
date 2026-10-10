@@ -51,11 +51,12 @@ public static class MappedVillageScenario
             // A lamp in the middle of the inn (SRD Lamp: Bright Light 15 ft, Dim Light 30 ft more): through the open
             // door its light spills dimly onto the road. The granary yard stays dark at night.
             .AddLight(Ids.Village.Value, (Ids.InnLamp.X, Ids.InnLamp.Y), brightFeet: 15, dimFeet: 30)
+            .AddDoor(Ids.Village.Value, (Ids.InnDoor.X, Ids.InnDoor.Y), open: true) // the inn door, open for now
             .AddFaction(Ids.VillageFaction.Value, "Villaggio", homeStoreId: Ids.GranaryStore.Value, authorityId: Ids.Guard.Value)
             .AddStore(Ids.GranaryStore.Value, "Scorte del granaio", Ids.Granary.Value, food: 40, ownerFactionId: Ids.VillageFaction.Value,
                 at: (Ids.GranaryStoreSquare.X, Ids.GranaryStoreSquare.Y))
             .AddActor(Ids.Player.Value, "Protagonista", Ids.Inn.Value, isPlayer: true, food: 10, sheet: Sheets.Paladin(),
-                at: (Ids.PlayerStart.X, Ids.PlayerStart.Y))
+                at: (Ids.PlayerStart.X, Ids.PlayerStart.Y), torches: 3) // from an explorer's pack
             .AddActor(Ids.Guard.Value, "Guardia", Ids.Inn.Value, factionId: Ids.VillageFaction.Value, sheet: Sheets.VillageGuard(),
                 at: (Ids.GuardStart.X, Ids.GuardStart.Y))
             .Build();

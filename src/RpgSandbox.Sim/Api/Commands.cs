@@ -66,6 +66,22 @@ public sealed record MoveCommand : Command
 /// <summary>Stop walking, on the last square reached. Time then stands still until the next action.</summary>
 public sealed record StopCommand : Command;
 
+/// <summary>
+/// Open or close a door from a square next to it. Instant (SRD: interacting with one object is free); quiet enough not
+/// to end sneaking. Walking through a closed door opens it anyway.
+/// </summary>
+public sealed record DoorCommand : Command
+{
+    public required GridPos At { get; init; }
+    public required bool Open { get; init; }
+}
+
+/// <summary>Light a torch (it burns for 1 hour, SRD) or put out the one burning; a torch put out is spent.</summary>
+public sealed record TorchCommand : Command
+{
+    public required bool Lit { get; init; }
+}
+
 public enum RejectionReason
 {
     None = 0,
@@ -89,6 +105,10 @@ public enum RejectionReason
     Unreachable,
     NotMoving,
     OutOfReach,
+    NotADoor,
+    DoorBlocked,
+    NoTorch,
+    AlreadyDone,
 }
 
 public sealed record CommandResult

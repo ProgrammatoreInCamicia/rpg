@@ -117,6 +117,28 @@ public partial class VillageSmoke : Node
 		Require(_map.View.Now.Since(before).Seconds >= squares * 3 / 2, "Sneaking should go at the slow pace");
 		Capture("5-sneaking.png");
 		_map.SetSneak(false);
+
+		// From the road, a real click on the inn door closes it: the guard and the lamplight disappear behind it.
+		_map.MoveTo(new GridPos(8, 3));
+		await UntilIdle(40);
+		Require(_map.View.VisibleActors.Any(a => a.Id == guard), "The guard should be visible through the open door");
+		await Frames(3);
+		var door = _map.GetViewport().GetCanvasTransform() * VillageMap.ScreenPointOf(MappedVillageScenario.Ids.InnDoor);
+		Input.WarpMouse(door);
+		await Frames(3);
+		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true, Position = door, GlobalPosition = door });
+		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = door, GlobalPosition = door });
+		await Frames(3);
+		Require(_map.View.Doors.Single().Open == false, $"Clicking the door did not close it: {_map.LastMessage}");
+		Require(_map.View.VisibleActors.All(a => a.Id != guard), "The guard should be hidden by the closed door");
+		Require(_map.View.MapLight![3][9] == '0', "The lamplight should not reach the road with the door closed");
+
+		// A torch lights the dark road around the paladin.
+		_map.ToggleTorch();
+		Require(_map.View.TorchLitUntil is not null && _map.View.Torches == 2, $"The torch did not light: {_map.LastMessage}");
+		Require(_map.View.MapLight![3][9] == '2', "The torch should light the squares around");
+		await Frames(3);
+		Capture("6-door-closed-torch.png");
 	}
 
 	private static void Require(bool condition, string message)

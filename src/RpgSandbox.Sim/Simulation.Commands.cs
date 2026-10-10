@@ -10,9 +10,9 @@ internal sealed partial class Simulation
     public CommandResult Execute(Command command)
     {
         var result = Dispatch(command);
-        // Anything louder than a whisper ends sneaking (SRD Hide): talking, depositing, waiting... Taking food quietly and
-        // stopping do not; a normal walk ends it in StartMove.
-        if (result.Success && command is not (MoveCommand or StopCommand or TakeFoodCommand)
+        // Anything louder than a whisper ends sneaking (SRD Hide): talking, depositing, waiting... Taking food quietly,
+        // stopping, a door or a torch do not (a lit torch gives you away by its light anyway); a normal walk ends it in StartMove.
+        if (result.Success && command is not (MoveCommand or StopCommand or TakeFoodCommand or DoorCommand or TorchCommand)
             && World.Actors.TryGetValue(command.Actor, out var actor))
             actor.Sneak = null;
         return result;
@@ -27,6 +27,8 @@ internal sealed partial class Simulation
         ReportCommand report => StartReport(report),
         MoveCommand move => StartMove(move),
         StopCommand stop => Stop(stop),
+        DoorCommand door => UseDoor(door),
+        TorchCommand torch => UseTorch(torch),
         _ => CommandResult.Rejected(RejectionReason.UnknownCommand, $"Comando non supportato: {command.GetType().Name}."),
     };
 

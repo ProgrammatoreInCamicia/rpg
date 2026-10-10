@@ -26,6 +26,7 @@ public partial class VillageMap : Node2D
 	private static readonly Color Yard = new(0.66f, 0.58f, 0.38f);
 	private static readonly Color Wall = new(0.42f, 0.38f, 0.40f);
 	private static readonly Color Hover = new(1f, 1f, 1f, 0.25f);
+	private static readonly Color DoorWood = new(0.50f, 0.32f, 0.18f);
 
 	private SimulationSession _sim = null!;
 	private PlayerView _view = null!;
@@ -46,6 +47,8 @@ public partial class VillageMap : Node2D
 	private Button _stop = null!;
 	private CheckButton _sneakToggle = null!;
 	private Label _watched = null!;
+	private Button _torch = null!;
+	private readonly Dictionary<GridPos, Node2D> _doorPanels = new(); // shown while the door is closed
 	private bool _sneak;
 	private HBoxContainer _storeRow = null!;
 	private SpinBox _amount = null!;
@@ -117,6 +120,11 @@ public partial class VillageMap : Node2D
 			SetSneak(!_sneak);
 			return;
 		}
+		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.T })
+		{
+			ToggleTorch();
+			return;
+		}
 		if (@event is not InputEventMouseButton { Pressed: true } mouse)
 			return;
 		switch (mouse.ButtonIndex)
@@ -126,6 +134,8 @@ public partial class VillageMap : Node2D
 				// A figure stands above its square: clicking on its body means that person, not the square behind.
 				if (PersonAt(point) is { } person)
 					TalkTo(person);
+				else if (DoorAt(point) is { } door)
+					ClickDoor(door);
 				else
 					MoveTo(ScreenToCell(point));
 				break;
@@ -175,6 +185,43 @@ public partial class VillageMap : Node2D
 			_approaching = person;
 			ShowMessage($"Vai da {seen.Name}.");
 		}
+	}
+
+	/// <summary>Click on a door: next to it, open or close it; from afar, walk there (walking opens it anyway).</summary>
+	internal void ClickDoor(GridPos door)
+	{
+		if (_view.Position is { } here && here != door && Math.Max(Math.Abs(here.X - door.X), Math.Abs(here.Y - door.Y)) == 1)
+		{
+			var open = _view.Doors.FirstOrDefault(d => d.At == door)?.Open ?? true;
+			var result = _sim.Execute(new DoorCommand { Actor = _sim.Player, At = door, Open = !open });
+			ShowMessage(result.Message);
+			Refresh();
+			return;
+		}
+		MoveTo(door);
+	}
+
+	internal void ToggleTorch()
+	{
+		var result = _sim.Execute(new TorchCommand { Actor = _sim.Player, Lit = _view.TorchLitUntil is null });
+		ShowMessage(result.Message);
+		_lightKey = "";
+		Refresh();
+	}
+
+	/// <summary>The door under a world point: its square, or the panel standing on it while closed.</summary>
+	private GridPos? DoorAt(Vector2 point)
+	{
+		var cell = ScreenToCell(point);
+		foreach (var door in _view.Doors)
+		{
+			if (door.At == cell)
+				return door.At;
+			if (!door.Open && _doorPanels.TryGetValue(door.At, out var panel)
+				&& new Rect2(panel.Position + new Vector2(-TileW / 4f, -WallHeight - TileH / 2f), new Vector2(TileW / 2f, WallHeight + TileH)).HasPoint(point))
+				return door.At;
+		}
+		return null;
 	}
 
 	/// <summary>Switch between walking and sneaking; a walk in progress carries on to the same square in the new way.</summary>
@@ -339,6 +386,13 @@ public partial class VillageMap : Node2D
 		var where = _view.Location is { } here ? _view.Locations.Single(l => l.Id == here).Name : "strada";
 		_status.Text = _walking ? $"Cammini… ({where})" : $"Sei qui: {where}. Clicca dove vuoi andare.";
 		_food.Text = $"Razioni con te: {_view.Food}";
+		_torch.Text = _view.TorchLitUntil is { } burnsUntil
+			? $"Spegni la torcia (T) — ancora {Math.Max(1, burnsUntil.Since(_view.Now).Seconds / 60)} min"
+			: $"Accendi una torcia (T) — te ne restano {_view.Torches}";
+		_torch.Disabled = _view.TorchLitUntil is null && _view.Torches == 0;
+		foreach (var door in _view.Doors)
+			if (_doorPanels.TryGetValue(door.At, out var panel))
+				panel.Visible = !door.Open;
 		var watchers = _view.VisibleActors.Where(a => a.SeesYou == true).Select(a => a.Name).ToList();
 		var hidden = _view.Sneaking is { } total ? $"Di soppiatto (Furtività {total}). " : "";
 		_watched.Text = hidden + (watchers.Count > 0 ? $"Ti vede: {string.Join(", ", watchers)}." : _view.VisibleActors.Count > 0 ? "Nessuno di quelli che vedi ti vede." : "");
@@ -422,6 +476,9 @@ public partial class VillageMap : Node2D
 				token.Modulate = token.Modulate with { A = 0.55f }; // sneaking
 			if (token.GetNodeOrNull<Label>("Name") is { } nameLabel)
 				nameLabel.Text = figure.Name;
+			token.GetNode<Polygon2D>("Flame").Visible = figure.Player
+				? _view.TorchLitUntil is not null
+				: _view.VisibleActors.Any(a => a.Id == figure.Id && a.Torch);
 			shown.Add(figure.Id);
 		}
 		foreach (var (id, token) in _tokens)
@@ -479,6 +536,8 @@ public partial class VillageMap : Node2D
 		}
 		foreach (var (cell, item) in _lit)
 			item.Modulate = Shade(cell);
+		foreach (var (cell, panel) in _doorPanels)
+			panel.Modulate = Shade(cell);
 	}
 
 	private static readonly Color Night = new(0.22f, 0.25f, 0.42f);
@@ -590,6 +649,16 @@ public partial class VillageMap : Node2D
 			_lit[store.Position.Value] = block;
 		}
 
+		// Doors: a wooden floor square, and a wooden panel as tall as the walls while closed.
+		foreach (var door in _view.Doors)
+		{
+			if (_lit.TryGetValue(door.At, out var tile) && tile is Polygon2D floorTile)
+				floorTile.Color = DoorWood.Darkened(0.25f);
+			var panel = MakeBlock(door.At, DoorWood, WallHeight);
+			_sorted.AddChild(panel);
+			_doorPanels[door.At] = panel;
+		}
+
 		_hover = new Polygon2D { Polygon = Diamond(), Color = Hover, ZIndex = -5 };
 		AddChild(_hover);
 		_target = new Polygon2D { Polygon = Diamond(0.6f), Color = new Color(0.3f, 0.6f, 1f, 0.6f), ZIndex = -5, Visible = false };
@@ -627,6 +696,15 @@ public partial class VillageMap : Node2D
 			Polygon = Enumerable.Range(0, 10).Select(i => Vector2.FromAngle(Mathf.Tau * i / 10) * 5.5f).ToArray(),
 			Position = new Vector2(0, -30),
 			Color = new Color(0.95f, 0.82f, 0.68f),
+		});
+		// A torch in the hand, shown while it burns.
+		token.AddChild(new Polygon2D
+		{
+			Name = "Flame",
+			Polygon = new[] { new Vector2(0, -12), new Vector2(4, -4), new Vector2(0, 0), new Vector2(-4, -4) },
+			Position = new Vector2(10, -18),
+			Color = new Color(1f, 0.65f, 0.15f),
+			Visible = false,
 		});
 		if (!player)
 		{
@@ -676,6 +754,9 @@ public partial class VillageMap : Node2D
 		box.AddChild(_sneakToggle);
 		_watched = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		box.AddChild(_watched);
+		_torch = new Button();
+		_torch.Pressed += ToggleTorch;
+		box.AddChild(_torch);
 
 		_storeRow = new HBoxContainer();
 		_storeRow.AddThemeConstantOverride("separation", 6);

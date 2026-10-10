@@ -64,12 +64,17 @@ internal sealed partial class Simulation
         };
         Begin(actor, move);
 
-        // The only instants that matter on the way: entering or leaving a place (the arrival is the completion).
+        // The only instants that matter on the way: entering or leaving a place (the arrival is the completion), and the
+        // square before each door, where the walker opens it if it is closed (free, SRD). A door next to the start is
+        // opened at once.
+        if (map.IsClosedDoor(path[0]))
+            OpenDoorOnTheWay(actor, map, path[0]);
         var zone = map.ZoneAt(from);
         for (var step = 1; step < path.Count; step++)
         {
             var next = map.ZoneAt(path[step - 1]);
-            if (next == zone)
+            var door = map.IsDoor(path[step]);
+            if (next == zone && !door)
                 continue;
             zone = next;
             World.Scheduler.Schedule(move.StartedAt.Plus(Duration.FromSeconds(MoveAction.SecondsFor(step, move.Speed))), new MoveWaypoint(move.Id, step));
@@ -106,8 +111,51 @@ internal sealed partial class Simulation
     private void RunWaypoint(MoveWaypoint waypoint)
     {
         var actor = World.Actors.Values.FirstOrDefault(a => a.CurrentAction?.Id == waypoint.Action);
-        if (actor?.CurrentAction is MoveAction move)
-            Reach(actor, move.Path[waypoint.Step - 1]);
+        if (actor?.CurrentAction is not MoveAction move)
+            return;
+        Reach(actor, move.Path[waypoint.Step - 1]);
+        var map = World.Maps[actor.MapArea!.Value];
+        if (map.IsClosedDoor(move.Path[waypoint.Step]))
+            OpenDoorOnTheWay(actor, map, move.Path[waypoint.Step]);
+    }
+
+    private void OpenDoorOnTheWay(Actor actor, GridMap map, GridPos door)
+    {
+        map.SetDoor(door, open: true);
+        World.RecordFact("DoorOpened", $"{actor.Name} apre la porta in {door}.", actor.Id);
+    }
+
+    private CommandResult UseDoor(DoorCommand command)
+    {
+        if (!World.Actors.TryGetValue(command.Actor, out var actor))
+            return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {command.Actor}.");
+        if (actor.CurrentAction is not null)
+            return CommandResult.Rejected(RejectionReason.ActorBusy, $"{actor.Name} è già impegnato.");
+        if (MapOf(actor) is not { } map || CurrentPosition(actor) is not { } here)
+            return CommandResult.Rejected(RejectionReason.NoMap, "Qui non ci sono porte.");
+        if (!map.IsDoor(command.At))
+            return CommandResult.Rejected(RejectionReason.NotADoor, "Lì non c'è una porta.");
+        if (here == command.At || !here.IsAdjacentOrSame(command.At) || !OpenDiagonal(map, here, command.At))
+            return CommandResult.Rejected(RejectionReason.OutOfReach, "La porta è troppo lontana: avvicinati.");
+        if (map.Doors[command.At] == command.Open)
+            return CommandResult.Rejected(RejectionReason.AlreadyDone, command.Open ? "La porta è già aperta." : "La porta è già chiusa.");
+        // Nobody can be standing in a closing door, nor be about to step into it.
+        if (!command.Open && World.Actors.Values.Any(a => a.MapArea == map.Area
+                && (CurrentPosition(a) == command.At || a.CurrentAction is MoveAction m && NextSquare(m) == command.At)))
+            return CommandResult.Rejected(RejectionReason.DoorBlocked, "Qualcuno è sulla porta.");
+
+        map.SetDoor(command.At, command.Open);
+        World.RecordFact(command.Open ? "DoorOpened" : "DoorClosed",
+            $"{actor.Name} {(command.Open ? "apre" : "chiude")} la porta in {command.At}.", actor.Id);
+        return new CommandResult { Message = command.Open ? "Apri la porta." : "Chiudi la porta." };
+    }
+
+    /// <summary>The square a walker steps into next, or null once it has arrived.</summary>
+    private GridPos? NextSquare(MoveAction move)
+    {
+        var elapsed = World.Now.Seconds - move.StartedAt.Seconds;
+        var reached = (int)Math.Min(move.Path.Count, elapsed * move.Speed / 30);
+        return reached < move.Path.Count ? move.Path[reached] : null;
     }
 
     /// <summary>

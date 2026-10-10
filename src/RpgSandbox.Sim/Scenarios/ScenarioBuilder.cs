@@ -49,11 +49,12 @@ internal sealed record LocationDefinition(LocationId Id, string Name, AreaId Are
 internal sealed record RouteDefinition(LocationId A, LocationId B, Duration TravelTime);
 internal sealed record ActorDefinition(
     ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food, FactionId? Faction, WorkShift? Shift,
-    CharacterSheet Sheet, GridPos? At);
+    CharacterSheet Sheet, GridPos? At, int Torches = 0);
 internal sealed record StoreDefinition(StoreId Id, string Name, LocationId Location, int Food, FactionId? Owner, GridPos? At);
 internal sealed record MapDefinition(AreaId Area, IReadOnlyList<string> Rows, IReadOnlyDictionary<char, LocationId> Zones)
 {
     public List<LightSource> Lights { get; } = new();
+    public List<(GridPos At, bool Open)> Doors { get; } = new();
 }
 internal sealed record FactionDefinition(
     FactionId Id, string Name, StoreId? HomeStore, int DailyUpkeep, Duration UpkeepTimeOfDay, RaidPolicy? Policy,
@@ -122,11 +123,11 @@ public sealed class ScenarioBuilder
     /// </summary>
     public ScenarioBuilder AddActor(string id, string name, string locationId, bool isPlayer = false, int food = 0,
         string? factionId = null, string? workLocationId = null, Duration shiftStart = default, Duration shiftEnd = default,
-        CharacterSheet? sheet = null, (int X, int Y)? at = null)
+        CharacterSheet? sheet = null, (int X, int Y)? at = null, int torches = 0)
     {
         var shift = workLocationId is null ? null : new WorkShift(new LocationId(workLocationId), shiftStart, shiftEnd);
         _actors.Add(new ActorDefinition(new ActorId(id), name, new LocationId(locationId), isPlayer, food, ToFaction(factionId), shift,
-            sheet ?? CharacterSheet.Commoner(), at is { } p ? new GridPos(p.X, p.Y) : null));
+            sheet ?? CharacterSheet.Commoner(), at is { } p ? new GridPos(p.X, p.Y) : null, torches));
         return this;
     }
 
@@ -159,6 +160,15 @@ public sealed class ScenarioBuilder
         var map = _maps.LastOrDefault(m => m.Area.Value == areaId)
                   ?? throw new InvalidOperationException($"Add the map of '{areaId}' before its lights.");
         map.Lights.Add(new LightSource(new GridPos(at.X, at.Y), brightFeet, dimFeet));
+        return this;
+    }
+
+    /// <summary>Puts a door on a walkable square of a mapped area (open or closed). Add the map first.</summary>
+    public ScenarioBuilder AddDoor(string areaId, (int X, int Y) at, bool open)
+    {
+        var map = _maps.LastOrDefault(m => m.Area.Value == areaId)
+                  ?? throw new InvalidOperationException($"Add the map of '{areaId}' before its doors.");
+        map.Doors.Add((new GridPos(at.X, at.Y), open));
         return this;
     }
 
@@ -256,7 +266,7 @@ public sealed class ScenarioBuilder
             var storeSquares = _stores.Where(s => areaOf[s.Location] == map.Area && s.At is not null).Select(s => s.At!.Value);
             try
             {
-                maps[map.Area] = new GridMap(map.Area, map.Rows, map.Zones, storeSquares, map.Lights);
+                maps[map.Area] = new GridMap(map.Area, map.Rows, map.Zones, storeSquares, map.Lights, map.Doors);
             }
             catch (InvalidDataException e)
             {

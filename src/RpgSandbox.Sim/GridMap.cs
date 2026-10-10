@@ -5,15 +5,17 @@ namespace RpgSandbox.Sim;
 /// <summary>
 /// The walkable grid of one area. Built from text rows: '#' blocked, '.' open ground outside any zone, a letter an
 /// open square inside the zone (place) that letter stands for. Stores occupy a square, which then blocks movement.
-/// Immutable once built; part of the save, so a game never depends on a map file that may change.
+/// Doors are the only state that changes (open or closed). The whole map is part of the save, so a game never
+/// depends on a map file that may change.
 /// </summary>
 internal sealed class GridMap
 {
     private readonly char[,] _cells;
     private readonly HashSet<GridPos> _occupied;
+    private readonly SortedDictionary<GridPos, bool> _doors = new(Comparer<GridPos>.Create((a, b) => (a.Y, a.X).CompareTo((b.Y, b.X))));
 
     public GridMap(AreaId area, IReadOnlyList<string> rows, IReadOnlyDictionary<char, LocationId> zones, IEnumerable<GridPos> occupied,
-        IEnumerable<LightSource>? lights = null)
+        IEnumerable<LightSource>? lights = null, IEnumerable<(GridPos At, bool Open)>? doors = null)
     {
         if (rows.Count == 0 || rows.Any(r => r.Length != rows[0].Length || r.Length == 0))
             throw new InvalidDataException($"la mappa dell'area '{area}' deve avere righe non vuote e della stessa lunghezza");
@@ -39,6 +41,9 @@ internal sealed class GridMap
             if (!InBounds(light.At) || BlocksSight(light.At) || light.BrightFeet < 0 || light.DimFeet < 0
                 || light.BrightFeet % 5 != 0 || light.DimFeet % 5 != 0)
                 throw new InvalidDataException($"sorgente di luce non valida in {light.At}");
+        foreach (var (at, open) in doors ?? Array.Empty<(GridPos, bool)>())
+            if (!IsWalkable(at) || !_doors.TryAdd(at, open) || Lights.Any(l => l.At == at))
+                throw new InvalidDataException($"porta non valida in {at}");
     }
 
     public AreaId Area { get; }
@@ -54,15 +59,29 @@ internal sealed class GridMap
 
     public IReadOnlyList<LightSource> Lights { get; }
 
+    /// <summary>Doors by square (true = open), in reading order.</summary>
+    public IReadOnlyDictionary<GridPos, bool> Doors => _doors;
+
+    public bool IsDoor(GridPos p) => _doors.ContainsKey(p);
+
+    public bool IsClosedDoor(GridPos p) => _doors.TryGetValue(p, out var open) && !open;
+
+    public void SetDoor(GridPos p, bool open)
+    {
+        if (!_doors.ContainsKey(p))
+            throw new InvalidOperationException($"nessuna porta in {p}");
+        _doors[p] = open;
+    }
+
     /// <summary>
     /// Light cast on a square by the map's sources (SRD: Bright Light within the first radius, Dim Light for the
-    /// additional one). Distances are counted in 5-ft squares; walls stop light like sight, so it only leaks out
-    /// through openings.
+    /// additional one), from the fixed sources and any <paramref name="carried"/> ones (torches). Distances are counted in
+    /// 5-ft squares; walls and closed doors stop light like sight, so it only leaks out through openings.
     /// </summary>
-    public Light SourceLight(GridPos square)
+    public Light SourceLight(GridPos square, IEnumerable<LightSource>? carried = null)
     {
         var best = Light.Dark;
-        foreach (var source in Lights)
+        foreach (var source in carried is null ? Lights : Lights.Concat(carried))
         {
             var feet = source.At.StepsTo(square) * 5;
             if (feet > source.BrightFeet + source.DimFeet || !HasLineOfSight(source.At, square))
@@ -82,8 +101,10 @@ internal sealed class GridMap
     public LocationId? ZoneAt(GridPos p) =>
         InBounds(p) && Zones.TryGetValue(_cells[p.X, p.Y], out var zone) ? zone : null;
 
-    /// <summary>Walls block sight; stores and open squares do not.</summary>
-    public bool BlocksSight(GridPos p) => !InBounds(p) || _cells[p.X, p.Y] == '#';
+    /// <summary>Walls and closed doors block sight; stores and open squares do not.</summary>
+    public bool BlocksSight(GridPos p) => !InBounds(p) || _cells[p.X, p.Y] == '#' || IsClosedDoor(p);
+
+    private bool IsWall(GridPos p) => !InBounds(p) || _cells[p.X, p.Y] == '#';
 
     /// <summary>
     /// ADAPTATION: line of sight along a Bresenham line between square centres, blocked by walls and by diagonal
@@ -114,31 +135,37 @@ internal sealed class GridMap
 
     /// <summary>
     /// Steps a sound travels from <paramref name="from"/> to <paramref name="to"/> around walls (8 directions, no cut
-    /// corners), or null if farther than <paramref name="max"/> squares. Stores do not stop sound.
+    /// corners), or null if farther than <paramref name="max"/> squares. Stores do not stop sound; a closed door muffles
+    /// it, counting as <see cref="Tuning.ClosedDoorSoundSteps"/> squares more.
     /// </summary>
     public int? SoundSteps(GridPos from, GridPos to, int max)
     {
         if (from == to)
             return 0;
-        var seen = new HashSet<GridPos> { from };
-        var frontier = new List<GridPos> { from };
-        for (var steps = 1; steps <= max && frontier.Count > 0; steps++)
+        var best = new Dictionary<GridPos, int> { [from] = 0 };
+        var open = new SortedSet<(int Steps, int Y, int X)> { (0, from.Y, from.X) };
+        while (open.Count > 0)
         {
-            var next = new List<GridPos>();
-            foreach (var here in frontier)
+            var (steps, y, x) = open.Min;
+            open.Remove(open.Min);
+            var here = new GridPos(x, y);
+            if (here == to)
+                return steps;
             foreach (var (dx, dy) in Directions)
             {
                 var p = new GridPos(here.X + dx, here.Y + dy);
-                if (BlocksSight(p) || seen.Contains(p))
+                if (IsWall(p))
                     continue;
                 if (dx != 0 && dy != 0 && (BlocksSight(new GridPos(here.X + dx, here.Y)) || BlocksSight(new GridPos(here.X, here.Y + dy))))
                     continue;
-                seen.Add(p);
-                if (p == to)
-                    return steps;
-                next.Add(p);
+                var cost = steps + 1 + (IsClosedDoor(p) ? Tuning.ClosedDoorSoundSteps : 0);
+                if (cost > max || best.TryGetValue(p, out var known) && known <= cost)
+                    continue;
+                if (best.TryGetValue(p, out var old))
+                    open.Remove((old, p.Y, p.X));
+                best[p] = cost;
+                open.Add((cost, p.Y, p.X));
             }
-            frontier = next;
         }
         return null;
     }
@@ -148,9 +175,11 @@ internal sealed class GridMap
 
     /// <summary>
     /// Shortest path by the SRD grid rules: 8 directions, 1 square each, no diagonal across the corner of a blocked
-    /// square. <paramref name="extraCost"/> (never negative) makes some squares dearer: a sneaking walk detours
-    /// around light. Time is always counted in squares walked, not in this cost. Deterministic A*: among paths of the same length (same time) the one closest to the straight line wins, then (estimate, y, x). Returns the squares after <paramref name="from"/>,
-    /// ending at <paramref name="to"/>, or null when unreachable.
+    /// square; closed doors are walked through (opening one is free, SRD). <paramref name="extraCost"/> (never
+    /// negative) makes some squares dearer: a sneaking walk detours around light. Time is always counted in squares
+    /// walked. Deterministic A*: among paths of the same cost the one closest to the straight line wins, then
+    /// (estimate, y, x). Returns the squares after <paramref name="from"/>, ending at <paramref name="to"/>, or null
+    /// when unreachable.
     /// </summary>
     public IReadOnlyList<GridPos>? FindPath(GridPos from, GridPos to, Func<GridPos, int>? extraCost = null)
     {

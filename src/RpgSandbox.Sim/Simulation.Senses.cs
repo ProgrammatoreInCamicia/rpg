@@ -8,11 +8,46 @@ internal sealed partial class Simulation
     /// <summary>Light on a square: the better of daylight and the map's light sources (lamps, torches).</summary>
     internal Light LightOn(GridMap map, GridPos square) => LightOnAt(map, square, World.Now);
 
-    private static Light LightOnAt(GridMap map, GridPos square, GameTime t) => Max(Perception.DaylightAt(t), map.SourceLight(square));
+    /// <summary>
+    /// Light on a square at an instant: daylight then, fixed sources, and the torches burning now (approximation: who
+    /// carries a torch is not recorded over time).
+    /// </summary>
+    private Light LightOnAt(GridMap map, GridPos square, GameTime t) =>
+        Max(Perception.DaylightAt(t), map.SourceLight(square, CarriedLights(map)));
+
+    /// <summary>A torch burning in someone's hand (SRD: 1 hour from when it was lit).</summary>
+    internal bool TorchLit(Actor actor) => actor.TorchLitUntil is { } until && World.Now < until;
+
+    /// <summary>Torches burning on this map, each on its bearer's square (SRD Torch: Bright 20 ft, Dim 20 ft more).</summary>
+    private List<LightSource> CarriedLights(GridMap map) =>
+        World.Actors.Values
+            .Where(a => a.MapArea == map.Area && TorchLit(a) && CurrentPosition(a) is not null)
+            .Select(a => new LightSource(CurrentPosition(a)!.Value, Tuning.TorchBrightFeet, Tuning.TorchDimFeet))
+            .ToList();
+
+    private CommandResult UseTorch(TorchCommand command)
+    {
+        if (!World.Actors.TryGetValue(command.Actor, out var actor))
+            return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {command.Actor}.");
+        if (TorchLit(actor) == command.Lit)
+            return CommandResult.Rejected(RejectionReason.AlreadyDone, command.Lit ? "La torcia è già accesa." : "Non hai una torcia accesa.");
+        if (!command.Lit)
+        {
+            actor.TorchLitUntil = null;
+            World.RecordFact("TorchOut", $"{actor.Name} spegne la torcia.", actor.Id);
+            return new CommandResult { Message = "Spegni la torcia." };
+        }
+        if (actor.Torches == 0)
+            return CommandResult.Rejected(RejectionReason.NoTorch, "Non hai torce.");
+        actor.Torches--;
+        actor.TorchLitUntil = World.Now.Plus(Tuning.TorchBurns);
+        World.RecordFact("TorchLit", $"{actor.Name} accende una torcia.", actor.Id);
+        return new CommandResult { Message = $"Accendi una torcia: brucerà per un'ora. Te ne restano {actor.Torches}." };
+    }
 
     /// <summary>The best light on a square over a stretch of time: sources are steady, daylight changes on the hour.</summary>
     private Light BestLightOn(GridMap map, GridPos square, GameTime from, GameTime to) =>
-        Max(Perception.BestDaylightDuring(from, to), map.SourceLight(square));
+        Max(Perception.BestDaylightDuring(from, to), map.SourceLight(square, CarriedLights(map)));
 
     private static Light Max(Light a, Light b) => a > b ? a : b;
 

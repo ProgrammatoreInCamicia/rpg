@@ -310,6 +310,7 @@ public class KnowledgeTests
     [InlineData(6)] // v7 adds maps, positions and walks
     [InlineData(7)] // v8 adds light sources
     [InlineData(8)] // v9 adds sneaking
+    [InlineData(9)] // v10 adds doors and torches
     public void Older_save_versions_are_rejected(int version)
     {
         var json = JsonNode.Parse(NewSession().SaveToString())!;

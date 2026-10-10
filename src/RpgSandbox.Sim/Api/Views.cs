@@ -89,6 +89,9 @@ public sealed record ActorView
     /// <summary>Stealth total while sneaking (debug).</summary>
     public int? Sneak { get; init; }
 
+    public int Torches { get; init; }
+    public GameTime? TorchLitUntil { get; init; }
+
     /// <summary>Thefts this authority wants made good (debug).</summary>
     public IReadOnlyList<ClaimView> Claims { get; init; } = Array.Empty<ClaimView>();
 }

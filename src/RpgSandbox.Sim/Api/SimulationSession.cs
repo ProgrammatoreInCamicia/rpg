@@ -151,6 +151,8 @@ public sealed class SimulationSession
         Sheet = actor.Sheet,
         Position = PositionOf(actor, w),
         Sneak = actor.Sneak,
+        Torches = actor.Torches,
+        TorchLitUntil = actor.TorchLitUntil,
         Move = MoveOf(actor),
         Claims = Freeze(actor.Claims.Select(c => new ClaimView { Thief = c.Thief, Store = c.Store, Owed = c.Owed })),
     };
@@ -225,6 +227,9 @@ public sealed class SimulationSession
             Light = light,
             Daylight = Perception.DaylightAt(w.Now),
             Sneaking = player.Sneak,
+            Torches = player.Torches,
+            TorchLitUntil = _sim.TorchLit(player) ? player.TorchLitUntil : null,
+            Doors = map is null ? Array.Empty<DoorView>() : Freeze(map.Doors.Select(d => new DoorView { At = d.Key, Open = d.Value })),
             UnseenNearby = nearby.Count - present.Count,
             Areas = Freeze(w.Areas.Values.Select(x => new AreaView { Id = x.Id, Name = x.Name })),
             Locations = Freeze(w.Locations.Values.Select(l => new LocationView { Id = l.Id, Name = l.Name, Area = l.Area })),
@@ -244,6 +249,7 @@ public sealed class SimulationSession
                 SeesYou = map is not null && me is { } mine && PositionOf(x, w) is { } theirs
                     ? Simulation.Sees(map, x, theirs, player, mine, _sim.LightOn(map, mine))
                     : null,
+                Torch = _sim.TorchLit(x),
             })),
             VisibleStores = Freeze(w.Stores.Values.Where(s => s.Position is { } sp && map is not null
                 ? w.Locations[s.Location].Area == map.Area && (SeenOnMap(sp) || me is { } m && m.IsAdjacentOrSame(sp))

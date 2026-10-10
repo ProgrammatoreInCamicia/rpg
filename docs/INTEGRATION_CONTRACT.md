@@ -38,7 +38,7 @@ void           Advance(Duration)                   // Duration < 0 o overflow =>
 AdvanceResult  AdvanceUntilCompleted(ActionId, Duration maxWait)
 WorldView      GetWorldView()                      // vista completa/onnisciente: SOLO debug
 PlayerView     GetPlayerView()                     // ciò che il giocatore può sapere: usarla per l'UI di gioco
-void           Save(Stream)                        // snapshot JSON autosufficiente, versione schema 9
+void           Save(Stream)                        // snapshot JSON autosufficiente, versione schema 10
 static LoadResult TryLoad(Stream)                  // NUOVA sessione; quella corrente non viene toccata
 
 // Comandi
@@ -167,7 +167,7 @@ Le parti marcate ADATTAMENTO sono scelte del gioco che applicano lo SRD 5.2.1 al
 - **Degli altri** si vede solo il gesto (`Doing`), e solo nel proprio Luogo. Intenzioni, argomenti, decisioni e conoscenze altrui restano fuori.
 
 ### Save/Load
-- **Versione dello schema 8** (la 6 ha aggiunto luoghi illuminati, modo di percezione, debiti per furto, furti saldati e carico; la 7 mappe, posizioni e cammini; la 8 le sorgenti di luce delle mappe; la 9 la furtività). Le versioni 1–8 vengono rifiutate con un messaggio chiaro.
+- **Versione dello schema 8** (la 6 ha aggiunto luoghi illuminati, modo di percezione, debiti per furto, furti saldati e carico; la 7 mappe, posizioni e cammini; la 8 le sorgenti di luce delle mappe; la 9 la furtività; la 10 porte e torce). Le versioni 1–9 vengono rifiutate con un messaggio chiaro.
 - Lo snapshot è autosufficiente e contiene anche lo stato del generatore `SplitMix64`, con il nome dell'algoritmo.
 - `TryLoad` valida forma, riferimenti, invarianti condivise con gli scenari (`Invariants.cs`), la corrispondenza 1:1 tra azioni e scadenze, i lavori periodici e la coerenza tra carico e cibo. Gli errori sono in italiano e leggibili.
 - Testato: continuare senza interruzioni equivale a salvare e caricare a metà di viaggi, furti, rapporti, presidi, vigilanze e confische.
@@ -226,3 +226,23 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
 - **Furti**: il ladro è riconosciuto solo se il testimone lo *vedeva*, secondo la regola sopra, nel momento in cui il furto è cominciato.
 - **PlayerView**: `Sneaking` contiene il proprio totale; `VisibleActorView.SeesYou` dice se quella persona ti vede. Lo SRD stabilisce che se vedi una creatura sai se lei vede te. `MoveView.Stealthy` indica se il cammino in corso è furtivo.
 - **Non ancora**: gli NPC non reagiscono al vederti girare di soppiatto (arriva con la T6c) e non esiste ancora l'azione Search per cercare chi si nasconde.
+
+## F2 — Porte e torce (ADATTAMENTO di SRD 5.2.1: Interacting with Things, Torch)
+
+- **Porte**: sono caselle percorribili della mappa, aperte o chiuse; lo stato è salvato con la mappa.
+  - Una porta chiusa blocca vista e luce come un muro.
+  - Una porta chiusa attutisce il suono: attraversarla costa `Tuning.ClosedDoorSoundSteps` (3) caselle di suono in più.
+  - Chi cammina attraversa le porte chiuse: la apre gratis arrivando alla casella precedente (è una tappa del cammino) e la lascia aperta. Una porta adiacente alla partenza si apre subito.
+- **`DoorCommand { At, Open }`**: istantaneo, da una casella adiacente e solo da fermi. Le possibili risposte di rifiuto sono:
+  - `NotADoor`: in quella casella non c'è una porta;
+  - `OutOfReach`: il personaggio non è adiacente alla porta;
+  - `AlreadyDone`: la porta è già nello stato richiesto;
+  - `DoorBlocked`: si sta chiudendo una porta su cui c'è qualcuno, o in cui qualcuno sta per entrare.
+- **Torce**: `Actor.Torches` conta le torce spente che il personaggio porta; `Actor.TorchLitUntil` indica fino a quando brucia quella accesa.
+  - **`TorchCommand { Lit }`** è istantaneo. Accendere consuma una torcia, che brucia per 1 ora. Spegnere la consuma comunque.
+  - Una torcia accesa è una sorgente di luce mobile sulla casella di chi la porta: luce piena per 20 piedi più luce fioca per altri 20, fermata da muri e porte chiuse.
+  - La torcia si spegne da sola alla scadenza: è considerata accesa solo finché `Now < TorchLitUntil`.
+- **Furtività**: porte e torce non la interrompono, ma una torcia accesa mette il personaggio in luce piena, quindi chiunque abbia la linea di vista lo vede.
+- **Approssimazione**: per la luce di un istante passato si usano i portatori di torcia attuali.
+- **PlayerView**: `Doors` (tutte le porte della mappa, anche quelle fuori vista: approssimazione), `Torches`, `TorchLitUntil`, `VisibleActorView.Torch`.
+- **Client**: il clic su una porta adiacente la apre o la chiude, il clic su una porta lontana ci fa camminare fino a lei. Il tasto T accende e spegne la torcia.

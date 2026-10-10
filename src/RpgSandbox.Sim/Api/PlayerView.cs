@@ -44,6 +44,16 @@ public sealed record PlayerView
     /// <summary>While sneaking: the player's own Stealth total (the DC to notice it in dim light). Null otherwise.</summary>
     public int? Sneaking { get; init; }
 
+    /// <summary>Unlit torches carried, and when the one burning goes out (null if none burns).</summary>
+    public int Torches { get; init; }
+    public GameTime? TorchLitUntil { get; init; }
+
+    /// <summary>
+    /// Doors of the player's map and whether each is open. ADAPTATION: the state of every door is shown, even one out
+    /// of sight.
+    /// </summary>
+    public IReadOnlyList<DoorView> Doors { get; init; } = Array.Empty<DoorView>();
+
     /// <summary>People right next to the player that it cannot see (darkness): only their presence is known.</summary>
     public int UnseenNearby { get; init; }
 
@@ -98,6 +108,15 @@ public sealed record VisibleActorView
     /// it can see you). Null off the maps.
     /// </summary>
     public bool? SeesYou { get; init; }
+
+    /// <summary>Carrying a burning torch (visible from afar).</summary>
+    public bool Torch { get; init; }
+}
+
+public sealed record DoorView
+{
+    public required GridPos At { get; init; }
+    public required bool Open { get; init; }
 }
 
 public sealed record ReportOptionView

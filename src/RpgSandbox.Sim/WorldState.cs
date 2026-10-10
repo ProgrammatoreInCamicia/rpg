@@ -54,6 +54,15 @@ internal sealed class Actor
     /// </summary>
     public int? Sneak { get; set; }
 
+    /// <summary>Unlit torches carried.</summary>
+    public int Torches { get; set; }
+
+    /// <summary>
+    /// While a torch burns in the actor's hand: when it goes out (SRD: a Torch burns for 1 hour). Lit while
+    /// <c>Now &lt; TorchLitUntil</c>; no job is needed to put it out.
+    /// </summary>
+    public GameTime? TorchLitUntil { get; set; }
+
     /// <summary>When the actor last arrived at <see cref="Location"/>: decides whether a witness saw a deed from its start.</summary>
     public GameTime ArrivedAt { get; set; }
 
@@ -378,7 +387,7 @@ internal sealed class WorldState
             world.Actors.Add(a.Id, new Actor
             {
                 Id = a.Id, Name = a.Name, IsPlayer = a.IsPlayer, Faction = a.Faction, Location = a.Location, Food = a.Food,
-                Home = a.IsPlayer ? null : a.Location, Shift = a.Shift, ArrivedAt = GameTime.Start, Sheet = a.Sheet, Position = a.At,
+                Home = a.IsPlayer ? null : a.Location, Shift = a.Shift, ArrivedAt = GameTime.Start, Sheet = a.Sheet, Position = a.At, Torches = a.Torches,
                 MapArea = a.At is null ? null : world.Locations[a.Location].Area,
             });
         }
@@ -386,7 +395,7 @@ internal sealed class WorldState
             world.Stores.Add(s.Id, new Store { Id = s.Id, Name = s.Name, Location = s.Location, Owner = s.Owner, Food = s.Food, Position = s.At });
         foreach (var m in scenario.Maps)
             world.Maps.Add(m.Area, new GridMap(m.Area, m.Rows, m.Zones,
-                scenario.Stores.Where(s => s.At is not null && world.Locations[s.Location].Area == m.Area).Select(s => s.At!.Value), m.Lights));
+                scenario.Stores.Where(s => s.At is not null && world.Locations[s.Location].Area == m.Area).Select(s => s.At!.Value), m.Lights, m.Doors));
         return world;
     }
 

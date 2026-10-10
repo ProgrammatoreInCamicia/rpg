@@ -2147,3 +2147,46 @@ Da rivedere:
   (b) la luce piena rende sempre visibili: lo SRD vieta di nascondersi in linea di vista, ma un riparo parziale
       (Three-Quarters Cover) oggi non esiste sulle mappe;
   (c) per misurare la luce, la penalità del percorso usa il momento della partenza.
+
+============================================================
+[CLAUDE — F2 Porte e torce: contratto (scelto dall'utente; da rivedere)]
+============================================================
+SRD 5.2.1 verificato:
+  - "Interacting with Things": un oggetto (per esempio aprire una porta) si usa gratis durante il movimento o un'azione.
+  - Torch: brucia 1 ora; luce piena per 20 ft più luce fioca per altri 20.
+  - Tinderbox: accendere una torcia costa un'Azione Bonus.
+ADATTAMENTI:
+  P1 Porte: caselle percorribili della mappa con uno stato aperta/chiusa, salvato nella mappa. Una porta chiusa blocca
+     vista e luce come un muro e attutisce il suono: attraversarla costa 3 caselle di suono in più (Tuning). Il raggio
+     d'ascolto resta 6.
+  P2 Chi cammina attraversa una porta chiusa aprendola gratis, quando arriva alla casella prima (è una tappa del
+     cammino), e la lascia aperta.
+  P3 DoorCommand { At, Open }: istantaneo, da una casella adiacente. Rifiutato se qualcuno sta sulla porta o se non è
+     una porta. Non interrompe la furtività: chiudere piano una porta fa meno rumore di un sussurro.
+  P4 Torce: Actor.Torches (quante ne porta) e Actor.TorchLitUntil. TorchCommand { Lit }: accendere consuma una torcia
+     e la fa bruciare 1 ora; spegnerla la butta (semplificazione). Istantaneo: l'Azione Bonus di 6 secondi è trascurabile
+     fuori dal combattimento. La torcia si esaurisce in modo "pigro": è accesa finché Now < TorchLitUntil, senza job.
+  P5 Una torcia accesa è una sorgente di luce mobile sulla casella di chi la porta (20/20, fermata da muri e porte
+     chiuse). Conta per vista, furti, percorso furtivo e MapLight. Chi è furtivo con la torcia accesa sta in luce piena,
+     quindi è sempre visto: è voluto.
+  P6 PlayerView:
+       - Doors (posizione e stato) di tutte le porte della mappa. È un'approssimazione: lo stato di una porta lontana
+         e fuori vista è comunque noto;
+       - Torches, TorchLitUntil;
+       - VisibleActorView.Torch (si vede chi porta una torcia accesa).
+  Villaggio mappato: porta della Locanda in (7,3), aperta all'inizio; il paladino parte con 3 torce (dal pacchetto
+  dell'esploratore).
+  Salvataggi: schema 10.
+
+[CLAUDE — F2 completata] Come da P1–P6, con una differenza: anche la torcia (accesa o spenta) non interrompe la
+furtività, perché una torcia accesa mette comunque in luce piena e quindi fa vedere il personaggio.
+  - Test: 232/232, di cui 8 DoorsAndTorchesTests.
+  - Smoke: VILLAGE SMOKE OK. Ora fa anche un clic vero sulla porta (la Guardia e la luce spariscono) e accende la torcia
+    (luce piena intorno). SMOKE OK (slice).
+  - Schema dei salvataggi 10.
+Da rivedere:
+  (a) clic su una porta adiacente = aprirla o chiuderla. Per camminare sulla casella della porta da adiacenti bisogna
+      cliccare oltre;
+  (b) le porte fuori vista mostrano comunque il loro stato;
+  (c) nella luce di un istante passato contano i portatori di torcia attuali;
+  (d) gli NPC non usano ancora porte e torce (T6c).

@@ -32,6 +32,14 @@ internal static class Tuning
     /// <summary>ADAPTATION: on maps, sounds are heard within this many squares, walking around walls (30 ft).</summary>
     public const int HearingRadius = 6;
 
+    /// <summary>ADAPTATION: a closed door muffles sound as much as this many extra squares.</summary>
+    public const int ClosedDoorSoundSteps = 3;
+
+    /// <summary>SRD Torch: burns for 1 hour, Bright Light 20 ft and Dim Light 20 ft more.</summary>
+    public static readonly Duration TorchBurns = Duration.FromHours(1);
+    public const int TorchBrightFeet = 20;
+    public const int TorchDimFeet = 20;
+
     /// <summary>How long a raiding faction avoids a target its member found guarded.</summary>
     public static readonly Duration AvoidGuardedTarget = Duration.FromHours(24);
 }
