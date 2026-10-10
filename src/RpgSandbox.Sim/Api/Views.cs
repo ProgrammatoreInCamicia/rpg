@@ -130,6 +130,9 @@ public sealed record ObservationView
     public ActorId? Source { get; init; }
     public string? SourceName { get; init; }
 
+    /// <summary>"Seen" or "Heard": how the first-hand witness perceived it (kept when passed on).</summary>
+    public required string Perceived { get; init; }
+
     public required IReadOnlyList<ActorId> ToldTo { get; init; }
 }
 

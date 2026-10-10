@@ -93,7 +93,7 @@ internal sealed partial class Simulation
         if (theft)
         {
             stealth = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Stealth), disadvantage: actor.Sheet.StealthDisadvantage);
-            World.RecordFact("Roll", $"{actor.Name}, Furtività: {stealth.Describe()} ({Perception.Describe(Perception.LightAt(World.Now))}).", actor.Id);
+            World.RecordFact("Roll", $"{actor.Name}, Furtività: {stealth.Describe()} ({Perception.Describe(Perception.LightAt(World.Locations[store.Location], World.Now))}).", actor.Id);
         }
 
         var take = new TakeFoodAction
@@ -179,6 +179,7 @@ internal sealed partial class Simulation
                 actor.Location = travel.Destination;
                 actor.ArrivedAt = World.Now;
                 World.RecordFact("TravelCompleted", $"{actor.Name} arriva a {World.Locations[travel.Destination].Name}.", actor.Id);
+                NoticeArrival(actor);
                 break;
             case DepositFoodAction deposit:
                 CompleteDeposit(actor, deposit);
@@ -216,6 +217,13 @@ internal sealed partial class Simulation
 
         actor.Food -= deposit.Amount;
         store.Food += deposit.Amount;
+        // Rations carried back on someone else's behalf are delivered first.
+        if (actor.Cargo.FirstOrDefault(c => c.Store == store.Id) is { } cargo)
+        {
+            cargo.Amount -= Math.Min(cargo.Amount, deposit.Amount);
+            if (cargo.Amount == 0)
+                actor.Cargo.Remove(cargo);
+        }
         World.RecordFact("FoodDeposited", $"{actor.Name} consegna {deposit.Amount} razioni a {store.Name} (ora {store.Food}).", actor.Id);
     }
 
@@ -258,18 +266,22 @@ internal sealed partial class Simulation
     /// </summary>
     private void PerceiveTheft(Actor thief, TakeFoodAction take, Store store, int amount, FactId fact)
     {
-        var light = Perception.LightAt(World.Now);
+        var place = World.Locations[store.Location];
         var stealth = take.StealthTotal ?? 0;
         var witnesses = World.Actors.Values
             .Where(a => a.Id != thief.Id && a.Location == store.Location)
             .ToList();
         foreach (var witness in witnesses)
         {
+            // Judged by the best light during the part of the theft this witness was there for.
+            var watchedFrom = witness.ArrivedAt > take.StartedAt ? witness.ArrivedAt : take.StartedAt;
+            var light = Perception.BestLightDuring(place, watchedFrom, World.Now);
             var seen = Perception.Witness(witness.Sheet, light, stealth);
             if (!seen.Noticed)
             {
                 World.RecordFact("FoodTheftUnnoticed",
-                    $"{witness.Name} non si accorge di nulla ({Perception.Describe(light)}: Percezione passiva {seen.PassivePerception} < Furtività {stealth}).");
+                    $"{witness.Name} non si accorge di nulla ({Perception.Describe(light)}: vista {seen.SightPerception}, " +
+                    $"udito {seen.HearingPerception} < Furtività {stealth}).");
                 continue;
             }
 
@@ -289,6 +301,7 @@ internal sealed partial class Simulation
                 ObservedAt = World.Now,
                 LearnedAt = World.Now,
                 Fact = fact,
+                Perceived = seen.Mode,
             });
             World.RecordFact("FoodTheftWitnessed",
                 recognised ? $"{witness.Name} vede {thief.Name} rubare da {store.Name}."
@@ -359,6 +372,7 @@ internal sealed partial class Simulation
             Thief = told.Thief,
             ThiefName = told.ThiefName,
             ObservedAt = told.ObservedAt,
+            Perceived = told.Perceived,
             LearnedAt = World.Now,
             Source = reporter.Id,
             Fact = told.Fact,
@@ -412,7 +426,15 @@ internal sealed partial class Simulation
         authority.Food += taken;
         claim.Owed -= taken;
         if (claim.Owed == 0)
+        {
             authority.Claims.Remove(claim);
+            authority.SettledThefts.Add(claim.Theft);
+        }
+        var cargo = authority.Cargo.FirstOrDefault(c => c.Store == claim.Store);
+        if (cargo is null)
+            authority.Cargo.Add(new Cargo { Store = claim.Store, Amount = taken });
+        else
+            cargo.Amount += taken;
         World.RecordFact("FoodConfiscated",
             $"{authority.Name} si fa restituire da {thief.Name} {taken} razioni rubate" +
             (claim.Owed > 0 ? $" (ne mancano {claim.Owed})." : "."), authority.Id, thief.Id);
@@ -441,6 +463,22 @@ internal sealed partial class Simulation
     /// <summary>A store is guarded when someone on guard duty for it is there.</summary>
     private bool IsGuarded(Store store) =>
         World.Actors.Values.Any(a => a.Location == store.Location && a.GuardDuty is { } duty && duty.Store == store.Id);
+
+    /// <summary>
+    /// Arrival is contact: an authority on watch or resting here that has an open claim on the newcomer, who carries
+    /// rations, stops what it is doing and decides at once. It never learns where a thief is from afar.
+    /// </summary>
+    private void NoticeArrival(Actor newcomer)
+    {
+        if (newcomer.Food == 0)
+            return;
+        foreach (var authority in World.Actors.Values.Where(a => a.Id != newcomer.Id && a.Location == newcomer.Location).ToList())
+        {
+            if (authority.Claims.Any(c => c.Thief == newcomer.Id && c.Owed > 0)
+                && authority.CurrentAction is GuardAction or WaitAction { Interruptible: true })
+                CancelAction(authority);
+        }
+    }
 
     /// <summary>Something new happened to this actor: cut a routine wait short so it decides now.</summary>
     private void InterruptRoutine(Actor actor)

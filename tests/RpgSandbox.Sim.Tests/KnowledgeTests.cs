@@ -306,6 +306,7 @@ public class KnowledgeTests
     [InlineData(2)] // v3 forbids leftover deadlines of cancelled actions, which v2 allowed
     [InlineData(3)] // v4 adds vigilance
     [InlineData(4)] // v5 adds the random generator state and character sheets
+    [InlineData(5)] // v6 adds lit places, perception mode, theft-keyed claims and cargo
     public void Older_save_versions_are_rejected(int version)
     {
         var json = JsonNode.Parse(NewSession().SaveToString())!;

@@ -42,7 +42,7 @@ public sealed class Scenario
 }
 
 internal sealed record AreaDefinition(AreaId Id, string Name);
-internal sealed record LocationDefinition(LocationId Id, string Name, AreaId Area);
+internal sealed record LocationDefinition(LocationId Id, string Name, AreaId Area, bool Lit);
 internal sealed record RouteDefinition(LocationId A, LocationId B, Duration TravelTime);
 internal sealed record ActorDefinition(
     ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food, FactionId? Faction, WorkShift? Shift,
@@ -76,9 +76,10 @@ public sealed class ScenarioBuilder
         return this;
     }
 
-    public ScenarioBuilder AddLocation(string id, string name, string areaId)
+    /// <summary>Adds a place. <paramref name="lit"/>: indoors with lamps, never darker than dim light at night.</summary>
+    public ScenarioBuilder AddLocation(string id, string name, string areaId, bool lit = false)
     {
-        _locations.Add(new LocationDefinition(new LocationId(id), name, new AreaId(areaId)));
+        _locations.Add(new LocationDefinition(new LocationId(id), name, new AreaId(areaId), lit));
         return this;
     }
 

@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 5;
+    public const int SchemaVersion = 6;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -123,7 +123,7 @@ internal static class SaveGame
         RngAlgorithm = SplitMix64.Algorithm,
         RngState = w.Rng.State,
         Areas = w.Areas.Values.Select(a => new AreaDto { Id = a.Id.Value, Name = a.Name }).ToList(),
-        Locations = w.Locations.Values.Select(l => new LocationDto { Id = l.Id.Value, Name = l.Name, Area = l.Area.Value }).ToList(),
+        Locations = w.Locations.Values.Select(l => new LocationDto { Id = l.Id.Value, Name = l.Name, Area = l.Area.Value, Lit = l.Lit }).ToList(),
         Routes = w.Routes.Select(r => new RouteDto { From = r.Key.From.Value, To = r.Key.To.Value, Seconds = r.Value.Seconds }).ToList(),
         Factions = w.Factions.Values.Select(f => new FactionDto
         {
@@ -163,7 +163,9 @@ internal static class SaveGame
             GuardDuty = a.GuardDuty is { } g ? new GuardDutyDto { Store = g.Store.Value, Since = g.Since.Seconds, Until = g.Until.Seconds } : null,
             Vigil = a.Vigil is { } v ? new VigilDto { Store = v.Store.Value, Until = v.Until.Seconds } : null,
             Sheet = ToDto(a.Sheet),
-            Claims = a.Claims.Select(c => new ClaimDto { Thief = c.Thief.Value, Store = c.Store.Value, Origin = c.Origin.Value, Owed = c.Owed }).ToList(),
+            Claims = a.Claims.Select(c => new ClaimDto { Thief = c.Thief.Value, Store = c.Store.Value, Theft = c.Theft.Value, Owed = c.Owed }).ToList(),
+            SettledThefts = a.SettledThefts.Select(t => t.Value).ToList(),
+            Cargo = a.Cargo.Select(c => new CargoDto { Store = c.Store.Value, Amount = c.Amount }).ToList(),
             Knowledge = a.Knowledge.Select(ToDto).ToList(),
             ActedOn = a.ActedOn.Select(o => o.Value).ToList(),
         }).ToList(),
@@ -211,7 +213,7 @@ internal static class SaveGame
     {
         Id = o.Id.Value, Origin = o.Origin.Value, Store = o.Store.Value, StoreName = o.StoreName, Location = o.Location.Value,
         Amount = o.Amount, Thief = o.Thief?.Value, ThiefName = o.ThiefName, ObservedAt = o.ObservedAt.Seconds,
-        LearnedAt = o.LearnedAt.Seconds, Source = o.Source?.Value, Fact = o.Fact?.Value,
+        LearnedAt = o.LearnedAt.Seconds, Source = o.Source?.Value, Fact = o.Fact?.Value, Perceived = o.Perceived.ToString(),
         ToldTo = o.ToldTo.Select(t => t.Value).ToList(),
     };
 
@@ -258,7 +260,7 @@ internal static class SaveGame
         foreach (var l in d.Locations)
         {
             Check(w.Areas.ContainsKey(new AreaId(l.Area)), $"luogo '{l.Id}' in area sconosciuta");
-            AddUnique(w.Locations, new LocationId(l.Id), new Location { Id = new LocationId(l.Id), Name = l.Name, Area = new AreaId(l.Area) }, "luogo");
+            AddUnique(w.Locations, new LocationId(l.Id), new Location { Id = new LocationId(l.Id), Name = l.Name, Area = new AreaId(l.Area), Lit = l.Lit }, "luogo");
         }
         foreach (var r in d.Routes)
         {
@@ -337,7 +339,14 @@ internal static class SaveGame
             foreach (var o in a.Knowledge)
                 actor.Knowledge.Add(FromDto(o));
             foreach (var c in a.Claims ?? throw new InvalidDataException($"debiti di '{a.Id}' mancanti"))
-                actor.Claims.Add(new Claim { Thief = new ActorId(Required(c?.Thief, "ladro di un debito")), Store = new StoreId(Required(c!.Store, "deposito di un debito")), Origin = new ObservationId(c.Origin), Owed = c.Owed });
+                actor.Claims.Add(new Claim { Thief = new ActorId(Required(c?.Thief, "ladro di un debito")), Store = new StoreId(Required(c!.Store, "deposito di un debito")), Theft = new FactId(c.Theft), Owed = c.Owed });
+            foreach (var theft in a.SettledThefts ?? throw new InvalidDataException($"furti saldati di '{a.Id}' mancanti"))
+                actor.SettledThefts.Add(new FactId(theft));
+            foreach (var c in a.Cargo ?? throw new InvalidDataException($"carico di '{a.Id}' mancante"))
+            {
+                Check(c is not null && !string.IsNullOrEmpty(c.Store) && c.Amount > 0, $"carico non valido per '{a.Id}'");
+                actor.Cargo.Add(new Cargo { Store = new StoreId(c!.Store), Amount = c.Amount });
+            }
             foreach (var origin in a.ActedOn)
                 actor.ActedOn.Add(new ObservationId(origin));
             ValidateActor(w, actor);
@@ -439,6 +448,9 @@ internal static class SaveGame
             Check(w.Stores.ContainsKey(ca.Store), $"confisca di '{a.Id}' per un deposito sconosciuto");
         foreach (var c in a.Claims)
             Check(w.Stores.ContainsKey(c.Store) && c.Owed > 0, $"debito non valido per '{a.Id}'");
+        foreach (var c in a.Cargo)
+            Check(w.Stores.ContainsKey(c.Store), $"carico di '{a.Id}' per un deposito sconosciuto");
+        Check(a.Cargo.Sum(c => (long)c.Amount) <= a.Food, $"'{a.Id}' trasporta più razioni di quante ne abbia");
         if (a.CurrentAction is GuardAction guard)
             Check(w.Stores.ContainsKey(guard.Store), $"sorveglianza di '{a.Id}' su deposito sconosciuto");
         Check(a.Food >= 0, $"attore '{a.Id}' con razioni negative");
@@ -530,6 +542,7 @@ internal static class SaveGame
             LearnedAt = new GameTime(o.LearnedAt),
             Source = o.Source is null ? null : new ActorId(o.Source),
             Fact = o.Fact is { } fact ? new FactId(fact) : null,
+            Perceived = Enum.TryParse<PerceptionMode>(o.Perceived, out var mode) && Enum.IsDefined(mode) ? mode : throw new InvalidDataException($"modo di percezione sconosciuto '{o.Perceived}'"),
         };
         foreach (var told in o.ToldTo)
             observation.ToldTo.Add(new ActorId(told));

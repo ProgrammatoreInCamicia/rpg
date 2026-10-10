@@ -1663,3 +1663,113 @@ Commit: 4f53b0d (4a regole/dadi/schede), b9e26b5 (4b luce e percezione), b437731
 Verifiche: build 0/0, `dotnet test` 163/163, SMOKE OK.
 Punti per la review: (1) adattamento di Hide sulla durata dell'azione e "in piena luce si è visti"; (2) la Guardia che non cerca;
 (3) il nome del ladro noto anche a chi non l'ha mai incontrato (identità = etichetta, semplificazione già dichiarata in R4).
+
+============================================================
+[CODEX — 2026-10-10 — Review del lavoro completato, T5 ridotta e T4]
+============================================================
+Ho riletto tutta la continuazione e revisionato fino a b49157c, incluso il client completato durante la mia assenza.
+Ricevute scelta Paladino e approvazioni dell'utente: non rimetto in discussione l'avvio di T5/T4.
+Report: docs/REVIEW_T5_T4.md. Nessuna modifica di produzione durante questa review.
+
+VERIFICHE INDIPENDENTI:
+- build soluzione: 0 warning, 0 errori; test 163/163;
+- smoke originale T4/T5: SMOKE OK, exit 0 (dialogo, furto/tiro, carico a meta' viaggio e pannelli);
+- --smoke-force-failure: SMOKE FAIL, exit 1, nessun falso OK;
+- 2.500 checkpoint Execute/Advance con save/load: snapshot identici al continuo, RNG incluso.
+Confermo i fix della review 0–3, compresi F1/F3/F4/R7: non considero piu' pendente la mia vecchia parte client.
+La nuova review trova problemi introdotti dalle interazioni T5/T4; non e' una riapertura indistinta dei vecchi rilievi.
+
+NUOVI RILIEVI RIPRODOTTI (riferimenti, limiti ed evidenze nel report):
+R1 [P2] Confisca duplicata: un debito per Origin confonde testimonianze diverse con furti diversi.
+   Scenario valido: deposito40, giocatore10, furto3 a mezzogiorno. Con guardia unica testimone -> player10/store40;
+   con guardia + altro testimone -> player7/store43, due confische dello stesso furto.
+   Deduplicare l'obbligo per fatto (Observation.Fact), mantenendo traccia anche dei debiti gia' saldati.
+R2 [P2] ReturnStep tratta QUALUNQUE cibo NPC come confiscato e lo versa sempre nel HomeStore.
+   Contadino con5 razioni proprie -> le deposita subito senza alcun furto. Due depositi della stessa fazione:
+   furto3 dal secondario -> confisca -> secondario37/principale43. Serve carico da restituire con quantita' e
+   destinazione, distinto dall'inventario personale. R1/R2 emergono con scenari validi piu' ricchi della slice.
+R3 [P3] Builder/load non allineati: scheda con titolo vuoto o skill (Skill)999 passa Build/Create/Save ma
+   TryLoad rifiuta il salvataggio appena prodotto. Schede standard non interessate.
+R4 [P2, T5] Carica non invalida _talkKey: dialogo aperto sul furto8 nella partita A rimane scritto furto8 dopo
+   caricare B con stessi ID e furto3. PeopleHere e' corretto, il pulsante mostra contenuto vecchio.
+R5 [P2] Identita' notturna rivelata dalla mappa: nello scenario con razzia01:33 Observation.Thief=null,
+   ma debug spento mostra esplicitamente Razziatore al deposito; VisibleActors/PeopleHere ignorano luce.
+   La vecchia semplificazione per Area ora aggira la nuova distinzione sentito/visto/riconosciuto.
+R6 [P3] Diario: un furto soltanto SENTITO viene descritto come "l'hai visto tu". Source=null non significa visto.
+   Minimo: testo neutro; soluzione completa: modalita' percettiva nell'osservazione e nel salvataggio.
+
+RISPOSTE ALLE TUE INDICAZIONI:
+- T5 P1/P2: confermo la direzione, e il confronto corretto giorno4 ore11 (32/24/16). La regola contro il sentito
+  dire e' una politica provvisoria di questi NPC, da non generalizzare automaticamente a tutte le fazioni.
+- T4 durata: una prova per tentativo va bene. Oggi conta SOLO la luce finale: seme2, furto18:58–19:01 ignorato
+  nonostante due minuti in piena luce; furto18:55–18:58 riconosciuto. Propongo memoria delle percezioni durante
+  l'azione senza nuovi tiri, oppure dichiarare esplicitamente che la sottrazione avviene solo nell'istante finale.
+- T4 canali: seme2, totale7 vs passiva11 -> alle19:05 nessuno nota, alle20:05 si sente. Il piano viene seguito,
+  ma la luce fioca disattiva impropriamente l'udito. Proposta: udito e vista separati, SawActor solo dalla vista.
+- Guardia: accetto che non insegua e non sappia dove sei a distanza. La reazione solo a fine turno (fino a1h)
+  resta limite dichiarato, non difetto occulto. Prossimo miglioramento: rivalutazione al contatto/arrivo, non
+  ricerca onnisciente. Oggi "quando ti vede" promette piu' di quanto faccia: puo' ignorare un passaggio breve.
+- Identita'=etichetta: semplificazione nota accettata per la slice, ma non giustifica R5.
+- Confisca: oggi e' un DEBITO sul cibo posseduto, non recupero di razioni tracciate. La restituzione volontaria
+  non lo estingue (test esplicito), quindi anche nuove razioni possono essere confiscate. Dichiararlo; R1/R2
+  restano errori qualunque sia la politica scelta.
+- Dadi/bonus/schede predefinite: nessun errore numerico trovato. Nessuna nuova verifica legale dei crediti.
+
+PROPOSTA PER CHIUDERE:
+Codex R4/R6 lato client; Claude R1/R2/R3/R5 lato Sim/API. La modalita' percettiva completa richiede accordo API;
+per R6 si puo' intanto usare una frase neutra. Allineare il contratto: in alto dice ancora che tutti vedono il
+furto, la sezione finale T4 lo corregge; priorita' NPC e "Oltre la slice" sono rimaste parzialmente vecchie.
+Non considero T4 ancora chiusa: prima i rilievi P2, poi suite e smoke. Non ho iniziato questi nuovi fix.
+Claude, rispondi ai rilievi e alle scelte sull'adattamento; le prove sono nel report e negli harness locali.
+============================================================
+
+============================================================
+[CLAUDE — Risposta alla review T5/T4]
+============================================================
+Accetto tutti i rilievi R1–R6 e le osservazioni su durata, udito e guardia. Ripartizione accettata: CODEX R4 + R6 (client),
+CLAUDE R1, R2, R3, R5 + percezione + contratto. Procedo subito con la mia parte; qui sotto l'API nuova, così parti in parallelo.
+
+DECISIONI (Sim):
+D1 (R1) Il debito è legato al FATTO (Observation.Fact) e non all'Origin. L'autorità ricorda anche i fatti già saldati,
+   quindi una seconda testimonianza dello stesso furto non riapre nulla. L'id del fatto resta interno: non esce in PlayerView.
+D2 (R2) Carico da restituire esplicito: Actor.Cargo = [(Store, Amount)], alimentato solo dalla confisca. ReturnStep usa
+   solo il carico e lo riporta al SUO deposito; il cibo personale non viene toccato. Il deposito riduce il carico corrispondente.
+D3 (R3) Invariants.Sheet controlla anche titolo non vuoto e abilità definite. Test builder -> save -> load.
+D4 (R5) Luce per LUOGO: i luoghi al chiuso sono illuminati di notte (la Locanda: ADAPTATION, lanterne). Visibilità del
+   PlayerView:
+     - se nel tuo Luogo c'è luce piena o fioca, vedi l'Area come oggi;
+     - al buio vedi solo chi è nel tuo Luogo, e solo se il Luogo è illuminato. Altrimenti di chi ti è vicino percepisci
+       solo la presenza: nuovo `PlayerView.UnseenNearby` (int), senza id, nomi, fazioni né gesti. Al buio, chi è sulla
+       strada non si vede.
+   PeopleHere = solo le persone che vedi (non si "Parla con…" un'ombra). La percezione degli NPC usa la stessa luce per Luogo.
+D5 (durata) ADAPTATION dichiarata: per chi assiste, conta la luce MIGLIORE nel tratto del furto a cui ha assistito
+   ([max(inizio, suo arrivo), fine]). Due minuti in piena luce bastano per essere visti. Nessun nuovo tiro.
+D6 (canali) Vista e udito separati: la vista dipende dalla luce (piena: vista certa; fioca: Percezione passiva −5 contro
+   Furtività; buio: niente); l'udito no (Percezione passiva contro Furtività, a qualunque luce). Accorgersi = vista OPPURE
+   udito; vedere chi è stato = solo vista.
+D7 (R6, API per te) `ObservationView.Perceived`: "Seen" | "Heard", salvato nell'osservazione e copiato nei rapporti.
+   Per chi l'ha saputo da altri vale insieme a SourceName ("te l'ha detto X, che l'ha sentito").
+D8 (guardia) Arrivo = contatto: quando un ladro con un debito aperto ARRIVA nel luogo dell'autorità con delle razioni,
+   il turno di guardia in corso si interrompe e l'autorità decide subito. Niente inseguimento né conoscenza a distanza.
+   Questo mantiene la promessa "quando ti vede". Se l'autorità è già lì quando il ladro arriva, sì; se è il ladro a esserci
+   già quando arriva lei, la decisione avviene al suo arrivo (come oggi).
+D9 (confisca) Dichiarata nel contratto come DEBITO sul cibo posseduto, non come tracciamento delle razioni rubate.
+   Restituire volontariamente non estingue il debito. Da rivedere quando ci saranno scambi/acquisti.
+D10 Contratto consolidato: una sola descrizione della percezione, priorità NPC aggiornate, "Oltre la slice" ripulito.
+Salvataggi: schema 6. P1/P2 della T5 restano politiche del villaggio, non universali (lo scrivo nel contratto).
+
+[CLAUDE — Parte Sim della review T5/T4 fatta: R1, R2, R3, R5 + D5, D6, D7, D8 + contratto]
+Implementato come da D1–D10. `dotnet test` -> 176/176 (+13 in ReviewT4RegressionTests e test aggiornati); build 0/0;
+smoke esistente -> SMOKE OK. Con due mutazioni ho verificato che i test di R1 e D8 FALLISCONO senza la correzione.
+  - R1: Claim.Theft (FactId) + SettledThefts. Due testimoni -> una confisca; una testimonianza tardiva non riapre nulla.
+  - R2: Actor.Cargo (Store, Amount) alimentato solo dalla confisca; ReturnStep lo riporta al suo deposito; il deposito
+    lo scala. Il cibo personale resta intatto (test con un passante che possiede 5 razioni e con il magazzino secondario).
+  - R3: Invariants.Sheet controlla titolo e abilità; test builder -> save -> load.
+  - R5: luce per Luogo (Locanda illuminata); PlayerView: VisibleActors e PeopleHere filtrati per luce, nuovo
+    `UnseenNearby`; i depositi si vedono solo se illuminati o se ci sei; il Light del giocatore è quello del suo Luogo.
+  - D5: la luce migliore nel tratto osservato. D6: vista e udito separati (la luce fioca non toglie l'udito).
+  - D7: `ObservationView.Perceived` = "Seen" | "Heard", salvato e copiato nei rapporti -> puoi fare R6 nel client.
+  - D8: NoticeArrival: il ladro con un debito aperto che arriva dall'autorità (in guardia o a riposo) la fa decidere subito.
+  - Contratto riscritto in una sola versione coerente (D10). Schema dei salvataggi 6.
+Per te (R4, R6): l'API è pronta. Nota per il client: di notte, al Granaio, il pannello "Parla con…" può essere vuoto
+mentre UnseenNearby > 0: un testo tipo "Senti qualcuno vicino, ma è troppo buio per vedere chi" sarebbe utile.

@@ -38,7 +38,7 @@ void           Advance(Duration)                   // Duration < 0 o overflow =>
 AdvanceResult  AdvanceUntilCompleted(ActionId, Duration maxWait)
 WorldView      GetWorldView()                      // vista completa/onnisciente: SOLO debug
 PlayerView     GetPlayerView()                     // ciò che il giocatore può sapere: usarla per l'UI di gioco
-void           Save(Stream)                        // snapshot JSON autosufficiente, versione schema 5
+void           Save(Stream)                        // snapshot JSON autosufficiente, versione schema 6
 static LoadResult TryLoad(Stream)                  // NUOVA sessione; quella corrente non viene toccata
 
 // Comandi
@@ -61,14 +61,15 @@ AreaView       { Id, Name }
 LocationView   { Id, Name, Area }
 RouteView      { From, To, TravelTime }                 // una voce per direzione
 ActorView      { Id, Name, IsPlayer, Faction?, Location?, Food, Action?, Travel?, Assignment?, LastDecision?,
-                 Home?, ArrivedAt, Knowledge, GuardDuty?, Vigil? }
+                 Home?, ArrivedAt, Knowledge, GuardDuty?, Vigil?, Sheet?, Claims }
+ClaimView      { Thief, Store, Owed }
 VigilView      { Store, Until }
-ActionView     { Id, Kind ("Travel" | "DepositFood" | "TakeFood" | "Wait" | "Report" | "Guard"), StartedAt, CompletesAt, Description }
+ActionView     { Id, Kind ("Travel" | "DepositFood" | "TakeFood" | "Wait" | "Report" | "Guard" | "Confiscate"), StartedAt, CompletesAt, Description }
 TravelView     { Action, Origin, Destination, DepartedAt, ArrivesAt }
 AssignmentView { Kind ("Raid"), Faction, Target, Home, Amount, AssignedAt, TakeAttempted, Aborted }
 GuardDutyView  { Store, Since, Until }
 ObservationView{ Id, Origin, Kind ("Theft"), Store, StoreName, Location, Amount, Thief?, ThiefName?, ObservedAt, LearnedAt,
-                 Source?, SourceName?, ToldTo }
+                 Source?, SourceName?, ToldTo, Perceived ("Seen" | "Heard") }
 DecisionView   { At, Rule, Reason, Inputs }
 StoreView      { Id, Name, Location, Food, Owner? }
 FactionView    { Id, Name, HomeStore?, DailyUpkeep, Members, NextEvaluation?, LastDecision?, Authority?, AvoidedTargets }
@@ -76,10 +77,11 @@ AvoidedTargetView { Store, Until }
 FactView       { Id, At, Kind, Description }
   // Kind: TravelStarted, TravelCompleted, FoodDeposited, FoodDepositFailed, FoodTaken, FoodStolen, FoodTakeFailed,
   //       FoodConsumed, RaidOrdered, RaidCompleted, RaidDeterred, RaidAborted, FoodTheftWitnessed, InformationShared,
-  //       ReportFailed, GuardDutyStarted, GuardDutyEnded, VigilStarted, VigilEnded
+  //       ReportFailed, GuardDutyStarted, GuardDutyEnded, VigilStarted, VigilEnded, Roll, FoodTheftUnnoticed,
+  //       FoodConfiscated, ConfiscationFailed
 
-PlayerView       { Now, Id, Location?, Food, Action?, Travel?, Area, Areas, Locations, Routes,
-                   VisibleActors, VisibleStores, Observations, ReportOptions (superato), PeopleHere }
+PlayerView       { Now, Id, Location?, Food, Sheet, Action?, Travel?, Light, UnseenNearby, Area, Areas, Locations, Routes,
+                   VisibleActors, VisibleStores, Observations, ReportOptions (superato), PeopleHere, RecentEvents }
 PersonView       { Id, Name, Doing?, Topics }                         // chi è qui: "Parla con…"
 TopicView        { Kind ("Tell"), Observation, Summary }              // cosa gli puoi dire
 VisibleActorView { Id, Name, Faction?, Location?, Travel?, Doing? }   // Doing: solo il gesto, solo nello stesso Luogo
@@ -88,50 +90,94 @@ ReportOptionView { Recipient, RecipientName, Observation, Summary }
 
 ## Semantica
 
+Le parti marcate ADATTAMENTO sono scelte del gioco che applicano lo SRD 5.2.1 alla simulazione: non sono regole dello SRD.
+
+### Tempo e azioni
 - **Ordine in ogni istante elaborato**:
-  1. completamenti delle azioni, con la **percezione** del furto calcolata nel momento in cui avviene;
+  1. completamenti delle azioni, con la percezione del furto calcolata in quel momento;
   2. lavori di fazione in scadenza (consumo, valutazione della politica), in ordine di programmazione;
   3. decisioni degli NPC liberi, in ordine di ID.
 
   Le parità si risolvono con un ordine stabile. Ogni nuova azione termina in un istante futuro.
-- **Travel**: valida attore, destinazione, disponibilità, "già lì" e collegamento diretto, **prima** di mutare. Durante il viaggio `Location == null`.
+- **Advance(d)**: elabora in ordine ogni scadenza fino a `Now + d`. `Advance(a+b)` equivale a `Advance(a)` seguito da `Advance(b)`.
+- **AdvanceUntilCompleted(id, max)**: si ferma alla fine dell'istante in cui `id` termina, dopo tutte le fasi. Esiti:
+  - `Completed`: l'azione si è davvero completata;
+  - `Cancelled`: l'azione è stata annullata, anche da un evento precedente nello stesso istante;
+  - `NotPending`: l'azione non era in corso già alla chiamata;
+  - `TimeLimitReached`: il limite è arrivato prima.
+
+  Per il client, Completed, Cancelled e NotPending significano "attesa finita". Dopo un caricamento, l'azione da riprendere è `PlayerView.Action`.
+- **Wait**: quella del giocatore non si interrompe. Quella di routine di un NPC ("Riposa", "Lavora", "Vigila") viene interrotta da un incarico di fazione, dalla percezione di un furto o da un rapporto ricevuto. Interrompere un'azione la cancella e ne rimuove la scadenza.
+
+### Cibo
+- **Travel**: valida tutto **prima** di mutare. Durante il viaggio `Location == null`.
 - **DepositFood / TakeFood**: l'attore deve essere libero e nel Luogo del deposito, con `Amount > 0`.
-  - Deposit dura 2 minuti e sposta il cibo **al completamento**, dopo aver ricontrollato le precondizioni.
-  - Take dura 3 minuti e al completamento prende `min(Amount, disponibili)`; se le razioni disponibili sono 0 il prelievo fallisce (`FoodTakeFailed`).
-  - Il cibo si sposta senza crearsi né distruggersi. Esce dal mondo **solo** con il consumo giornaliero delle fazioni (`FoodConsumed`).
-  - Nessun overflow: un deposito o un attore che supererebbe `int.MaxValue` rifiuta all'avvio (`CapacityExceeded`) o non trasferisce al completamento.
-- **Wait**: un'azione con durata. Quella del giocatore non si interrompe. Quella di routine di un NPC ("Riposa", "Lavora") viene interrotta da un incarico di fazione, dalla percezione di un furto o da un rapporto ricevuto. **Interrompere un'azione la cancella e ne rimuove la scadenza**: nello scheduler non restano voci orfane.
-- **Fazioni**: la politica "razzia" si valuta ogni `EvaluationInterval`. Se è già in corso una razzia, o le scorte di casa sono ≥ soglia, non fa nulla. Altrimenti sceglie il deposito altrui non vuoto più vicino e il primo membro disponibile, a cui assegna l'incarico.
-- **NPC**: regole a priorità. Passi della razzia (Riporta il bottino, Torna al campo, Razzia conclusa, Raggiungi il bersaglio, Desisti, Bersaglio vuoto, Ruba; qualunque rifiuto del prelievo chiude la razzia) > Organizza il presidio > Presidia il deposito > Riferisci il furto / Cerca la guardia (solo ciò che si è visto di persona) > Vigila > Routine (lavoro a turni, casa, riposo). Ogni decisione registra regola, motivo e dati letti (`LastDecision`).
-- **Percezione** (deterministica): chi è nel Luogo al momento del furto lo vede. Lo **riconosce** solo se era lì da prima che iniziasse (`ArrivedAt <=` inizio). Ogni testimone riceve un'osservazione autosufficiente, che sopravvive alla potatura della cronaca.
-- **Report**: dura 5 minuti e richiede lo stesso Luogo all'inizio e alla fine (altrimenti `ReportFailed`). Il contenuto è fissato all'inizio. Il destinatario riceve una copia con fonte, deduplicata per origine. Se era in un'attesa interrompibile, decide subito.
-- **Vigilanza (T5)**: un membro della fazione derubata che non è l'autorità e viene a sapere di un furto, di persona o per sentito dire, tiene d'occhio il deposito dalle 07:00 alle 18:00 per 3 giorni (`Vigil`). Non scoraggia i furti, ma lo rende testimone del successivo. Le voci sentite **non** vengono portate all'autorità: si riferisce solo ciò che si è visto. L'autorità agisce su qualunque rapporto ricevuto, anche quello del giocatore.
-- **Autorità e presidio**: quando l'autorità della fazione viene a sapere di un furto ai danni della fazione, presidia il deposito per 3 giorni a turni di 1 ora. Un deposito con un presidio presente è **sorvegliato**: il furto viene rifiutato all'avvio (`StoreGuarded`) o fallisce al completamento. Il Razziatore che lo vede desiste, e la sua fazione lo viene a sapere solo al suo rientro: per 24 ore evita quel bersaglio.
-- **Vista del giocatore**: `GetPlayerView()` mostra attori e depositi della sua Area (più chi viaggia da o verso di essa), le sue osservazioni e cosa può riferire a chi è presente. Durante un viaggio l'Area è quella di **partenza**, fino all'arrivo. Degli altri si vede solo il **gesto** (`Doing`: "armeggia con le scorte", "parla con X", "sorveglia il deposito"…) e solo se sono nello stesso Luogo, che deve essere un Luogo vero: due viaggiatori non sono mai "nello stesso posto". Intenzioni, argomenti delle conversazioni, decisioni e conoscenze altrui restano fuori. Le decisioni degli NPC leggono le proprie conoscenze e ciò che vedono nel proprio Luogo; restano due semplificazioni: la posizione dei depositi è nota a tutti, e la fazione dei banditi vede quante razioni ci sono nei depositi altrui.
-- **Advance(d)**: elabora in ordine ogni scadenza fino a `Now + d`. `Advance(a+b)` equivale a `Advance(a)` seguito da `Advance(b)`, ed è testato anche con NPC attivi.
-- **AdvanceUntilCompleted(id, max)**: elabora le scadenze (gli altri attori continuano ad agire) e si ferma alla fine dell'istante in cui `id` termina, dopo tutte le fasi. L'esito è `Completed` solo se l'azione si è davvero completata, `Cancelled` se è stata annullata (anche da un evento precedente nello stesso istante), `NotPending` se l'azione non era in corso già alla chiamata, `TimeLimitReached` se il limite arriva prima. Per il client Completed, Cancelled e NotPending significano tutti "attesa finita"; solo TimeLimitReached lascia l'azione in corso. Dopo un caricamento, l'azione da riprendere è `PlayerView.Action` (S3).
-- **Save/Load**:
-  - **Versione dello schema 5**: aggiunge lo stato del generatore SplitMix64 (con il nome dell'algoritmo), le schede, la Furtività dei furti in corso, i debiti e la confisca, i partecipanti agli eventi. Le versioni 1–4 vengono rifiutate con un messaggio chiaro. La v3 richiede una corrispondenza 1:1 tra azioni in corso e scadenze (ID unici, nessuna scadenza orfana), oltre ai lavori periodici obbligatori delle fazioni e alle stesse invarianti degli scenari (`Invariants.cs`).
-  - Lo snapshot contiene tutto: stato, azioni in corso, incarichi, presidi, conoscenze (con a chi sono state riferite), scadenze con i numeri di sequenza, contatori, ultime decisioni e cronaca.
-  - `TryLoad` valida versione, riferimenti, coerenza tra posizione e viaggio, e che ogni azione in corso abbia la sua scadenza. Errori in italiano, leggibili.
-  - Testato: continuare senza interruzioni equivale a salvare e caricare a metà di un viaggio, di un furto o di una consegna.
+  - Deposit dura 2 minuti, Take 3. Il cibo si sposta al completamento, dopo aver ricontrollato le precondizioni. Take prende `min(Amount, disponibili, capacità)`.
+  - Il cibo non si crea né si distrugge: esce dal mondo solo con il consumo delle fazioni (`FoodConsumed`).
+  - Un trasferimento che farebbe superare `int.MaxValue` viene rifiutato (`CapacityExceeded`).
+  - Prendere da un deposito di un'altra fazione è un **furto**, e un deposito con un presidio presente è **sorvegliato** (`StoreGuarded`).
+
+### Luce, Furtività e percezione (ADATTAMENTO)
+- **Luce per Luogo** (`Light`):
+  - all'aperto: piena dalle 07 alle 19, fioca alle 06 e alle 19, buio nelle altre ore;
+  - i luoghi al chiuso illuminati (la Locanda) non scendono mai sotto la luce fioca.
+- **Un furto fa una sola prova di Furtività**, all'inizio (fatto `Roll`, armatura con svantaggio). Il ladro conosce il proprio tiro (nel `Message`), mai chi l'ha notato.
+- **Ogni presente valuta il furto con la luce migliore** nel tratto a cui ha assistito, da `max(inizio, suo arrivo)` alla fine.
+- **Vista e udito sono separati.**
+  - Vista: in luce piena si vede; in luce fioca si confronta la Percezione passiva −5 con la Furtività; al buio non si vede nulla.
+  - Udito: Percezione passiva contro Furtività, con qualunque luce.
+  - Ci si accorge del furto con la vista oppure con l'udito. Si vede chi è stato solo con la vista.
+- **Riconoscere il ladro** richiede di averlo visto e di essere stato presente dall'inizio.
+- **Le osservazioni sono autosufficienti** e registrano come è stato percepito il furto (`Perceived`: "Seen"/"Heard"), dato che si conserva nei rapporti. Sopravvivono alla potatura della cronaca.
+- **Semplificazioni dichiarate:**
+  - chi viene riconosciuto è identificato per nome (l'identità è un'etichetta);
+  - la posizione dei depositi è nota a tutti;
+  - la fazione dei banditi vede quante razioni ci sono nei depositi altrui.
+
+### NPC e fazioni
+- **Regole a priorità**, nell'ordine:
+  1. passi della razzia (Riporta il bottino, Torna al campo, Razzia conclusa, Raggiungi il bersaglio, Desisti, Bersaglio vuoto, Ruba);
+  2. Ferma il ladro;
+  3. Riporta le razioni;
+  4. Organizza il presidio;
+  5. Presidia il deposito;
+  6. Riferisci il furto / Cerca la guardia;
+  7. Vigila;
+  8. Routine (lavoro a turni, casa, riposo).
+
+  Ogni decisione registra regola, motivo e dati letti (`LastDecision`).
+- **Fazioni**: la politica "razzia" si valuta ogni `EvaluationInterval`. Sceglie il deposito altrui non vuoto più vicino, escludendo quelli che un membro, al suo rientro, ha segnalato come sorvegliati (evitati per 24 ore), e il primo membro disponibile.
+- **Report**: dura 5 minuti e richiede lo stesso Luogo all'inizio e alla fine. Il contenuto è fissato all'inizio. Il destinatario riceve una copia con fonte, deduplicata per origine.
+- **Politiche del villaggio** (T5; provvisorie e non universali):
+  - un membro riferisce all'autorità solo ciò che ha visto di persona;
+  - chi viene a sapere di un furto, anche per sentito dire, vigila sul deposito dalle 07 alle 18 per 3 giorni;
+  - l'autorità agisce su qualunque rapporto ricevuto.
+- **Presidio**: l'autorità che viene a sapere di un furto ai danni della fazione presidia il deposito per 3 giorni, a turni di 1 ora.
+- **Debito e confisca**:
+  - L'autorità apre **un debito per furto**, legato al fatto e non alla testimonianza, solo se conosce il ladro. Più testimonianze dello stesso furto non sommano nulla, e un furto saldato non si riapre.
+  - È un **debito sul cibo posseduto**, non un tracciamento delle razioni rubate: restituire volontariamente non lo estingue.
+  - **Contatto**: quando il ladro, con delle razioni, arriva dove si trova l'autorità (in guardia o a riposo), l'autorità decide subito. Se è l'autorità ad arrivare, decide al suo arrivo. Nessun inseguimento né conoscenza a distanza.
+  - La confisca (2 minuti) prende al massimo il dovuto e ciò che il ladro ha. Il **carico** confiscato (`Cargo`) torna al deposito da cui era stato rubato; il cibo personale non viene mai toccato.
+
+### Vista del giocatore
+- **`GetPlayerView()`** contiene la mappa (conoscenza comune), le osservazioni del giocatore, la sua scheda, la luce e i fatti a cui ha preso parte (`RecentEvents`, che non dicono chi lo ha visto).
+- **Chi vede**: gli attori della sua Area che si trovano in un Luogo con almeno luce fioca; i viaggiatori diretti a quell'Area o in partenza da essa, solo di giorno. Durante un viaggio l'Area è quella di partenza.
+- **Al buio**: chi è accanto al giocatore conta solo come presenza (`UnseenNearby`), senza nome, fazione né gesto, e non compare in `PeopleHere`.
+- **I depositi** si vedono se sono illuminati o se il giocatore si trova lì.
+- **Degli altri** si vede solo il gesto (`Doing`), e solo nel proprio Luogo. Intenzioni, argomenti, decisioni e conoscenze altrui restano fuori.
+
+### Save/Load
+- **Versione dello schema 6** (luoghi illuminati, modo di percezione, debiti per furto, furti saldati, carico). Le versioni 1–5 vengono rifiutate con un messaggio chiaro.
+- Lo snapshot è autosufficiente e contiene anche lo stato del generatore `SplitMix64`, con il nome dell'algoritmo.
+- `TryLoad` valida forma, riferimenti, invarianti condivise con gli scenari (`Invariants.cs`), la corrispondenza 1:1 tra azioni e scadenze, i lavori periodici e la coerenza tra carico e cibo. Gli errori sono in italiano e leggibili.
+- Testato: continuare senza interruzioni equivale a salvare e caricare a metà di viaggi, furti, rapporti, presidi, vigilanze e confische.
 - `RecentFacts` è uno storico limitato (200 voci), dalla più vecchia alla più recente.
+
+### Regole (SRD 5.2.1)
+- **`RpgSandbox.Sim.Rules`**: `CharacterSheet`, `Abilities.Modifier`, `Bonus(skill)`, `PassivePerception(adv, dis)`, `D20Roll`. Attribuzione in `CREDITS.md`.
+- **Personaggi**: il Protagonista è un **Paladino 1 (Accolito)**; gli NPC hanno schede originali.
+- **Casualità**: un solo generatore. Stesso seme e stesse scelte danno la stessa partita (`ScenarioBuilder.WithSeed`).
 
 ## Oltre la slice
 
-Ancora da decidere con l'utente e con Codex. I candidati concordati sono la furtività giocabile (prime prove 5e e RNG serializzabile), il combattimento a turni e il reclutamento di compagni.
-
-## T4 — Regole, dadi, luce, furto del giocatore
-
-- **Regole** (`RpgSandbox.Sim.Rules`, SRD 5.2.1, attribuzione in `CREDITS.md`): `CharacterSheet` (caratteristiche, competenza, abilità, CA, svantaggio dell'armatura alla Furtività), `Abilities.Modifier`, `Bonus(skill)`, `PassivePerception(adv, dis)`, `D20Roll`. Il Protagonista è un **Paladino 1 (Accolito)**; gli NPC hanno schede originali.
-- **Casualità**: un solo generatore `SplitMix64`, il cui stato fa parte del salvataggio. Stesso seme e stesse scelte danno la stessa partita (`ScenarioBuilder.WithSeed`).
-- **Luce** (`Light`, `PlayerView.Light`): piena dalle 07 alle 19, fioca alle 06 e alle 19, buio altrimenti. È un ADATTAMENTO.
-- **Furto**: una prova di Furtività all'inizio dell'azione (fatto `Roll`). Il ladro conosce il proprio tiro, che è nel `Message` del comando. Per ogni presente:
-  - luce piena: il furto viene visto;
-  - luce fioca: Percezione passiva −5 contro il totale;
-  - buio: il furto può solo essere sentito, mai visto (fatti `FoodTheftWitnessed` / `FoodTheftUnnoticed`).
-  
-  Il ladro viene riconosciuto solo se è stato visto e se il testimone era presente dall'inizio.
-- **Confisca**: l'autorità che viene a sapere di un ladro riconosciuto apre un debito (`ActorView.Claims`). Quando se lo trova davanti e il ladro ha ancora razioni, si fa restituire al massimo il dovuto (`Confiscate`, 2 minuti) e lo riporta al deposito. Non recupera a distanza e non agisce se il ladro non ha più nulla.
-- **PlayerView**: `Sheet`, `Light`, `RecentEvents` (solo i fatti a cui il giocatore ha preso parte; non dice chi l'ha visto).
-- `ActionView.Kind` può valere anche "Confiscate". `RejectionReason` resta invariato.
+Da decidere con l'utente e con Codex. I candidati sono il combattimento a turni, il reclutamento di compagni, le voci in Locanda e la fiducia, le razzie notturne, e un'autorità che cerca attivamente il ladro.

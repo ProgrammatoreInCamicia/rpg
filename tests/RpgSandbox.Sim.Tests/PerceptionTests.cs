@@ -13,7 +13,7 @@ public class PerceptionTests
     [InlineData(0, Light.Dark)] [InlineData(5, Light.Dark)] [InlineData(6, Light.Dim)] [InlineData(7, Light.Bright)]
     [InlineData(12, Light.Bright)] [InlineData(18, Light.Bright)] [InlineData(19, Light.Dim)] [InlineData(20, Light.Dark)]
     public void Light_follows_the_time_of_day(int hour, Light expected) =>
-        Assert.Equal(expected, Perception.LightAt(At(3, hour)));
+        Assert.Equal(expected, Perception.DaylightAt(At(3, hour)));
 
     [Fact]
     public void In_bright_light_a_watching_witness_always_sees()
@@ -25,11 +25,15 @@ public class PerceptionTests
     }
 
     [Fact]
-    public void In_dim_light_perception_suffers_disadvantage()
+    public void In_dim_light_sight_suffers_disadvantage_but_hearing_does_not()
     {
-        // Farmer: Passive Perception 11, 6 with Disadvantage.
+        // Farmer: Passive Perception 11; 6 for sight in dim light (Disadvantage), 11 for hearing.
         Assert.True(Perception.Witness(Sheets.Farmer(), Light.Dim, stealthTotal: 6).SawActor);
-        Assert.False(Perception.Witness(Sheets.Farmer(), Light.Dim, stealthTotal: 7).Noticed);
+        var heardOnly = Perception.Witness(Sheets.Farmer(), Light.Dim, stealthTotal: 7);
+        Assert.True(heardOnly.Noticed);
+        Assert.False(heardOnly.SawActor);
+        Assert.Equal(PerceptionMode.Heard, heardOnly.Mode);
+        Assert.False(Perception.Witness(Sheets.Farmer(), Light.Dim, stealthTotal: 12).Noticed);
     }
 
     [Fact]
@@ -89,7 +93,7 @@ public class PerceptionTests
             else
             {
                 missed++;
-                Assert.Contains(view.RecentFacts, f => f.Kind == "FoodTheftUnnoticed" && f.Description.Contains("Percezione passiva 11"));
+                Assert.Contains(view.RecentFacts, f => f.Kind == "FoodTheftUnnoticed" && f.Description.Contains("udito 11"));
             }
             Assert.Contains(view.RecentFacts, f => f.Kind == "Roll" && f.Description.StartsWith("Razziatore, Furtività"));
         }

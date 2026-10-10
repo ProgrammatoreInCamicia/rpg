@@ -36,7 +36,7 @@ public static class SliceScenario
         new ScenarioBuilder()
             .AddArea(Ids.Village.Value, "Villaggio")
             .AddArea(Ids.Forest.Value, "Bosco")
-            .AddLocation(Ids.Inn.Value, "Locanda", Ids.Village.Value)
+            .AddLocation(Ids.Inn.Value, "Locanda", Ids.Village.Value, lit: true)
             .AddLocation(Ids.Granary.Value, "Granaio", Ids.Village.Value)
             .AddLocation(Ids.BanditCamp.Value, "Campo dei banditi", Ids.Forest.Value)
             .AddRoute(Ids.Inn.Value, Ids.Granary.Value, Duration.FromMinutes(5))

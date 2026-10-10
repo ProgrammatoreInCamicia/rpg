@@ -18,6 +18,9 @@ internal sealed class Location
     public required LocationId Id { get; init; }
     public required string Name { get; init; }
     public required AreaId Area { get; init; }
+
+    /// <summary>Indoors with lamps: never darker than dim light at night.</summary>
+    public bool Lit { get; init; }
 }
 
 internal sealed class Actor
@@ -60,6 +63,12 @@ internal sealed class Actor
     /// <summary>Thefts this authority wants to make good: known thief, robbed store, rations still owed.</summary>
     public List<Claim> Claims { get; } = new();
 
+    /// <summary>Thefts already made good: a late testimony must not reopen them.</summary>
+    public SortedSet<FactId> SettledThefts { get; } = new();
+
+    /// <summary>Rations carried on someone else's behalf (confiscated), with the store they go back to.</summary>
+    public List<Cargo> Cargo { get; } = new();
+
     /// <summary>What the actor knows: its own observations and what others told it. One entry per origin.</summary>
     public List<Observation> Knowledge { get; } = new();
 
@@ -80,12 +89,19 @@ internal sealed record WorkShift(LocationId Location, Duration Start, Duration E
     }
 }
 
+internal sealed class Cargo
+{
+    public required StoreId Store { get; init; }
+    public required int Amount { get; set; }
+}
+
 /// <summary>What a known thief still owes to a robbed store, as far as the authority knows.</summary>
 internal sealed class Claim
 {
     public required ActorId Thief { get; init; }
     public required StoreId Store { get; init; }
-    public required ObservationId Origin { get; init; }
+    /// <summary>The theft itself: several testimonies of the same theft make one claim.</summary>
+    public required FactId Theft { get; init; }
     public required int Owed { get; set; }
 }
 
@@ -125,8 +141,11 @@ internal sealed class Observation
     /// <summary>Null for a first-hand observation; otherwise who told it.</summary>
     public ActorId? Source { get; init; }
 
-    /// <summary>Debug link to the world fact; never needed to understand the observation.</summary>
+    /// <summary>The fact this is about (internal: also identifies the theft for claims; never shown to the player).</summary>
     public FactId? Fact { get; init; }
+
+    /// <summary>How the first-hand witness perceived it; copies passed on keep it.</summary>
+    public PerceptionMode Perceived { get; init; } = PerceptionMode.Seen;
 
     /// <summary>Who this actor has already told, so it does not repeat itself.</summary>
     public SortedSet<ActorId> ToldTo { get; } = new();
@@ -294,7 +313,7 @@ internal sealed class WorldState
         foreach (var a in scenario.Areas)
             world.Areas.Add(a.Id, new Area { Id = a.Id, Name = a.Name });
         foreach (var l in scenario.Locations)
-            world.Locations.Add(l.Id, new Location { Id = l.Id, Name = l.Name, Area = l.Area });
+            world.Locations.Add(l.Id, new Location { Id = l.Id, Name = l.Name, Area = l.Area, Lit = l.Lit });
         foreach (var r in scenario.Routes)
         {
             world.Routes.Add((r.A, r.B), r.TravelTime);

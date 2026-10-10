@@ -32,6 +32,10 @@ internal static class Invariants
 
     public static string? Sheet(string actorId, Rules.CharacterSheet sheet)
     {
+        if (string.IsNullOrWhiteSpace(sheet.Title))
+            return $"la scheda di '{actorId}' non ha un titolo";
+        if (sheet.SkillProficiencies.Any(s => !Enum.IsDefined(s)))
+            return $"la scheda di '{actorId}' contiene un'abilità sconosciuta";
         foreach (var ability in Enum.GetValues<Rules.Ability>())
             if (sheet.Score(ability) is < 1 or > 30)
                 return $"la caratteristica {ability} di '{actorId}' è fuori dall'intervallo 1–30";

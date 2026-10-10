@@ -25,6 +25,9 @@ public sealed record PlayerView
     /// <summary>Light where the player is, by time of day: it decides what can be seen (see the rules notes).</summary>
     public Light Light { get; init; }
 
+    /// <summary>People right next to the player that it cannot see (darkness): only their presence is known.</summary>
+    public int UnseenNearby { get; init; }
+
     /// <summary>The area the player is in or, while travelling, the area it left (until arrival).</summary>
     public required AreaId Area { get; init; }
 
@@ -33,10 +36,10 @@ public sealed record PlayerView
     public required IReadOnlyList<LocationView> Locations { get; init; }
     public required IReadOnlyList<RouteView> Routes { get; init; }
 
-    /// <summary>Other actors in the player's area, or travelling to or from it.</summary>
+    /// <summary>Other actors the player can see: in its area where there is light, on the road only by daylight.</summary>
     public required IReadOnlyList<VisibleActorView> VisibleActors { get; init; }
 
-    /// <summary>Stores in the player's area, with their current contents.</summary>
+    /// <summary>Stores in the player's area that the player can see (lit, or where the player stands).</summary>
     public required IReadOnlyList<StoreView> VisibleStores { get; init; }
 
     /// <summary>The player's own knowledge: what it saw and what it was told.</summary>

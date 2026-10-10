@@ -142,8 +142,10 @@ internal sealed partial class Simulation
 
         npc.ActedOn.Add(news.Origin);
         // A recognised thief owes the stolen rations: the authority will ask for them when it meets him.
-        if (news.Thief is { } culprit && culprit != npc.Id && npc.Claims.All(c => c.Origin != news.Origin))
-            npc.Claims.Add(new Claim { Thief = culprit, Store = news.Store, Origin = news.Origin, Owed = news.Amount });
+        // One claim per theft, however many people saw it, and never again once it was made good.
+        if (news.Thief is { } culprit && culprit != npc.Id && news.Fact is { } theft
+            && !npc.SettledThefts.Contains(theft) && npc.Claims.All(c => c.Theft != theft))
+            npc.Claims.Add(new Claim { Thief = culprit, Store = news.Store, Theft = theft, Owed = news.Amount });
         var until = World.Now.Plus(Tuning.GuardDutyLength);
         if (npc.GuardDuty is { } current && current.Store == news.Store)
         {
@@ -183,17 +185,24 @@ internal sealed partial class Simulation
         return null;
     }
 
-    /// <summary>The authority carries confiscated rations back to its faction's store.</summary>
+    /// <summary>Confiscated rations go back to the store they were stolen from.</summary>
     private Plan? ReturnStep(Actor npc, List<string> inputs)
     {
-        if (npc.Food == 0 || npc.Faction is not { } factionId || World.Factions[factionId].HomeStore is not { } homeId)
+        // Only confiscated rations, to the store they were taken from; personal food is never touched.
+        if (npc.Cargo.FirstOrDefault() is not { } cargo)
             return null;
-        var home = World.Stores[homeId];
-        inputs.Add($"Ha con sé {npc.Food} razioni recuperate");
-        if (npc.Location != home.Location)
-            return Go("Riporta le razioni", $"Riporta {npc.Food} razioni a {home.Name}.", npc, home.Location);
-        return Do("Riporta le razioni", $"Restituisce {npc.Food} razioni a {home.Name}.",
-            new DepositFoodCommand { Actor = npc.Id, Store = home.Id, Amount = npc.Food });
+        var store = World.Stores[cargo.Store];
+        var amount = Math.Min(cargo.Amount, npc.Food);
+        if (amount == 0)
+        {
+            npc.Cargo.Remove(cargo); // nothing left to carry back
+            return null;
+        }
+        inputs.Add($"Ha con sé {cargo.Amount} razioni recuperate da restituire a {store.Name}");
+        if (npc.Location != store.Location)
+            return Go("Riporta le razioni", $"Riporta {amount} razioni a {store.Name}.", npc, store.Location);
+        return Do("Riporta le razioni", $"Restituisce {amount} razioni a {store.Name}.",
+            new DepositFoodCommand { Actor = npc.Id, Store = store.Id, Amount = amount });
     }
 
     private Plan? GuardStep(Actor npc, List<string> inputs)

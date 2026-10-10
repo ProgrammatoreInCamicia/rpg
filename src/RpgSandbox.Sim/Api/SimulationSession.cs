@@ -165,12 +165,20 @@ public sealed class SimulationSession
         var area = w.Locations[player.Location ?? travel!.Origin].Area;
 
         bool InArea(LocationId? location) => location is { } l && w.Locations[l].Area == area;
-        bool Visible(Actor a) => InArea(a.Location) ||
-                                 (a.CurrentAction is TravelAction t && (InArea(t.Origin) || InArea(t.Destination)));
 
-        var present = player.Location is { } here
+        // Seeing takes light where the seen one is (ADAPTATION): a place in the area is visible when it is at least
+        // dimly lit, the road only by daylight. In the dark, people right next to the player are only a presence.
+        bool PlaceVisible(LocationId l) => Perception.LightAt(w.Locations[l], w.Now) >= Light.Dim;
+        bool RoadVisible() => Perception.DaylightAt(w.Now) >= Light.Dim;
+        bool Visible(Actor a) => a.Location is { } at
+            ? InArea(at) && PlaceVisible(at)
+            : a.CurrentAction is TravelAction t && (InArea(t.Origin) || InArea(t.Destination)) && RoadVisible();
+
+        var nearby = player.Location is { } here
             ? w.Actors.Values.Where(a => a.Id != player.Id && a.Location == here).ToList()
             : new List<Actor>();
+        var present = nearby.Where(Visible).ToList();
+        var light = player.Location is { } spot ? Perception.LightAt(w.Locations[spot], w.Now) : Perception.DaylightAt(w.Now);
         var options = present
             .SelectMany(recipient => player.Knowledge
                 .Where(o => !o.ToldTo.Contains(recipient.Id))
@@ -196,7 +204,8 @@ public sealed class SimulationSession
                 ? null
                 : new TravelView { Action = travel.Id, Origin = travel.Origin, Destination = travel.Destination, DepartedAt = travel.StartedAt, ArrivesAt = travel.CompletesAt },
             Area = area,
-            Light = Perception.LightAt(w.Now),
+            Light = light,
+            UnseenNearby = nearby.Count - present.Count,
             Areas = Freeze(w.Areas.Values.Select(x => new AreaView { Id = x.Id, Name = x.Name })),
             Locations = Freeze(w.Locations.Values.Select(l => new LocationView { Id = l.Id, Name = l.Name, Area = l.Area })),
             Routes = Freeze(w.Routes.Select(r => new RouteView { From = r.Key.From, To = r.Key.To, TravelTime = r.Value })),
@@ -211,7 +220,7 @@ public sealed class SimulationSession
                     : null,
                 Doing = player.Location is { } here && x.Location == here ? OutwardDoing(x, w) : null,
             })),
-            VisibleStores = Freeze(w.Stores.Values.Where(s => InArea(s.Location)).Select(s => new StoreView
+            VisibleStores = Freeze(w.Stores.Values.Where(s => InArea(s.Location) && (s.Location == player.Location || PlaceVisible(s.Location))).Select(s => new StoreView
             {
                 Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food, Owner = s.Owner,
             })),
@@ -271,6 +280,7 @@ public sealed class SimulationSession
         LearnedAt = o.LearnedAt,
         Source = o.Source,
         SourceName = o.Source is { } s ? w.Actors[s].Name : null,
+        Perceived = o.Perceived.ToString(),
         ToldTo = Freeze(o.ToldTo),
     };
 
