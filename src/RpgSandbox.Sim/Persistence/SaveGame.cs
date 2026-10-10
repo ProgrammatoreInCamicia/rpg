@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 10;
+    public const int SchemaVersion = 11;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -244,7 +244,12 @@ internal static class SaveGame
             null => null,
             TravelAction t => new TravelActionDto { Origin = t.Origin.Value, Destination = t.Destination.Value },
             DepositFoodAction d => new DepositFoodActionDto { Store = d.Store.Value, Amount = d.Amount },
-            TakeFoodAction k => new TakeFoodActionDto { Store = k.Store.Value, Amount = k.Amount, StealthTotal = k.StealthTotal },
+            TakeFoodAction k => new TakeFoodActionDto
+            {
+                Store = k.Store.Value, Amount = k.Amount, StealthTotal = k.StealthTotal,
+                SeenAtStart = k.SeenAtStart.Select(a => a.Value).OrderBy(a => a, StringComparer.Ordinal).ToList(),
+                BestLight = (int?)k.BestLight,
+            },
             WaitAction wa => new WaitActionDto { Interruptible = wa.Interruptible },
             ReportAction rep => new ReportActionDto { Recipient = rep.Recipient.Value, Observation = rep.Observation.Value },
             GuardAction ga => new GuardActionDto { Store = ga.Store.Value },
@@ -505,6 +510,8 @@ internal static class SaveGame
             Check(w.Stores.ContainsKey(guard.Store), $"sorveglianza di '{a.Id}' su deposito sconosciuto");
         Check(a.Food >= 0, $"attore '{a.Id}' con razioni negative");
         Check(a.Torches >= 0, $"attore '{a.Id}' con torce negative");
+        Check(a.CurrentAction is not TakeFoodAction theft || theft.SeenAtStart.All(w.Actors.ContainsKey),
+            $"furto di '{a.Id}' con testimoni sconosciuti");
         Check(a.Faction is null || w.Factions.ContainsKey(a.Faction.Value), $"attore '{a.Id}' di fazione sconosciuta");
         Check(a.Location is null || w.Locations.ContainsKey(a.Location.Value), $"attore '{a.Id}' in luogo sconosciuto");
         if (a.Position is { } pos)
@@ -577,6 +584,10 @@ internal static class SaveGame
             {
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
                 Store = new StoreId(take.Store), Amount = take.Amount, StealthTotal = take.StealthTotal,
+                SeenAtStart = (take.SeenAtStart ?? throw new InvalidDataException("testimoni del furto mancanti"))
+                    .Select(a => new ActorId(Required(a, "testimone del furto"))).ToHashSet(),
+                BestLight = take.BestLight is { } light && Enum.IsDefined(typeof(Light), light) ? (Light)light
+                    : take.BestLight is null ? null : throw new InvalidDataException("luce del furto non valida"),
             },
             ReportActionDto rep => new ReportAction
             {

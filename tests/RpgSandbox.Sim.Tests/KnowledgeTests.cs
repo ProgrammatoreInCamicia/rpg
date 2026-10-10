@@ -311,6 +311,7 @@ public class KnowledgeTests
     [InlineData(7)] // v8 adds light sources
     [InlineData(8)] // v9 adds sneaking
     [InlineData(9)] // v10 adds doors and torches
+    [InlineData(10)] // v11 adds the evidence fixed when a theft starts
     public void Older_save_versions_are_rejected(int version)
     {
         var json = JsonNode.Parse(NewSession().SaveToString())!;

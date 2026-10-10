@@ -260,6 +260,18 @@ internal sealed class TakeFoodAction : PendingAction
 
     /// <summary>Total of the single Stealth check made when a theft starts (null when not a theft).</summary>
     public int? StealthTotal { get; init; }
+
+    /// <summary>
+    /// On maps, evidence fixed when the theft starts: who could see the thief then. Only they can recognise it
+    /// (F4), whatever happens to the light afterwards.
+    /// </summary>
+    public IReadOnlySet<ActorId> SeenAtStart { get; init; } = new HashSet<ActorId>();
+
+    /// <summary>
+    /// On maps, the best light on the thief's square so far: at the start, then at every change of light (a torch
+    /// lit or put out, a door, a torch bearer reaching a waypoint). Null off the maps.
+    /// </summary>
+    public Light? BestLight { get; set; }
 }
 
 internal sealed class ReportAction : PendingAction

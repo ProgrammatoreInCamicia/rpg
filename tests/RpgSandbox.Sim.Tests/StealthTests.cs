@@ -185,4 +185,79 @@ public class StealthTests
 
         Assert.Contains("svantaggio", sneak.Message, StringComparison.OrdinalIgnoreCase);
     }
+
+    // ---------------------------------------------------------------- evidence fixed when a theft starts (review F1/F2)
+
+    private static readonly ActorId Bearer = new("bearer");
+
+    /// <summary>Night, no lamps: the player steals at (5,2) from (4,2); the watcher looks on from (9,2); a villager with a
+    /// torch stands next to the thief.</summary>
+    private static SimulationSession TheftWithTorchBearer()
+    {
+        var scenario = new ScenarioBuilder()
+            .AddArea("a", "A")
+            .AddLocation("yard", "Cortile", "a")
+            .AddMap("a", Enumerable.Repeat(new string('Y', 11), 5).ToArray(), new Dictionary<char, string> { ['Y'] = "yard" })
+            .AddFaction("village", "Villaggio", homeStoreId: Store.Value, authorityId: Watcher.Value)
+            .AddStore(Store.Value, "Scorte", "yard", 40, "village", at: (5, 2))
+            .AddActor("player", "Protagonista", "yard", isPlayer: true, sheet: Sheets.Raider(), at: (4, 2))
+            .AddActor(Watcher.Value, "Guardia", "yard", factionId: "village", sheet: Sheets.VillageGuard(), at: (9, 2))
+            .AddActor(Bearer.Value, "Contadino", "yard", sheet: Sheets.Farmer(), at: (4, 3), torches: 2)
+            .Build();
+        var s = SimulationSession.Create(scenario);
+        s.AdvanceTo(At(1, 2));
+        return s;
+    }
+
+    private static ActionId StartTheft(SimulationSession s)
+    {
+        var take = s.Execute(new TakeFoodCommand { Actor = s.Player, Store = Store, Amount = 1 });
+        Assert.True(take.Success, take.Message);
+        return take.Action!.Value;
+    }
+
+    [Fact]
+    public void A_torch_lit_after_the_theft_began_cannot_reveal_who_started_it()
+    {
+        var s = TheftWithTorchBearer();
+        var theft = StartTheft(s); // in the dark: nobody sees the thief now
+        s.Advance(Duration.FromSeconds(10));
+        Assert.True(s.Execute(new TorchCommand { Actor = Bearer, Lit = true }).Success);
+        s.AdvanceUntilCompleted(theft, Duration.FromHours(1));
+
+        var seen = Assert.Single(s.GetWorldView().Actor(Watcher).Knowledge);
+        Assert.Equal("Seen", seen.Perceived); // in torchlight at the end, the deed is seen...
+        Assert.Null(seen.Thief);               // ...but who began it, in the dark, is not known
+    }
+
+    [Fact]
+    public void A_torch_put_out_during_the_theft_does_not_erase_what_was_seen()
+    {
+        var s = TheftWithTorchBearer();
+        Assert.True(s.Execute(new TorchCommand { Actor = Bearer, Lit = true }).Success);
+        var theft = StartTheft(s); // in torchlight: the watcher sees the thief from the start
+        s.Advance(Duration.FromSeconds(10));
+        Assert.True(s.Execute(new TorchCommand { Actor = Bearer, Lit = false }).Success);
+        s.AdvanceUntilCompleted(theft, Duration.FromHours(1));
+
+        var seen = Assert.Single(s.GetWorldView().Actor(Watcher).Knowledge);
+        Assert.Equal("Seen", seen.Perceived);
+        Assert.Equal(new ActorId("player"), seen.Thief);
+    }
+
+    [Fact]
+    public void The_evidence_of_a_theft_in_progress_survives_save_and_load()
+    {
+        var s = TheftWithTorchBearer();
+        var theft = StartTheft(s);
+        s.Advance(Duration.FromSeconds(10));
+        s.Execute(new TorchCommand { Actor = Bearer, Lit = true });
+
+        var loaded = s.SaveAndReload();
+        s.AdvanceUntilCompleted(theft, Duration.FromHours(1));
+        loaded.AdvanceUntilCompleted(theft, Duration.FromHours(1));
+
+        Assert.Equal(s.SaveToString(), loaded.SaveToString());
+        Assert.Null(Assert.Single(loaded.GetWorldView().Actor(Watcher).Knowledge).Thief);
+    }
 }

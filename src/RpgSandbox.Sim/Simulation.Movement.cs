@@ -99,6 +99,8 @@ internal sealed partial class Simulation
     {
         actor.Position = square;
         var map = World.Maps[actor.MapArea!.Value];
+        if (TorchLit(actor))
+            NoteLightChange(map); // the light moved with its bearer
         var zone = map.ZoneAt(square);
         if (zone == actor.Location)
             return;
@@ -121,7 +123,9 @@ internal sealed partial class Simulation
 
     private void OpenDoorOnTheWay(Actor actor, GridMap map, GridPos door)
     {
+        NoteLightChange(map);
         map.SetDoor(door, open: true);
+        NoteLightChange(map);
         World.RecordFact("DoorOpened", $"{actor.Name} apre la porta in {door}.", actor.Id);
     }
 
@@ -144,7 +148,9 @@ internal sealed partial class Simulation
                 && (CurrentPosition(a) == command.At || a.CurrentAction is MoveAction m && NextSquare(m) == command.At)))
             return CommandResult.Rejected(RejectionReason.DoorBlocked, "Qualcuno è sulla porta.");
 
+        NoteLightChange(map);
         map.SetDoor(command.At, command.Open);
+        NoteLightChange(map);
         World.RecordFact(command.Open ? "DoorOpened" : "DoorClosed",
             $"{actor.Name} {(command.Open ? "apre" : "chiude")} la porta in {command.At}.", actor.Id);
         return new CommandResult { Message = command.Open ? "Apri la porta." : "Chiudi la porta." };

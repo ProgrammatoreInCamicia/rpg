@@ -38,7 +38,7 @@ void           Advance(Duration)                   // Duration < 0 o overflow =>
 AdvanceResult  AdvanceUntilCompleted(ActionId, Duration maxWait)
 WorldView      GetWorldView()                      // vista completa/onnisciente: SOLO debug
 PlayerView     GetPlayerView()                     // ciò che il giocatore può sapere: usarla per l'UI di gioco
-void           Save(Stream)                        // snapshot JSON autosufficiente, versione schema 10
+void           Save(Stream)                        // snapshot JSON autosufficiente, versione schema 11
 static LoadResult TryLoad(Stream)                  // NUOVA sessione; quella corrente non viene toccata
 
 // Comandi
@@ -167,7 +167,7 @@ Le parti marcate ADATTAMENTO sono scelte del gioco che applicano lo SRD 5.2.1 al
 - **Degli altri** si vede solo il gesto (`Doing`), e solo nel proprio Luogo. Intenzioni, argomenti, decisioni e conoscenze altrui restano fuori.
 
 ### Save/Load
-- **Versione dello schema 10** (la 6 ha aggiunto luoghi illuminati, modo di percezione, debiti per furto, furti saldati e carico; la 7 mappe, posizioni e cammini; la 8 le sorgenti di luce delle mappe; la 9 la furtività; la 10 porte e torce). Le versioni 1–9 vengono rifiutate con un messaggio chiaro.
+- **Versione dello schema 11** (la 6 ha aggiunto luoghi illuminati, modo di percezione, debiti per furto, furti saldati e carico; la 7 mappe, posizioni e cammini; la 8 le sorgenti di luce delle mappe; la 9 la furtività; la 10 porte e torce; la 11 l'evidenza fissata all'inizio dei furti). Le versioni 1–10 vengono rifiutate con un messaggio chiaro.
 - Lo snapshot è autosufficiente e contiene anche lo stato del generatore `SplitMix64`, con il nome dell'algoritmo.
 - `TryLoad` valida forma, riferimenti, invarianti condivise con gli scenari (`Invariants.cs`), la corrispondenza 1:1 tra azioni e scadenze, i lavori periodici e la coerenza tra carico e cibo. Gli errori sono in italiano e leggibili.
 - Testato: continuare senza interruzioni equivale a salvare e caricare a metà di viaggi, furti, rapporti, presidi, vigilanze e confische.
@@ -243,7 +243,11 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
   - Una torcia accesa è una sorgente di luce mobile sulla casella di chi la porta: luce piena per 20 piedi più luce fioca per altri 20, fermata da muri e porte chiuse.
   - La torcia si spegne da sola alla scadenza: è considerata accesa solo finché `Now < TorchLitUntil`.
 - **Furtività**: porte e torce non la interrompono, ma una torcia accesa mette il personaggio in luce piena, quindi chiunque abbia la linea di vista lo vede.
-- **Approssimazione**: per la luce di un istante passato si usano i portatori di torcia attuali.
+- **Evidenza dei furti** (correzione dopo la review di Codex): all'inizio di un furto sulla mappa si fissano **chi vedeva il ladro** (`TakeFoodAction.SeenAtStart`) e la luce sulla sua casella (`BestLight`).
+  - Ogni cambio di luce durante il furto aggiorna la luce migliore: torcia accesa o spenta, porta aperta o chiusa, portatore di torcia che raggiunge una tappa.
+  - Il ladro lo riconosce **solo** chi lo vedeva all'inizio: una torcia accesa dopo non rivela chi ha cominciato.
+  - La luce del tratto osservato è il massimo tra la luce registrata, la luce del giorno nel tratto e la luce attuale.
+  - Limite: un portatore di torcia in movimento conta solo alle tappe del suo cammino.
 - **PlayerView**: `Doors` (tutte le porte della mappa, anche quelle fuori vista: approssimazione), `Torches`, `TorchLitUntil`, `VisibleActorView.Torch`.
 - **Client**: il clic su una porta adiacente la apre o la chiude, il clic su una porta lontana ci fa camminare fino a lei. Il tasto T accende e spegne la torcia.
 

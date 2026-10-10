@@ -25,6 +25,17 @@ internal sealed partial class Simulation
             .Select(a => new LightSource(CurrentPosition(a)!.Value, Tuning.TorchBrightFeet, Tuning.TorchDimFeet))
             .ToList();
 
+    /// <summary>Applies a change of light around <paramref name="actor"/>, noting it for thefts in progress before and after.</summary>
+    private void LightChange(Actor actor, Action change)
+    {
+        var map = MapOf(actor);
+        if (map is not null)
+            NoteLightChange(map);
+        change();
+        if (map is not null)
+            NoteLightChange(map);
+    }
+
     private CommandResult UseTorch(TorchCommand command)
     {
         if (!World.Actors.TryGetValue(command.Actor, out var actor))
@@ -33,21 +44,51 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(RejectionReason.AlreadyDone, command.Lit ? "La torcia è già accesa." : "Non hai una torcia accesa.");
         if (!command.Lit)
         {
-            actor.TorchLitUntil = null;
+            LightChange(actor, () => actor.TorchLitUntil = null);
             World.RecordFact("TorchOut", $"{actor.Name} spegne la torcia.", actor.Id);
             return new CommandResult { Message = "Spegni la torcia." };
         }
         if (actor.Torches == 0)
             return CommandResult.Rejected(RejectionReason.NoTorch, "Non hai torce.");
         actor.Torches--;
-        actor.TorchLitUntil = World.Now.Plus(Tuning.TorchBurns);
+        LightChange(actor, () => actor.TorchLitUntil = World.Now.Plus(Tuning.TorchBurns));
         World.RecordFact("TorchLit", $"{actor.Name} accende una torcia.", actor.Id);
         return new CommandResult { Message = $"Accendi una torcia: brucerà per un'ora. Te ne restano {actor.Torches}." };
     }
 
-    /// <summary>The best light on a square over a stretch of time: sources are steady, daylight changes on the hour.</summary>
-    private Light BestLightOn(GridMap map, GridPos square, GameTime from, GameTime to) =>
-        Max(Perception.BestDaylightDuring(from, to), map.SourceLight(square, CarriedLights(map)));
+    /// <summary>
+    /// The best light on a thief's square over the part of a theft a witness watched: what was recorded at the start
+    /// and at every change of light since (<see cref="TakeFoodAction.BestLight"/>), daylight over the stretch, and the
+    /// light now. A witness who arrived later only gets daylight over its own stretch and the light now.
+    /// </summary>
+    private Light BestLightDuringTheft(GridMap map, GridPos square, TakeFoodAction take, GameTime watchedFrom)
+    {
+        var best = Max(Perception.BestDaylightDuring(watchedFrom, World.Now), LightOn(map, square));
+        return watchedFrom == take.StartedAt && take.BestLight is { } recorded ? Max(best, recorded) : best;
+    }
+
+    /// <summary>Who sees <paramref name="target"/> right now on its map, by the rules of F3.</summary>
+    internal HashSet<ActorId> WhoSeesOnMap(Actor target)
+    {
+        if (MapOf(target) is not { } map || CurrentPosition(target) is not { } at)
+            return new HashSet<ActorId>();
+        var light = LightOn(map, at);
+        return World.Actors.Values
+            .Where(a => a.Id != target.Id && a.MapArea == map.Area && CurrentPosition(a) is { } from && Sees(map, a, from, target, at, light))
+            .Select(a => a.Id)
+            .ToHashSet();
+    }
+
+    /// <summary>
+    /// Light may have changed on a map (a torch, a door, a torch bearer on the move): thefts in progress keep the best
+    /// light seen so far on the thief's square. Called before and after each change.
+    /// </summary>
+    private void NoteLightChange(GridMap map)
+    {
+        foreach (var thief in World.Actors.Values.Where(a => a.MapArea == map.Area))
+            if (thief.CurrentAction is TakeFoodAction { BestLight: { } best } take && CurrentPosition(thief) is { } square)
+                take.BestLight = Max(best, LightOn(map, square));
+    }
 
     private static Light Max(Light a, Light b) => a > b ? a : b;
 
@@ -81,16 +122,9 @@ internal sealed partial class Simulation
     };
 
     /// <summary>
-    /// Where an actor stood at an earlier instant, if it can be told from its current action: the square on a walk
-    /// in progress, or its square during an activity begun before then. Otherwise its current square (approximation).
-    /// </summary>
-    private GridPos? PositionAt(Actor actor, GameTime t) =>
-        actor.CurrentAction is MoveAction move && move.StartedAt <= t ? move.PositionAt(t) : CurrentPosition(actor);
-
-    /// <summary>
     /// Perception of a theft on a mapped area: anyone on the same map may notice it by sight (line of sight and light on
     /// the thief's square, best light over the stretch watched) or by hearing (within earshot). Recognising the thief
-    /// takes seeing them both now and, by the sneaking rules, from where the witness stood when the theft began.
+    /// takes seeing them now and having seen them when the theft began (evidence fixed then, F4).
     /// </summary>
     private void PerceiveTheftOnMap(Actor thief, TakeFoodAction take, Store store, int amount, FactId fact, GridMap map)
     {
@@ -100,7 +134,7 @@ internal sealed partial class Simulation
         {
             var here = CurrentPosition(witness)!.Value;
             var watchedFrom = witness.ArrivedAt > take.StartedAt ? witness.ArrivedAt : take.StartedAt;
-            var light = BestLightOn(map, thiefSquare, watchedFrom, World.Now);
+            var light = BestLightDuringTheft(map, thiefSquare, take, watchedFrom);
             var senses = Perception.Witness(witness.Sheet, light, stealth);
             var seen = senses.SawActor && map.HasLineOfSight(here, thiefSquare);
             var heard = senses.HearingPerception >= stealth && WithinEarshot(map, here, thiefSquare);
@@ -113,10 +147,9 @@ internal sealed partial class Simulation
                 continue;
             }
 
-            var startSquare = PositionAt(witness, take.StartedAt);
-            // F4: recognising takes having SEEN the thief when the theft began (a sneaking thief in dim light may not be).
-            var recognised = seen && witness.ArrivedAt <= take.StartedAt && startSquare is { } s
-                             && Sees(map, witness, s, thief, thiefSquare, LightOnAt(map, thiefSquare, take.StartedAt));
+            // F4: recognising takes having SEEN the thief when the theft began, as recorded then: later changes of light
+            // (a torch lit afterwards) cannot reveal who started it.
+            var recognised = seen && witness.ArrivedAt <= take.StartedAt && take.SeenAtStart.Contains(witness.Id);
             Witnessed(witness, thief, store, amount, fact, recognised, seen ? PerceptionMode.Seen : PerceptionMode.Heard, light);
         }
     }

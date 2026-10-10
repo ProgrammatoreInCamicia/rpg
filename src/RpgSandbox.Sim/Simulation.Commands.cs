@@ -120,6 +120,8 @@ internal sealed partial class Simulation
             Store = store.Id,
             Amount = command.Amount,
             StealthTotal = stealth?.Total,
+            SeenAtStart = theft ? WhoSeesOnMap(actor) : new HashSet<ActorId>(),
+            BestLight = theft && MapOf(actor) is { } lightMap && CurrentPosition(actor) is { } spot ? LightOn(lightMap, spot) : null,
             Description = theft ? $"Furto di razioni da {store.Name}" : $"Prelievo di razioni da {store.Name}",
         };
         Begin(actor, take);
