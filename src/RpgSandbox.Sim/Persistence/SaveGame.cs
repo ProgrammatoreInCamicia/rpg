@@ -296,10 +296,10 @@ internal static class SaveGame
             Check(m is not null && m.Rows is not null && m.Zones is not null && m.Zones.Keys.All(k => k.Length == 1), "mappa non valida");
             var area = new AreaId(Required(m!.Area, "area di una mappa"));
             Check(w.Areas.ContainsKey(area), $"mappa di un'area sconosciuta '{area}'");
-            var zones = m.Zones.ToDictionary(z => z.Key[0], z => new LocationId(z.Value));
+            var zones = m.Zones!.ToDictionary(z => z.Key[0], z => new LocationId(z.Value));
             Check(zones.Values.All(z => w.Locations.TryGetValue(z, out var l) && l.Area == area), $"zone della mappa '{area}' non valide");
             var occupied = w.Stores.Values.Where(s => s.Position is not null && w.Locations[s.Location].Area == area).Select(s => s.Position!.Value);
-            AddUnique(w.Maps, area, new GridMap(area, m.Rows, zones, occupied), "mappa");
+            AddUnique(w.Maps, area, new GridMap(area, m.Rows!, zones, occupied), "mappa");
         }
         foreach (var store in w.Stores.Values.Where(s => s.Position is not null))
             Check(w.Maps.TryGetValue(w.Locations[store.Location].Area, out var sm) && sm.ZoneAt(store.Position!.Value) == store.Location,

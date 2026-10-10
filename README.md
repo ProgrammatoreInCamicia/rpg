@@ -30,7 +30,9 @@ tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64.exe --
 # avvio diretto del gioco (oppure doppio clic su gioca.cmd)
 tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64.exe --path game
 # prova automatica: viaggio scriptato con screenshot in <dir>
-tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64_console.exe --path game -- --smoke=<dir>
+tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64_console.exe --path game -- --village-smoke=<dir>
+# prova automatica della vecchia scena a Luoghi (banditi, guardia, conversazioni)
+tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64_console.exe --path game res://Scenes/Main.tscn -- --smoke=<dir>
 ```
 
-Nel gioco: clic su un luogo per viaggiare, WASD/frecce per spostare la camera, rotella per lo zoom.
+Nel gioco: clic su una casella per camminare, Spazio per fermarsi, WASD/frecce per la camera, rotella per lo zoom. La vecchia scena a Luoghi si avvia con `--path game res://Scenes/Main.tscn`.

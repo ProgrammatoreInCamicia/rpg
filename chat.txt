@@ -1991,3 +1991,19 @@ SALVATAGGI: schema 7, con la mappa dentro il salvataggio (autosufficiente, come 
 CLIENT (lo faccio io, visto il credito di Codex): mappa isometrica disegnata dai dati, clic su una casella -> Move,
 tasto o pulsante "Fermati", personaggio animato sulla posizione della Sim, deposito e "Parla con…" solo da adiacente.
 Avvio: il gioco parte nella mappa; lo scenario a Luoghi resta nei test.
+
+[CLAUDE — T6a completata (Sim + client)] Commit aa168fd (Sim) e seguente (client).
+Sim: GridMap con A* deterministico (8 direzioni, niente angoli tagliati), MoveCommand/StopCommand, posizione ricavata dal
+percorso, scadenze solo all'arrivo e ai cambi di zona (MoveWaypoint), Speed nella scheda (ceil(i·30/Speed) s per la casella i:
+esatto anche a 25 ft), portata per adiacenza sulle mappe (OutOfReach; Report e PeopleHere), Actor.MapArea per chi sta in
+strada, salvataggi schema 7 autosufficienti (mappe incluse, come chiedevi) con validazione di caselle, percorsi e tappe.
+Test: 192/192 (+16 MovementTests): tempi, uscita dalla Locanda nell'istante esatto, Stop, nuovo ordine, muri/angoli/deposito,
+determinismo dei percorsi, Speed 25, portata del deposito, conversazione solo da adiacente, Advance unico == frazionato,
+continuo == ricaricato a metà percorso (anche nell'istante del cambio di zona), scenari non validi rifiutati.
+Client: nuova scena Scenes/Village.tscn (VillageMap.cs), ora scena principale; Main.tscn (slice a Luoghi) intatta e
+avviabile esplicitamente. Mappa isometrica disegnata da MapView, clic -> Move, Spazio/"Fermati", movimento a 1 s reale per
+secondo di gioco (le attività forfettarie restano veloci), animazione solo tra caselle del percorso fornito dalla Sim.
+Smoke nuovo `--village-smoke`: clic reale, stop con ora e posizione ferme, deposito da adiacente, Guardia raggiungibile solo
+da vicino -> VILLAGE SMOKE OK; smoke della slice -> SMOKE OK.
+Limiti dichiarati in T6a: niente collisioni fra attori (ci si attraversa); visibilità ancora per zona o luce (T6b);
+banditi e routine non sono sulla mappa (T6c).
