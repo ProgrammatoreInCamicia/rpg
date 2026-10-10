@@ -2950,3 +2950,53 @@ fallire la tua regressione A_blocked_corner (un luogo fatto solo dal deposito, l
 gestione a runtime.
 Test: due uscite, la più conveniente isolata dal muro → l'NPC esce dall'altra; luogo irraggiungibile → "Nessuna azione
 possibile". Entrambi falliscono con il Going.cs precedente. 288/288. Commit e push.
+
+============================================================
+[CLAUDE — T6c-3 "Il Razziatore sulla mappa": contratto]
+============================================================
+1. Scelta del bersaglio (fazione): il costo per un deposito su un'Area mappata è il costo del viaggio fino all'uscita
+   più conveniente di quella mappa (il tratto a piedi non conta). Oggi il granaio mappato non risulterebbe
+   raggiungibile.
+2. Andare al deposito: sulla mappa si cammina fino a una casella da cui il deposito si usa (accessi dichiarati,
+   altrimenti caselle adiacenti con la diagonale libera), la più vicina a piedi. Da fuori mappa si arriva prima
+   dall'uscita. "Arrivato" = InReach del deposito.
+3. Furtività: sulla mappa il Razziatore cammina SEMPRE di soppiatto (MoveCommand.Stealthy), all'andata e al ritorno.
+   Si applicano le regole F1: tira la Furtività solo se nessuno lo vede, ogni casella è una tappa e può essere scoperto.
+4. Aspettare il buio: se il bersaglio è su un'Area mappata e il Razziatore è ancora fuori dalla mappa, non parte finché
+   c'è luce piena del giorno; riposa fino alle 20:00. È un adattamento di gioco, non una regola SRD.
+5. Presidio FISICO sulle mappe (anticipo la riga "Presidio / IsGuarded" della tua tabella): un deposito è sorvegliato
+   se una guardia con l'incarico di presidio è su una casella adiacente a un suo accesso (o al deposito, se non ha
+   accessi) e ha la linea di vista su quell'accesso. Stare nella stessa zona non basta più. Fuori mappa resta la regola
+   per Luogo.
+6. Desisti per percezione: arrivato all'accesso, il Razziatore desiste solo se VEDE (regola F3, luce compresa) una
+   guardia che copre l'accesso. Se il deposito è sorvegliato ma lui non vede la guardia (per esempio al buio), tenta
+   il furto: il comando viene rifiutato con StoreGuarded, l'attore lo nota e torna a mani vuote. La fazione impara
+   "sorvegliato" solo se lui ha visto la guardia (AvoidUntil solo dopo un vero Desisti).
+7. Villaggio vivo: i Banditi diventano una fazione predona con gli stessi parametri della slice (consumo 6 alle 8:00,
+   soglia 10, razzia di 8, valutazione ogni 3 ore). G6 (la tua "notte di razzia") diventa possibile dopo questa tappa.
+Test previsti: notte di razzia completa (attesa del buio, uscita, cammino furtivo, furto all'accesso, ritorno al
+campo); desistenza vedendo la guardia al posto Guard (luce) e fazione che evita il bersaglio; guardia al buio non vista
+→ tentativo rifiutato e nessun AvoidUntil; due giorni in un colpo = ora per ora; la slice resta invariata.
+
+[CLAUDE — T6c-3 completata]
+Come da contratto, con UNA differenza: il punto 6 diceva "la fazione impara solo dopo un vero Desisti". Nella prova il
+Razziatore respinto da una guardia non vista riprovava ogni 3 ore all'infinito. Però chi viene fermato allo sportello sa
+che è sorvegliato. Ora StoreGuarded → RaidFoiled → Aborted: torna e la fazione evita il bersaglio come dopo un
+Desisti. Resta la differenza fra desistere per averla vista (RaidDeterred) ed essere fermati sul posto (RaidFoiled).
+La guardia che nota chi ha tentato è T6c-4.
+Osservato nella prova del villaggio vivo:
+  - il primo raid parte alle 19:00 (crepuscolo) e alle 19:30 entra dall'uscita;
+  - al crepuscolo la Guardia, dalla Locanda, ha in vista l'accesso del granaio, quindi il Razziatore NON riesce a
+    nascondersi (va piano, ma visibile). Ruba 8 razioni senza che nessuno se ne accorga e alle 20:03 è al campo.
+  Per G6 è una bella scena da fotografare.
+Test RaidOnMapTests (6):
+  - notte di razzia completa: attesa del buio, cammino furtivo verso l'accesso, furto, ritorno;
+  - guardia vista grazie a una torcia → Desisti e AvoidUntil;
+  - guardia al buio → RaidFoiled, granaio intatto;
+  - presidio fisico (nella zona ma lontano dall'accesso → non copre);
+  - 48h in un colpo uguali a ora per ora;
+  - razzia salvata a metà cammino.
+Controllo per mutazione: desistenza senza vista, presidio per luogo, costo solo lungo le Route; ognuna fa fallire
+almeno un test.
+294/294, VILLAGE OK, slice OK.
+Nel tuo MappedVillageScenario: i Banditi sono ora AddRaidingFaction (riga marcata T6c-3). G6 può partire.

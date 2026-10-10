@@ -53,17 +53,20 @@ internal sealed partial class Simulation
 
     private Plan? RaidStep(Actor npc, List<string> inputs)
     {
-        if (npc.Assignment is not { } raid || npc.Location is not { } here)
+        if (npc.Assignment is not { } raid)
             return null;
 
         var home = World.Stores[raid.Home];
         var target = World.Stores[raid.Target];
         inputs.Add($"Incarico: razzia di {target.Name} per {World.Factions[raid.Faction].Name}");
+        // T6c-3: on a map a raider always sneaks, there and back.
+        Plan GoHome(string rule, string reason) =>
+            new(rule, reason, () => Sneaking(StepToStore(npc, home, stealthy: true), stealthy: true) is { } step ? Execute(step) : null);
 
         if (raid.Aborted)
         {
-            if (here != home.Location)
-                return Go("Torna al campo", $"Rientra a mani vuote: {target.Name} è sorvegliato.", npc, home.Location);
+            if (!InReach(npc, home))
+                return GoHome("Torna al campo", $"Rientra a mani vuote: {target.Name} è sorvegliato.");
 
             // Only now, back home, does the faction learn that the target is guarded.
             var faction = World.Factions[raid.Faction];
@@ -76,30 +79,40 @@ internal sealed partial class Simulation
 
         if (raid.TakeAttempted && npc.Food > 0)
         {
-            if (here == home.Location)
+            if (InReach(npc, home))
                 return Do("Riporta il bottino", $"Consegna {npc.Food} razioni a {home.Name}.",
                     new DepositFoodCommand { Actor = npc.Id, Store = home.Id, Amount = npc.Food });
-            return Go("Torna al campo", $"Porta {npc.Food} razioni a {home.Name}.", npc, home.Location);
+            return GoHome("Torna al campo", $"Porta {npc.Food} razioni a {home.Name}.");
         }
 
         if (raid.TakeAttempted)
         {
+            if (npc.MapArea is not null && !InReach(npc, home))
+                return GoHome("Torna al campo", $"Lascia {World.Locations[target.Location].Name} a mani vuote.");
             npc.Assignment = null;
             World.RecordFact("RaidCompleted", $"{npc.Name} conclude la razzia a {target.Name}.");
             var next = Routine(npc);
             return next with { Rule = "Razzia conclusa", Reason = $"Incarico terminato. Poi: {next.Reason}" };
         }
 
-        if (here != target.Location)
-            return Go("Raggiungi il bersaglio", $"Va verso {World.Locations[target.Location].Name} per la razzia.", npc, target.Location);
+        // T6c-3 (game ADAPTATION): a raid on a mapped village waits for the dark before setting off.
+        if (target.Position is not null && npc.MapArea is null && Perception.DaylightAt(World.Now) == Light.Bright)
+            return Rest("Aspetta il buio", $"Razzia a {target.Name}: parte quando fa buio.", npc, "Aspetta il buio",
+                NextTimeOfDay(Tuning.RaidAfterDark));
 
-        // On site the raider sees who is there: a guard on duty makes the theft impracticable.
-        if (IsGuarded(target))
+        if (!InReach(npc, target))
+            return new Plan("Raggiungi il bersaglio", $"Va verso {World.Locations[target.Location].Name} per la razzia.",
+                () => StepToStore(npc, target, stealthy: true) is { } step ? Execute(step) : null);
+
+        // On site the raider sees who is there: a guard on duty makes the theft impracticable. On a map, only a guard
+        // it actually sees covering the store; off the maps, any guard on duty in the place.
+        var guardSeen = target.Position is not null ? GuardSeenBy(npc, target) is not null : IsGuarded(target);
+        if (guardSeen)
         {
             inputs.Add($"{target.Name} è sorvegliato");
             raid.Aborted = true;
             World.RecordFact("RaidDeterred", $"{npc.Name} vede la guardia a {target.Name} e desiste.");
-            return Go("Desisti", $"{target.Name} è sorvegliato: torna al campo.", npc, home.Location);
+            return GoHome("Desisti", $"{target.Name} è sorvegliato: torna al campo.");
         }
 
         inputs.Add($"Razioni in {target.Name}: {target.Food}");
@@ -108,8 +121,10 @@ internal sealed partial class Simulation
         if (target.Food == 0)
         {
             raid.TakeAttempted = true;
-            npc.Assignment = null;
             World.RecordFact("RaidCompleted", $"{npc.Name} trova {target.Name} vuoto e rinuncia alla razzia.");
+            if (npc.MapArea is not null)
+                return GoHome("Bersaglio vuoto", $"{target.Name} è vuoto: torna al campo.");
+            npc.Assignment = null;
             var next = Routine(npc);
             return next with { Rule = "Bersaglio vuoto", Reason = $"{target.Name} è vuoto: razzia chiusa. Poi: {next.Reason}" };
         }
@@ -117,9 +132,15 @@ internal sealed partial class Simulation
         var take = new TakeFoodCommand { Actor = npc.Id, Store = target.Id, Amount = raid.Amount };
         return new Plan("Ruba", $"Prende fino a {raid.Amount} razioni da {target.Name}.", () =>
         {
-            // Any refusal still counts as the attempt: the raid must end rather than retry forever.
+            // Any refusal still counts as the attempt: the raid must end rather than retry forever. A guard it did not
+            // see still stops the theft at the store: stopped by him, the raider knows the target is guarded (T6c-3).
             var result = Execute(take);
-            if (!result.Success)
+            if (result.Rejection == RejectionReason.StoreGuarded)
+            {
+                raid.Aborted = true;
+                World.RecordFact("RaidFoiled", $"{npc.Name} viene fermato a {target.Name}: è sorvegliato.");
+            }
+            else if (!result.Success)
                 raid.TakeAttempted = true;
             return result;
         });

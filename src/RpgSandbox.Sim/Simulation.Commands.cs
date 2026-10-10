@@ -509,8 +509,10 @@ internal sealed partial class Simulation
     }
 
     /// <summary>A store is guarded when someone on guard duty for it is there.</summary>
-    private bool IsGuarded(Store store) =>
-        World.Actors.Values.Any(a => a.Location == store.Location && a.GuardDuty is { } duty && duty.Store == store.Id);
+    /// <summary>On a map, a guard physically covering the store (T6c-3); elsewhere, a guard on duty in its place.</summary>
+    internal bool IsGuarded(Store store) => store.Position is not null
+        ? World.Actors.Values.Any(a => Covers(a, store))
+        : World.Actors.Values.Any(a => a.Location == store.Location && a.GuardDuty is { } duty && duty.Store == store.Id);
 
     /// <summary>
     /// Arrival is contact: an authority on watch or resting here that has an open claim on the newcomer, who carries

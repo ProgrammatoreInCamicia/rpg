@@ -35,6 +35,9 @@ internal static class Tuning
     /// <summary>ADAPTATION: a closed door muffles sound as much as this many extra squares.</summary>
     public const int ClosedDoorSoundSteps = 3;
 
+    /// <summary>ADAPTATION (T6c-3): a raid on a mapped village sets off once it is dark, at this time of day.</summary>
+    public static readonly Duration RaidAfterDark = Duration.FromHours(20);
+
     /// <summary>SRD Torch: burns for 1 hour, Bright Light 20 ft and Dim Light 20 ft more.</summary>
     public static readonly Duration TorchBurns = Duration.FromHours(1);
     public const int TorchBrightFeet = 20;

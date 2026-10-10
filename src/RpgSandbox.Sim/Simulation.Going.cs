@@ -100,4 +100,86 @@ internal sealed partial class Simulation
     /// </summary>
     private IEnumerable<LocationId> JourneyTargets(LocationId place) =>
         World.Maps.TryGetValue(World.Locations[place].Area, out var map) ? map.Exits.Keys : new[] { place };
+
+    // ---------------------------------------------------------------- T6c-3: journeys to stores, guards on maps
+
+    /// <summary>
+    /// The cost of a journey from a place to another: along the Routes, to the place itself or, if it lies on a mapped
+    /// area, to that map's most convenient exit (the walk on the map does not count). Zero within the same mapped area.
+    /// </summary>
+    private Duration? JourneyCost(LocationId from, LocationId to)
+    {
+        if (from == to || (World.Locations[from].Area == World.Locations[to].Area && World.Maps.ContainsKey(World.Locations[to].Area)))
+            return Duration.Zero;
+        return JourneyTargets(to)
+            .Select(t => t == from ? Duration.Zero : PathCost(from, t))
+            .Where(c => c is not null)
+            .OrderBy(c => c!.Value.Seconds)
+            .FirstOrDefault();
+    }
+
+    /// <summary>The squares a store on a map is used from: its declared access, or the adjacent squares with an open diagonal.</summary>
+    private static IEnumerable<GridPos> UseSquares(Store store, GridMap map)
+    {
+        if (store.Access.Count > 0)
+            return store.Access;
+        var at = store.Position!.Value;
+        return Enumerable.Range(-1, 3).SelectMany(dy => Enumerable.Range(-1, 3).Select(dx => new GridPos(at.X + dx, at.Y + dy)))
+            .Where(p => p != at && map.IsWalkable(p) && map.DiagonalOpen(p, at));
+    }
+
+    /// <summary>
+    /// The next step towards using a store: on its map, a walk to the nearest square it is used from; from elsewhere,
+    /// the way to its place (onto the map by an exit). Null when in reach already, or with no way there.
+    /// <paramref name="stealthy"/>: walks on maps are made sneaking.
+    /// </summary>
+    private Command? StepToStore(Actor npc, Store store, bool stealthy)
+    {
+        if (InReach(npc, store))
+            return null;
+        var area = World.Locations[store.Location].Area;
+        if (store.Position is not null && npc.MapArea == area && CurrentPosition(npc) is { } from)
+        {
+            var map = World.Maps[area];
+            var square = UseSquares(store, map)
+                .Select(s => (Square: s, Path: map.FindPath(from, s)))
+                .Where(c => c.Path is not null)
+                .OrderBy(c => c.Path!.Count).ThenBy(c => c.Square.Y).ThenBy(c => c.Square.X)
+                .Select(c => (GridPos?)c.Square)
+                .FirstOrDefault();
+            return square is { } s2 ? new MoveCommand { Actor = npc.Id, To = s2, Stealthy = stealthy } : null;
+        }
+        return Sneaking(StepTowards(npc, store.Location), stealthy);
+    }
+
+    /// <summary>Makes a walk sneaking when asked (journeys and other commands are left as they are).</summary>
+    private static Command? Sneaking(Command? step, bool stealthy) =>
+        stealthy && step is MoveCommand move ? move with { Stealthy = true } : step;
+
+    /// <summary>
+    /// T6c-3, physical guarding on maps: a guard on duty for the store, on a square next to one it is used from, with
+    /// a line of sight to it. Being in the same place is not enough.
+    /// </summary>
+    private bool Covers(Actor guard, Store store)
+    {
+        if (guard.GuardDuty is not { } duty || duty.Store != store.Id || store.Position is null)
+            return false;
+        var area = World.Locations[store.Location].Area;
+        if (guard.MapArea != area || CurrentPosition(guard) is not { } at)
+            return false;
+        var map = World.Maps[area];
+        return UseSquares(store, map).Any(s => at.IsAdjacentOrSame(s) && map.HasLineOfSight(at, s));
+    }
+
+    /// <summary>A guard covering the store that <paramref name="watcher"/> can see right now (F3 rules, light included).</summary>
+    private Actor? GuardSeenBy(Actor watcher, Store store)
+    {
+        if (store.Position is null || watcher.MapArea is not { } area || CurrentPosition(watcher) is not { } eye)
+            return null;
+        var map = World.Maps[area];
+        return World.Actors.Values
+            .Where(g => g.Id != watcher.Id && Covers(g, store))
+            .OrderBy(g => g.Id.Value, StringComparer.Ordinal)
+            .FirstOrDefault(g => CurrentPosition(g) is { } there && Sees(map, watcher, eye, g, there, LightOn(map, there)));
+    }
 }

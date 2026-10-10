@@ -134,7 +134,9 @@ public static class MappedVillageScenario
             .AddDoor(Ids.Village.Value, (Ids.InnDoor.X, Ids.InnDoor.Y), open: true)
             .AddDoor(Ids.Village.Value, (Ids.HouseDoor.X, Ids.HouseDoor.Y), open: false)
             .AddFaction(Ids.VillageFaction.Value, "Villaggio", homeStoreId: Ids.GranaryStore.Value, authorityId: Ids.Guard.Value)
-            .AddFaction(Ids.Bandits.Value, "Banditi", homeStoreId: Ids.CampStore.Value)
+            .AddRaidingFaction(Ids.Bandits.Value, "Banditi", homeStoreId: Ids.CampStore.Value, // T6c-3: as in the slice
+                dailyUpkeep: 6, upkeepTimeOfDay: Duration.FromHours(8),
+                foodThreshold: 10, raidAmount: 8, evaluationInterval: Duration.FromHours(3))
             .AddStore(Ids.GranaryStore.Value, "Scorte del granaio", Ids.Granary.Value, food: 40,
                 ownerFactionId: Ids.VillageFaction.Value, at: (Ids.GranaryStoreSquare.X, Ids.GranaryStoreSquare.Y),
                 access: new[] { (Ids.GranaryAccess.X, Ids.GranaryAccess.Y) })

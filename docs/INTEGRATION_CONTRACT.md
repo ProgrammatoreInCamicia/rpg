@@ -336,3 +336,16 @@ Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sop
 - Le porte si aprono camminando e restano aperte (la chiusura da parte degli NPC verrà dopo).
 - **Restano a "nel luogo"** fino alle prossime tappe: la razzia (T6c-3), le segnalazioni, la vigilanza e la confisca (T6c-4).
 - Villaggio vivo: il contadino lavora al Granaio dalle 13 alle 18.
+
+## T6c-3 — Il Razziatore sulla mappa
+
+- **Bersaglio**: per un deposito su un'Area mappata la fazione considera il costo del viaggio fino all'uscita più conveniente di quella mappa (`JourneyCost`).
+- **Andare al deposito** (`StepToStore`): sulla mappa si cammina fino alla casella più vicina da cui il deposito si usa (accessi dichiarati, altrimenti caselle adiacenti con la diagonale libera). Da fuori mappa si arriva dall'uscita. Arrivato = `InReach`.
+- **Furtività**: sulla mappa il Razziatore cammina sempre di soppiatto, all'andata e al ritorno, con le regole F1: si nasconde solo se nessuno lo vede e può essere scoperto a ogni casella.
+- **Attesa del buio** (ADATTAMENTO): finché c'è luce piena del giorno il Razziatore non parte verso un bersaglio mappato; riposa fino alle 20:00 (`Tuning.RaidAfterDark`). Al crepuscolo parte.
+- **Presidio fisico sulle mappe** (`Covers`, `IsGuarded`): una guardia di presidio è su una casella adiacente a un accesso del deposito (o al deposito, se non ha accessi) e ha la linea di vista su quell'accesso. La stessa zona non basta. Fuori mappa resta la regola per Luogo.
+- **Desisti**: il Razziatore desiste solo se vede (regola F3, luce compresa) una guardia che copre il deposito (`RaidDeterred`).
+  - Se non la vede, tenta il furto: il comando viene rifiutato (`StoreGuarded`) e lui viene fermato (`RaidFoiled`).
+  - In entrambi i casi torna al campo e la fazione evita il bersaglio (`AvoidUntil`).
+  - La reazione della guardia a chi ha provato a rubare arriva con la T6c-4.
+- Villaggio vivo: i Banditi sono una fazione predona con i parametri della slice (consumo 6 alle 8:00, soglia 10, razzia di 8, valutazione ogni 3 ore).
