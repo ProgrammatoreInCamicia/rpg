@@ -2190,3 +2190,91 @@ Da rivedere:
   (b) le porte fuori vista mostrano comunque il loro stato;
   (c) nella luce di un istante passato contano i portatori di torcia attuali;
   (d) gli NPC non usano ancora porte e torce (T6c).
+
+============================================================
+[CLAUDE — PROPOSTA: combattimento a turni (SRD 5.2.1). Solo documento, niente codice: da discutere]
+============================================================
+Fatti SRD verificati nel testo, da cui partire:
+  - Iniziativa: prova di Destrezza. Chi è sorpreso tira con Svantaggio; un esempio di sorpresa è un attaccante nascosto
+    contro chi non se l'aspetta. L'ordine resta lo stesso per tutto lo scontro.
+  - Il tuo turno: movimento fino alla tua Velocità + 1 azione. In più: un'Azione Bonus se un privilegio la concede,
+    1 Reazione per round, 1 interazione gratuita con un oggetto.
+  - Azioni: Attack, Dash, Disengage, Dodge, Help, Hide, Influence, Magic, Ready, Search, Study, Utilize.
+  - Attacco d20 + modificatore + competenza contro la CA. Critico: dadi del danno raddoppiati.
+  - Attacchi di Opportunità: con la Reazione, quando un nemico che vedi esce dalla tua portata; Disengage li evita.
+  - Tiri contro la morte: a 0 PF tiri 1d20 all'inizio del turno. 10+ è un successo; 3 successi = stabile, 3 fallimenti =
+    morte. Un 1 vale 2 fallimenti, un 20 fa tornare a 1 PF. Ogni danno a 0 PF è un fallimento (un critico ne vale 2).
+  - Knocking Out: con un attacco in mischia che porterebbe a 0 PF, puoi lasciare il bersaglio a 1 PF, privo di sensi.
+  - Paladino di livello 1: Lay On Hands (5 PF × livello), incantesimi con 2 slot di 1° livello, Weapon Mastery su due tipi
+    di arma. Al livello 2 Fighting Style e Paladin's Smite.
+  - Schede SRD pronte: Bandit (CA 12, 11 PF, scimitarra +3 1d6+1, balestra leggera), Guard, Commoner, Bandit Captain.
+    Proposta: allineare le nostre schede a queste. Oggi Raider e VillageGuard sono adattamenti nostri.
+
+PRINCIPI (coerenti con l'architettura attuale)
+  K1 Il combattimento è uno STATO DELLA SIM (Encounter), non una modalità del client. È deterministico (il RNG è nel
+     salvataggio) e si può salvare a metà turno. Il client mostra soltanto e invia comandi, come ora.
+  K2 Il tempo scorre a round di 6 secondi; ogni round fa avanzare l'orologio del mondo di 6 secondi. Chi non partecipa
+     continua la sua routine (lo scheduler va avanti a passi di 6 s). Niente pausa del mondo: chi sta lontano
+     continua a vivere.
+  K3 Durante lo scontro vale la stessa griglia della T6. Movimento in caselle, linea di vista e luce di T6b/F2: la luce
+     piena/fioca/buio applica le regole SRD su vedere ed essere visti (attacchi contro chi non vedi con Svantaggio, ecc.).
+     La furtività prima dello scontro dà la sorpresa.
+  K4 Le regole stanno in RpgSandbox.Sim.Rules: pure, testabili, senza mappa. Il ciclo dei turni sta in
+     Simulation.Combat. Ogni tiro produce un fatto leggibile ("Paladino attacca: d20 14 +5 = 19 contro CA 12, colpito"):
+     trasparenza dei dadi alla Solasta/BG3.
+  K5 Tutto ciò che succede in uno scontro diventa conoscenza come i furti. Testimoni e reazioni di fazione riusano
+     Observation/Report. Esempio: la Guardia vede il paladino aggredire un contadino; chi sente rumore di lotta accorre.
+
+COMANDI (tutti rifiutabili con un motivo, come oggi)
+  - CombatMoveCommand { To }: consuma movimento del turno; può provocare Attacchi di Opportunità.
+  - AttackCommand { Target, Weapon, NonLethal }
+  - DashCommand, DisengageCommand, DodgeCommand
+  - LayOnHandsCommand { Target, Points }
+  - EndTurnCommand
+  - Ingresso nello scontro: AttackCommand fuori dallo scontro lo fa iniziare. Prima l'iniziativa, poi l'attacco nel turno.
+    La sorpresa è possibile se l'attaccante era nascosto (F1).
+  Uscita: niente più ostili coscienti e in vista, oppure fuga oltre la vista di tutti per un round intero, oppure resa
+  (Influence: chi è a pochi PF si arrende, con una prova contro CD; fuori SRD, da tarare).
+
+IA NPC IN COMBATTIMENTO (regole a priorità con DecisionTrace, come per le routine)
+  Fuggire sotto metà PF se codardo (tratto della scheda); se no attaccare il più vicino visibile; se non c'è nessuno a
+  portata, avvicinarsi; arrendersi se circondato e ferito. Niente IA "ottima": deve essere leggibile e prevedibile.
+
+TAPPE PROPOSTE (ognuna con test e smoke, come sempre)
+  C1 Regole pure: PF, armi (dadi, proprietà, padronanza), tiro per colpire, danni, critico, tiri contro la morte,
+     Knocking Out. Solo xUnit, niente mappa.
+  C2 Encounter minimo sulla mappa: paladino contro un Bandit. Iniziativa, turni, movimento con budget, attacco, fine
+     turno; salvataggio a metà scontro. Client: caselle raggiungibili evidenziate, bersagli cliccabili, registro dei dadi.
+  C3 Reazioni e posizione: Attacchi di Opportunità, Disengage, Dodge, Dash; luce, vista e sorpresa dalla furtività.
+  C4 Nel mondo: chi vede o sente lo scontro reagisce (accorrere, fuggire, testimoniare); resa, prigionia, conseguenze di
+     fazione. Si aggancia alla T6c (NPC e banditi sulla mappa).
+  C5 Paladino completo fino al livello 3 (incantesimi e Smite) e i compagni reclutabili.
+DOMANDE APERTE per Codex:
+  (a) round "di mondo": far avanzare tutta la Sim di 6 s per round va bene per lo scheduler, o serve un orologio di
+      scontro separato?
+  (b) cosa va nella vista del giocatore durante lo scontro: PF dei nemici esatti o descrittivi ("ferito", "malconcio")?
+      Io propongo descrittivi;
+  (c) C2 parte prima o dopo la T6c? Io propongo C1 subito (non tocca nulla), C2 dopo la T6c.
+
+============================================================
+[CLAUDE — RAGIONAMENTO: ritmo del movimento in esplorazione (osservazione dell'utente)]
+============================================================
+L'utente trova che spostarsi sia troppo lento. Il tempo è realistico (1,5 m/s, passo d'uomo), ma in un videogioco si
+aspetta troppo. Riferimenti citati: Project Zomboid (tempi simili ai nostri) e BG3.
+Analisi:
+  - Oggi ci sono due velocità legate tra loro: quella delle REGOLE (1 casella = 1 s di gioco, SRD) e quella dello
+    SCHERMO (1 s di gioco = 1 s reale). Le regole vanno bene così, è la seconda a pesare.
+  - Project Zomboid le tiene separate: per default 1 giorno di gioco = 1 ora reale (24×). La camminata a schermo è
+    normale, ma l'orologio corre più veloce del reale. BG3 invece in esplorazione non ha un orologio del mondo.
+  - Noi abbiamo un mondo simulato, quindi la strada è quella di Project Zomboid. Il client fa già avanzare la Sim a
+    passi, e la velocità di riproduzione è un moltiplicatore (_speed) del client.
+Proposta R1 (solo client, nessun cambio di regole o di salvataggio):
+  - in esplorazione l'orologio scorre a 3× durante il cammino: il personaggio fa 3 caselle al secondo reale (circa
+    4,5 m/s a schermo, un passo spedito da videogioco);
+  - selettore 1× / 3× / 6× come in Project Zomboid;
+  - la furtività resta proporzionalmente più lenta (2/3);
+  - in combattimento non serve: si va a turni.
+  I tempi del mondo restano identici: NPC, luce e torce sono misurati in secondi di gioco. Cambia solo quanto
+  aspetta il giocatore.
+R2 (più avanti, con mappe vere): viaggio rapido tra aree già conosciute (le Route ci sono già), con salto di tempo e la
+  possibilità di essere interrotti da un incontro.
