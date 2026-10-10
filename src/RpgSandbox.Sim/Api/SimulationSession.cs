@@ -103,7 +103,7 @@ public sealed class SimulationSession
             Actors = Freeze(w.Actors.Values.Select(a => ToView(a, w))),
             Stores = Freeze(w.Stores.Values.Select(s => new StoreView
             {
-                Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food, Owner = s.Owner,
+                Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food, Owner = s.Owner, Position = s.Position,
             })),
             Factions = Freeze(w.Factions.Values.Select(f => new FactionView
             {
@@ -149,6 +149,8 @@ public sealed class SimulationSession
         GuardDuty = actor.GuardDuty is { } g ? new GuardDutyView { Store = g.Store, Since = g.Since, Until = g.Until } : null,
         Vigil = actor.Vigil is { } v ? new VigilView { Store = v.Store, Until = v.Until } : null,
         Sheet = actor.Sheet,
+        Position = PositionOf(actor, w),
+        Move = MoveOf(actor),
         Claims = Freeze(actor.Claims.Select(c => new ClaimView { Thief = c.Thief, Store = c.Store, Owed = c.Owed })),
     };
 
@@ -162,7 +164,9 @@ public sealed class SimulationSession
         var player = w.Actors[w.Player];
         var travel = player.CurrentAction as TravelAction;
         // While travelling the player is still "on the road" from where it left: the origin's area until arrival.
-        var area = w.Locations[player.Location ?? travel!.Origin].Area;
+        var area = player.Location is { } at ? w.Locations[at].Area
+            : player.MapArea is { } mapped ? mapped
+            : w.Locations[travel!.Origin].Area;
 
         bool InArea(LocationId? location) => location is { } l && w.Locations[l].Area == area;
 
@@ -172,11 +176,11 @@ public sealed class SimulationSession
         bool RoadVisible() => Perception.DaylightAt(w.Now) >= Light.Dim;
         bool Visible(Actor a) => a.Location is { } at
             ? InArea(at) && PlaceVisible(at)
+            : a.MapArea is { } open ? open == area && RoadVisible() // open ground of a map: daylight only
             : a.CurrentAction is TravelAction t && (InArea(t.Origin) || InArea(t.Destination)) && RoadVisible();
 
-        var nearby = player.Location is { } here
-            ? w.Actors.Values.Where(a => a.Id != player.Id && a.Location == here).ToList()
-            : new List<Actor>();
+        // Within talking distance: an adjacent square on a mapped area, the same place elsewhere.
+        var nearby = w.Actors.Values.Where(a => a.Id != player.Id && _sim.CanTalk(player, a)).ToList();
         var present = nearby.Where(Visible).ToList();
         var light = player.Location is { } spot ? Perception.LightAt(w.Locations[spot], w.Now) : Perception.DaylightAt(w.Now);
         var options = present
@@ -196,6 +200,9 @@ public sealed class SimulationSession
             Id = player.Id,
             Location = player.Location,
             Food = player.Food,
+            Position = PositionOf(player, w),
+            Move = MoveOf(player),
+            Map = w.Maps.TryGetValue(area, out var map) ? MapOf(map, w) : null,
             Sheet = player.Sheet,
             Action = player.CurrentAction is { } a
                 ? new ActionView { Id = a.Id, Kind = a.Kind, StartedAt = a.StartedAt, CompletesAt = a.CompletesAt, Description = a.Description }
@@ -219,10 +226,12 @@ public sealed class SimulationSession
                     ? new TravelView { Action = t.Id, Origin = t.Origin, Destination = t.Destination, DepartedAt = t.StartedAt, ArrivesAt = t.CompletesAt }
                     : null,
                 Doing = player.Location is { } here && x.Location == here ? OutwardDoing(x, w) : null,
+                Position = PositionOf(x, w),
+                Move = MoveOf(x),
             })),
             VisibleStores = Freeze(w.Stores.Values.Where(s => InArea(s.Location) && (s.Location == player.Location || PlaceVisible(s.Location))).Select(s => new StoreView
             {
-                Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food, Owner = s.Owner,
+                Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food, Owner = s.Owner, Position = s.Position,
             })),
             Observations = Freeze(player.Knowledge.Select(o => ToView(o, w))),
             ReportOptions = Freeze(options),
@@ -260,6 +269,25 @@ public sealed class SimulationSession
         },
         _ => "è occupato",
     };
+
+    private static GridPos? PositionOf(Actor a, WorldState w) => a.CurrentAction is MoveAction m ? m.PositionAt(w.Now) : a.Position;
+
+    private static MoveView? MoveOf(Actor a) => a.CurrentAction is MoveAction m
+        ? new MoveView { From = m.From, Path = Freeze(m.Path), DepartedAt = m.StartedAt, Speed = m.Speed }
+        : null;
+
+    private static MapView MapOf(GridMap map, WorldState w)
+    {
+        var rows = map.Rows.Select(r => r.ToCharArray()).ToArray();
+        foreach (var store in w.Stores.Values.Where(s => s.Position is { } p && map.InBounds(p)))
+            rows[store.Position!.Value.Y][store.Position.Value.X] = 'S';
+        return new MapView
+        {
+            Area = map.Area, Width = map.Width, Height = map.Height,
+            Rows = Freeze(rows.Select(r => new string(r))),
+            Zones = new SortedDictionary<char, LocationId>(map.Zones.ToDictionary(z => z.Key, z => z.Value)).AsReadOnly(),
+        };
+    }
 
     private static string Summary(Observation o) =>
         $"furto di {o.Amount} razioni da {o.StoreName}, giorno {o.ObservedAt.Day + 1} alle {o.ObservedAt.Hour:00}:{o.ObservedAt.Minute:00}" +

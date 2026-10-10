@@ -8,6 +8,9 @@ internal abstract record ScheduledJob;
 /// <summary>An actor's action reaches its completion time.</summary>
 internal sealed record CompleteAction(ActionId Action) : ScheduledJob;
 
+/// <summary>A walker crosses into or out of a zone at this step of its path.</summary>
+internal sealed record MoveWaypoint(ActionId Action, int Step) : ScheduledJob;
+
 /// <summary>A faction consumes its daily food.</summary>
 internal sealed record FactionUpkeep(FactionId Faction) : ScheduledJob;
 
@@ -44,8 +47,9 @@ internal sealed class Scheduler
     /// <summary>Removes the completion of a cancelled action. Returns false if it was not scheduled.</summary>
     public bool Remove(ActionId action)
     {
-        var entry = _entries.FirstOrDefault(e => e.Job is CompleteAction c && c.Action == action);
-        return entry.Job is not null && _entries.Remove(entry);
+        var removed = _entries.RemoveWhere(e => e.Job is CompleteAction c && c.Action == action
+                                             || e.Job is MoveWaypoint w && w.Action == action);
+        return removed > 0;
     }
 
     public GameTime? NextDue => _entries.Count == 0 ? null : _entries.Min.Due;

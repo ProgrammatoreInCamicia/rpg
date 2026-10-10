@@ -80,6 +80,12 @@ public sealed record ActorView
     /// <summary>What the rules know about the actor (debug for NPCs; the player sees its own in <see cref="PlayerView"/>).</summary>
     public CharacterSheet? Sheet { get; init; }
 
+    /// <summary>Square on the area map (mapped areas only); mid-walk, the last square reached.</summary>
+    public GridPos? Position { get; init; }
+
+    /// <summary>The walk in progress, if any.</summary>
+    public MoveView? Move { get; init; }
+
     /// <summary>Thefts this authority wants made good (debug).</summary>
     public IReadOnlyList<ClaimView> Claims { get; init; } = Array.Empty<ClaimView>();
 }
@@ -204,6 +210,9 @@ public sealed record StoreView
     public required LocationId Location { get; init; }
     public required int Food { get; init; }
     public FactionId? Owner { get; init; }
+
+    /// <summary>Square the store occupies on a mapped area (used from an adjacent square).</summary>
+    public GridPos? Position { get; init; }
 }
 
 /// <summary>A fact recorded in the world history, as shown on the debug timeline.</summary>
@@ -232,4 +241,27 @@ public sealed record WorldView
 
     /// <summary>Most recent facts, oldest first.</summary>
     public required IReadOnlyList<FactView> RecentFacts { get; init; }
+}
+
+/// <summary>A walk in progress: the client animates exactly this (square i is reached at DepartedAt + ceil(i·30/Speed) s).</summary>
+public sealed record MoveView
+{
+    public required GridPos From { get; init; }
+    public required IReadOnlyList<GridPos> Path { get; init; }
+    public required GameTime DepartedAt { get; init; }
+
+    /// <summary>Feet per 6-second round; Speed/5 squares per round.</summary>
+    public required int Speed { get; init; }
+}
+
+/// <summary>An area's walkable map, as given to the scenario: one character per 5-ft square.</summary>
+public sealed record MapView
+{
+    public required AreaId Area { get; init; }
+    public required int Width { get; init; }
+    public required int Height { get; init; }
+
+    /// <summary>'#' blocked, '.' open ground, a letter a square of the place in <see cref="Zones"/>, 'S' a store.</summary>
+    public required IReadOnlyList<string> Rows { get; init; }
+    public required IReadOnlyDictionary<char, LocationId> Zones { get; init; }
 }

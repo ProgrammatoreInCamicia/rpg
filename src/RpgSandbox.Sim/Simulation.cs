@@ -56,6 +56,11 @@ internal sealed partial class Simulation
             var completedAwaited = false;
             foreach (var entry in entries)
             {
+                if (entry.Job is MoveWaypoint waypoint)
+                {
+                    RunWaypoint(waypoint);
+                    continue;
+                }
                 if (entry.Job is not CompleteAction complete)
                     continue;
                 var completed = CompleteActionJob(complete.Action);

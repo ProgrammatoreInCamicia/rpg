@@ -22,6 +22,13 @@ public sealed record PlayerView
     public ActionView? Action { get; init; }
     public TravelView? Travel { get; init; }
 
+    /// <summary>The player's square and walk in progress on a mapped area.</summary>
+    public GridPos? Position { get; init; }
+    public MoveView? Move { get; init; }
+
+    /// <summary>The map of the player's area, if it has one (common knowledge, like the place names).</summary>
+    public MapView? Map { get; init; }
+
     /// <summary>Light where the player is, by time of day: it decides what can be seen (see the rules notes).</summary>
     public Light Light { get; init; }
 
@@ -65,6 +72,8 @@ public sealed record VisibleActorView
     public required string Name { get; init; }
     public FactionId? Faction { get; init; }
     public LocationId? Location { get; init; }
+    public GridPos? Position { get; init; }
+    public MoveView? Move { get; init; }
     public TravelView? Travel { get; init; }
     /// <summary>
     /// What the player sees this actor doing: only for actors in the player's own place, and only the outward

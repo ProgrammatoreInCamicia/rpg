@@ -57,6 +57,9 @@ public sealed record CharacterSheet
 
     public required int ArmorClass { get; init; }
 
+    /// <summary>Speed in feet per round of 6 seconds (30 for the slice's people). On a grid: Speed/5 squares per round.</summary>
+    public int Speed { get; init; } = 30;
+
     /// <summary>Worn armor imposes Disadvantage on Dexterity (Stealth) checks (e.g. Chain Mail).</summary>
     public bool StealthDisadvantage { get; init; }
 

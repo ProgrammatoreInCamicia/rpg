@@ -42,6 +42,12 @@ internal sealed class Actor
     /// <summary>Null while the actor is travelling.</summary>
     public LocationId? Location { get; set; }
 
+    /// <summary>Square on the area map (mapped areas only). While moving: the last square reached at a recorded instant.</summary>
+    public GridPos? Position { get; set; }
+
+    /// <summary>The mapped area the actor is on (also on open ground, outside any place). Null off the maps.</summary>
+    public AreaId? MapArea { get; set; }
+
     /// <summary>When the actor last arrived at <see cref="Location"/>: decides whether a witness saw a deed from its start.</summary>
     public GameTime ArrivedAt { get; set; }
 
@@ -156,6 +162,9 @@ internal sealed class Store
     public required StoreId Id { get; init; }
     public required string Name { get; init; }
     public required LocationId Location { get; init; }
+
+    /// <summary>Square the store occupies on a mapped area; it is used from an adjacent square.</summary>
+    public GridPos? Position { get; init; }
     public FactionId? Owner { get; init; }
 
     /// <summary>Rations stored. Never negative.</summary>
@@ -260,6 +269,33 @@ internal sealed class GuardAction : PendingAction
     public required StoreId Store { get; init; }
 }
 
+/// <summary>
+/// Walking a path on an area map at <see cref="Speed"/> feet per 6-second round, i.e. Speed/5 squares per round
+/// (SRD grid rules). Square i is reached at second ceil(i·30/Speed): exact for any multiple of 5 feet.
+/// </summary>
+internal sealed class MoveAction : PendingAction
+{
+    public override string Kind => "Move";
+    public required GridPos From { get; init; }
+
+    /// <summary>Squares after <see cref="From"/>, ending at the destination.</summary>
+    public required IReadOnlyList<GridPos> Path { get; init; }
+
+    /// <summary>Feet per round of 6 seconds.</summary>
+    public required int Speed { get; init; }
+
+    /// <summary>Seconds needed to walk <paramref name="steps"/> squares at <paramref name="speed"/> (rounded up).</summary>
+    public static long SecondsFor(int steps, int speed) => (steps * 30L + speed - 1) / speed;
+
+    /// <summary>Where the walker is at <paramref name="t"/>: the last square fully reached.</summary>
+    public GridPos PositionAt(GameTime t)
+    {
+        var elapsed = Math.Max(0, t.Seconds - StartedAt.Seconds);
+        var steps = (int)Math.Min(Path.Count, elapsed * Speed / 30);
+        return steps == 0 ? From : Path[steps - 1];
+    }
+}
+
 internal sealed class WaitAction : PendingAction
 {
     public override string Kind => "Wait";
@@ -291,6 +327,7 @@ internal sealed class WorldState
     public SortedDictionary<ActorId, Actor> Actors { get; } = new();
     public SortedDictionary<StoreId, Store> Stores { get; } = new();
     public SortedDictionary<FactionId, Faction> Factions { get; } = new();
+    public SortedDictionary<AreaId, GridMap> Maps { get; } = new();
 
     /// <summary>Keyed by (from, to); both directions are stored.</summary>
     public SortedDictionary<(LocationId From, LocationId To), Duration> Routes { get; } = new();
@@ -332,11 +369,15 @@ internal sealed class WorldState
             world.Actors.Add(a.Id, new Actor
             {
                 Id = a.Id, Name = a.Name, IsPlayer = a.IsPlayer, Faction = a.Faction, Location = a.Location, Food = a.Food,
-                Home = a.IsPlayer ? null : a.Location, Shift = a.Shift, ArrivedAt = GameTime.Start, Sheet = a.Sheet,
+                Home = a.IsPlayer ? null : a.Location, Shift = a.Shift, ArrivedAt = GameTime.Start, Sheet = a.Sheet, Position = a.At,
+                MapArea = a.At is null ? null : world.Locations[a.Location].Area,
             });
         }
         foreach (var s in scenario.Stores)
-            world.Stores.Add(s.Id, new Store { Id = s.Id, Name = s.Name, Location = s.Location, Owner = s.Owner, Food = s.Food });
+            world.Stores.Add(s.Id, new Store { Id = s.Id, Name = s.Name, Location = s.Location, Owner = s.Owner, Food = s.Food, Position = s.At });
+        foreach (var m in scenario.Maps)
+            world.Maps.Add(m.Area, new GridMap(m.Area, m.Rows, m.Zones,
+                scenario.Stores.Where(s => s.At is not null && world.Locations[s.Location].Area == m.Area).Select(s => s.At!.Value)));
         return world;
     }
 

@@ -16,10 +16,12 @@ public sealed class Scenario
         IReadOnlyList<FactionDefinition> factions,
         IReadOnlyList<ActorDefinition> actors,
         IReadOnlyList<StoreDefinition> stores,
+        IReadOnlyList<MapDefinition> maps,
         ActorId player,
         ulong seed)
     {
         Seed = seed;
+        Maps = maps;
         Areas = areas;
         Locations = locations;
         Routes = routes;
@@ -35,6 +37,7 @@ public sealed class Scenario
     internal IReadOnlyList<FactionDefinition> Factions { get; }
     internal IReadOnlyList<ActorDefinition> Actors { get; }
     internal IReadOnlyList<StoreDefinition> Stores { get; }
+    internal IReadOnlyList<MapDefinition> Maps { get; }
     internal ActorId Player { get; }
 
     /// <summary>Initial state of the random number generator: same scenario and seed, same game.</summary>
@@ -46,8 +49,9 @@ internal sealed record LocationDefinition(LocationId Id, string Name, AreaId Are
 internal sealed record RouteDefinition(LocationId A, LocationId B, Duration TravelTime);
 internal sealed record ActorDefinition(
     ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food, FactionId? Faction, WorkShift? Shift,
-    CharacterSheet Sheet);
-internal sealed record StoreDefinition(StoreId Id, string Name, LocationId Location, int Food, FactionId? Owner);
+    CharacterSheet Sheet, GridPos? At);
+internal sealed record StoreDefinition(StoreId Id, string Name, LocationId Location, int Food, FactionId? Owner, GridPos? At);
+internal sealed record MapDefinition(AreaId Area, IReadOnlyList<string> Rows, IReadOnlyDictionary<char, LocationId> Zones);
 internal sealed record FactionDefinition(
     FactionId Id, string Name, StoreId? HomeStore, int DailyUpkeep, Duration UpkeepTimeOfDay, RaidPolicy? Policy,
     ActorId? Authority);
@@ -61,6 +65,7 @@ public sealed class ScenarioBuilder
     private readonly List<FactionDefinition> _factions = new();
     private readonly List<ActorDefinition> _actors = new();
     private readonly List<StoreDefinition> _stores = new();
+    private readonly List<MapDefinition> _maps = new();
     private ulong _seed = 0x5EED_2026_1009UL;
 
     /// <summary>Sets the random seed. Scenarios have a fixed default, so tests and new games are reproducible.</summary>
@@ -114,17 +119,31 @@ public sealed class ScenarioBuilder
     /// </summary>
     public ScenarioBuilder AddActor(string id, string name, string locationId, bool isPlayer = false, int food = 0,
         string? factionId = null, string? workLocationId = null, Duration shiftStart = default, Duration shiftEnd = default,
-        CharacterSheet? sheet = null)
+        CharacterSheet? sheet = null, (int X, int Y)? at = null)
     {
         var shift = workLocationId is null ? null : new WorkShift(new LocationId(workLocationId), shiftStart, shiftEnd);
         _actors.Add(new ActorDefinition(new ActorId(id), name, new LocationId(locationId), isPlayer, food, ToFaction(factionId), shift,
-            sheet ?? CharacterSheet.Commoner()));
+            sheet ?? CharacterSheet.Commoner(), at is { } p ? new GridPos(p.X, p.Y) : null));
         return this;
     }
 
-    public ScenarioBuilder AddStore(string id, string name, string locationId, int food, string? ownerFactionId = null)
+    /// <summary>Adds a store. On a mapped area, <paramref name="at"/> is the square it occupies (used from an adjacent square).</summary>
+    public ScenarioBuilder AddStore(string id, string name, string locationId, int food, string? ownerFactionId = null,
+        (int X, int Y)? at = null)
     {
-        _stores.Add(new StoreDefinition(new StoreId(id), name, new LocationId(locationId), food, ToFaction(ownerFactionId)));
+        _stores.Add(new StoreDefinition(new StoreId(id), name, new LocationId(locationId), food, ToFaction(ownerFactionId),
+            at is { } p ? new GridPos(p.X, p.Y) : null));
+        return this;
+    }
+
+    /// <summary>
+    /// Gives an area a walkable map: one character per 5-ft square. '#' blocked, '.' open ground (no place),
+    /// a letter an open square of the place given in <paramref name="zones"/>. The places must belong to the area.
+    /// </summary>
+    public ScenarioBuilder AddMap(string areaId, IReadOnlyList<string> rows, IReadOnlyDictionary<char, string> zones)
+    {
+        _maps.Add(new MapDefinition(new AreaId(areaId), rows.ToArray(),
+            zones.ToDictionary(z => z.Key, z => new LocationId(z.Value))));
         return this;
     }
 
@@ -191,11 +210,64 @@ public sealed class ScenarioBuilder
                     $"Raiding faction '{faction.Id}' must own its home store.");
         }
 
+        ValidateMaps();
+
         var players = _actors.Where(a => a.IsPlayer).ToList();
         Require(players.Count == 1, $"A scenario needs exactly one player actor, found {players.Count}.");
 
         return new Scenario(_areas.ToArray(), _locations.ToArray(), _routes.ToArray(), _factions.ToArray(),
-            _actors.ToArray(), _stores.ToArray(), players[0].Id, _seed);
+            _actors.ToArray(), _stores.ToArray(), _maps.ToArray(), players[0].Id, _seed);
+    }
+
+    /// <summary>Maps, and the squares of everything placed on them, are checked by building the actual grids.</summary>
+    private void ValidateMaps()
+    {
+        RequireUnique(_maps.Select(m => m.Area.Value), "map area");
+        var areaOf = _locations.ToDictionary(l => l.Id, l => l.Area);
+        foreach (var map in _maps)
+        {
+            Require(_areas.Any(a => a.Id == map.Area), $"Map for unknown area '{map.Area}'.");
+            foreach (var (letter, zone) in map.Zones)
+            {
+                Require(char.IsLetter(letter), $"Zone '{zone}' in area '{map.Area}' must use a letter, not '{letter}'.");
+                Require(areaOf.TryGetValue(zone, out var zoneArea) && zoneArea == map.Area,
+                    $"Zone '{zone}' of map '{map.Area}' is not a place of that area.");
+            }
+        }
+
+        var maps = new Dictionary<AreaId, GridMap>();
+        foreach (var map in _maps)
+        {
+            var storeSquares = _stores.Where(s => areaOf[s.Location] == map.Area && s.At is not null).Select(s => s.At!.Value);
+            try
+            {
+                maps[map.Area] = new GridMap(map.Area, map.Rows, map.Zones, storeSquares);
+            }
+            catch (InvalidDataException e)
+            {
+                throw new InvalidOperationException($"Invalid map: {e.Message}", e);
+            }
+        }
+
+        // On a mapped area everything has a square, and the square's zone is its place; elsewhere nothing has one.
+        foreach (var store in _stores)
+            RequirePlaced($"Store '{store.Id}'", store.Location, store.At, maps, areaOf, mustBeWalkable: false);
+        foreach (var actor in _actors)
+            RequirePlaced($"Actor '{actor.Id}'", actor.Location, actor.At, maps, areaOf, mustBeWalkable: true);
+    }
+
+    private static void RequirePlaced(string what, LocationId location, GridPos? at, IReadOnlyDictionary<AreaId, GridMap> maps,
+        IReadOnlyDictionary<LocationId, AreaId> areaOf, bool mustBeWalkable)
+    {
+        if (!maps.TryGetValue(areaOf[location], out var map))
+        {
+            Require(at is null, $"{what} has a square but its area has no map.");
+            return;
+        }
+        Require(at is not null, $"{what} is on a mapped area and needs a square.");
+        Require(map.InBounds(at!.Value), $"{what} is outside the map.");
+        Require(!mustBeWalkable || map.IsWalkable(at.Value), $"{what} stands on a blocked square {at}.");
+        Require(map.ZoneAt(at.Value) == location, $"{what} square {at} is not inside '{location}'.");
     }
 
     private static FactionId? ToFaction(string? id) => id is null ? null : new FactionId(id);

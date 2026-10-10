@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace RpgSandbox.Sim.Persistence;
 
-// Plain serialization shapes for the save file (schema version 6). Times are seconds since the
+// Plain serialization shapes for the save file (schema version 7). Times are seconds since the
 // scenario start; ids are their string/number values. Kept separate from the domain on purpose:
 // the domain can change shape while the file format changes only deliberately.
 
@@ -25,6 +25,7 @@ internal sealed class SaveDto
     public List<StoreDto> Stores { get; set; } = new();
     public List<ScheduledDto> Schedule { get; set; } = new();
     public List<FactDto> Facts { get; set; } = new();
+    public List<MapDto> Maps { get; set; } = new();
 }
 
 internal sealed class AreaDto
@@ -89,6 +90,8 @@ internal sealed class ActorDto
     public List<ClaimDto> Claims { get; set; } = new();
     public List<long> SettledThefts { get; set; } = new();
     public List<CargoDto> Cargo { get; set; } = new();
+    public PosDto? Position { get; set; }
+    public string? MapArea { get; set; }
     public List<ObservationDto> Knowledge { get; set; } = new();
     public List<long> ActedOn { get; set; } = new();
 }
@@ -100,6 +103,7 @@ internal sealed class StoreDto
     public string Location { get; set; } = "";
     public string? Owner { get; set; }
     public int Food { get; set; }
+    public PosDto? Position { get; set; }
 }
 
 internal sealed class RaidAssignmentDto
@@ -129,6 +133,7 @@ internal sealed class DecisionDto
 [JsonDerivedType(typeof(ReportActionDto), "Report")]
 [JsonDerivedType(typeof(GuardActionDto), "Guard")]
 [JsonDerivedType(typeof(ConfiscateActionDto), "Confiscate")]
+[JsonDerivedType(typeof(MoveActionDto), "Move")]
 internal abstract class ActionDto
 {
     public long Id { get; set; }
@@ -167,6 +172,7 @@ internal sealed class ScheduledDto
     public long Sequence { get; set; }
     public string Job { get; set; } = "";
     public long? Action { get; set; }
+    public int? Step { get; set; }
     public string? Faction { get; set; }
 }
 
@@ -247,6 +253,7 @@ internal sealed class SheetDto
     public List<string> SkillProficiencies { get; set; } = new();
     public int ArmorClass { get; set; }
     public bool StealthDisadvantage { get; set; }
+    public int Speed { get; set; } = 30;
 }
 
 internal sealed class ConfiscateActionDto : ActionDto
@@ -267,4 +274,24 @@ internal sealed class CargoDto
 {
     public string Store { get; set; } = "";
     public int Amount { get; set; }
+}
+
+internal sealed class PosDto
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+}
+
+internal sealed class MapDto
+{
+    public string Area { get; set; } = "";
+    public List<string> Rows { get; set; } = new();
+    public Dictionary<string, string> Zones { get; set; } = new();
+}
+
+internal sealed class MoveActionDto : ActionDto
+{
+    public PosDto From { get; set; } = new();
+    public List<PosDto> Path { get; set; } = new();
+    public int Speed { get; set; }
 }

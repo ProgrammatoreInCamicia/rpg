@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 6;
+    public const int SchemaVersion = 7;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -166,12 +166,15 @@ internal static class SaveGame
             Claims = a.Claims.Select(c => new ClaimDto { Thief = c.Thief.Value, Store = c.Store.Value, Theft = c.Theft.Value, Owed = c.Owed }).ToList(),
             SettledThefts = a.SettledThefts.Select(t => t.Value).ToList(),
             Cargo = a.Cargo.Select(c => new CargoDto { Store = c.Store.Value, Amount = c.Amount }).ToList(),
+            Position = a.Position is { } p ? new PosDto { X = p.X, Y = p.Y } : null,
+            MapArea = a.MapArea?.Value,
             Knowledge = a.Knowledge.Select(ToDto).ToList(),
             ActedOn = a.ActedOn.Select(o => o.Value).ToList(),
         }).ToList(),
         Stores = w.Stores.Values.Select(s => new StoreDto
         {
             Id = s.Id.Value, Name = s.Name, Location = s.Location.Value, Owner = s.Owner?.Value, Food = s.Food,
+            Position = s.Position is { } sp ? new PosDto { X = sp.X, Y = sp.Y } : null,
         }).ToList(),
         Schedule = w.Scheduler.Entries.Select(e => new ScheduledDto
         {
@@ -180,14 +183,20 @@ internal static class SaveGame
             Job = e.Job switch
             {
                 CompleteAction c => "CompleteAction",
+                MoveWaypoint => "MoveWaypoint",
                 FactionUpkeep => "FactionUpkeep",
                 EvaluateFaction => "EvaluateFaction",
                 _ => throw new InvalidOperationException($"Unknown job {e.Job}"),
             },
-            Action = (e.Job as CompleteAction)?.Action.Value,
+            Action = e.Job switch { CompleteAction c => c.Action.Value, MoveWaypoint w => w.Action.Value, _ => (long?)null },
+            Step = (e.Job as MoveWaypoint)?.Step,
             Faction = e.Job switch { FactionUpkeep u => u.Faction.Value, EvaluateFaction v => v.Faction.Value, _ => null },
         }).ToList(),
         Facts = w.RecentFacts.Select(f => new FactDto { Id = f.Id.Value, At = f.At.Seconds, Kind = f.Kind, Description = f.Description, Participants = f.Participants.Select(p => p.Value).ToList() }).ToList(),
+        Maps = w.Maps.Values.Select(m => new MapDto
+        {
+            Area = m.Area.Value, Rows = m.Rows.ToList(), Zones = m.Zones.ToDictionary(z => z.Key.ToString(), z => z.Value.Value),
+        }).ToList(),
     };
 
     private static SheetDto ToDto(CharacterSheet s) => new()
@@ -196,6 +205,7 @@ internal static class SaveGame
         Intelligence = s.Intelligence, Wisdom = s.Wisdom, Charisma = s.Charisma, ProficiencyBonus = s.ProficiencyBonus,
         SkillProficiencies = s.SkillProficiencies.Select(k => k.ToString()).ToList(), ArmorClass = s.ArmorClass,
         StealthDisadvantage = s.StealthDisadvantage,
+        Speed = s.Speed,
     };
 
     private static CharacterSheet FromDto(SheetDto s) => new()
@@ -207,6 +217,7 @@ internal static class SaveGame
             .ToArray(),
         ArmorClass = s.ArmorClass,
         StealthDisadvantage = s.StealthDisadvantage,
+        Speed = s.Speed,
     };
 
     private static ObservationDto ToDto(Observation o) => new()
@@ -233,6 +244,7 @@ internal static class SaveGame
             ReportAction rep => new ReportActionDto { Recipient = rep.Recipient.Value, Observation = rep.Observation.Value },
             GuardAction ga => new GuardActionDto { Store = ga.Store.Value },
             ConfiscateAction ca => new ConfiscateActionDto { Target = ca.Target.Value, Store = ca.Store.Value },
+            MoveAction mv => new MoveActionDto { From = new PosDto { X = mv.From.X, Y = mv.From.Y }, Path = mv.Path.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(), Speed = mv.Speed },
             _ => throw new InvalidOperationException($"Unknown action {action.GetType().Name}"),
         };
         if (dto is null)
@@ -276,9 +288,22 @@ internal static class SaveGame
             AddUnique(w.Stores, new StoreId(s.Id), new Store
             {
                 Id = new StoreId(s.Id), Name = s.Name, Location = new LocationId(s.Location),
-                Owner = s.Owner is null ? null : new FactionId(s.Owner), Food = s.Food,
+                Owner = s.Owner is null ? null : new FactionId(s.Owner), Food = s.Food, Position = s.Position is { } sp ? new GridPos(sp.X, sp.Y) : null,
             }, "deposito");
         }
+        foreach (var m in d.Maps ?? throw new InvalidDataException("elenco delle mappe mancante"))
+        {
+            Check(m is not null && m.Rows is not null && m.Zones is not null && m.Zones.Keys.All(k => k.Length == 1), "mappa non valida");
+            var area = new AreaId(Required(m!.Area, "area di una mappa"));
+            Check(w.Areas.ContainsKey(area), $"mappa di un'area sconosciuta '{area}'");
+            var zones = m.Zones.ToDictionary(z => z.Key[0], z => new LocationId(z.Value));
+            Check(zones.Values.All(z => w.Locations.TryGetValue(z, out var l) && l.Area == area), $"zone della mappa '{area}' non valide");
+            var occupied = w.Stores.Values.Where(s => s.Position is not null && w.Locations[s.Location].Area == area).Select(s => s.Position!.Value);
+            AddUnique(w.Maps, area, new GridMap(area, m.Rows, zones, occupied), "mappa");
+        }
+        foreach (var store in w.Stores.Values.Where(s => s.Position is not null))
+            Check(w.Maps.TryGetValue(w.Locations[store.Location].Area, out var sm) && sm.ZoneAt(store.Position!.Value) == store.Location,
+                $"deposito '{store.Id}' fuori dalla sua zona");
         foreach (var f in d.Factions)
         {
             AddUnique(w.Factions, new FactionId(f.Id), new Faction
@@ -334,6 +359,8 @@ internal static class SaveGame
                     ? new GuardDuty { Store = new StoreId(g.Store), Since = new GameTime(g.Since), Until = new GameTime(g.Until) }
                     : null,
                 Vigil = a.Vigil is { } v ? new Vigil { Store = new StoreId(v.Store), Until = new GameTime(v.Until) } : null,
+                Position = a.Position is { } ap ? new GridPos(ap.X, ap.Y) : null,
+                MapArea = a.MapArea is null ? null : new AreaId(a.MapArea),
                 Sheet = FromDto(a.Sheet!),
             };
             foreach (var o in a.Knowledge)
@@ -362,6 +389,7 @@ internal static class SaveGame
         var entries = d.Schedule.Select(e => new Scheduler.Entry(new GameTime(e.Due), e.Sequence, e.Job switch
         {
             "CompleteAction" => (ScheduledJob)new CompleteAction(new ActionId(e.Action ?? throw new InvalidDataException("azione mancante"))),
+            "MoveWaypoint" => new MoveWaypoint(new ActionId(e.Action ?? throw new InvalidDataException("azione mancante")), e.Step ?? throw new InvalidDataException("passo mancante")),
             "FactionUpkeep" => new FactionUpkeep(ExistingFaction(w, e.Faction)),
             "EvaluateFaction" => new EvaluateFaction(ExistingFaction(w, e.Faction)),
             _ => throw new InvalidDataException($"lavoro sconosciuto '{e.Job}'"),
@@ -387,6 +415,16 @@ internal static class SaveGame
                     $"valutazione di '{faction.Id}' non programmata correttamente");
             else
                 Check(evaluations.Count == 0, $"valutazione programmata per '{faction.Id}', che non ha una politica");
+        }
+
+        // Waypoints belong to a walk in progress, at the instant its path reaches that step.
+        foreach (var entry in entries.Where(e => e.Job is MoveWaypoint))
+        {
+            var waypoint = (MoveWaypoint)entry.Job;
+            var walk = w.Actors.Values.Select(x => x.CurrentAction).OfType<MoveAction>().FirstOrDefault(m => m.Id == waypoint.Action);
+            Check(walk is not null && waypoint.Step >= 1 && waypoint.Step < walk.Path.Count
+                  && entry.Due == walk.StartedAt.Plus(Duration.FromSeconds(MoveAction.SecondsFor(waypoint.Step, walk.Speed))),
+                "tappa di un movimento non valida");
         }
 
         // Actions and completions match one to one: cancelling an action removes its deadline (schema v3),
@@ -456,7 +494,31 @@ internal static class SaveGame
         Check(a.Food >= 0, $"attore '{a.Id}' con razioni negative");
         Check(a.Faction is null || w.Factions.ContainsKey(a.Faction.Value), $"attore '{a.Id}' di fazione sconosciuta");
         Check(a.Location is null || w.Locations.ContainsKey(a.Location.Value), $"attore '{a.Id}' in luogo sconosciuto");
-        Check((a.Location is null) == (a.CurrentAction is TravelAction), $"attore '{a.Id}': posizione e viaggio incoerenti");
+        if (a.Position is { } pos)
+        {
+            // On a map: the square is real and walkable, and its zone is the actor's place (null on open ground).
+            Check(a.MapArea is { } area && w.Maps.TryGetValue(area, out var map) && map.IsWalkable(pos) && map.ZoneAt(pos) == a.Location,
+                $"attore '{a.Id}' in una casella non valida {pos}");
+            Check(a.CurrentAction is not TravelAction, $"attore '{a.Id}' in viaggio e su una mappa");
+            if (a.CurrentAction is MoveAction mv)
+            {
+                var grid = w.Maps[a.MapArea!.Value];
+                Check(mv.Speed > 0 && mv.Path.Count > 0 && mv.CompletesAt == mv.StartedAt.Plus(Duration.FromSeconds(MoveAction.SecondsFor(mv.Path.Count, mv.Speed))),
+                    $"movimento di '{a.Id}' incoerente");
+                var previous = mv.From;
+                foreach (var step in mv.Path)
+                {
+                    Check(previous.StepsTo(step) == 1 && grid.IsWalkable(step), $"percorso di '{a.Id}' non continuo o bloccato");
+                    previous = step;
+                }
+                Check(pos == mv.From || mv.Path.Contains(pos), $"'{a.Id}' non è sul proprio percorso");
+            }
+        }
+        else
+        {
+            Check(a.MapArea is null && a.CurrentAction is not MoveAction, $"attore '{a.Id}' senza casella su una mappa");
+            Check((a.Location is null) == (a.CurrentAction is TravelAction), $"attore '{a.Id}': posizione e viaggio incoerenti");
+        }
         switch (a.CurrentAction)
         {
             case TravelAction t:
@@ -506,6 +568,12 @@ internal static class SaveGame
             {
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
                 Recipient = new ActorId(rep.Recipient), Observation = new ObservationId(rep.Observation),
+            },
+            MoveActionDto mv when mv.From is null || mv.Path is null || mv.Path.Any(p => p is null) => throw new InvalidDataException("percorso non valido"),
+            MoveActionDto mv => new MoveAction
+            {
+                Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
+                From = new GridPos(mv.From.X, mv.From.Y), Path = mv.Path.Select(p => new GridPos(p.X, p.Y)).ToArray(), Speed = mv.Speed,
             },
             ConfiscateActionDto ca => new ConfiscateAction
             {

@@ -43,6 +43,8 @@ internal static class Invariants
             return $"il bonus di competenza di '{actorId}' non è valido";
         if (sheet.ArmorClass is < 1 or > 30)
             return $"la classe armatura di '{actorId}' non è valida";
+        if (sheet.Speed is < 5 or > 120 || sheet.Speed % 5 != 0)
+            return $"la velocità di '{actorId}' deve essere un multiplo di 5 piedi tra 5 e 120";
         return null;
     }
 

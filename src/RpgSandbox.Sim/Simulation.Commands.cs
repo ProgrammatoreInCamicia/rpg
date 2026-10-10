@@ -14,6 +14,8 @@ internal sealed partial class Simulation
         TakeFoodCommand take => StartTake(take),
         WaitCommand wait => StartWait(wait.Actor, wait.Duration, interruptible: false, description: null),
         ReportCommand report => StartReport(report),
+        MoveCommand move => StartMove(move),
+        StopCommand stop => Stop(stop),
         _ => CommandResult.Rejected(RejectionReason.UnknownCommand, $"Comando non supportato: {command.GetType().Name}."),
     };
 
@@ -143,8 +145,10 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(RejectionReason.StoreNotFound, $"Deposito sconosciuto: {storeId}.");
         if (actor.CurrentAction is not null)
             return CommandResult.Rejected(RejectionReason.ActorBusy, $"{actor.Name} è già impegnato.");
-        if (actor.Location != store.Location)
-            return CommandResult.Rejected(RejectionReason.NotAtStore,
+        if (!InReach(actor, store))
+            return store.Position is not null
+                ? CommandResult.Rejected(RejectionReason.OutOfReach, $"{actor.Name} deve avvicinarsi a {store.Name}.")
+                : CommandResult.Rejected(RejectionReason.NotAtStore,
                 $"{actor.Name} deve trovarsi a {World.Locations[store.Location].Name} per usare {store.Name}.");
         if (amount <= 0)
             return CommandResult.Rejected(RejectionReason.InvalidAmount, "La quantità deve essere almeno 1.");
@@ -193,6 +197,9 @@ internal sealed partial class Simulation
             case ConfiscateAction confiscate:
                 CompleteConfiscate(actor, confiscate);
                 break;
+            case MoveAction move:
+                Reach(actor, move.Path[^1]);
+                break;
             case GuardAction:
             case WaitAction:
                 break;
@@ -204,7 +211,7 @@ internal sealed partial class Simulation
     {
         var store = World.Stores[deposit.Store];
         var failure =
-            actor.Location != store.Location ? "non è più presso il deposito" :
+            !InReach(actor, store) ? "non è più presso il deposito" :
             actor.Food < deposit.Amount ? "non ha più abbastanza razioni" :
             store.Food > int.MaxValue - deposit.Amount ? "il deposito non può contenerle" :
             null;
@@ -241,7 +248,7 @@ internal sealed partial class Simulation
         }
 
         // Never more than is there, nor more than the actor can carry without overflowing.
-        var taken = actor.Location == store.Location ? Math.Min(Math.Min(take.Amount, store.Food), int.MaxValue - actor.Food) : 0;
+        var taken = InReach(actor, store) ? Math.Min(Math.Min(take.Amount, store.Food), int.MaxValue - actor.Food) : 0;
         if (taken == 0)
         {
             World.RecordFact("FoodTakeFailed", $"{actor.Name} non trova razioni da prendere in {store.Name}.", actor.Id);
@@ -319,9 +326,9 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {command.Actor}.");
         if (!World.Actors.TryGetValue(command.Recipient, out var recipient) || recipient.Id == actor.Id)
             return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Destinatario sconosciuto: {command.Recipient}.");
-        if (actor.CurrentAction is not null || actor.Location is null)
+        if (actor.CurrentAction is not null || (actor.Location is null && actor.Position is null))
             return CommandResult.Rejected(RejectionReason.ActorBusy, $"{actor.Name} è già impegnato.");
-        if (recipient.Location != actor.Location)
+        if (!CanTalk(actor, recipient))
             return CommandResult.Rejected(RejectionReason.RecipientNotPresent, $"{recipient.Name} non è qui.");
         var observation = actor.Knowledge.FirstOrDefault(o => o.Id == command.Observation);
         if (observation is null)
@@ -344,7 +351,7 @@ internal sealed partial class Simulation
     private void CompleteReport(Actor reporter, ReportAction report)
     {
         var recipient = World.Actors[report.Recipient];
-        if (recipient.Location is null || recipient.Location != reporter.Location)
+        if (!CanTalk(reporter, recipient))
         {
             World.RecordFact("ReportFailed", $"{reporter.Name} non trova più {recipient.Name} per parlargli.", reporter.Id, recipient.Id);
             return;
@@ -494,5 +501,8 @@ internal sealed partial class Simulation
             return;
         World.Scheduler.Remove(action.Id);
         actor.CurrentAction = null;
+        // A walker stops on the last square it reached.
+        if (action is MoveAction move)
+            Reach(actor, move.PositionAt(World.Now));
     }
 }

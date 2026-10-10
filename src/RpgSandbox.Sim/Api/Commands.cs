@@ -45,6 +45,15 @@ public sealed record ReportCommand : Command
     public required ObservationId Observation { get; init; }
 }
 
+/// <summary>Walk to a square of the area map. Replaces a walk in progress; any other action makes the actor busy.</summary>
+public sealed record MoveCommand : Command
+{
+    public required GridPos To { get; init; }
+}
+
+/// <summary>Stop walking, on the last square reached. Time then stands still until the next action.</summary>
+public sealed record StopCommand : Command;
+
 public enum RejectionReason
 {
     None = 0,
@@ -64,6 +73,10 @@ public enum RejectionReason
     UnknownObservation,
     StoreGuarded,
     CapacityExceeded,
+    NoMap,
+    Unreachable,
+    NotMoving,
+    OutOfReach,
 }
 
 public sealed record CommandResult
