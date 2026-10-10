@@ -23,7 +23,9 @@ public partial class VillageMap : Node2D
 
 	private static readonly Color Road = new(0.45f, 0.47f, 0.38f);
 	private static readonly Color InnFloor = new(0.55f, 0.42f, 0.30f);
+	private static readonly Color HouseFloor = new(0.51f, 0.43f, 0.34f);
 	private static readonly Color Yard = new(0.66f, 0.58f, 0.38f);
+	private static readonly Color ForestRoad = new(0.38f, 0.48f, 0.34f);
 	private static readonly Color Wall = new(0.42f, 0.38f, 0.40f);
 	private static readonly Color Hover = new(1f, 1f, 1f, 0.25f);
 	private static readonly Color DoorWood = new(0.50f, 0.32f, 0.18f);
@@ -31,6 +33,7 @@ public partial class VillageMap : Node2D
 	private SimulationSession _sim = null!;
 	private PlayerView _view = null!;
 
+	private Node2D _floor = null!;
 	private Node2D _sorted = null!;
 	private Camera2D _camera = null!;
 	private Polygon2D _hover = null!;
@@ -55,9 +58,13 @@ public partial class VillageMap : Node2D
 	private SpinBox _amount = null!;
 	private VBoxContainer _people = null!;
 	private Label _message = null!;
+	private PanelContainer _offMapPanel = null!;
+	private Label _offMapLabel = null!;
+	private Button _returnToVillage = null!;
 
 	private ActionId? _running;
 	private ActorId? _approaching; // walking up to someone to talk to them
+	private LocationId? _exitAfterWalking;
 	private ActorId? _talkingTo;
 	private bool _walking;
 	private double _speed = 1;
@@ -75,7 +82,7 @@ public partial class VillageMap : Node2D
 
 	public override void _Ready()
 	{
-		_sim = SimulationSession.Create(MappedVillageScenario.Create());
+		_sim = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
 		_view = _sim.GetPlayerView();
 
 		BuildMap();
@@ -102,6 +109,7 @@ public partial class VillageMap : Node2D
 			{
 				_pending -= whole;
 				ActorId? arrived = null;
+				LocationId? exitReached = null;
 				if (_running is { } action)
 				{
 					var result = _sim.AdvanceUntilCompleted(action, Duration.FromSeconds(whole));
@@ -111,8 +119,12 @@ public partial class VillageMap : Node2D
 						_walking = false;
 						_pending = 0;
 						if (result.Outcome == AdvanceOutcome.Completed)
+						{
 							arrived = _approaching;
+							exitReached = _exitAfterWalking;
+						}
 						_approaching = null;
+						_exitAfterWalking = null;
 					}
 				}
 				else
@@ -120,6 +132,8 @@ public partial class VillageMap : Node2D
 				Refresh();
 				if (arrived is { } who)
 					OpenTalk(who);
+				if (exitReached is { } exit)
+					BeginExitJourney(exit);
 			}
 		}
 		PlaceTokens();
@@ -149,6 +163,8 @@ public partial class VillageMap : Node2D
 		}
 		if (@event is not InputEventMouseButton { Pressed: true } mouse)
 			return;
+		if (_view.Map is null || _view.Position is null)
+			return;
 		switch (mouse.ButtonIndex)
 		{
 			case MouseButton.Left:
@@ -156,6 +172,8 @@ public partial class VillageMap : Node2D
 				// A figure stands above its square: clicking on its body means that person, not the square behind.
 				if (PersonAt(point) is { } person)
 					TalkTo(person);
+				else if (_view.Map.Exits.FirstOrDefault(e => e.At == ScreenToCell(point)) is { } exit)
+					GoToExit(exit);
 				else if (DoorAt(point) is { } door)
 				{
 					if (mouse.ShiftPressed)
@@ -182,6 +200,7 @@ public partial class VillageMap : Node2D
 	internal bool IsWalking => _walking;
 	internal string LastMessage => _message.Text;
 	internal ActorId? TalkingTo => _talkingTo;
+	internal bool OffMapPanelVisible => _offMapPanel.Visible;
 
 	/// <summary>World position of a visible figure's body (used by the smoke runner to click on it).</summary>
 	internal Vector2? BodyPointOf(ActorId id) =>
@@ -191,7 +210,47 @@ public partial class VillageMap : Node2D
 	public void MoveTo(GridPos cell) => Order($"vai in {cell}", walk: true, () =>
 	{
 		if (Walk(new MoveCommand { Actor = _sim.Player, To = cell, Stealthy = _sneak }))
+		{
+			_exitAfterWalking = null;
 			_approaching = null;
+		}
+	});
+
+	/// <summary>Clicking a map exit walks there, then starts its single Route.</summary>
+	private void GoToExit(ExitView exit) => Order($"vai a {exit.Name}", walk: true, () =>
+	{
+		if (_view.Position == exit.At)
+		{
+			BeginExitJourney(exit.Location);
+			return;
+		}
+		if (Walk(new MoveCommand { Actor = _sim.Player, To = exit.At, Stealthy = _sneak }))
+		{
+			_approaching = null;
+			_exitAfterWalking = exit.Location;
+			ShowMessage($"Vai a {exit.Name}.");
+		}
+	});
+
+	private void BeginExitJourney(LocationId location)
+	{
+		var exit = _view.Map?.Exits.FirstOrDefault(e => e.Location == location);
+		if (exit is null || _view.Position != exit.At)
+		{
+			ShowMessage("Non sei più all'uscita.");
+			return;
+		}
+		if (exit.Routes.Count != 1)
+		{
+			ShowMessage("Scegli una destinazione dalla strada.");
+			return;
+		}
+		StartActivity(new TravelCommand { Actor = _sim.Player, Destination = exit.Routes[0].To });
+	}
+
+	internal void ReturnToVillage() => StartActivity(new TravelCommand
+	{
+		Actor = _sim.Player, Destination = MappedVillageScenario.Ids.ForestRoad,
 	});
 
 	/// <summary>
@@ -209,6 +268,7 @@ public partial class VillageMap : Node2D
 			return;
 		if (Walk(new MoveCommand { Actor = _sim.Player, To = there, StopNextTo = true, Stealthy = _sneak }))
 		{
+			_exitAfterWalking = null;
 			_approaching = person;
 			ShowMessage($"Vai da {seen.Name}.");
 		}
@@ -370,6 +430,7 @@ public partial class VillageMap : Node2D
 		_running = null;
 		_walking = false;
 		_approaching = null;
+		_exitAfterWalking = null;
 		_pending = 0;
 		_target.Visible = false;
 		ShowMessage(result.Message);
@@ -451,6 +512,7 @@ public partial class VillageMap : Node2D
 		_peopleKey = "";
 		_lightKey = "";
 		_approaching = null;
+		_exitAfterWalking = null;
 		_talkingTo = null;
 		_queue.Clear();
 		_sneak = _sim.GetPlayerView().Sneaking is not null;
@@ -472,11 +534,25 @@ public partial class VillageMap : Node2D
 	private void Refresh()
 	{
 		_view = _sim.GetPlayerView();
+		var onMap = _view.Map is not null && _view.Position is not null;
+		_floor.Visible = onMap;
+		_sorted.Visible = onMap;
+		_offMapPanel.Visible = !onMap;
+		if (!onMap)
+		{
+			_offMapLabel.Text = _view.Travel is { } travel
+				? $"In viaggio verso {_view.Locations.Single(l => l.Id == travel.Destination).Name}\n" +
+				  $"Arrivo tra {Math.Max(1, travel.ArrivesAt.Since(_view.Now).Seconds / 60)} minuti di gioco"
+				: _view.Location is { } place ? _view.Locations.Single(l => l.Id == place).Name : "In viaggio";
+			_returnToVillage.Visible = _view.Travel is null && _view.Location == MappedVillageScenario.Ids.BanditCamp;
+		}
 		var now = _view.Now;
 		_clock.Text = $"Giorno {now.Day + 1}   {now.Hour:00}:{now.Minute:00}:{now.Second:00}   {DayName(_view.Daylight)}   ({HereName(_view.Light)})";
-		var where = _view.Location is { } here ? _view.Locations.Single(l => l.Id == here).Name : "strada";
+		var where = _view.Location is { } here ? _view.Locations.Single(l => l.Id == here).Name
+			: onMap ? "strada" : "in viaggio";
 		_status.Text = (_paused ? $"IN PAUSA — ordini in coda: {_queue.Count}. " : "")
-			+ (_walking ? $"Cammini… ({where})" : $"Sei qui: {where}. Clicca dove vuoi andare.");
+			+ (_walking ? $"Cammini… ({where})" : _view.Travel is not null ? "Sei in viaggio."
+				: onMap ? $"Sei qui: {where}. Clicca dove vuoi andare." : $"Sei qui: {where}.");
 		_food.Text = $"Razioni con te: {_view.Food}";
 		_torch.Text = _view.TorchLitUntil is { } burnsUntil
 			? $"Spegni la torcia (T) — ancora {Math.Max(1, burnsUntil.Since(_view.Now).Seconds / 60)} min"
@@ -491,11 +567,11 @@ public partial class VillageMap : Node2D
 		_watched.Text = hidden + (watchers.Count > 0 ? $"Ti vede: {string.Join(", ", watchers)}." : _view.VisibleActors.Count > 0 ? "Nessuno di quelli che vedi ti vede." : "");
 		_stop.Disabled = !_walking;
 		ShadeMap();
-		if (!_walking)
+		if (!_walking || !onMap)
 			_target.Visible = false;
 
 		// Store controls where a store is in sight; the core decides whether it is within reach.
-		_storeRow.Visible = _view.VisibleStores.Count > 0;
+		_storeRow.Visible = onMap && _view.VisibleStores.Any(s => s.Id == MappedVillageScenario.Ids.GranaryStore);
 		foreach (var store in _view.VisibleStores)
 			if (_storeLabels.TryGetValue(store.Id, out var label))
 				label.Text = $"{store.Name}: {store.Food}";
@@ -546,11 +622,12 @@ public partial class VillageMap : Node2D
 	private void PlaceTokens()
 	{
 		var me = (_view.Id, _view.Position, _view.Move);
-		var figures = new List<(ActorId Id, string Name, bool Player, GridPos? Position, MoveView? Move)>
+		var figures = new List<(ActorId Id, string Name, string? Doing, bool Player, GridPos? Position, MoveView? Move)>
 		{
-			(me.Id, "Tu", true, me.Position, me.Move),
+			(me.Id, "Tu", null, true, me.Position, me.Move),
 		};
-		figures.AddRange(_view.VisibleActors.Select(a => (a.Id, a.SeesYou == true ? $"{a.Name} · ti vede" : a.Name, false, a.Position, a.Move)));
+		figures.AddRange(_view.VisibleActors.Select(a => (a.Id, a.SeesYou == true ? $"{a.Name} · ti vede" : a.Name,
+			a.Doing, false, a.Position, a.Move)));
 
 		var shown = new HashSet<ActorId>();
 		foreach (var figure in figures)
@@ -567,8 +644,10 @@ public partial class VillageMap : Node2D
 			token.Modulate = Shade(ScreenToCell(token.Position));
 			if (figure.Player && _view.Sneaking is not null)
 				token.Modulate = token.Modulate with { A = 0.55f }; // sneaking
+			else if (figure.Move is { Stealthy: true })
+				token.Modulate = token.Modulate with { A = 0.68f }; // the visible slow, cautious gait
 			if (token.GetNodeOrNull<Label>("Name") is { } nameLabel)
-				nameLabel.Text = figure.Name;
+				nameLabel.Text = figure.Doing is { Length: > 0 } doing ? $"{figure.Name}\n{doing}" : figure.Name;
 			token.GetNode<Polygon2D>("Flame").Visible = figure.Player
 				? _view.TorchLitUntil is not null
 				: _view.VisibleActors.Any(a => a.Id == figure.Id && a.Torch);
@@ -586,7 +665,7 @@ public partial class VillageMap : Node2D
 	/// </summary>
 	private Vector2 SmoothPosition(GridPos square, MoveView? move)
 	{
-		if (move is null || !_walking)
+		if (move is null)
 			return CellToScreen(square);
 		var elapsed = _view.Now.Since(move.DepartedAt).Seconds + _pending;
 		// The Sim reaches step i at ceil(i*30/Speed) whole game seconds. Interpolate between those
@@ -696,7 +775,7 @@ public partial class VillageMap : Node2D
 		var person = PersonAt(mouse);
 		Input.SetDefaultCursorShape(person is null ? Input.CursorShape.Arrow : Input.CursorShape.PointingHand);
 		var cell = person is { } id && _tokens.TryGetValue(id, out var token) ? ScreenToCell(token.Position) : ScreenToCell(mouse);
-		var map = _view.Map;
+		var map = _view.Position is null ? null : _view.Map;
 		_hover.Visible = map is not null && cell.X >= 0 && cell.Y >= 0 && cell.X < map.Width && cell.Y < map.Height
 						 && map.Rows[cell.Y][cell.X] != '#';
 		_hover.Position = CellToScreen(cell);
@@ -716,8 +795,8 @@ public partial class VillageMap : Node2D
 	private void BuildMap()
 	{
 		var map = _view.Map!;
-		var floor = new Node2D { ZIndex = -10 };
-		AddChild(floor);
+		_floor = new Node2D { ZIndex = -10 };
+		AddChild(_floor);
 		_sorted = new Node2D { YSortEnabled = true };
 		AddChild(_sorted);
 
@@ -731,11 +810,13 @@ public partial class VillageMap : Node2D
 				'#' => Wall.Darkened(0.2f),
 				'.' => Road,
 				'S' => Yard,
-				_ => map.Zones.TryGetValue(c, out var zone) && zone == MappedVillageScenario.Ids.Inn ? InnFloor : Yard,
+				_ => map.Zones.TryGetValue(c, out var zone) ? zone == MappedVillageScenario.Ids.Inn ? InnFloor
+					: zone == MappedVillageScenario.Ids.FarmerHouse ? HouseFloor
+					: zone == MappedVillageScenario.Ids.ForestRoad ? ForestRoad : Yard : Yard,
 			};
 			var shade = (x + y) % 2 == 0 ? 0f : 0.05f;
 			var tile = new Polygon2D { Polygon = Diamond(), Position = CellToScreen(cell), Color = color.Darkened(shade) };
-			floor.AddChild(tile);
+			_floor.AddChild(tile);
 			_lit[cell] = tile;
 			if (c == '#')
 			{
@@ -767,6 +848,19 @@ public partial class VillageMap : Node2D
 			var panel = MakeBlock(door.At, DoorWood, WallHeight);
 			_sorted.AddChild(panel);
 			_doorPanels[door.At] = panel;
+		}
+
+		foreach (var exit in map.Exits)
+		{
+			var marker = new Node2D { Position = CellToScreen(exit.At) };
+			marker.AddChild(new Polygon2D { Polygon = Diamond(0.65f), Color = new Color(0.32f, 0.83f, 0.59f, 0.75f) });
+			var sign = new Label { Text = exit.Name, Position = new Vector2(-72, -42), Size = new Vector2(144, 0),
+				HorizontalAlignment = HorizontalAlignment.Center };
+			sign.AddThemeFontSizeOverride("font_size", 11);
+			sign.AddThemeConstantOverride("outline_size", 4);
+			sign.AddThemeColorOverride("font_outline_color", Colors.Black);
+			marker.AddChild(sign);
+			_sorted.AddChild(marker);
 		}
 
 		_hover = new Polygon2D { Polygon = Diamond(), Color = Hover, ZIndex = -5 };
@@ -818,7 +912,7 @@ public partial class VillageMap : Node2D
 		});
 		if (!player)
 		{
-			var label = new Label { Name = "Name", Text = name, Position = new Vector2(-50, -52), Size = new Vector2(100, 0), HorizontalAlignment = HorizontalAlignment.Center };
+			var label = new Label { Name = "Name", Text = name, Position = new Vector2(-70, -58), Size = new Vector2(140, 0), HorizontalAlignment = HorizontalAlignment.Center };
 			label.AddThemeFontSizeOverride("font_size", 10);
 			label.AddThemeConstantOverride("outline_size", 3);
 			label.AddThemeColorOverride("font_outline_color", Colors.Black);
@@ -911,5 +1005,18 @@ public partial class VillageMap : Node2D
 		_message = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		_message.AddThemeFontSizeOverride("font_size", 13);
 		box.AddChild(_message);
+
+		_offMapPanel = new PanelContainer { OffsetLeft = 440, OffsetRight = 840, OffsetTop = 100, OffsetBottom = 245,
+			Visible = false };
+		ui.AddChild(_offMapPanel);
+		var journeyBox = new VBoxContainer();
+		journeyBox.AddThemeConstantOverride("separation", 12);
+		_offMapPanel.AddChild(journeyBox);
+		_offMapLabel = new Label { HorizontalAlignment = HorizontalAlignment.Center };
+		_offMapLabel.AddThemeFontSizeOverride("font_size", 21);
+		journeyBox.AddChild(_offMapLabel);
+		_returnToVillage = new Button { Text = "Torna al villaggio", Visible = false };
+		_returnToVillage.Pressed += ReturnToVillage;
+		journeyBox.AddChild(_returnToVillage);
 	}
 }

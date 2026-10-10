@@ -164,7 +164,8 @@ public partial class VillageSmoke : Node
 		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true, Position = door, GlobalPosition = door });
 		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = door, GlobalPosition = door });
 		await Frames(3);
-		Require(_map.View.Doors.Single().Open == false, $"Clicking the door did not close it: {_map.LastMessage}");
+		Require(_map.View.Doors.Single(d => d.At == MappedVillageScenario.Ids.InnDoor).Open == false,
+			$"Clicking the door did not close it: {_map.LastMessage}");
 		Require(_map.View.VisibleActors.All(a => a.Id != guard), "The guard should be hidden by the closed door");
 		Require(_map.View.MapLight![3][9] == '0', "The lamplight should not reach the road with the door closed");
 		Require(_map.DisplayGlowAt(new GridPos(8, 3)) == 0f,
@@ -191,6 +192,39 @@ public partial class VillageSmoke : Node
 			$"Shift-clicking the adjacent door should walk onto it: {_map.LastMessage}");
 		await UntilIdle(10);
 		Require(_map.View.Position == MappedVillageScenario.Ids.InnDoor, "The player did not enter the door square");
+
+		// G5: the exit marker starts a real Route, and the off-map camp offers the return journey.
+		_map.MoveTo(new GridPos(21, 12));
+		await UntilIdle(25);
+		Capture("7-forest-road.png");
+		var forestExit = MappedVillageScenario.Ids.ForestExit;
+		var exitPoint = _map.GetViewport().GetCanvasTransform() * VillageMap.ScreenPointOf(forestExit);
+		Input.WarpMouse(exitPoint);
+		await Frames(3);
+		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true,
+			Position = exitPoint, GlobalPosition = exitPoint });
+		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false,
+			Position = exitPoint, GlobalPosition = exitPoint });
+		var travelDeadline = Time.GetTicksMsec() + 5000UL;
+		while (_map.View.Travel is null)
+		{
+			Require(Time.GetTicksMsec() < travelDeadline, "Clicking the exit did not start the journey");
+			await Frames(1);
+		}
+		await Frames(2);
+		Require(_map.OffMapPanelVisible, "The travel panel did not replace the village map");
+		Capture("8-travelling.png");
+		await UntilIdle(12);
+		Require(_map.View.Location == MappedVillageScenario.Ids.BanditCamp && _map.View.Map is null,
+			$"The clickable forest exit did not lead to the camp: {_map.LastMessage}");
+		Require(_map.OffMapPanelVisible, "The camp view is missing");
+		Capture("9-forest-camp.png");
+		_map.ReturnToVillage();
+		await UntilIdle(12);
+		Require(_map.View.Position == forestExit && _map.View.Map is not null,
+			"The return journey did not put the player back on the village exit");
+		Require(!_map.OffMapPanelVisible, "The village map did not return");
+		Capture("10-village-return.png");
 	}
 
 	private static void Require(bool condition, string message)
