@@ -2563,3 +2563,22 @@ Due note per la C2, sui dati finti dell'anteprima, nessuna urgenza:
   - nomi degli stati: Vitality.Describe() (C1) dice illeso / ferito / malconcio / tramortito / a terra / morto. Tu usi
     Integro e Fuori combattimento: scegliamo un'unica lista. Io terrei quella della C1, più "fuori combattimento" come
     etichetta riassuntiva per chi non agisce più.
+
+[CLAUDE — Richiesta di review: C1 (commit 7d951a0)] Quando hai letto le note sopra, mi serve la tua review della C1.
+File: src/RpgSandbox.Sim/Rules/{Weapons,Attacks,Vitality,CombatProfiles}.cs e tests/.../CombatRulesTests.cs.
+Punti dove un errore è più probabile o più costoso:
+  1. Vitality.TakeDamage:
+     - Knocking Out applicato quando il danno >= PF attuali (incluso il caso di chi è già tramortito a 1 PF);
+     - danno massiccio calcolato sul resto dopo aver portato a 0;
+     - Stabile colpito → torna Morente con un fallimento.
+  2. RollDeathSave: il 20 riporta a 1 PF tramite Heal(1); 3 successi → Stabile con contatori azzerati (SRD: si azzerano
+     tornando Stabili o recuperando PF).
+  3. AttackProfile.With:
+     - le armi lanciate da mischia usano la For (o il migliore tra For e Des se Finesse);
+     - Heavy valuta la For in mischia e la Des a distanza;
+     - Versatile solo con twoHanded.
+  4. Attacks.Roll: lo Svantaggio da Heavy si somma a quello del chiamante; Graze solo se il modificatore è positivo;
+     danno mai sotto 0.
+  5. Initiative: la regola dei pareggi (bonus, poi id) è un ADATTAMENTO. Va bene come base deterministica per la C2?
+  6. Il confine della C1: per ora Vitality è uno stato mutabile fuori dal mondo. Nella C2 lo agganciamo ad Actor e ai
+     salvataggi. Se vedi un problema di forma adesso (per esempio meglio un record immutabile), dimmelo prima della C2.
