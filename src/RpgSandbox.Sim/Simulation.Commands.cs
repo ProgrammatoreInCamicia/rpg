@@ -273,6 +273,13 @@ internal sealed partial class Simulation
     /// </summary>
     private void PerceiveTheft(Actor thief, TakeFoodAction take, Store store, int amount, FactId fact)
     {
+        // On a map, sight and hearing follow walls, light and distance (T6b).
+        if (store.Position is not null && thief.MapArea is { } area && World.Maps.TryGetValue(area, out var map))
+        {
+            PerceiveTheftOnMap(thief, take, store, amount, fact, map);
+            return;
+        }
+
         var place = World.Locations[store.Location];
         var stealth = take.StealthTotal ?? 0;
         var witnesses = World.Actors.Values
@@ -294,28 +301,34 @@ internal sealed partial class Simulation
 
             // Recognising takes seeing the thief, and having been there since the theft began.
             var recognised = seen.SawActor && witness.ArrivedAt <= take.StartedAt;
-            var id = new ObservationId(World.NextObservationId++);
-            witness.Knowledge.Add(new Observation
-            {
-                Id = id,
-                Origin = id,
-                Store = store.Id,
-                StoreName = store.Name,
-                Location = store.Location,
-                Amount = amount,
-                Thief = recognised ? thief.Id : null,
-                ThiefName = recognised ? thief.Name : null,
-                ObservedAt = World.Now,
-                LearnedAt = World.Now,
-                Fact = fact,
-                Perceived = seen.Mode,
-            });
-            World.RecordFact("FoodTheftWitnessed",
-                recognised ? $"{witness.Name} vede {thief.Name} rubare da {store.Name}."
-                : seen.SawActor ? $"{witness.Name} vede un furto da {store.Name}, ma non riconosce il ladro."
-                : $"{witness.Name} sente qualcuno rubare da {store.Name} nel {Perception.Describe(light)}, ma non vede chi.");
-            InterruptRoutine(witness);
+            Witnessed(witness, thief, store, amount, fact, recognised, seen.Mode, light);
         }
+    }
+
+    /// <summary>A witness noticed a theft: it keeps a self-contained observation, and stops resting to react.</summary>
+    private void Witnessed(Actor witness, Actor thief, Store store, int amount, FactId fact, bool recognised, PerceptionMode mode, Light light)
+    {
+        var id = new ObservationId(World.NextObservationId++);
+        witness.Knowledge.Add(new Observation
+        {
+            Id = id,
+            Origin = id,
+            Store = store.Id,
+            StoreName = store.Name,
+            Location = store.Location,
+            Amount = amount,
+            Thief = recognised ? thief.Id : null,
+            ThiefName = recognised ? thief.Name : null,
+            ObservedAt = World.Now,
+            LearnedAt = World.Now,
+            Fact = fact,
+            Perceived = mode,
+        });
+        World.RecordFact("FoodTheftWitnessed",
+            recognised ? $"{witness.Name} vede {thief.Name} rubare da {store.Name}."
+            : mode == PerceptionMode.Seen ? $"{witness.Name} vede un furto da {store.Name}, ma non riconosce il ladro."
+            : $"{witness.Name} sente qualcuno rubare da {store.Name} nel {Perception.Describe(light)}, ma non vede chi.");
+        InterruptRoutine(witness);
     }
 
     // ---------------------------------------------------------------- reports

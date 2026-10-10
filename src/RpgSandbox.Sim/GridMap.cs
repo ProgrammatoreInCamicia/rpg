@@ -54,6 +54,67 @@ internal sealed class GridMap
     public LocationId? ZoneAt(GridPos p) =>
         InBounds(p) && Zones.TryGetValue(_cells[p.X, p.Y], out var zone) ? zone : null;
 
+    /// <summary>Walls block sight; stores and open squares do not.</summary>
+    public bool BlocksSight(GridPos p) => !InBounds(p) || _cells[p.X, p.Y] == '#';
+
+    /// <summary>
+    /// ADAPTATION: line of sight along a Bresenham line between square centres, blocked by walls and by diagonal
+    /// steps squeezing between two walls. Symmetric: clear if the line is clear in either direction.
+    /// </summary>
+    public bool HasLineOfSight(GridPos a, GridPos b) => ClearLine(a, b) || ClearLine(b, a);
+
+    private bool ClearLine(GridPos from, GridPos to)
+    {
+        int x = from.X, y = from.Y;
+        int dx = Math.Abs(to.X - x), dy = -Math.Abs(to.Y - y);
+        int sx = x < to.X ? 1 : -1, sy = y < to.Y ? 1 : -1;
+        var err = dx + dy;
+        while (x != to.X || y != to.Y)
+        {
+            int px = x, py = y;
+            var e2 = 2 * err;
+            if (e2 >= dy) { err += dy; x += sx; }
+            if (e2 <= dx) { err += dx; y += sy; }
+            var here = new GridPos(x, y);
+            if (here != to && BlocksSight(here))
+                return false;
+            if (x != px && y != py && BlocksSight(new GridPos(x, py)) && BlocksSight(new GridPos(px, y)))
+                return false; // squeezing diagonally between two walls
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Steps a sound travels from <paramref name="from"/> to <paramref name="to"/> around walls (8 directions, no cut
+    /// corners), or null if farther than <paramref name="max"/> squares. Stores do not stop sound.
+    /// </summary>
+    public int? SoundSteps(GridPos from, GridPos to, int max)
+    {
+        if (from == to)
+            return 0;
+        var seen = new HashSet<GridPos> { from };
+        var frontier = new List<GridPos> { from };
+        for (var steps = 1; steps <= max && frontier.Count > 0; steps++)
+        {
+            var next = new List<GridPos>();
+            foreach (var here in frontier)
+            foreach (var (dx, dy) in Directions)
+            {
+                var p = new GridPos(here.X + dx, here.Y + dy);
+                if (BlocksSight(p) || seen.Contains(p))
+                    continue;
+                if (dx != 0 && dy != 0 && (BlocksSight(new GridPos(here.X + dx, here.Y)) || BlocksSight(new GridPos(here.X, here.Y + dy))))
+                    continue;
+                seen.Add(p);
+                if (p == to)
+                    return steps;
+                next.Add(p);
+            }
+            frontier = next;
+        }
+        return null;
+    }
+
     private static readonly (int Dx, int Dy)[] Directions =
         { (0, -1), (1, 0), (0, 1), (-1, 0), (1, -1), (1, 1), (-1, 1), (-1, -1) };
 

@@ -29,6 +29,9 @@ internal static class Tuning
     public static readonly Duration VigilStart = Duration.FromHours(7);
     public static readonly Duration VigilEnd = Duration.FromHours(18);
 
+    /// <summary>ADAPTATION: on maps, sounds are heard within this many squares, walking around walls (30 ft).</summary>
+    public const int HearingRadius = 6;
+
     /// <summary>How long a raiding faction avoids a target its member found guarded.</summary>
     public static readonly Duration AvoidGuardedTarget = Duration.FromHours(24);
 }

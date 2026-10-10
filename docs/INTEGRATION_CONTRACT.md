@@ -192,3 +192,21 @@ Da decidere con l'utente e con Codex. I candidati sono il combattimento a turni,
 - **Viste**: `PlayerView.Map` (`MapView` con righe, zone e `S` per i depositi) e `PlayerView.Move` / `ActorView.Move` (`MoveView`: From, Path, DepartedAt, Speed). Il client anima solo ciò che queste viste descrivono.
 - **Scenario**: `MappedVillageScenario`, con strada, Locanda e Granaio. Non ci sono ancora i banditi: arrivano con la T6c. Lo scenario a Luoghi (`SliceScenario`) resta invariato.
 - **Salvataggi**: schema 7, con le mappe, le posizioni, i cammini in corso e le loro tappe.
+
+## T6b — Vista e udito sulle mappe (ADATTAMENTO)
+
+Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sopra.
+
+- **Linea di vista**: retta di Bresenham tra i centri delle caselle. La bloccano i muri e i passaggi diagonali stretti tra due muri. È simmetrica: basta che uno dei due versi sia libero. I depositi non bloccano la vista.
+- **Luce di una casella**: quella del Luogo che la contiene (lanterne comprese) oppure la luce del giorno sulla strada. **Si vede** chi è in linea di vista e su una casella con almeno luce fioca, a qualunque distanza.
+- **Udito**: il suono percorre le caselle aggirando i muri e si sente entro **6 caselle** (30 piedi, valore di bilanciamento).
+- **Furti sulle mappe**: possono notarli tutti gli attori della stessa mappa.
+  - Vista: linea di vista sul ladro e luce della sua casella, considerando la luce migliore nel tratto osservato; in luce fioca Percezione passiva −5.
+  - Udito: entro il raggio, Percezione passiva contro Furtività.
+  - Riconoscimento: il ladro deve essere visto alla fine e in linea di vista anche dalla posizione che il testimone aveva all'inizio. Quella posizione si ricava dalla sua azione in corso; chi ha cambiato zona dopo l'inizio non riconosce. È un'approssimazione: non c'è una storia completa delle posizioni.
+- **PlayerView sulle mappe**:
+  - `VisibleActors` contiene chi il giocatore vede, con il suo gesto (`Doing`) anche a distanza;
+  - `PeopleHere` contiene chi è adiacente e visibile;
+  - `UnseenNearby` conta chi è adiacente ma non visibile;
+  - `VisibleStores` contiene i depositi in vista o adiacenti.
+- **Restano a zone fino alla T6c**: presidio, Desisti, vigilanza e contatto con l'autorità.

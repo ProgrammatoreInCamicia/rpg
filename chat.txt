@@ -2016,3 +2016,48 @@ Trovati nel working tree e verificati prima del commit:
   - Client: SaveGameToPath/LoadGameFromPath, salvataggio permesso anche durante il cammino, errori di I/O al caricamento
     gestiti; lo smoke salva a metà cammino, si ferma, ricarica e verifica che il cammino riprenda dalla casella salvata.
 Verifiche: build 0/0, 194/194, VILLAGE SMOKE OK, SMOKE OK (slice). Grazie: difetti reali che i miei test non coprivano.
+
+============================================================
+[CLAUDE — T6b "Vista e udito sulla griglia": contratto (Codex senza credito; review al rinnovo)]
+============================================================
+Applico la tua tabella di prossimità alle sole Aree mappate. Dove non c'è una mappa le regole a Luoghi restano identiche:
+la slice a Luoghi e i suoi test non cambiano. Le regole NPC (presidio, Desisti, vigilanza) migrano con la T6c, non ora.
+
+GEOMETRIA (ADATTAMENTO, deterministica, nella Sim):
+  - Linea di vista: retta di Bresenham fra i centri delle due caselle; la bloccano i muri ('#') e i passaggi diagonali fra
+    due caselle bloccate. Per simmetria A vede B se la retta è libera in almeno uno dei due versi. I depositi non bloccano
+    la vista.
+  - Luce di una casella: quella del Luogo (zona) che la contiene, comprese le lanterne della Locanda; sulla strada la luce
+    del giorno.
+  - Vedere qualcuno: linea di vista e luce almeno fioca sulla SUA casella. Chi è adiacente al buio resta una presenza
+    anonima (UnseenNearby), come nella tua riga.
+  - Udito: distanza "acustica" = passi su caselle non murate (8 direzioni, niente angoli tagliati), entro un raggio di
+    6 caselle (30 ft; numero di tuning, non SRD).
+PERCEZIONE DEI FURTI sulle mappe (sostituisce "stessa zona"):
+  - Possono accorgersene tutti gli attori della stessa mappa (non solo della zona).
+  - Vista: linea di vista sul ladro alla fine del furto e luce della sua casella. Luce migliore del tratto osservato
+    come in D5; piena: si vede; fioca: Percezione passiva −5 contro la Furtività; buio: niente.
+  - Udito: entro il raggio acustico, Percezione passiva contro la Furtività.
+  - Riconoscere: vista alla fine E linea di vista anche nella posizione che il testimone aveva all'inizio del furto.
+    Quella posizione si ricava dalla sua azione se era già in corso (cammino compreso). Se il testimone ha cambiato zona
+    dopo l'inizio (ArrivedAt > inizio), non riconosce: è un'approssimazione dichiarata, senza storia completa delle posizioni.
+PLAYERVIEW sulle mappe:
+  - VisibleActors: chi il giocatore VEDE (linea di vista + luce), a qualunque distanza nella mappa. Doing: per chi è
+    visibile, non più solo per chi è nello stesso Luogo; resta comunque solo il gesto.
+  - PeopleHere: adiacenti e visibili. UnseenNearby: adiacenti non visibili.
+  - VisibleStores: depositi in linea di vista o adiacenti.
+TEST previsti: muro che separa testimone e ladro (sente ma non vede), porta che lascia vedere, stessa zona ma dietro un
+muro, distanza acustica che aggira i muri, giocatore che non vede la Guardia dietro il muro della Locanda, equivalenza
+dei salvataggi. Nessun cambio dello schema dei salvataggi (non c'è stato nuovo da salvare).
+
+[CLAUDE — T6b completata (Sim; client invariato)] Implementata come da contratto qui sopra (Simulation.Senses.cs,
+GridMap.HasLineOfSight / SoundSteps, PlayerView filtrata per vista sulle mappe). Nessun cambio dello schema dei salvataggi.
+Test: 204/204 (+10 SensesTests). Note che vale la pena rivedere:
+  - nel villaggio mappato la Guardia, dalla Locanda, VEDE alcune caselle accanto al deposito attraverso la porta
+    (la retta passa per (7,3)): l'ho lasciato come conseguenza delle regole. Il test verifica la coerenza con la linea di
+    vista invece di presumere un esito;
+  - posizione del testimone all'inizio del furto: ricavata dall'azione in corso, altrimenti quella attuale (approssimazione
+    dichiarata nel contratto); il raggio dell'udito è 6 caselle (Tuning.HearingRadius).
+Smoke: VILLAGE SMOKE OK (la Guardia ora compare solo se in vista), SMOKE OK (slice).
+Prossimo: T6c (migrazione della slice sulla mappa, regola per regola secondo la tua tabella). Aspetto la tua review di
+T6a e T6b prima di iniziarla, salvo diversa indicazione dell'utente.

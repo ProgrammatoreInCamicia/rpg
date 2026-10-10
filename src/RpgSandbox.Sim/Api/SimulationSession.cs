@@ -174,7 +174,14 @@ public sealed class SimulationSession
         // dimly lit, the road only by daylight. In the dark, people right next to the player are only a presence.
         bool PlaceVisible(LocationId l) => Perception.LightAt(w.Locations[l], w.Now) >= Light.Dim;
         bool RoadVisible() => Perception.DaylightAt(w.Now) >= Light.Dim;
-        bool Visible(Actor a) => a.Location is { } at
+        // On a map (T6b) seeing takes line of sight and light on the other's square, at any distance.
+        var map = player.MapArea is { } mapArea ? w.Maps[mapArea] : null;
+        var me = PositionOf(player, w);
+        bool SeenOnMap(GridPos square) => map is not null && me is { } eye && _sim.CanSee(map, eye, square);
+        bool Visible(Actor a) => map is not null && me is not null
+            ? a.MapArea == map.Area && PositionOf(a, w) is { } there && SeenOnMap(there)
+            : VisibleByPlace(a);
+        bool VisibleByPlace(Actor a) => a.Location is { } at
             ? InArea(at) && PlaceVisible(at)
             : a.MapArea is { } open ? open == area && RoadVisible() // open ground of a map: daylight only
             : a.CurrentAction is TravelAction t && (InArea(t.Origin) || InArea(t.Destination)) && RoadVisible();
@@ -202,7 +209,7 @@ public sealed class SimulationSession
             Food = player.Food,
             Position = PositionOf(player, w),
             Move = MoveOf(player),
-            Map = w.Maps.TryGetValue(area, out var map) ? MapOf(map, w) : null,
+            Map = w.Maps.TryGetValue(area, out var areaMap) ? MapOf(areaMap, w) : null,
             Sheet = player.Sheet,
             Action = player.CurrentAction is { } a
                 ? new ActionView { Id = a.Id, Kind = a.Kind, StartedAt = a.StartedAt, CompletesAt = a.CompletesAt, Description = a.Description }
@@ -225,11 +232,13 @@ public sealed class SimulationSession
                 Travel = x.CurrentAction is TravelAction t
                     ? new TravelView { Action = t.Id, Origin = t.Origin, Destination = t.Destination, DepartedAt = t.StartedAt, ArrivesAt = t.CompletesAt }
                     : null,
-                Doing = player.Location is { } here && x.Location == here ? OutwardDoing(x, w) : null,
+                Doing = map is not null || (player.Location is { } here && x.Location == here) ? OutwardDoing(x, w) : null,
                 Position = PositionOf(x, w),
                 Move = MoveOf(x),
             })),
-            VisibleStores = Freeze(w.Stores.Values.Where(s => InArea(s.Location) && (s.Location == player.Location || PlaceVisible(s.Location))).Select(s => new StoreView
+            VisibleStores = Freeze(w.Stores.Values.Where(s => s.Position is { } sp && map is not null
+                ? w.Locations[s.Location].Area == map.Area && (SeenOnMap(sp) || me is { } m && m.IsAdjacentOrSame(sp))
+                : InArea(s.Location) && (s.Location == player.Location || PlaceVisible(s.Location))).Select(s => new StoreView
             {
                 Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food, Owner = s.Owner, Position = s.Position,
             })),
