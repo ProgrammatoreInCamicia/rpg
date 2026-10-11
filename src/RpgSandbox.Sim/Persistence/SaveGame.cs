@@ -783,7 +783,7 @@ internal static class SaveGame
         {
             Actor = c.Actor.Value, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus,
             MovedFeet = c.MovedFeet, ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
-            LastSeenEnemy = ToDto(c.LastSeenEnemy),
+            LastSeenEnemy = ToDto(c.LastSeenEnemy), JoinedInRound = c.JoinedInRound, Fleeing = c.Fleeing,
         }).ToList(),
         Log = e.Log.Select(r => new CombatRecordDto
         {
@@ -829,6 +829,9 @@ internal static class SaveGame
                     Actor = id, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus, MovedFeet = c.MovedFeet,
                     ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
                     LastSeenEnemy = c.LastSeenEnemy is { } seen ? new GridPos(seen.X, seen.Y) : null,
+                    JoinedInRound = c.JoinedInRound is { } joined && joined >= 1 && joined <= dto.Round ? joined
+                        : c.JoinedInRound is null ? null : throw new InvalidDataException($"ingresso nello scontro di '{id}' non valido"),
+                    Fleeing = c.Fleeing,
                 });
             }
             Check(e.Order.Any(c => c.Side == 0) && e.Order.Any(c => c.Side == 1), $"scontro {dto.Id} senza due lati");

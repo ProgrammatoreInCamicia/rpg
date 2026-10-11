@@ -18,6 +18,12 @@ public sealed record CombatProfile
     /// <summary>Characters make Death Saving Throws; other creatures die at 0 Hit Points (SRD "Monster Death").</summary>
     public required bool MakesDeathSaves { get; init; }
 
+    /// <summary>
+    /// C4c, ADAPTATION (behaviour, not an SRD rule): a creature that is no fighter keeps away from fights and runs from
+    /// one when badly hurt (below half its Hit Points).
+    /// </summary>
+    public bool Flees { get; init; }
+
     public Vitality NewVitality() => new(MaxHitPoints, MakesDeathSaves);
 }
 
@@ -88,7 +94,7 @@ public static class CombatProfiles
     /// <summary>SRD Commoner: AC 10, HP 4, Initiative +0; Club +2 (1d4).</summary>
     public static CombatProfile Commoner() => new()
     {
-        Name = "Popolano", MaxHitPoints = 4, ArmorClass = 10, InitiativeBonus = 0, MakesDeathSaves = false,
+        Name = "Popolano", MaxHitPoints = 4, ArmorClass = 10, InitiativeBonus = 0, MakesDeathSaves = false, Flees = true,
         Attacks = new[] { StatBlock("Bastone", 2, new Dice(1, 4), 0, DamageType.Bludgeoning) },
     };
 

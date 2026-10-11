@@ -428,6 +428,8 @@ internal sealed class CombatantDto
     public bool ReactionUsed { get; set; }
     public bool OpeningSpent { get; set; }
     public PosDto? LastSeenEnemy { get; set; }
+    public int? JoinedInRound { get; set; }
+    public bool Fleeing { get; set; }
 }
 
 internal sealed class OpeningDto

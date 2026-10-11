@@ -27,7 +27,10 @@ internal sealed partial class Simulation
 
         UpdateVigil(npc, inputs);
         UpdateWanted(npc, inputs);
-        var plan = RaidStep(npc, inputs)
+        var plan = JoinStep(npc, inputs)
+                   ?? FleeStep(npc, inputs)
+                   ?? InvestigateStep(npc, inputs)
+                   ?? RaidStep(npc, inputs)
                    ?? ConfrontStep(npc, inputs)
                    ?? ConfiscateStep(npc, inputs)
                    ?? ReturnStep(npc, inputs)
@@ -41,7 +44,7 @@ internal sealed partial class Simulation
         var result = plan.Act();
         if (result is { Success: false })
             reason += $" Comando rifiutato: {result.Message}";
-        if (npc.CurrentAction is null)
+        if (npc.CurrentAction is null && EncounterOf(npc) is null) // C4c: who joined a fight waits for its turn instead
         {
             // Rejected or impossible step (e.g. unreachable target): back off instead of idling forever,
             // since a free NPC with no deadline would never be asked to decide again.

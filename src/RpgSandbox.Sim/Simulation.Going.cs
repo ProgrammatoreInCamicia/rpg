@@ -228,5 +228,11 @@ internal sealed partial class Simulation
             if (met || wanted)
                 CancelAction(authority);
         }
+        // C4c: a non-fighter idling or working that sees trouble close by (a fight, someone wanted) stops to keep away.
+        foreach (var timid in World.Actors.Values.Where(a => a.MapArea == area && !a.IsPlayer && a.Conscious
+                         && a.CurrentAction is WaitAction { Interruptible: true } && ProfileOf(a).Flees)
+                     .OrderBy(a => a.Id.Value, StringComparer.Ordinal).ToList())
+            if (CurrentPosition(timid) is { } here && ThreatNear(timid, here) is not null)
+                CancelAction(timid);
     }
 }

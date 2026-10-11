@@ -467,6 +467,12 @@ internal sealed class Combatant
 
     /// <summary>Where this combatant last saw an enemy (NPCs go there when they lose sight of it).</summary>
     public GridPos? LastSeenEnemy { get; set; }
+
+    /// <summary>C4c: the round it joined the fight in; it acts from the next one.</summary>
+    public int? JoinedInRound { get; init; }
+
+    /// <summary>C4c: running from the fight; out of every enemy's sight when a round closes, it is out of it.</summary>
+    public bool Fleeing { get; set; }
 }
 
 internal sealed record OpeningAttack(ActorId Attacker, ActorId Target, string Attack, bool NonLethal);

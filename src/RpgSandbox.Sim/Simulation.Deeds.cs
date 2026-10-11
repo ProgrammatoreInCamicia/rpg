@@ -107,12 +107,12 @@ internal sealed partial class Simulation
                 if (opening && seesTarget)
                     (known.Victim, known.VictimName) = (target.Id, target.Name);
             }
+            Alarm(witness, isNew); // C4c: it stops to decide whether to join, look or keep away
             if (!isNew)
                 continue;
             World.RecordFact(heard ? "FightHeard" : "FightWitnessed",
                 heard ? $"{witness.Name} sente rumori di lotta{(known.Location is { } l ? $" verso {World.Locations[l].Name}" : " lì vicino")}."
                 : $"{witness.Name} vede uno scontro: {Deeds.Who(known)}.", witness.Id);
-            InterruptRoutine(witness);
         }
     }
 
@@ -141,7 +141,7 @@ internal sealed partial class Simulation
                 See(deed, victim);
             }
             World.RecordFact("KillingWitnessed", $"{witness.Name} vede un'uccisione: {Deeds.Who(deed)}.", witness.Id);
-            InterruptRoutine(witness);
+            Alarm(witness, firstNews: true);
         }
     }
 

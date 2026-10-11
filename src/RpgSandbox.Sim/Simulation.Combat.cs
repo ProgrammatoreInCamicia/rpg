@@ -267,6 +267,8 @@ internal sealed partial class Simulation
         c.ReactionUsed = false; // SRD: a Reaction comes back at the start of one's own turn
         c.ActionUsed = c.OpeningSpent;
         c.OpeningSpent = false;
+        if (c.JoinedInRound == e.Round)
+            return false; // C4c: who joined during this round acts from the next one
         if (actor.Vitality.State == LifeState.Dying)
         {
             DeathSave(e, actor);
@@ -318,6 +320,13 @@ internal sealed partial class Simulation
 
     /// <summary>Every turn of the round is played: a round with no attack and no enemy in sight ends the fight; otherwise the next round in 6 s.</summary>
     private void CloseRound(Encounter e)
+    {
+        if (Escapes(e))
+            return; // the fight ended: a side has nobody left in it
+        CloseRoundAfterEscapes(e);
+    }
+
+    private void CloseRoundAfterEscapes(Encounter e)
     {
         if (!e.AttackedThisRound && !AnyoneSeesAnEnemy(e))
         {
@@ -743,6 +752,8 @@ internal sealed partial class Simulation
     /// </summary>
     private void NpcTurn(Encounter e, Combatant c, Actor npc)
     {
+        if (FleeTurn(e, c, npc))
+            return; // C4c: a commoner badly hurt runs instead of fighting
         Actor? Target() => EnemiesOf(e, npc).Where(f => f.Conscious && SeesActor(npc, f))
             .OrderBy(f => CurrentPosition(npc)!.Value.StepsTo(CurrentPosition(f)!.Value)).ThenBy(f => f.Id.Value, StringComparer.Ordinal)
             .FirstOrDefault();

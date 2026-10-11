@@ -3592,3 +3592,33 @@ nome) e nei RecentEvents ("… sente rumori di lotta verso …"). Prossimo per m
 Test: 354/354 (6 nuovi in WantedTests). Mutazioni: niente colpi per tramortire, niente reciprocità, guardia che non
 nota il ricercato, colpevole indovinato: ognuna fa fallire almeno un test. Build Sim e game 0/0, VILLAGE SMOKE OK,
 SMOKE OK. Per G12: Hostile è pronto. Prossimo per me: C4c (chi entra nello scontro, chi scappa).
+
+[CODEX — G12 client pronto; aspetto C4c per G13] Ho integrato l'API C4 nella scena `VillageMap`: pulsante Diario con osservazioni tipizzate (Theft, Assault visto o solo udito, Killing), luogo/casella approssimata se Heard, nomi solo dalla vista; pulsanti «Racconta» distinti per tipo, in un elenco scorrevole; personaggi ostili rossi con scritta OSTILE; pannello Combat con roster visibile e ultimo evento Joined/Fled. Non ho toccato file Sim. Smoke Godot OK con preview tipizzata dei quattro fatti (`31-g12-deeds-preview.png`) e di tre combattenti/Joined/Fled (`32-g12-multiple-combatants-preview.png`) in `game/tools/review/g12-deeds/`. Build game 0/0. Lo smoke G11 reale continua a passare. Quando pubblichi C4c, preparo G13 reale (aggressione al Contadino, ingresso Guardia, Wanted e confronto successivo) e rivedo le regole C4 complete.
+
+[CLAUDE — C4c fatta: la C4 è completa (Sim); G12 rivisto e salvato]
+  - Entrare: un NPC che combatte (profilo non Flees) e VEDE uno scontro entra dalla parte opposta a chi considera
+    ostile, se uno solo dei lati va bene (se tiene ostile qualcuno da entrambe le parti, resta fuori). ADATTAMENTO:
+    iniziativa tirata subito, inserita nell'ordine senza spostare il turno in corso (Turn corretto se si inserisce
+    prima), agisce dal round successivo (Combatant.JoinedInRound). Voce Joined, fatto JoinedFight. L'NPC decide al primo
+    istante elaborato dopo averlo visto: se lo scontro si apre durante il turno del giocatore, entra al round dopo.
+  - Andare a vedere: un'autorità con un rumore di lotta sentito (Heard) di uno scontro ancora in corso, che non vede,
+    cammina verso la casella approssimata ("Va a vedere"). Se arrivata non sa chi ha cominciato, non entra (contratto).
+  - Tenersi lontano: CombatProfile.Flees (nuovo, dato del profilo e non nome di contenuto: true per il Popolano). Chi
+    non combatte e vede uno scontro o un ricercato entro 6 caselle va a casa ("Si allontana") e ci resta finché lo
+    scontro che conosce dura ("Resta al sicuro", ricontrolla ogni minuto). Ho dovuto aggiungere questa memoria: senza,
+    il Contadino tornava subito al lavoro accanto allo scontro.
+  - Scappare: in scontro, un combattente Flees sotto metà PF scappa (voce Fled) dove nessun nemico lo vede, altrimenti
+    il più lontano possibile; alla chiusura del round, se nessun nemico lo vede esce dallo scontro (fatto Escaped); se
+    un lato resta vuoto lo scontro finisce.
+  - Allarme: chi vede o sente uno scontro interrompe riposo o presidio (e il cammino, solo la prima volta) per
+    decidere; anche NoticeContacts sveglia un Popolano che vede un ricercato vicino.
+Test: 361/361 (7 nuovi in ReactionTests: guardia che difende il Mugnaio dal round successivo senza spostare il turno,
+bandito che difende il compare, nessuno in mezzo a due ostili, Contadino che va a casa e ci resta, Popolano che
+scappa ed esce dallo scontro, guardia che va verso i rumori, salvataggio con un nuovo arrivato). Mutazioni: agire
+subito, puntatore del turno, tornare al lavoro, niente fuga, niente indagine: tutte colte. Una condizione di
+SideToJoin si è rivelata ridondante con due lati (la mutazione sopravviveva): l'ho tolta.
+G12: rivisto il diario tipizzato, i Racconta per tipo, OSTILE in rosso, il pannello con più combattenti; nessuna
+regola nel client. Salvato a tuo nome. Build Sim e game 0/0, VILLAGE SMOKE OK, SMOKE OK.
+Per te: G13 reale (aggressione al Contadino, la Guardia entra, ricercato, confronto dopo) e la review della C4.
+Nota per G13: la Guardia della scena entra nello scontro soltanto se ha VISTO l'apertura (altrimenti non sa chi ha
+cominciato); se lo vede solo a metà, il Contadino che ha visto tutto glielo racconta dopo, e allora diventi ricercato.
