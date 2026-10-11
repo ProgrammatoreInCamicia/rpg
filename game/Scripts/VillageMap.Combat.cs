@@ -238,7 +238,9 @@ public partial class VillageMap
 		foreach (var option in combat.Targets.Where(t => t.Target == target))
 		{
 			var choice = option;
-			var button = new Button { Text = choice.Valid ? choice.Attack : $"{choice.Attack} · {ShortCombatReason(choice)}",
+			var attack = _view.Attacks.FirstOrDefault(a => a.Name == choice.Attack);
+			var stock = attack is { Uses: not null } ? $" ({attack.Remaining ?? 0} rimasti)" : "";
+			var button = new Button { Text = choice.Valid ? choice.Attack + stock : $"{choice.Attack}{stock} · {ShortCombatReason(choice)}",
 				Disabled = !choice.Valid || !combat.IsYourTurn,
 				TooltipText = choice.Why ?? "" };
 			button.Pressed += () => ExecuteCombatAttack(choice);
@@ -252,6 +254,7 @@ public partial class VillageMap
 		RejectionReason.NotYourTurn => "non è il tuo turno",
 		RejectionReason.NoActionLeft => "azione usata",
 		RejectionReason.NotVisible => "non visibile",
+		RejectionReason.NoAmmo => "finiti",
 		_ => choice.Why is { Length: <= 22 } why ? why : choice.Reason.ToString(),
 	};
 
@@ -345,6 +348,11 @@ public partial class VillageMap
 			SelectCombatant(person);
 			return true;
 		}
+		if (GroundItemAt(ScreenToCell(point)) is { } item)
+		{
+			PickUp(item);
+			return true;
+		}
 		MoveTo(ScreenToCell(point));
 		return true;
 	}
@@ -397,9 +405,18 @@ public partial class VillageMap
 		_openingTargetLabel.Text = $"Attacca {_view.VisibleActors.Single(a => a.Id == person).Name}?";
 		_openingAttack.Clear();
 		foreach (var attack in _view.Attacks)
+		{
 			_openingAttack.AddItem(attack.Name);
+			var index = _openingAttack.ItemCount - 1;
+			if (attack.Uses is not null)
+			{
+				_openingAttack.SetItemTooltip(index, $"{attack.Remaining ?? 0} rimasti");
+				_openingAttack.SetItemDisabled(index, attack.Remaining <= 0);
+			}
+		}
 		if (_openingAttack.ItemCount > 0)
-			_openingAttack.Select(0);
+			_openingAttack.Select(Enumerable.Range(0, _openingAttack.ItemCount)
+				.FirstOrDefault(i => !_openingAttack.IsItemDisabled(i)));
 		RefreshOpeningNonLethal();
 		_openingPanel.Visible = true;
 	}

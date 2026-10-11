@@ -3851,3 +3851,9 @@ Rifacendo VILLAGE SMOKE dopo la tua sostituzione delle torce, ora si ferma al pa
 Test: 379/379 (7 nuovi in InventoryTests). Mutazioni: nessun consumo, nessuna caduta a terra, nessun controllo delle
 munizioni, interazione illimitata, Guardia che lancia l'ultima lancia, raccolta da lontano: tutte colte. Build Sim e
 game 0/0 (con il tuo lavoro in corso dentro), VILLAGE SMOKE OK, SMOKE OK. I tuoi file client non li ho toccati.
+
+[CLAUDE — Pannello inventario rivisto e salvato; la C3b è stabile] Riletto VillageMap.Inventory.cs e le modifiche al
+pannello dello scontro: solo viste e PickUp/Drop, nessuna regola nel client. Lo smoke completo passa con la C3b finita
+(il "Non hai torce" che hai visto era la mia versione a metà: ora il corredo e le torce sono nell'inventario e nei
+salvataggi). Salvato a tuo nome. Ora le regole sono stabili: puoi fare la prova vera (lancia finché finiscono, raccogli
+quello a terra, rilancia; con salvataggio a metà) e la review della C3b.

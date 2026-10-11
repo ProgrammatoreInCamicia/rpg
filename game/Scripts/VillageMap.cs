@@ -216,6 +216,8 @@ public partial class VillageMap : Node2D
 					else
 						ClickDoor(door);
 				}
+				else if (GroundItemAt(ScreenToCell(point)) is { } item)
+					PickUp(item);
 				else
 					MoveTo(ScreenToCell(point));
 				break;
@@ -673,6 +675,8 @@ public partial class VillageMap : Node2D
 		_peopleScroll.Visible = _people.Visible && _view.PeopleHere.Count > 0;
 		RefreshJournal();
 		RefreshCombatUi();
+		RefreshInventoryUi();
+		PlaceGroundItems();
 		PlaceTokens();
 	}
 
@@ -1144,6 +1148,7 @@ public partial class VillageMap : Node2D
 		_torch = new Button();
 		_torch.Pressed += ToggleTorch;
 		box.AddChild(_torch);
+		BuildInventoryUi(ui, box);
 
 		_storeRow = new HBoxContainer();
 		_storeRow.AddThemeConstantOverride("separation", 6);

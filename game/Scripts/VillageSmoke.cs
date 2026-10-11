@@ -238,6 +238,23 @@ public partial class VillageSmoke : Node
 		await NightDuel();
 		await DaylightAssault();
 		await CombatActions();
+		await InventoryPreview();
+	}
+
+	/// <summary>Render the published C3b view contract before the inventory rules are wired into the Sim.</summary>
+	private async Task InventoryPreview()
+	{
+		_map.SetPaused(true);
+		var at = _map.View.Position!.Value;
+		var ground = new GridPos(at.X + 1, at.Y);
+		_map.PreviewInventoryForSmoke(
+			new[] { new ItemStackView { Item = new ItemId("javelin"), Name = "Giavellotto", Count = 3 },
+				new ItemStackView { Item = new ItemId("torch"), Name = "Torcia", Count = 2 } },
+			new[] { new GroundItemView { At = ground, Item = new ItemId("javelin"),
+				Name = "Giavellotto", Count = 1 } }, 930);
+		Require(_map.GroundMarkVisibleForSmoke(ground), "C3b preview: the ground item is not marked");
+		await Frames(2);
+		Capture("41-c3b-inventory-preview.png");
 	}
 
 	/// <summary>G14: the C3a choices are usable in the village HUD, including a saved disengaged turn.</summary>
