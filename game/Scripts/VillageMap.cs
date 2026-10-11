@@ -675,6 +675,7 @@ public partial class VillageMap : Node2D
 		_peopleScroll.Visible = _people.Visible && _view.PeopleHere.Count > 0;
 		RefreshJournal();
 		RefreshCombatUi();
+		ObserveCombatVisuals();
 		RefreshInventoryUi();
 		PlaceGroundItems();
 		PlaceTokens();
@@ -742,10 +743,11 @@ public partial class VillageMap : Node2D
 				continue;
 			if (!_tokens.TryGetValue(figure.Id, out var token))
 			{
-				token = MakeToken(figure.Name, figure.Player);
+				token = MakeToken(figure.Id, figure.Name, figure.Player);
 				_tokens[figure.Id] = token;
 				_sorted.AddChild(token);
 			}
+			var previousPosition = token.Position;
 			token.Position = SmoothPosition(figure.Position.Value, figure.Move);
 			token.Modulate = Shade(ScreenToCell(token.Position));
 			var prone = figure.Condition is "morto" or "tramortito"
@@ -753,6 +755,7 @@ public partial class VillageMap : Node2D
 			token.GetNode<Polygon2D>("Body").Visible = !prone;
 			token.GetNode<Polygon2D>("Head").Visible = !prone;
 			token.GetNode<Polygon2D>("Prone").Visible = prone;
+			UpdateFigureSprite(token, figure.Id, previousPosition, figure.Move, prone);
 			token.GetNode<Line2D>("DodgeMark").Visible = !prone && _view.Combat is { } combat
 				&& (figure.Player ? combat.You.Dodging
 					: combat.Combatants.Any(c => c.Id == figure.Id && c.Dodging));
@@ -944,6 +947,7 @@ public partial class VillageMap : Node2D
 		AddChild(_floor);
 		_sorted = new Node2D { YSortEnabled = true };
 		AddChild(_sorted);
+		LoadGroundTextures();
 
 		for (var y = 0; y < map.Height; y++)
 		for (var x = 0; x < map.Width; x++)
@@ -961,11 +965,12 @@ public partial class VillageMap : Node2D
 			};
 			var shade = (x + y) % 2 == 0 ? 0f : 0.05f;
 			var tile = new Polygon2D { Polygon = Diamond(), Position = CellToScreen(cell), Color = color.Darkened(shade) };
+			ApplyGroundTexture(tile, c, map.Zones.TryGetValue(c, out var floorZone) ? floorZone : null, cell, shade);
 			_floor.AddChild(tile);
 			_lit[cell] = tile;
 			if (c == '#')
 			{
-				var wall = MakeBlock(cell, Wall, WallHeight);
+				var wall = MakeBlock(cell, Wall, WallHeight, _stoneWallTexture);
 				_sorted.AddChild(wall);
 				_lit[cell] = wall; // the floor under a wall is hidden anyway
 			}
@@ -974,7 +979,7 @@ public partial class VillageMap : Node2D
 		foreach (var store in _sim.GetWorldView().Stores.Where(s => s.Position is not null
 			&& _view.Locations.Any(l => l.Id == s.Location && l.Area == map.Area)))
 		{
-			var block = MakeBlock(store.Position!.Value, new Color(0.65f, 0.45f, 0.30f), 34f);
+			var block = MakeBlock(store.Position!.Value, new Color(0.65f, 0.45f, 0.30f), 34f, _woodTexture);
 			// Keep the west access clear for the raider/guard labels during a raid.
 			var label = new Label { Text = store.Name, Position = new Vector2(24, -70) };
 			label.AddThemeFontSizeOverride("font_size", 12);
@@ -997,7 +1002,7 @@ public partial class VillageMap : Node2D
 				Width = 2f, Visible = false };
 			_floor.AddChild(outline);
 			_doorOutlines[door.At] = outline;
-			var panel = MakeBlock(door.At, DoorWood, WallHeight);
+			var panel = MakeBlock(door.At, DoorWood, WallHeight, _woodTexture);
 			_sorted.AddChild(panel);
 			_doorPanels[door.At] = panel;
 		}
@@ -1026,18 +1031,37 @@ public partial class VillageMap : Node2D
 	}
 
 	/// <summary>A raised isometric block on a square (walls, the store), with its origin at the base for Y-sorting.</summary>
-	private static Node2D MakeBlock(GridPos cell, Color color, float height)
+	private static Node2D MakeBlock(GridPos cell, Color color, float height, Texture2D? texture = null)
 	{
 		var node = new Node2D { Position = CellToScreen(cell) };
 		var d = Diamond(0.98f);
 		var up = new Vector2(0, -height);
-		node.AddChild(new Polygon2D { Polygon = new[] { d[3], d[2], d[2] + up, d[3] + up }, Color = color.Darkened(0.3f) });
-		node.AddChild(new Polygon2D { Polygon = new[] { d[2], d[1], d[1] + up, d[2] + up }, Color = color.Darkened(0.12f) });
-		node.AddChild(new Polygon2D { Polygon = new[] { d[0] + up, d[1] + up, d[2] + up, d[3] + up }, Color = color.Lightened(0.1f) });
+		Polygon2D Face(Vector2[] points, Color tint, float textureShade, bool top)
+		{
+			var face = new Polygon2D { Polygon = points, Color = texture is null ? tint : top
+				? Colors.White : Colors.White.Darkened(textureShade) };
+			if (texture is not null)
+			{
+				var span = Math.Max(1, texture.GetWidth() * 160 / 1254);
+				var margin = Math.Max(1, texture.GetWidth() * 120 / 1254);
+				var sx = margin + (cell.X * 73 + cell.Y * 101) % (texture.GetWidth() - 2 * margin);
+				var sy = margin + (cell.X * 89 + cell.Y * 59) % (texture.GetHeight() - 2 * margin);
+				face.Texture = texture;
+				face.UV = top
+					? new[] { new Vector2(sx, sy - span / 2), new Vector2(sx + span / 2, sy),
+						new Vector2(sx, sy + span / 2), new Vector2(sx - span / 2, sy) }
+					: new[] { new Vector2(sx, sy), new Vector2(sx + span, sy),
+						new Vector2(sx + span, sy + span), new Vector2(sx, sy + span) };
+			}
+			return face;
+		}
+		node.AddChild(Face(new[] { d[3], d[2], d[2] + up, d[3] + up }, color.Darkened(0.3f), 0.32f, false));
+		node.AddChild(Face(new[] { d[2], d[1], d[1] + up, d[2] + up }, color.Darkened(0.12f), 0.15f, false));
+		node.AddChild(Face(new[] { d[0] + up, d[1] + up, d[2] + up, d[3] + up }, color.Lightened(0.1f), 0f, true));
 		return node;
 	}
 
-	private static Node2D MakeToken(string name, bool player)
+	private Node2D MakeToken(ActorId id, string name, bool player)
 	{
 		var token = new Node2D();
 		var color = player ? new Color(0.25f, 0.45f, 0.85f) : new Color(0.35f, 0.65f, 0.35f);
@@ -1062,6 +1086,7 @@ public partial class VillageMap : Node2D
 			Color = color,
 			Visible = false,
 		});
+		AddFigureSprite(token, id);
 		token.AddChild(new Line2D
 		{
 			Name = "DodgeMark",

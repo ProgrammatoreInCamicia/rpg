@@ -42,6 +42,9 @@ public partial class VillageSmoke : Node
 		Require(DirAccess.MakeDirRecursiveAbsolute(_outputDir) == Error.Ok, "Cannot create screenshot directory");
 		await Frames(10);
 		Require(_map.View.Position == MappedVillageScenario.Ids.PlayerStart, "Player does not start at the inn");
+		Require(_map.HasFigureSpriteForSmoke(MappedVillageScenario.Ids.Player)
+			&& _map.HasFigureSpriteForSmoke(MappedVillageScenario.Ids.Guard),
+			"G15: directional character sprite did not load in the village");
 		Capture("1-start.png");
 		_map.OpenInventoryForSmoke();
 		Require(_map.EquipmentLabelsForSmoke.Any(x => x == "Armatura: Cotta di maglia")
@@ -605,6 +608,8 @@ public partial class VillageSmoke : Node
 		_map.OpenCombatForSmoke(raider, "Giavellotto (lanciato)");
 		Require(_map.View.Combat is not null, $"G11: opening attack did not start a fight: {_map.LastMessage}");
 		await Frames(2);
+		Require(_map.AttackVisualActiveForSmoke(_map.View.Id),
+			"G15: the opening attack did not trigger its visual animation");
 		Capture("27-duel-start.png");
 		Require(_map.View.Combat!.Log.Any(e => e.Kind == CombatLogKind.Attack && e.Actor == _map.View.Id),
 			"G11: the opening attack is missing from the combat log");
@@ -859,6 +864,8 @@ public partial class VillageSmoke : Node
 		await Frames(3);
 		Require(_map.View.Position == MappedVillageScenario.Ids.GranaryAccess,
 			"The UI did not load the player at the granary entrance");
+		Require(_map.HasFigureSpriteForSmoke(MappedVillageScenario.Ids.Farmer),
+			"G15: the farmer sprite did not load in daylight");
 		Capture("16-daylight-granary.png");
 
 		_map.SetPaused(false);
