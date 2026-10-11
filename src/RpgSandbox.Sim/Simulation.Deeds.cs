@@ -69,11 +69,15 @@ internal sealed partial class Simulation
     {
         var map = World.Maps[e.Area];
         var square = CurrentPosition(target)!.Value;
-        foreach (var witness in World.Actors.Values.Where(a => a.MapArea == e.Area && a.Conscious && EncounterOf(a) is null)
+        // A combatant cannot watch its own fight from outside, but the one attacked at the start knows who attacked it
+        // (if it saw them). Not who started it, nor who joined later (they saw it, if at all, as bystanders).
+        var attacked = e.Order.FirstOrDefault(c => c.Side == 1 && c.JoinedInRound is null)?.Actor;
+        foreach (var witness in World.Actors.Values.Where(a => a.MapArea == e.Area && a.Conscious
+                     && (EncounterOf(a) is null || (a.Id == target.Id && a.Id == attacked)))
                      .OrderBy(a => a.Id.Value, StringComparer.Ordinal).ToList())
         {
             var seesAttacker = SeesActor(witness, attacker);
-            var seesTarget = SeesActor(witness, target);
+            var seesTarget = witness.Id == target.Id || SeesActor(witness, target);
             var heard = !seesAttacker && !seesTarget && CurrentPosition(witness) is { } ear && WithinEarshot(map, ear, square);
             if (!seesAttacker && !seesTarget && !heard)
                 continue;
@@ -112,6 +116,7 @@ internal sealed partial class Simulation
                 continue;
             World.RecordFact(heard ? "FightHeard" : "FightWitnessed",
                 heard ? $"{witness.Name} sente rumori di lotta{(known.Location is { } l ? $" verso {World.Locations[l].Name}" : " lì vicino")}."
+                : witness.Id == target.Id ? $"{witness.Name} è aggredito: {Deeds.Who(known)}."
                 : $"{witness.Name} vede uno scontro: {Deeds.Who(known)}.", witness.Id);
         }
     }

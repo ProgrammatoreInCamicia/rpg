@@ -69,6 +69,38 @@ public class DeedTests
     }
 
     [Fact]
+    public void The_victim_knows_who_attacked_it_even_when_no_bystander_sees_the_opening()
+    {
+        var s = Village();
+        Of(s, Farmer).Vitality.TakeDamage(4, knockOut: true);
+        Assert.True(Strike(s, Miller).Success);
+
+        var victim = Deeds(s, Miller, DeedKind.Assault).Single();
+        Assert.Equal((s.Player, Miller), (victim.Culprit, victim.Victim));
+        Assert.Equal(PerceptionMode.Seen, victim.Perceived);
+        Assert.Empty(Deeds(s, Farmer, DeedKind.Assault));
+    }
+
+    [Fact]
+    public void Who_started_a_fight_and_is_struck_back_keeps_no_testimony_of_it()
+    {
+        // The miller hits back at the player: the player started it, it is no witness of its own fight.
+        var s = FirstSeed(seed =>
+        {
+            var x = Village(seed);
+            Strike(x, Miller);
+            if (x.GetPlayerView().Combat is not { IsYourTurn: true })
+                return x;
+            x.Execute(new EndTurnCommand { Actor = x.Player });
+            x.Advance(Duration.FromSeconds(6));
+            return x;
+        }, x => x.GetWorldView().RecentFacts.Any(f => f.Kind == "Attack" && f.Description.StartsWith("Mugnaio attacca Paladino")));
+
+        Assert.Empty(Deeds(s, s.Player, DeedKind.Assault));
+        Assert.Equal(s.Player, Deeds(s, Miller, DeedKind.Assault).Single().Culprit);
+    }
+
+    [Fact]
     public void Who_starts_watching_later_sees_who_fights_but_not_who_started()
     {
         var s = FirstSeed(seed =>
@@ -170,7 +202,7 @@ public class DeedTests
         var loaded = s.SaveAndReload();
 
         Assert.Equal(s.SaveToString(), loaded.SaveToString());
-        Assert.Equal(s.GetPlayerView().Observations, loaded.GetPlayerView().Observations);
+        Assert.Equivalent(s.GetPlayerView().Observations, loaded.GetPlayerView().Observations);
     }
 
     [Fact]
