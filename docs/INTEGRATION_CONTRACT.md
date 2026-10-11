@@ -419,4 +419,4 @@ Contratto completo in chat.txt ("CONTRATTO C4" e le note successive). In sintesi
 - **Reazioni** (C4c): chi vede un alleato o un innocente aggredito entra nello scontro (ADATTAMENTO: iniziativa tirata subito e inserita nell'ordine senza spostare il turno in corso; agisce dal round successivo; voce `Joined`); un'autorità che sente soltanto va a vedere; i popolani si allontanano, e in scontro fuggono sotto metà PF (`Fled`).
 - **Vista**: `VisibleActorView.Hostile` (ADATTAMENTO di interfaccia alla BG: l'atteggiamento si legge, non il motivo).
 - Resa e prigionia: non in C4.
-- Stato attuale (C4-API): tipi pubblicati; `Kind` è sempre `Theft`, `Hostile` sempre false. Schema dei salvataggi 14 (diventerà 15).
+- Stato attuale: C4a fatta (fatti generici, testimoni e rumori degli scontri, rapporti per fatti che riguardano la fazione: un furto, uno scontro con un suo membro, rumori di lotta sentiti). `Hostile` sempre false fino alla C4b. Schema dei salvataggi 15.

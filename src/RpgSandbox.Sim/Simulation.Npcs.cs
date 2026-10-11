@@ -160,7 +160,7 @@ internal sealed partial class Simulation
             return null;
 
         var news = npc.Knowledge
-            .Where(o => World.Stores[o.Store].Owner == factionId && !npc.ActedOn.Contains(o.Origin))
+            .Where(o => o.Kind == DeedKind.Theft && World.Stores[o.Store!.Value].Owner == factionId && !npc.ActedOn.Contains(o.Origin))
             .OrderBy(o => o.LearnedAt).ThenBy(o => o.Id)
             .FirstOrDefault();
         if (news is null)
@@ -169,22 +169,22 @@ internal sealed partial class Simulation
         npc.ActedOn.Add(news.Origin);
         // A recognised thief owes the stolen rations: the authority will ask for them when it meets him.
         // One claim per theft, however many people saw it, and never again once it was made good.
-        if (news.Thief is { } culprit && culprit != npc.Id && news.Fact is { } theft
+        if (news.Culprit is { } culprit && culprit != npc.Id && news.Fact is { } theft
             && !npc.SettledThefts.Contains(theft) && npc.Claims.All(c => c.Theft != theft))
-            npc.Claims.Add(new Claim { Thief = culprit, Store = news.Store, Theft = theft, Owed = news.Amount });
+            npc.Claims.Add(new Claim { Thief = culprit, Store = news.Store!.Value, Theft = theft, Owed = news.Amount });
         var until = World.Now.Plus(Tuning.GuardDutyLength);
-        if (npc.GuardDuty is { } current && current.Store == news.Store)
+        if (npc.GuardDuty is { } current && current.Store == news.Store!.Value)
         {
             npc.GuardDuty = new GuardDuty { Store = current.Store, Since = current.Since, Until = until };
         }
         else
         {
-            npc.GuardDuty = new GuardDuty { Store = news.Store, Since = World.Now, Until = until };
+            npc.GuardDuty = new GuardDuty { Store = news.Store!.Value, Since = World.Now, Until = until };
             World.RecordFact("GuardDutyStarted", $"{npc.Name} decide di sorvegliare {news.StoreName}.");
         }
 
         inputs.Add($"Sa del furto da {news.StoreName} del {Clock(news.ObservedAt)}" +
-                   (news.ThiefName is { } thief ? $" (ladro: {thief})" : " (ladro sconosciuto)") +
+                   (news.CulpritName is { } thief ? $" (ladro: {thief})" : " (ladro sconosciuto)") +
                    (news.Source is { } source ? $", gliel'ha detto {World.Actors[source].Name}" : ", l'ha visto di persona"));
         var step = GuardStep(npc, inputs)!;
         return step with
@@ -268,21 +268,22 @@ internal sealed partial class Simulation
         if (npc.Faction is not { } factionId || World.Factions[factionId].Authority is not { } authorityId || authorityId == npc.Id)
             return null;
 
-        // Only first-hand testimony goes to the authority: nobody bothers the guard with hearsay.
+        // Only first-hand testimony goes to the authority: nobody bothers the guard with hearsay. C4a: of a theft, or of a
+        // fight that concerns the faction (one of its members seen in it, or fighting heard nearby).
         var untold = npc.Knowledge
-            .Where(o => o.Source is null && !o.ToldTo.Contains(authorityId))
+            .Where(o => o.Source is null && !o.ToldTo.Contains(authorityId) && Concerns(o, factionId))
             .OrderBy(o => o.LearnedAt).ThenBy(o => o.Id)
             .FirstOrDefault();
         if (untold is null)
             return null;
 
         var authority = World.Actors[authorityId];
-        inputs.Add($"Sa del furto da {untold.StoreName} e non l'ha ancora detto a {authority.Name}");
+        inputs.Add($"Sa {Deeds.About(untold)} e non l'ha ancora detto a {authority.Name}");
 
         // The authority's post is common knowledge; where it is right now is only known by looking around. To talk one
         // must be next to it on a map (T6c-4), in the same place elsewhere.
         if (CanTalk(npc, authority))
-            return Do("Riferisci il furto", $"Racconta a {authority.Name} del furto da {untold.StoreName}.",
+            return Do(untold.Kind == DeedKind.Theft ? "Riferisci il furto" : "Riferisci lo scontro", $"Racconta a {authority.Name} {Deeds.About(untold)}.",
                 new ReportCommand { Actor = npc.Id, Recipient = authority.Id, Observation = untold.Id });
         if (StepNextTo(npc, authority) is { } approach)
             return new Plan("Va dalla guardia", $"Vede {authority.Name} e le va accanto per parlarle.", () => Execute(approach));
@@ -304,7 +305,7 @@ internal sealed partial class Simulation
             return;
 
         foreach (var news in npc.Knowledge
-                     .Where(o => World.Stores[o.Store].Owner == factionId && !npc.ActedOn.Contains(o.Origin))
+                     .Where(o => o.Kind == DeedKind.Theft && World.Stores[o.Store!.Value].Owner == factionId && !npc.ActedOn.Contains(o.Origin))
                      .OrderBy(o => o.LearnedAt).ThenBy(o => o.Id)
                      .ToList())
         {
@@ -312,7 +313,7 @@ internal sealed partial class Simulation
             var until = World.Now.Plus(Tuning.VigilLength);
             if (npc.Vigil is null)
                 World.RecordFact("VigilStarted", $"{npc.Name} decide di tenere d'occhio {news.StoreName}.");
-            npc.Vigil = new Vigil { Store = news.Store, Until = until };
+            npc.Vigil = new Vigil { Store = news.Store!.Value, Until = until };
             inputs.Add($"Sa del furto da {news.StoreName}" +
                        (news.Source is { } source ? $" (gliel'ha detto {World.Actors[source].Name})" : " (l'ha visto)") +
                        $": vigila fino al giorno {until.Day + 1} {Clock(until)}");
@@ -430,4 +431,10 @@ internal sealed partial class Simulation
         }
         return null;
     }
+
+    /// <summary>C4a: a deed the faction's authority should hear of: any theft; a fight with a member in it, or heard nearby.</summary>
+    private bool Concerns(Observation o, FactionId faction) =>
+        o.Kind == DeedKind.Theft
+        || o.Perceived == PerceptionMode.Heard
+        || o.Involved.Any(i => World.Actors[i.Id].Faction == faction);
 }

@@ -157,22 +157,56 @@ internal sealed class GuardDuty
     public required GameTime Until { get; init; }
 }
 
+/// <summary>C4: the kinds of deed an actor can know about.</summary>
+internal enum DeedKind
+{
+    Theft,
+
+    /// <summary>A fight; its culprit is whoever started it, known only to whoever perceived the start.</summary>
+    Assault,
+
+    /// <summary>A death blow, a deed of its own: who struck it did not necessarily start the fight.</summary>
+    Killing,
+}
+
 /// <summary>
-/// Something an actor knows about a theft. Self-contained: it describes what was perceived at the time
-/// (the thief may be unknown) and never reads the current world. Copies passed on keep the origin id.
+/// Something an actor knows about a deed (C4: a theft, a fight, a killing). Self-contained: it describes what was
+/// perceived at the time (the culprit may be unknown) and never reads the current world; a first-hand observation of
+/// a fight grows while the witness watches it (who else it sees taking part). Copies passed on keep the origin id.
 /// </summary>
 internal sealed class Observation
 {
     public required ObservationId Id { get; init; }
     public required ObservationId Origin { get; init; }
-    public required StoreId Store { get; init; }
-    public required string StoreName { get; init; }
-    public required LocationId Location { get; init; }
-    public required int Amount { get; init; }
+    public DeedKind Kind { get; init; } = DeedKind.Theft;
 
-    /// <summary>Null when the witness did not recognise the thief.</summary>
-    public ActorId? Thief { get; init; }
-    public string? ThiefName { get; init; }
+    /// <summary>Theft only: the store, its name, the rations taken.</summary>
+    public StoreId? Store { get; init; }
+    public string? StoreName { get; init; }
+    public int Amount { get; init; }
+
+    /// <summary>Where it happened; null on open ground.</summary>
+    public LocationId? Location { get; set; }
+
+    /// <summary>On a map: the square when seen, the centre of its 5×5 block when only heard. Null off the maps.</summary>
+    public GridPos? Square { get; set; }
+
+    /// <summary>
+    /// The thief; for an Assault who started the fight; for a Killing who struck the death blow. Null when the witness
+    /// did not recognise them.
+    /// </summary>
+    public ActorId? Culprit { get; set; }
+    public string? CulpritName { get; set; }
+
+    /// <summary>For an Assault who was attacked at the start; for a Killing who died. Null when not seen.</summary>
+    public ActorId? Victim { get; set; }
+    public string? VictimName { get; set; }
+
+    /// <summary>Everyone seen taking part in a fight, in the order they were seen.</summary>
+    public List<(ActorId Id, string Name)> Involved { get; init; } = new();
+
+    /// <summary>The fight this is about (internal: links an Assault and its Killings; never shown to the player).</summary>
+    public long? Encounter { get; init; }
 
     public required GameTime ObservedAt { get; init; }
     public required GameTime LearnedAt { get; init; }
@@ -183,8 +217,8 @@ internal sealed class Observation
     /// <summary>The fact this is about (internal: also identifies the theft for claims; never shown to the player).</summary>
     public FactId? Fact { get; init; }
 
-    /// <summary>How the first-hand witness perceived it; copies passed on keep it.</summary>
-    public PerceptionMode Perceived { get; init; } = PerceptionMode.Seen;
+    /// <summary>How the first-hand witness perceived it; copies passed on keep it. A fight heard, then seen, becomes Seen.</summary>
+    public PerceptionMode Perceived { get; set; } = PerceptionMode.Seen;
 
     /// <summary>Who this actor has already told, so it does not repeat itself.</summary>
     public SortedSet<ActorId> ToldTo { get; } = new();

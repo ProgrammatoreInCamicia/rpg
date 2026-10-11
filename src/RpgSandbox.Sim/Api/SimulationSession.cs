@@ -344,23 +344,29 @@ public sealed class SimulationSession
         };
     }
 
-    private static string Summary(Observation o) =>
-        $"furto di {o.Amount} razioni da {o.StoreName}, giorno {o.ObservedAt.Day + 1} alle {o.ObservedAt.Hour:00}:{o.ObservedAt.Minute:00}" +
-        (o.ThiefName is { } thief ? $" ({thief})" : " (ladro sconosciuto)");
+    private static string Summary(Observation o) => o.Kind == DeedKind.Theft
+        ? $"furto di {o.Amount} razioni da {o.StoreName}, giorno {o.ObservedAt.Day + 1} alle {o.ObservedAt.Hour:00}:{o.ObservedAt.Minute:00}" +
+          (o.CulpritName is { } thief ? $" ({thief})" : " (ladro sconosciuto)")
+        : $"{Deeds.Title(o)}, giorno {o.ObservedAt.Day + 1} alle {o.ObservedAt.Hour:00}:{o.ObservedAt.Minute:00} ({Deeds.Who(o)})";
 
     private static ObservationView ToView(Observation o, WorldState w) => new()
     {
         Id = o.Id,
         Origin = o.Origin,
-        Kind = "Theft",
+        Kind = o.Kind.ToString(),
         Store = o.Store,
         StoreName = o.StoreName,
         Location = o.Location,
-        Amount = o.Amount,
-        Culprit = o.Thief,
-        CulpritName = o.ThiefName,
-        Thief = o.Thief,
-        ThiefName = o.ThiefName,
+        Square = o.Square,
+        Amount = o.Kind == DeedKind.Theft ? o.Amount : null,
+        Culprit = o.Culprit,
+        CulpritName = o.CulpritName,
+        Victim = o.Victim,
+        VictimName = o.VictimName,
+        Involved = Freeze(o.Involved.Select(i => i.Id)),
+        InvolvedNames = Freeze(o.Involved.Select(i => i.Name)),
+        Thief = o.Kind == DeedKind.Theft ? o.Culprit : null,
+        ThiefName = o.Kind == DeedKind.Theft ? o.CulpritName : null,
         ObservedAt = o.ObservedAt,
         LearnedAt = o.LearnedAt,
         Source = o.Source,

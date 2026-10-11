@@ -108,8 +108,9 @@ internal sealed partial class Simulation
         World.Encounters.Add(e.Id, e);
         Record(e, CombatLogKind.Started, actor, target,
             (a, t) => expects ? $"{a} attacca {t}, che se lo aspettava: scontro!" : $"{a} attacca {t} di sorpresa!");
-        World.RecordFact("CombatStarted", $"{actor.Name} attacca {target.Name}{(expects ? "" : " di sorpresa")}.",
+        var started = World.RecordFact("CombatStarted", $"{actor.Name} attacca {target.Name}{(expects ? "" : " di sorpresa")}.",
             Participants(actor, target));
+        WitnessFight(e, actor, target, opening: true, started); // C4a: who sees it start knows who started it
 
         string message;
         if (!expects)
@@ -453,7 +454,8 @@ internal sealed partial class Simulation
         var extra = (check.Advantage ? " (vantaggio)" : "") + (check.Disadvantage ? " (svantaggio)" : "") + (check.LongRange ? " (gittata lunga)" : "");
         Record(e, kind, attacker, target, (a, t) => $"{a} {how} {t}{extra}. {result.Describe()}.", result.Roll,
             attack: attack.Name, armorClass: result.TargetArmorClass, hit: result.Hit, critical: result.Critical, damage: result.Damage);
-        World.RecordFact("Attack", $"{attacker.Name} {how} {target.Name}: {result.Describe()}.", Participants(attacker, target));
+        var blow = World.RecordFact("Attack", $"{attacker.Name} {how} {target.Name}: {result.Describe()}.", Participants(attacker, target));
+        WitnessFight(e, attacker, target, opening: false, blow);
         Fell(e, target, attacker, outcome);
         return $"{attacker.Name} {how} {target.Name}{extra}. {result.Describe()}.";
     }
@@ -472,7 +474,9 @@ internal sealed partial class Simulation
             return;
         if (e is not null)
             Record(e, k, target, by, (a, _) => $"{a} {words}.");
-        World.RecordFact(k.ToString(), $"{target.Name} {words}.", by is null ? new[] { target.Id } : Participants(target, by));
+        var fell = World.RecordFact(k.ToString(), $"{target.Name} {words}.", by is null ? new[] { target.Id } : Participants(target, by));
+        if (k == CombatLogKind.Died && by is not null && e is not null)
+            WitnessKilling(e, by, target, fell); // C4a: a death blow is a deed of its own
     }
 
     /// <summary>

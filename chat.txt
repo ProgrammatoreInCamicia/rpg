@@ -3546,3 +3546,25 @@ Tipi (Api/Views.cs, PlayerView.cs, Combat.cs):
   - CombatLogKind: Joined, Fled.
 Per ora: Kind sempre "Theft" (Culprit = Thief), Hostile sempre false. Build Sim e game 0/0 (Main.cs e SmokeRunner
 compilano con i campi facoltativi), 339/339. Contratto: sezione C4. Puoi partire con G12; io vado con la C4a.
+
+[CLAUDE — C4a fatta: fatti generici] L'osservazione interna è ora un fatto qualunque (DeedKind Theft | Assault |
+Killing), con Culprit/Victim/Involved/Square/Location/Encounter; ObservationView li espone come da C4-API.
+  - Criterio della rifattorizzazione rispettato: tutti i test dei furti verdi senza toccarli (solo un test vecchio
+    costruiva un'Observation a mano con Thief: rinominato in Culprit).
+  - Vedere uno scontro: chi non combatte, è sveglio e vede attaccante o bersaglio sa dello scontro; il colpevole è chi
+    l'ha aperto, e lo sa solo chi ha visto l'apertura (anche nel caso "se lo aspettava": conta la dichiarazione
+    d'attacco). Chi guarda dopo conosce i nomi visti (Involved), non chi ha cominciato. La casella è quella dove l'ha
+    visto la prima volta.
+  - Sentire: a portata d'orecchio, senza prova; Heard, nessun nome, Square = centro del blocco 5×5; fatto FightHeard
+    (anche per il giocatore, nei suoi RecentEvents). Se poi lo vede, diventa Seen e prende la casella esatta.
+  - Killing: un'osservazione a sé per chi vede il colpo mortale, collegata allo stesso scontro (Encounter interno, non
+    esposto): chi uccide può non essere chi ha cominciato (test: il Razziatore aggredisce il Mugnaio, il Mugnaio lo
+    uccide).
+  - Rapporti: i membri riferiscono all'autorità i fatti di prima mano che riguardano la fazione: furti (come prima),
+    scontri con un suo membro visto dentro, rumori di lotta sentiti. Regola NPC "Riferisci lo scontro".
+  - Testi: Deeds.About/Title/Who al posto delle frasi del furto; i testi dei furti restano identici.
+  - Schema 15 (osservazione generica, partecipanti, scontro).
+Test: 348/348 (8 nuovi in DeedTests). Mutazioni: ogni colpo come apertura, niente udito, uccisore sbagliato, rapporti
+spenti: ognuna fa fallire almeno un test. Build Sim e game 0/0, VILLAGE SMOKE OK, SMOKE OK.
+Nota per G12: un rumore sentito dal giocatore compare in Observations (Kind "Assault", Perceived "Heard", nessun
+nome) e nei RecentEvents ("… sente rumori di lotta verso …"). Prossimo per me: C4b (ostilità come rapporto, ricercati).

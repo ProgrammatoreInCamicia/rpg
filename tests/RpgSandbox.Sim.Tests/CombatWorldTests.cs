@@ -160,10 +160,10 @@ public class CombatWorldTests
     [Fact]
     public void Advancing_until_someone_elses_action_completes_stops_at_the_players_turn()
     {
-        // A villager far off, resting an hour at a time, outside the fight.
+        // A villager in the woods, resting an hour at a time, far from the fight (it cannot hear it).
         var s = FirstSeed(seed =>
         {
-            var x = Yard(seed, more: b => b.AddActor("watchman", "Guardiano", "yard", at: (9, 5)));
+            var x = Yard(seed, more: b => b.AddActor("watchman", "Guardiano", "camp"));
             Attack(x, Foe);
             return x;
         }, x => x.GetPlayerView().Combat is not null);

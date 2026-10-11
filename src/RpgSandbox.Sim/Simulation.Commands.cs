@@ -377,8 +377,8 @@ internal sealed partial class Simulation
             StoreName = store.Name,
             Location = store.Location,
             Amount = amount,
-            Thief = recognised ? thief.Id : null,
-            ThiefName = recognised ? thief.Name : null,
+            Culprit = recognised ? thief.Id : null,
+            CulpritName = recognised ? thief.Name : null,
             ObservedAt = World.Now,
             LearnedAt = World.Now,
             Fact = fact,
@@ -415,7 +415,7 @@ internal sealed partial class Simulation
             CompletesAt = World.Now.Plus(Tuning.ReportDuration),
             Recipient = recipient.Id,
             Observation = observation.Id,
-            Description = $"Racconta a {recipient.Name} del furto da {observation.StoreName}",
+            Description = $"Racconta a {recipient.Name} {Deeds.About(observation)}",
         };
         Begin(actor, report);
         return CommandResult.Started(report.Id, report.CompletesAt, $"{actor.Name} parla con {recipient.Name}.");
@@ -437,29 +437,13 @@ internal sealed partial class Simulation
         // A rumour that comes back is not a second piece of evidence.
         if (recipient.Knowledge.Any(o => o.Origin == told.Origin))
         {
-            World.RecordFact("InformationShared", $"{reporter.Name} racconta a {recipient.Name} del furto, ma lo sapeva già.", reporter.Id, recipient.Id);
+            World.RecordFact("InformationShared", $"{reporter.Name} racconta a {recipient.Name} {Deeds.AboutBriefly(told)}, ma lo sapeva già.", reporter.Id, recipient.Id);
             return;
         }
 
-        recipient.Knowledge.Add(new Observation
-        {
-            Id = new ObservationId(World.NextObservationId++),
-            Origin = told.Origin,
-            Store = told.Store,
-            StoreName = told.StoreName,
-            Location = told.Location,
-            Amount = told.Amount,
-            Thief = told.Thief,
-            ThiefName = told.ThiefName,
-            ObservedAt = told.ObservedAt,
-            Perceived = told.Perceived,
-            LearnedAt = World.Now,
-            Source = reporter.Id,
-            Fact = told.Fact,
-        });
+        recipient.Knowledge.Add(Deeds.CopyFor(told, new ObservationId(World.NextObservationId++), World.Now, reporter.Id));
         World.RecordFact("InformationShared",
-            $"{reporter.Name} racconta a {recipient.Name} del furto da {told.StoreName}" +
-            (told.ThiefName is { } thief ? $" ({thief})." : " (ladro sconosciuto)."), reporter.Id, recipient.Id);
+            $"{reporter.Name} racconta a {recipient.Name} {Deeds.About(told)} ({Deeds.Who(told)}).", reporter.Id, recipient.Id);
         InterruptRoutine(recipient);
     }
 

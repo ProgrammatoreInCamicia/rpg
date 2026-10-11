@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 14;
+    public const int SchemaVersion = 15;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -278,10 +278,12 @@ internal static class SaveGame
 
     private static ObservationDto ToDto(Observation o) => new()
     {
-        Id = o.Id.Value, Origin = o.Origin.Value, Store = o.Store.Value, StoreName = o.StoreName, Location = o.Location.Value,
-        Amount = o.Amount, Thief = o.Thief?.Value, ThiefName = o.ThiefName, ObservedAt = o.ObservedAt.Seconds,
-        LearnedAt = o.LearnedAt.Seconds, Source = o.Source?.Value, Fact = o.Fact?.Value, Perceived = o.Perceived.ToString(),
-        ToldTo = o.ToldTo.Select(t => t.Value).ToList(),
+        Id = o.Id.Value, Origin = o.Origin.Value, Kind = o.Kind.ToString(), Store = o.Store?.Value, StoreName = o.StoreName,
+        Location = o.Location?.Value, Square = ToDto(o.Square), Amount = o.Amount,
+        Culprit = o.Culprit?.Value, CulpritName = o.CulpritName, Victim = o.Victim?.Value, VictimName = o.VictimName,
+        Involved = o.Involved.Select(i => new InvolvedDto { Actor = i.Id.Value, Name = i.Name }).ToList(), Encounter = o.Encounter,
+        ObservedAt = o.ObservedAt.Seconds, LearnedAt = o.LearnedAt.Seconds, Source = o.Source?.Value, Fact = o.Fact?.Value,
+        Perceived = o.Perceived.ToString(), ToldTo = o.ToldTo.Select(t => t.Value).ToList(),
     };
 
     private static DecisionDto? ToDto(DecisionTrace? t) => t is null
@@ -582,8 +584,10 @@ internal static class SaveGame
     {
         foreach (var o in a.Knowledge)
         {
-            Check(w.Stores.ContainsKey(o.Store) && w.Locations.ContainsKey(o.Location), $"conoscenza di '{a.Id}' su luoghi sconosciuti");
-            Check(o.Thief is null || w.Actors.ContainsKey(o.Thief.Value), $"conoscenza di '{a.Id}' su un ladro sconosciuto");
+            Check((o.Store is null || w.Stores.ContainsKey(o.Store.Value)) && (o.Location is null || w.Locations.ContainsKey(o.Location.Value)),
+                $"conoscenza di '{a.Id}' su luoghi sconosciuti");
+            Check(new[] { o.Culprit, o.Victim }.All(x => x is null || w.Actors.ContainsKey(x.Value)) && o.Involved.All(i => w.Actors.ContainsKey(i.Id)),
+                $"conoscenza di '{a.Id}' su persone sconosciute");
             Check(o.Source is null || w.Actors.ContainsKey(o.Source.Value), $"conoscenza di '{a.Id}' da una fonte sconosciuta");
             Check(o.ToldTo.All(w.Actors.ContainsKey), $"conoscenza di '{a.Id}' raccontata a sconosciuti");
             Check(o.Id.Value < w.NextObservationId && o.Origin.Value < w.NextObservationId, "contatore delle osservazioni incoerente");
@@ -854,22 +858,36 @@ internal static class SaveGame
 
     private static Observation FromDto(ObservationDto o)
     {
+        var kind = Enum.TryParse<DeedKind>(o.Kind, out var k) && Enum.IsDefined(k) ? k : throw new InvalidDataException($"tipo di fatto sconosciuto '{o.Kind}'");
+        // A theft names its store; a fight or a killing never does, and always belongs to a fight.
+        Check(kind == DeedKind.Theft ? !string.IsNullOrEmpty(o.Store) && o.Location is not null && o.Encounter is null
+                : o.Store is null && o.StoreName is null && o.Amount == 0 && o.Encounter is not null,
+            $"osservazione di tipo {kind} incoerente");
+        Check(o.Involved is not null && o.Involved.All(i => i is not null && !string.IsNullOrEmpty(i.Actor) && i.Name is not null),
+            "partecipanti di un'osservazione non validi");
         var observation = new Observation
         {
             Id = new ObservationId(o.Id),
             Origin = new ObservationId(o.Origin),
-            Store = new StoreId(Required(o.Store, "deposito dell'osservazione")),
+            Kind = kind,
+            Store = o.Store is null ? null : new StoreId(o.Store),
             StoreName = o.StoreName,
-            Location = new LocationId(Required(o.Location, "luogo dell'osservazione")),
+            Location = o.Location is null ? null : new LocationId(o.Location),
+            Square = o.Square is { } sq ? new GridPos(sq.X, sq.Y) : null,
             Amount = o.Amount,
-            Thief = o.Thief is null ? null : new ActorId(o.Thief),
-            ThiefName = o.ThiefName,
+            Culprit = o.Culprit is null ? null : new ActorId(o.Culprit),
+            CulpritName = o.CulpritName,
+            Victim = o.Victim is null ? null : new ActorId(o.Victim),
+            VictimName = o.VictimName,
+            Encounter = o.Encounter,
             ObservedAt = new GameTime(o.ObservedAt),
             LearnedAt = new GameTime(o.LearnedAt),
             Source = o.Source is null ? null : new ActorId(o.Source),
             Fact = o.Fact is { } fact ? new FactId(fact) : null,
             Perceived = Enum.TryParse<PerceptionMode>(o.Perceived, out var mode) && Enum.IsDefined(mode) ? mode : throw new InvalidDataException($"modo di percezione sconosciuto '{o.Perceived}'"),
         };
+        foreach (var i in o.Involved!)
+            observation.Involved.Add((new ActorId(i.Actor), i.Name));
         foreach (var told in o.ToldTo)
             observation.ToldTo.Add(new ActorId(told));
         Check(observation.LearnedAt >= observation.ObservedAt, "osservazione appresa prima di essere avvenuta");

@@ -72,7 +72,7 @@ public class ReviewT4RegressionTests
             Id = new ObservationId(engine.World.NextObservationId++),
             Origin = new ObservationId(engine.World.NextObservationId++),
             Store = original.Store, StoreName = original.StoreName, Location = original.Location, Amount = original.Amount,
-            Thief = original.Thief, ThiefName = original.ThiefName, ObservedAt = original.ObservedAt, LearnedAt = s.Now,
+            Culprit = original.Culprit, CulpritName = original.CulpritName, ObservedAt = original.ObservedAt, LearnedAt = s.Now,
             Source = Watcher, Fact = original.Fact,
         });
         engine.CancelAction(guard);
