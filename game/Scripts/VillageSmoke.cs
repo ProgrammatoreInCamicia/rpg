@@ -236,6 +236,128 @@ public partial class VillageSmoke : Node
 		await CombatHudPreview();
 		await DeedJournalPreview();
 		await NightDuel();
+		await DaylightAssault();
+	}
+
+	/// <summary>G13: the village reacts to an assault through the real client and a saved world.</summary>
+	private async Task DaylightAssault()
+	{
+		var session = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
+		session.Advance(new GameTime(13 * 3600 + 30 * 60).Since(session.Now));
+		var farmer = MappedVillageScenario.Ids.Farmer;
+		var guard = MappedVillageScenario.Ids.Guard;
+		var approach = session.Execute(new MoveCommand { Actor = session.Player,
+			To = MappedVillageScenario.Ids.FarmerWork, StopNextTo = true });
+		Require(approach.Success, $"G13: cannot approach the farmer: {approach.Message}");
+		session.AdvanceUntilCompleted(approach.Action!.Value, Duration.FromMinutes(5));
+		Require(session.GetPlayerView().VisibleActors.Any(a => a.Id == farmer),
+			"G13: the farmer is not visible from the assault square");
+		var before = System.IO.Path.Combine(_outputDir, "g13-before-assault.json");
+		using (var stream = File.Create(before)) session.Save(stream);
+		_map.SetPaused(true);
+		_map.LoadGameFromPath(before);
+		await Frames(2);
+		Capture("33-g13-before-assault.png");
+
+		_map.OpenCombatForSmoke(farmer, "Colpo senz'armi");
+		Require(_map.View.Combat is not null, $"G13: the assault did not start: {_map.LastMessage}");
+		Capture("34-g13-assault.png");
+		if (_map.View.Combat is { IsYourTurn: true })
+			_map.EndCombatTurnForSmoke();
+		await Frames(3);
+		var fight = _map.View.Combat;
+		Require(fight is not null && fight.Order.Any(c => c.Actor == guard),
+			"G13: the guard did not join the fight after seeing the assault");
+		Require(fight!.Log.Any(e => e.Kind == CombatLogKind.Joined && e.Actor == guard),
+			"G13: the guard's arrival is missing from the combat log");
+		Capture("35-g13-guard-joins.png");
+		var joined = System.IO.Path.Combine(_outputDir, "g13-guard-joined.json");
+		_map.SaveGameToPath(joined);
+
+		// A second play-through closes the inn door. The farmer must carry the report to the guard,
+		// demonstrating that a later confrontation follows knowledge rather than the first fight.
+		var moveGuard = session.Execute(new MoveCommand { Actor = guard, To = new GridPos(6, 3) });
+		Require(moveGuard.Success, $"G13: guard cannot reach the inn door: {moveGuard.Message}");
+		session.AdvanceUntilCompleted(moveGuard.Action!.Value, Duration.FromMinutes(1));
+		session.Execute(new StopCommand { Actor = guard });
+		var close = session.Execute(new DoorCommand { Actor = guard, At = MappedVillageScenario.Ids.InnDoor, Open = false });
+		Require(close.Success, $"G13: guard cannot close the inn door: {close.Message}");
+		var hidden = System.IO.Path.Combine(_outputDir, "g13-before-unseen-assault.json");
+		using (var stream = File.Create(hidden)) session.Save(stream);
+		_map.LoadGameFromPath(hidden);
+		_map.OpenCombatForSmoke(farmer, "Colpo senz'armi");
+		Require(_map.View.Combat is not null, $"G13: hidden assault did not start: {_map.LastMessage}");
+		Require(!_map.SmokeWorld.Actors.Single(a => a.Id == guard).Knowledge.Any(o => o.Kind == "Assault"),
+			"G13: the guard learned an assault through the closed door");
+		Require(_map.SmokeWorld.Actors.Single(a => a.Id == farmer).Knowledge.Any(o =>
+			o.Kind == "Assault" && o.Culprit == _map.View.Id),
+			"G13: the attacked farmer did not recognize his aggressor");
+		var inFight = System.IO.Path.Combine(_outputDir, "g13-unseen-assault.json");
+		_map.SaveGameToPath(inFight);
+		using (var stream = File.OpenRead(inFight))
+		{
+			var loaded = SimulationSession.TryLoad(stream);
+			Require(loaded.Success, $"G13: cannot reload assault: {loaded.Error}");
+			session = loaded.Session!;
+		}
+		var woundedFarmer = false;
+		for (var i = 0; i < 30 && session.GetPlayerView().Combat is not null; i++)
+		{
+			var turn = session.GetPlayerView().Combat;
+			woundedFarmer |= turn!.Combatants.Any(c => c.Id == farmer && c.Condition is "ferito" or "malconcio");
+			if (turn is { IsYourTurn: true, You.ActionAvailable: true } && !woundedFarmer
+				&& turn.Targets.Any(t => t.Target == farmer && t.Attack == "Colpo senz'armi" && t.Valid))
+				session.Execute(new AttackCommand { Actor = session.Player, Target = farmer, Attack = "Colpo senz'armi" });
+			woundedFarmer |= session.GetPlayerView().Combat?.Combatants.Any(c => c.Id == farmer
+				&& c.Condition is "ferito" or "malconcio") == true;
+			if (woundedFarmer && session.GetPlayerView().Combat is { IsYourTurn: true } retreatTurn
+				&& session.GetPlayerView().Position != new GridPos(4, 9))
+			{
+				var cover = new GridPos(4, 9);
+				var step = retreatTurn.Reachable.OrderBy(r => r.At.StepsTo(cover)).ThenBy(r => r.CostFeet).FirstOrDefault();
+				if (step is not null && step.At.StepsTo(cover) < session.GetPlayerView().Position!.Value.StepsTo(cover))
+				{
+					var retreat = session.Execute(new MoveCommand { Actor = session.Player, To = step.At });
+					Require(retreat.Success, $"G13: cannot retreat to cover: {retreat.Message}");
+				}
+			}
+			if (session.GetPlayerView().Combat is { IsYourTurn: true })
+				session.Execute(new EndTurnCommand { Actor = session.Player });
+			session.Advance(Duration.FromSeconds(6));
+		}
+		Require(woundedFarmer, "G13: the farmer was never wounded in the unseen assault");
+		Require(session.GetPlayerView().Combat is null, "G13: the unseen assault did not finish");
+		var village = MappedVillageScenario.Ids.VillageFaction;
+		for (var i = 0; i < 1800 && !session.GetWorldView().Factions.Single(f => f.Id == village)
+			.Wanted.Contains(session.Player); i++)
+			session.Advance(Duration.FromSeconds(1));
+		Require(session.GetWorldView().Factions.Single(f => f.Id == village).Wanted.Contains(session.Player),
+			"G13: the farmer's report did not make the aggressor wanted");
+		Require(session.GetWorldView().Actors.Single(a => a.Id == guard).Knowledge.Any(o =>
+			o.Kind == "Assault" && o.Culprit == session.Player && o.Source == farmer),
+			"G13: the guard did not learn who attacked the farmer from his report");
+		var wantedSave = System.IO.Path.Combine(_outputDir, "g13-wanted.json");
+		using (var stream = File.Create(wantedSave)) session.Save(stream);
+		_map.LoadGameFromPath(wantedSave);
+		await Frames(3);
+		Capture("36-g13-wanted.png");
+
+		var returnToGuard = session.Execute(new MoveCommand { Actor = session.Player,
+			To = MappedVillageScenario.Ids.GuardStart, StopNextTo = true });
+		Require(returnToGuard.Success, $"G13: wanted player cannot approach the guard: {returnToGuard.Message}");
+		for (var i = 0; i < 900 && session.GetPlayerView().Combat is null; i++)
+			session.Advance(Duration.FromSeconds(1));
+		Require(session.GetPlayerView().Combat is { } confrontation
+			&& confrontation.Order.Any(c => c.Actor == guard),
+			"G13: the guard did not confront the wanted player after the report");
+		Require(session.GetWorldView().RecentFacts.Any(f => f.Kind == "CombatStarted"
+			&& f.Description.StartsWith("Guardia attacca Protagonista")),
+			"G13: the new fight was not initiated by the guard");
+		var confronted = System.IO.Path.Combine(_outputDir, "g13-confronted.json");
+		using (var stream = File.Create(confronted)) session.Save(stream);
+		_map.LoadGameFromPath(confronted);
+		await Frames(3);
+		Capture("37-g13-guard-confronts.png");
 	}
 
 	/// <summary>G12: the journal and conversation render each public C4 observation kind without hidden world data.</summary>
