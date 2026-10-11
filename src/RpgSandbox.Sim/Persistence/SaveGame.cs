@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 20;
+    public const int SchemaVersion = 21;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -39,8 +39,8 @@ internal static class SaveGame
         }
         if (dto is null)
             throw new SaveGameException("Il salvataggio è vuoto.");
-        if (dto.Version != SchemaVersion)
-            throw new SaveGameException($"Versione del salvataggio non supportata: {dto.Version} (attesa {SchemaVersion}).");
+        if (dto.Version is not (20 or SchemaVersion))
+            throw new SaveGameException($"Versione del salvataggio non supportata: {dto.Version} (attese 20 o {SchemaVersion}).");
 
         // Validation is explicit: every rule below raises InvalidDataException with a readable reason.
         // Any other exception is a programming error and is deliberately not disguised as a bad save.
@@ -235,6 +235,10 @@ internal static class SaveGame
             Area = m.Area.Value, Rows = m.Rows.ToList(), Zones = m.Zones.ToDictionary(z => z.Key.ToString(), z => z.Value.Value),
             Lights = m.Lights.Select(l => new LightDto { X = l.At.X, Y = l.At.Y, Bright = l.BrightFeet, Dim = l.DimFeet }).ToList(),
             Doors = m.Doors.Select(d => new DoorDto { X = d.Key.X, Y = d.Key.Y, Open = d.Value }).ToList(),
+            Edges = m.Edges.Select(e => new MapEdgeDto { AX = e.A.X, AY = e.A.Y, BX = e.B.X, BY = e.B.Y,
+                Kind = e.Kind.ToString(), DoorX = e.DoorAt?.X, DoorY = e.DoorAt?.Y }).ToList(),
+            IndoorZones = m.IndoorZones.Select(z => z.Value).Order(StringComparer.Ordinal).ToList(),
+            Explored = m.Explored.OrderBy(p => p.Y).ThenBy(p => p.X).Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
             Exits = m.Exits.Select(e => new ExitDto { Location = e.Key.Value, X = e.Value.X, Y = e.Value.Y }).ToList(),
             Posts = m.Posts.Select(p => new PostDto { Location = p.Key.Location.Value, Kind = p.Key.Kind.ToString(), X = p.Value.X, Y = p.Value.Y }).ToList(),
             Ground = m.Ground.SelectMany(g => g.Value.Select(i => new GroundItemDto { X = g.Key.X, Y = g.Key.Y, Item = i.Key.Value, Count = i.Value })).ToList(),
@@ -404,13 +408,28 @@ internal static class SaveGame
             var lights = m.Lights!.Select(l => new LightSource(new GridPos(l.X, l.Y), l.Bright, l.Dim));
             Check(m.Doors is not null && m.Doors.All(d => d is not null), $"porte della mappa '{area}' non valide");
             var doors = m.Doors!.Select(d => (new GridPos(d.X, d.Y), d.Open));
+            Check((d.Version == 20 || m.Edges is not null && m.IndoorZones is not null && m.Explored is not null)
+                  && (m.Edges ?? new()).All(e => e is not null),
+                $"confini o interni della mappa '{area}' non validi");
+            var edges = (m.Edges ?? new()).Select(e => new MapEdgeView
+            {
+                A = new GridPos(e.AX, e.AY), B = new GridPos(e.BX, e.BY),
+                Kind = Enum.TryParse<MapEdgeKind>(e.Kind, out var kind) && Enum.IsDefined(kind)
+                    ? kind : throw new InvalidDataException($"tipo di confine sconosciuto '{e.Kind}'"),
+                DoorAt = e.DoorX is { } x && e.DoorY is { } y ? new GridPos(x, y) : null,
+            });
+            var indoorZones = (m.IndoorZones ?? new()).Select(z => new LocationId(Required(z, "zona interna")));
             Check(m.Exits is not null && m.Exits.All(e => e is not null) && m.Posts is not null && m.Posts.All(p => p is not null),
                 $"uscite o posti della mappa '{area}' non validi");
             var exits = m.Exits!.Select(e => (new LocationId(Required(e.Location, "luogo di un'uscita")), new GridPos(e.X, e.Y)));
             var posts = m.Posts!.Select(p => (new LocationId(Required(p.Location, "luogo di un posto")),
                 Enum.TryParse<PostKind>(p.Kind, out var kind) && Enum.IsDefined(kind) ? kind : throw new InvalidDataException($"tipo di posto sconosciuto '{p.Kind}'"),
                 new GridPos(p.X, p.Y)));
-            AddUnique(w.Maps, area, new GridMap(area, m.Rows!, zones, occupied, lights, doors, exits, posts), "mappa");
+            AddUnique(w.Maps, area, new GridMap(area, m.Rows!, zones, occupied, lights, doors, exits, posts, edges, indoorZones), "mappa");
+            Check((m.Explored ?? new()).All(p => p is not null), $"memoria della mappa '{area}' non valida");
+            foreach (var p in m.Explored ?? new())
+                Check(w.Maps[area].InBounds(new GridPos(p.X, p.Y)) && w.Maps[area].Explored.Add(new GridPos(p.X, p.Y)),
+                    $"casella esplorata non valida nella mappa '{area}'");
             foreach (var g in m.Ground ?? throw new InvalidDataException($"oggetti a terra della mappa '{area}' mancanti"))
             {
                 var square = new GridPos(g?.X ?? -1, g?.Y ?? -1);
@@ -736,7 +755,7 @@ internal static class SaveGame
         {
             // On a map: the square is real and walkable, and its zone is the actor's place (null on open ground).
             Check(a.MapArea is { } area && w.Maps.TryGetValue(area, out var map) && map.IsWalkable(pos) && map.ZoneAt(pos) == a.Location
-                  && !map.IsClosedDoor(pos),
+                  && (!map.IsClosedDoor(pos) || map.IsEdgeDoor(pos)),
                 $"attore '{a.Id}' in una casella non valida {pos}");
             Check(a.CurrentAction is not TravelAction, $"attore '{a.Id}' in viaggio e su una mappa");
             if (a.CurrentAction is MoveAction mv)

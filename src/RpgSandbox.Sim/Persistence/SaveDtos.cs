@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace RpgSandbox.Sim.Persistence;
 
-// Plain serialization shapes for the save file (schema version 18). Times are seconds since the
+// Plain serialization shapes for the save file (schema version 21). Times are seconds since the
 // scenario start; ids are their string/number values. Kept separate from the domain on purpose:
 // the domain can change shape while the file format changes only deliberately.
 
@@ -324,6 +324,9 @@ internal sealed class MapDto
     public Dictionary<string, string> Zones { get; set; } = new();
     public List<LightDto> Lights { get; set; } = new();
     public List<DoorDto> Doors { get; set; } = new();
+    public List<MapEdgeDto>? Edges { get; set; }
+    public List<string>? IndoorZones { get; set; }
+    public List<PosDto>? Explored { get; set; }
     public List<ExitDto> Exits { get; set; } = new();
     public List<PostDto> Posts { get; set; } = new();
     public List<GroundItemDto> Ground { get; set; } = new();
@@ -335,6 +338,17 @@ internal sealed class MoveActionDto : ActionDto
     public List<PosDto> Path { get; set; } = new();
     public int Speed { get; set; }
     public bool Stealthy { get; set; }
+}
+
+internal sealed class MapEdgeDto
+{
+    public int AX { get; set; }
+    public int AY { get; set; }
+    public int BX { get; set; }
+    public int BY { get; set; }
+    public string Kind { get; set; } = "";
+    public int? DoorX { get; set; }
+    public int? DoorY { get; set; }
 }
 
 internal sealed class LightDto

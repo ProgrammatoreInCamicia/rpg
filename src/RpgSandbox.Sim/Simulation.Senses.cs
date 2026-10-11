@@ -13,7 +13,7 @@ internal sealed partial class Simulation
     /// carries a torch is not recorded over time).
     /// </summary>
     private Light LightOnAt(GridMap map, GridPos square, GameTime t) =>
-        Max(Perception.DaylightAt(t), map.SourceLight(square, CarriedLights(map)));
+        Max(map.DaylightOn(square, Perception.DaylightAt(t)), map.SourceLight(square, CarriedLights(map)));
 
     /// <summary>A torch burning in someone's hand (SRD: 1 hour from when it was lit).</summary>
     internal bool TorchLit(Actor actor) => actor.TorchLitUntil is { } until && World.Now < until;
@@ -241,7 +241,15 @@ internal sealed partial class Simulation
         foreach (var (at, open) in map.Doors)
             if (SeesDoor(player, map, at))
                 player.DoorMemory[new DoorKey(area, at)] = new RememberedDoor(open, World.Now);
+        // Interior prototype: the squares seen are remembered here, with the doors, never when a view is read.
+        if (map.UsesExploration && player.Conscious && CurrentPosition(player) is { } eye)
+            map.Explored.UnionWith(SquaresSeen(map, eye));
     }
+
+    /// <summary>The squares the player sees from <paramref name="eye"/> right now (the same rule as for what stands on them).</summary>
+    internal IEnumerable<GridPos> SquaresSeen(GridMap map, GridPos eye) =>
+        Enumerable.Range(0, map.Height).SelectMany(y => Enumerable.Range(0, map.Width).Select(x => new GridPos(x, y)))
+            .Where(square => CanSee(map, eye, square));
 
     /// <summary>The player knows the state of a door it opens or closes itself, even passing through in the dark.</summary>
     private void Touched(Actor actor, GridMap map, GridPos door)

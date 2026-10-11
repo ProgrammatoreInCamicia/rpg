@@ -486,3 +486,11 @@ Implementazione (C5a, Sim):
 - **Viste**: `VisibleActorView.Card` (`CreatureCardView`: `Kind`, `Tells`, `Attacks`, `ArmorClassAbove`/`ArmorClassAtMost`/`ArmorClass`, `Observed`, `KindLore`) e `PlayerView.KnownKinds` (`KindCardView`: `Name`, `Tells`, `Attacks`, `Studied`).
 - **Salvataggi** (schema 20): la conoscenza del giocatore; creature e tipi sconosciuti sono rifiutati.
 - Fuori per ora: le voci degli NPC, i comportamenti visti (fuga, resa) nella scheda, il grado di pericolo per zona.
+
+## Prova interni (Codex, rivista da Claude) e client C5a
+
+- **Confini sottili** tra caselle ortogonali (`MapEdgeView`: `A`, `B`, `Kind` Wall/Window/Door, `DoorAt` per le porte): in `MapView.Edges`. Il muro blocca passo e vista; la finestra lascia passare vista e luce, non il passo; la porta su un confine blocca la vista da chiusa e si apre camminando (come le porte su casella). Scenario: `AddEdge`, `AddInterior` (zone al chiuso, dove la luce del giorno entra solo dalle aperture). Prova in `InteriorPrototypeScenario` e `game/Scenes/InteriorPrototype.tscn` (vedi `docs/INTERIOR_PROTOTYPE.md`).
+- **Angoli**: un passo, una portata in mischia o un'interazione in diagonale richiedono entrambe le caselle d'angolo aperte; la vista passa se ne basta una.
+- **Esplorazione** (solo mappe con interni): `PlayerView.MapVisibility` ('2' vista ora, '1' ricordata, '0' mai vista); la memoria si aggiorna nella simulazione a ogni istante e dopo ogni comando (come le porte ricordate), mai leggendo una vista. Vista ora = la stessa regola di `CanSee` (linea di vista e almeno luce fioca). `MapLight` è '0' fuori dalle caselle viste ora. Limite: `MapView.Rows` contiene ancora la pianta intera.
+- **C5a nel client**: tasto destro su un attore visibile → Informazioni/Attacca; scheda dai soli dati `Card`; «Osserva» attivo solo se `Card.CanObserve` (e, in combattimento, nel proprio turno con l'azione disponibile).
+- **Salvataggi** (schema 21): confini, zone interne ed esplorato nella mappa; si legge anche lo schema 20.

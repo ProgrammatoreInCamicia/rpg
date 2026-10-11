@@ -101,6 +101,8 @@ internal sealed partial class Simulation
             Attacks = lore?.Attacks.ToArray() ?? Array.Empty<string>(),
             ArmorClassAbove = lore?.ArmorClassAbove, ArmorClassAtMost = lore?.ArmorClassAtMost, ArmorClass = lore?.ArmorClass,
             Observed = lore?.Observed ?? false,
+            CanObserve = !(lore?.Observed ?? false) || player.Sheet.IsProficient(kind.StudySkill)
+                && !(player.Lore.Kinds.GetValueOrDefault(kind.Id)?.Studied ?? false),
             KindLore = KindCardOf(player, kind),
         };
     }

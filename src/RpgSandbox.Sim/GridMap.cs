@@ -11,6 +11,9 @@ namespace RpgSandbox.Sim;
 internal sealed class GridMap
 {
     private readonly char[,] _cells;
+    private readonly Dictionary<(GridPos, GridPos), MapEdgeView> _edges = new();
+    private readonly HashSet<GridPos> _edgeDoorCells = new();
+    private readonly HashSet<LocationId> _indoorZones;
     private readonly HashSet<GridPos> _occupied;
     private readonly SortedDictionary<LocationId, GridPos> _exits = new(Comparer<LocationId>.Create((a, b) => string.CompareOrdinal(a.Value, b.Value)));
     private readonly SortedDictionary<(LocationId Location, PostKind Kind), GridPos> _posts =
@@ -19,7 +22,8 @@ internal sealed class GridMap
 
     public GridMap(AreaId area, IReadOnlyList<string> rows, IReadOnlyDictionary<char, LocationId> zones, IEnumerable<GridPos> occupied,
         IEnumerable<LightSource>? lights = null, IEnumerable<(GridPos At, bool Open)>? doors = null,
-        IEnumerable<(LocationId Location, GridPos At)>? exits = null, IEnumerable<(LocationId Location, PostKind Kind, GridPos At)>? posts = null)
+        IEnumerable<(LocationId Location, GridPos At)>? exits = null, IEnumerable<(LocationId Location, PostKind Kind, GridPos At)>? posts = null,
+        IEnumerable<MapEdgeView>? edges = null, IEnumerable<LocationId>? indoorZones = null)
     {
         if (rows.Count == 0 || rows.Any(r => r.Length != rows[0].Length || r.Length == 0))
             throw new InvalidDataException($"la mappa dell'area '{area}' deve avere righe non vuote e della stessa lunghezza");
@@ -36,6 +40,20 @@ internal sealed class GridMap
             _cells[x, y] = c;
         }
         Zones = new SortedDictionary<char, LocationId>(zones.ToDictionary(z => z.Key, z => z.Value));
+        _indoorZones = (indoorZones ?? Array.Empty<LocationId>()).ToHashSet();
+        if (_indoorZones.Any(z => !Zones.Values.Contains(z)))
+            throw new InvalidDataException($"zona interna sconosciuta nella mappa '{area}'");
+        foreach (var edge in edges ?? Array.Empty<MapEdgeView>())
+        {
+            if (edge is null || !InBounds(edge.A) || !InBounds(edge.B) || Math.Abs(edge.A.X - edge.B.X) + Math.Abs(edge.A.Y - edge.B.Y) != 1
+                || _cells[edge.A.X, edge.A.Y] == '#' || _cells[edge.B.X, edge.B.Y] == '#'
+                || !Enum.IsDefined(edge.Kind) || (edge.Kind == MapEdgeKind.Door) != (edge.DoorAt is not null)
+                || edge.DoorAt is { } doorAt && doorAt != edge.A && doorAt != edge.B
+                || !_edges.TryAdd(EdgeKey(edge.A, edge.B), edge))
+                throw new InvalidDataException($"confine non valido nella mappa '{area}'");
+            if (edge.DoorAt is { } at && !_edgeDoorCells.Add(at))
+                throw new InvalidDataException($"due porte sullo stesso quadrato in '{area}'");
+        }
         _occupied = occupied.ToHashSet();
         foreach (var cell in _occupied)
             if (!InBounds(cell) || _cells[cell.X, cell.Y] == '#')
@@ -48,6 +66,8 @@ internal sealed class GridMap
         foreach (var (at, open) in doors ?? Array.Empty<(GridPos, bool)>())
             if (!IsWalkable(at) || !_doors.TryAdd(at, open) || Lights.Any(l => l.At == at))
                 throw new InvalidDataException($"porta non valida in {at}");
+        if (_edgeDoorCells.Any(at => !_doors.ContainsKey(at)))
+            throw new InvalidDataException($"stato di una porta su un confine mancante in '{area}'");
         foreach (var (location, at) in exits ?? Array.Empty<(LocationId, GridPos)>())
             if (!IsWalkable(at) || ZoneAt(at) != location || !OnEdge(at) || !_exits.TryAdd(location, at))
                 throw new InvalidDataException($"uscita di '{location}' non valida in {at}: deve essere una casella percorribile del Luogo sul bordo della mappa, una per Luogo");
@@ -60,6 +80,10 @@ internal sealed class GridMap
     public int Width { get; }
     public int Height { get; }
     public IReadOnlyDictionary<char, LocationId> Zones { get; }
+    public IReadOnlyCollection<MapEdgeView> Edges => _edges.Values;
+    public IReadOnlyCollection<LocationId> IndoorZones => _indoorZones;
+    public HashSet<GridPos> Explored { get; } = new();
+    public bool UsesExploration => _indoorZones.Count > 0;
 
     /// <summary>The rows as given, without objects (what the save stores).</summary>
     public IReadOnlyList<string> Rows => Enumerable.Range(0, Height)
@@ -110,6 +134,45 @@ internal sealed class GridMap
 
     public bool IsClosedDoor(GridPos p) => _doors.TryGetValue(p, out var open) && !open;
 
+    private static (GridPos, GridPos) EdgeKey(GridPos a, GridPos b) =>
+        (a.Y, a.X).CompareTo((b.Y, b.X)) <= 0 ? (a, b) : (b, a);
+
+    private bool EdgeBlocks(GridPos a, GridPos b, bool sight)
+    {
+        if (!_edges.TryGetValue(EdgeKey(a, b), out var edge))
+            return false;
+        return edge.Kind switch
+        {
+            MapEdgeKind.Wall => true,
+            MapEdgeKind.Window => !sight,
+            MapEdgeKind.Door => sight && IsClosedDoor(edge.DoorAt!.Value),
+            _ => false,
+        };
+    }
+
+    private bool StepOpen(GridPos from, GridPos to, bool sight, bool requireDestinationWalkable = true)
+    {
+        if (!InBounds(to) || (!sight && requireDestinationWalkable && !IsWalkable(to)))
+            return false;
+        if (from.X == to.X || from.Y == to.Y)
+            return !EdgeBlocks(from, to, sight);
+        var viaX = new GridPos(to.X, from.Y);
+        var viaY = new GridPos(from.X, to.Y);
+        bool RouteOpen(GridPos via) => InBounds(via) && !BlocksSightOrWalk(via, sight)
+            && !EdgeBlocks(from, via, sight) && !EdgeBlocks(via, to, sight)
+            && (sight || ClosedDoorBetween(from, via) is null && ClosedDoorBetween(via, to) is null);
+        // Sight slips past a corner if either side is open; a step does not cut a corner: both sides must be open.
+        return sight ? RouteOpen(viaX) || RouteOpen(viaY) : RouteOpen(viaX) && RouteOpen(viaY);
+    }
+
+    private bool BlocksSightOrWalk(GridPos at, bool sight) => sight ? BlocksSight(at) : !IsWalkable(at);
+
+    public bool IsEdgeDoor(GridPos at) => _edgeDoorCells.Contains(at);
+
+    public GridPos? ClosedDoorBetween(GridPos from, GridPos to) =>
+        _edges.TryGetValue(EdgeKey(from, to), out var edge) && edge.Kind == MapEdgeKind.Door && IsClosedDoor(edge.DoorAt!.Value)
+            ? edge.DoorAt : IsClosedDoor(to) && !_edgeDoorCells.Contains(to) ? to : null;
+
     public void SetDoor(GridPos p, bool open)
     {
         if (!_doors.ContainsKey(p))
@@ -137,9 +200,31 @@ internal sealed class GridMap
         return best;
     }
 
+    /// <summary>Daylight enters marked interiors only through visible openings, fading after the first square.</summary>
+    public Light DaylightOn(GridPos square, Light outside)
+    {
+        if (outside == Light.Dark || !InBounds(square))
+            return Light.Dark;
+        if (ZoneAt(square) is not { } zone || !_indoorZones.Contains(zone))
+            return outside;
+        var best = Light.Dark;
+        for (var y = Math.Max(0, square.Y - 3); y <= Math.Min(Height - 1, square.Y + 3); y++)
+        for (var x = Math.Max(0, square.X - 3); x <= Math.Min(Width - 1, square.X + 3); x++)
+        {
+            var outsideSquare = new GridPos(x, y);
+            var distance = outsideSquare.StepsTo(square);
+            if (distance > 3 || ZoneAt(outsideSquare) is { } outer && _indoorZones.Contains(outer)
+                || !HasLineOfSight(outsideSquare, square))
+                continue;
+            var level = distance <= 1 ? outside : Light.Dim;
+            if (level > best)
+                best = level;
+        }
+        return best;
+    }
+
     /// <summary>A step from <paramref name="from"/> to the adjacent <paramref name="to"/> does not squeeze past a blocked corner.</summary>
-    public bool DiagonalOpen(GridPos from, GridPos to) =>
-        from.X == to.X || from.Y == to.Y || (IsWalkable(new GridPos(to.X, from.Y)) && IsWalkable(new GridPos(from.X, to.Y)));
+    public bool DiagonalOpen(GridPos from, GridPos to) => StepOpen(from, to, sight: false, requireDestinationWalkable: false);
 
     /// <summary>On the outer edge of the map (where an exit leads off it).</summary>
     public bool OnEdge(GridPos p) => InBounds(p) && (p.X == 0 || p.Y == 0 || p.X == Width - 1 || p.Y == Height - 1);
@@ -153,7 +238,7 @@ internal sealed class GridMap
         InBounds(p) && Zones.TryGetValue(_cells[p.X, p.Y], out var zone) ? zone : null;
 
     /// <summary>Walls and closed doors block sight; stores and open squares do not.</summary>
-    public bool BlocksSight(GridPos p) => !InBounds(p) || _cells[p.X, p.Y] == '#' || IsClosedDoor(p);
+    public bool BlocksSight(GridPos p) => !InBounds(p) || _cells[p.X, p.Y] == '#' || IsClosedDoor(p) && !_edgeDoorCells.Contains(p);
 
     private bool IsWall(GridPos p) => !InBounds(p) || _cells[p.X, p.Y] == '#';
 
@@ -176,6 +261,8 @@ internal sealed class GridMap
             if (e2 >= dy) { err += dy; x += sx; }
             if (e2 <= dx) { err += dx; y += sy; }
             var here = new GridPos(x, y);
+            if (!StepOpen(new GridPos(px, py), here, sight: true))
+                return false;
             if (here != to && BlocksSight(here))
                 return false;
             if (x != px && y != py && BlocksSight(new GridPos(x, py)) && BlocksSight(new GridPos(px, y)))
@@ -205,11 +292,17 @@ internal sealed class GridMap
             foreach (var (dx, dy) in Directions)
             {
                 var p = new GridPos(here.X + dx, here.Y + dy);
-                if (IsWall(p))
+                if (IsWall(p) || !StepOpen(here, p, sight: false, requireDestinationWalkable: false)
+                    && !_edges.ContainsKey(EdgeKey(here, p)))
+                    continue;
+                if (_edges.TryGetValue(EdgeKey(here, p), out var soundEdge) && soundEdge.Kind == MapEdgeKind.Wall)
                     continue;
                 if (dx != 0 && dy != 0 && (BlocksSight(new GridPos(here.X + dx, here.Y)) || BlocksSight(new GridPos(here.X, here.Y + dy))))
                     continue;
-                var cost = steps + 1 + (IsClosedDoor(p) ? Tuning.ClosedDoorSoundSteps : 0);
+                var doorPenalty = soundEdge?.Kind == MapEdgeKind.Door && IsClosedDoor(soundEdge.DoorAt!.Value)
+                    || !_edgeDoorCells.Contains(p) && IsClosedDoor(p) ? Tuning.ClosedDoorSoundSteps : 0;
+                var cost = steps + 1 + doorPenalty
+                    + (soundEdge?.Kind == MapEdgeKind.Window ? Tuning.ClosedDoorSoundSteps : 0);
                 if (cost > max || best.TryGetValue(p, out var known) && known <= cost)
                     continue;
                 if (best.TryGetValue(p, out var old))
@@ -255,7 +348,7 @@ internal sealed class GridMap
             foreach (var (dx, dy) in Directions)
             {
                 var next = new GridPos(here.X + dx, here.Y + dy);
-                if (!IsWalkable(next))
+                if (!IsWalkable(next) || !StepOpen(here, next, sight: false))
                     continue;
                 if (dx != 0 && dy != 0 && (!IsWalkable(new GridPos(here.X + dx, here.Y)) || !IsWalkable(new GridPos(here.X, here.Y + dy))))
                     continue; // no cutting corners

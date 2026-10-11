@@ -60,6 +60,8 @@ internal sealed record MapDefinition(AreaId Area, IReadOnlyList<string> Rows, IR
 {
     public List<LightSource> Lights { get; } = new();
     public List<(GridPos At, bool Open)> Doors { get; } = new();
+    public List<MapEdgeView> Edges { get; } = new();
+    public List<LocationId> IndoorZones { get; } = new();
     public List<(LocationId Location, GridPos At)> Exits { get; } = new();
     public List<(LocationId Location, PostKind Kind, GridPos At)> Posts { get; } = new();
 }
@@ -229,6 +231,23 @@ public sealed class ScenarioBuilder
         return this;
     }
 
+    public ScenarioBuilder AddInterior(string areaId, string locationId)
+    {
+        MapOf(areaId, "interiors").IndoorZones.Add(new LocationId(locationId));
+        return this;
+    }
+
+    public ScenarioBuilder AddEdge(string areaId, (int X, int Y) a, (int X, int Y) b, MapEdgeKind kind,
+        (int X, int Y)? doorAt = null, bool open = false)
+    {
+        var map = MapOf(areaId, "edges");
+        var at = doorAt is { } p ? new GridPos(p.X, p.Y) : (GridPos?)null;
+        map.Edges.Add(new MapEdgeView { A = new GridPos(a.X, a.Y), B = new GridPos(b.X, b.Y), Kind = kind, DoorAt = at });
+        if (kind == MapEdgeKind.Door && at is { } door)
+            map.Doors.Add((door, open));
+        return this;
+    }
+
     public Scenario Build()
     {
         RequireUnique(_areas.Select(a => a.Id.Value), "area");
@@ -329,7 +348,8 @@ public sealed class ScenarioBuilder
             var storeSquares = _stores.Where(s => areaOf[s.Location] == map.Area && s.At is not null).Select(s => s.At!.Value);
             try
             {
-                maps[map.Area] = new GridMap(map.Area, map.Rows, map.Zones, storeSquares, map.Lights, map.Doors, map.Exits, map.Posts);
+                maps[map.Area] = new GridMap(map.Area, map.Rows, map.Zones, storeSquares, map.Lights, map.Doors, map.Exits, map.Posts,
+                    map.Edges, map.IndoorZones);
             }
             catch (InvalidDataException e)
             {

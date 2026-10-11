@@ -35,6 +35,9 @@ public sealed record PlayerView
     /// </summary>
     public IReadOnlyList<string>? MapLight { get; init; }
 
+    /// <summary>Interior prototype: '2' visible now, '1' remembered, '0' never seen.</summary>
+    public IReadOnlyList<string>? MapVisibility { get; init; }
+
     /// <summary>Light where the player stands (daylight, lamps): it decides what can be seen (see the rules notes).</summary>
     public Light Light { get; init; }
 

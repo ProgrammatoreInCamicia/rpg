@@ -13,6 +13,7 @@ namespace RpgSandbox.Game;
 /// </summary>
 public partial class VillageMap : Node2D
 {
+	[Export] public bool InteriorPrototype { get; set; }
 	private const float TileW = 64f;
 	private const float TileH = 32f;
 	private const float WallHeight = 26f;
@@ -40,6 +41,7 @@ public partial class VillageMap : Node2D
 	private Polygon2D _hover = null!;
 	private Polygon2D _target = null!;
 	private readonly Dictionary<GridPos, CanvasItem> _lit = new(); // floor, walls and stores, shaded by their square's light
+	private readonly List<(GridPos Cell, CanvasItem Item)> _edgeLit = new();
 	private float[,] _glow = new float[0, 0];
 	private string _lightKey = "";
 	private readonly Dictionary<ActorId, Node2D> _tokens = new();
@@ -93,7 +95,10 @@ public partial class VillageMap : Node2D
 
 	public override void _Ready()
 	{
-		_sim = SimulationSession.Create(ScenarioFile.Load("living-village"));
+		var interior = InteriorPrototype || OS.GetCmdlineUserArgs().Contains("--interior-prototype");
+		_sim = SimulationSession.Create(interior ? InteriorPrototypeScenario.Create() : ScenarioFile.Load("living-village"));
+		if (interior)
+			_sim.Advance(Duration.FromHours(13)); // the playable scene opens in daylight; the smoke also checks night
 		_view = _sim.GetPlayerView();
 
 		BuildMap();
@@ -103,6 +108,9 @@ public partial class VillageMap : Node2D
 		var smoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--village-smoke="));
 		if (smoke is not null)
 			AddChild(new VillageSmoke(this, smoke["--village-smoke=".Length..]));
+		var interiorSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--interior-smoke="));
+		if (interiorSmoke is not null)
+			AddChild(new InteriorSmoke(this, interiorSmoke["--interior-smoke=".Length..]));
 	}
 
 	public override void _Process(double delta)
@@ -197,7 +205,7 @@ public partial class VillageMap : Node2D
 		{
 			var point = GetGlobalTransformWithCanvas().AffineInverse() * mouse.Position;
 			if (PersonAt(point) is { } target)
-				SelectOpeningAttack(target);
+				OpenPersonMenu(target);
 			return;
 		}
 		switch (mouse.ButtonIndex)
@@ -233,6 +241,8 @@ public partial class VillageMap : Node2D
 	// ---------------------------------------------------------------- commands
 
 	internal PlayerView View => _view;
+	internal void AdvanceForSmoke(GameTime to) { _sim.Advance(to.Since(_view.Now)); Refresh(); }
+	internal void TorchForSmoke() { _sim.Execute(new TorchCommand { Actor = _sim.Player, Lit = true }); Refresh(); }
 	internal WorldView SmokeWorld => _sim.GetWorldView();
 	internal bool IsBusy => _running is not null;
 	internal bool IsWalking => _walking;
@@ -322,7 +332,8 @@ public partial class VillageMap : Node2D
 	/// <summary>Click on a door: next to it, open or close it; from afar, walk there (walking opens it anyway).</summary>
 	internal void ClickDoor(GridPos door) => Order("usa la porta", walk: false, () =>
 	{
-		if (_view.Position is { } here && here != door && Math.Max(Math.Abs(here.X - door.X), Math.Abs(here.Y - door.Y)) == 1)
+		if (_view.Position is { } here && (here == door && _view.Map?.Edges.Any(e => e.DoorAt == door) == true
+			|| here != door && Math.Max(Math.Abs(here.X - door.X), Math.Abs(here.Y - door.Y)) == 1))
 		{
 			var knowledge = _view.Doors.FirstOrDefault(d => d.At == door);
 			if (knowledge is not { Known: DoorKnowledge.Seen, Open: { } open })
@@ -639,13 +650,15 @@ public partial class VillageMap : Node2D
 			if (!_doorPanels.TryGetValue(door.At, out var panel))
 				continue;
 			panel.Visible = door.Known != DoorKnowledge.Unknown && door.Open == false;
-			_doorFloors[door.At].Color = door.Known == DoorKnowledge.Unknown ? Road
-				: door.Known == DoorKnowledge.Remembered ? DoorWood.Lerp(Colors.Gray, 0.5f).Darkened(0.25f)
-				: DoorWood.Darkened(0.25f);
-			var outline = _doorOutlines[door.At];
-			outline.Visible = door.Known != DoorKnowledge.Seen;
-			outline.DefaultColor = door.Known == DoorKnowledge.Unknown
-				? new Color(0.78f, 0.78f, 0.74f, 0.8f) : new Color(0.72f, 0.58f, 0.40f, 0.7f);
+			if (_doorFloors.TryGetValue(door.At, out var floor) && _doorOutlines.TryGetValue(door.At, out var outline))
+			{
+				floor.Color = door.Known == DoorKnowledge.Unknown ? Road
+					: door.Known == DoorKnowledge.Remembered ? DoorWood.Lerp(Colors.Gray, 0.5f).Darkened(0.25f)
+					: DoorWood.Darkened(0.25f);
+				outline.Visible = door.Known != DoorKnowledge.Seen;
+				outline.DefaultColor = door.Known == DoorKnowledge.Unknown
+					? new Color(0.78f, 0.78f, 0.74f, 0.8f) : new Color(0.72f, 0.58f, 0.40f, 0.7f);
+			}
 		}
 		var watchers = _view.VisibleActors.Where(a => a.SeesYou == true).Select(a => a.Name).ToList();
 		var hidden = _view.Sneaking is { } total ? $"Di soppiatto (Furtività {total}). "
@@ -674,6 +687,7 @@ public partial class VillageMap : Node2D
 		_people.Visible = _view.Combat is null && !_view.Dead;
 		_peopleScroll.Visible = _people.Visible && _view.PeopleHere.Count > 0;
 		RefreshJournal();
+		RefreshCreatureCard();
 		RefreshCombatUi();
 		ObserveCombatVisuals();
 		RefreshInventoryUi();
@@ -833,7 +847,8 @@ public partial class VillageMap : Node2D
 	{
 		if (_view.MapLight is not { } rows)
 			return;
-		var key = string.Concat(rows) + "|" + string.Join(",", _view.Doors.Select(d => $"{d.At}:{d.Open}"));
+		var key = string.Concat(rows) + "|" + string.Concat(_view.MapVisibility ?? Array.Empty<string>())
+			+ "|" + string.Join(",", _view.Doors.Select(d => $"{d.At}:{d.Open}"));
 		if (key == _lightKey)
 			return;
 		_lightKey = key;
@@ -859,18 +874,28 @@ public partial class VillageMap : Node2D
 					sum += Level(x + dx, y + dy);
 					count++;
 				}
-			_glow[x, y] = count == 0 ? Level(x, y) : 0.6f * Level(x, y) + 0.4f * sum / count;
+			_glow[x, y] = _view.MapVisibility is not null ? Level(x, y)
+				: count == 0 ? Level(x, y) : 0.6f * Level(x, y) + 0.4f * sum / count;
 		}
 		foreach (var (cell, item) in _lit)
+			item.Modulate = Shade(cell);
+		foreach (var (cell, item) in _edgeLit)
 			item.Modulate = Shade(cell);
 	}
 
 	private static readonly Color Night = new(0.22f, 0.25f, 0.42f);
 
-	private Color Shade(GridPos cell) =>
-		cell.X >= 0 && cell.Y >= 0 && cell.X < _glow.GetLength(0) && cell.Y < _glow.GetLength(1)
-			? Night.Lerp(Colors.White, _glow[cell.X, cell.Y])
-			: Colors.White;
+	private Color Shade(GridPos cell)
+	{
+		if (_view.MapVisibility is { } visibility)
+		{
+			var state = visibility[cell.Y][cell.X];
+			if (state == '0') return new Color(0.025f, 0.025f, 0.035f);
+			if (state == '1') return new Color(0.25f, 0.25f, 0.30f);
+		}
+		return cell.X >= 0 && cell.Y >= 0 && cell.X < _glow.GetLength(0) && cell.Y < _glow.GetLength(1)
+			? Night.Lerp(Colors.White, _glow[cell.X, cell.Y]) : Colors.White;
+	}
 
 	/// <summary>Visual glow, exposed to the village smoke to check that walls do not leak light.</summary>
 	internal float DisplayGlowAt(GridPos cell) => _glow[cell.X, cell.Y];
@@ -991,9 +1016,20 @@ public partial class VillageMap : Node2D
 			_lit[store.Position.Value] = block;
 		}
 
-		// Doors: a wooden floor square, and a wooden panel as tall as the walls while closed.
+		foreach (var edge in map.Edges)
+		{
+			var panel = MakeEdgePanel(edge);
+			_sorted.AddChild(panel);
+			_edgeLit.Add((edge.B, panel));
+			if (edge.DoorAt is { } at)
+				_doorPanels[at] = panel;
+		}
+
+		// Legacy square doors keep their wooden floor and panel.
 		foreach (var door in _view.Doors)
 		{
+			if (map.Edges.Any(e => e.DoorAt == door.At))
+				continue;
 			if (_lit.TryGetValue(door.At, out var tile) && tile is Polygon2D floorTile)
 				_doorFloors[door.At] = floorTile;
 			var diamond = Diamond(0.7f);
@@ -1222,6 +1258,7 @@ public partial class VillageMap : Node2D
 		eventsBox.AddChild(eventScroll);
 		box.AddChild(_eventsPanel);
 		BuildCombatUi(ui);
+		BuildLoreUi(ui);
 		BuildJournalUi(ui);
 
 		_offMapPanel = new PanelContainer { OffsetLeft = 440, OffsetRight = 840, OffsetTop = 100, OffsetBottom = 245,

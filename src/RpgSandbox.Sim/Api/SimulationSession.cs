@@ -197,7 +197,7 @@ public sealed class SimulationSession
         // On a map (T6b) seeing takes line of sight and light on the other's square, at any distance.
         var map = player.MapArea is { } mapArea ? w.Maps[mapArea] : null;
         var me = PositionOf(player, w);
-        bool SeenOnMap(GridPos square) => map is not null && me is { } eye && _sim.CanSee(map, eye, square);
+        bool SeenOnMap(GridPos square) => player.Conscious && map is not null && me is { } eye && _sim.CanSee(map, eye, square);
         bool Visible(Actor a) => map is not null && me is not null
             ? a.MapArea == map.Area && PositionOf(a, w) is { } there && SeenOnMap(there)
             : VisibleByPlace(a);
@@ -222,6 +222,14 @@ public sealed class SimulationSession
                     Summary = Summary(o),
                 }));
 
+        // Read only: what is seen now is computed, what was explored is remembered by the simulation (RememberDoors).
+        var seenNow = map is { UsesExploration: true } && me is { } eyeSquare && player.Conscious
+            ? _sim.SquaresSeen(map, eyeSquare).ToHashSet() : new HashSet<GridPos>();
+        var visibility = map is { UsesExploration: true } && me is not null
+            ? Freeze(Enumerable.Range(0, map.Height).Select(y => new string(Enumerable.Range(0, map.Width).Select(x =>
+                seenNow.Contains(new GridPos(x, y)) ? '2' : map.Explored.Contains(new GridPos(x, y)) ? '1' : '0').ToArray())))
+            : null;
+
         return new PlayerView
         {
             Now = w.Now,
@@ -232,7 +240,9 @@ public sealed class SimulationSession
             Move = MoveOf(player),
             Map = w.Maps.TryGetValue(area, out var areaMap) ? MapOf(areaMap, w) : null,
             MapLight = map is null ? null : Freeze(Enumerable.Range(0, map.Height).Select(y =>
-                new string(Enumerable.Range(0, map.Width).Select(x => (char)('0' + (int)_sim.LightOn(map, new GridPos(x, y)))).ToArray()))),
+                new string(Enumerable.Range(0, map.Width).Select(x => visibility is not null && visibility[y][x] != '2'
+                    ? '0' : (char)('0' + (int)_sim.LightOn(map, new GridPos(x, y)))).ToArray()))),
+            MapVisibility = visibility,
             Sheet = player.Sheet,
             Action = player.CurrentAction is { } a
                 ? new ActionView { Id = a.Id, Kind = a.Kind, StartedAt = a.StartedAt, CompletesAt = a.CompletesAt, Description = a.Description }
@@ -353,6 +363,7 @@ public sealed class SimulationSession
             Area = map.Area, Width = map.Width, Height = map.Height,
             Rows = Freeze(rows.Select(r => new string(r))),
             Zones = new SortedDictionary<char, LocationId>(map.Zones.ToDictionary(z => z.Key, z => z.Value)).AsReadOnly(),
+            Edges = Freeze(map.Edges.OrderBy(e => e.A.Y).ThenBy(e => e.A.X).ThenBy(e => e.B.Y).ThenBy(e => e.B.X)),
             Exits = Freeze(map.Exits.Select(e => new ExitView
             {
                 Location = e.Key, Name = w.Locations[e.Key].Name, At = e.Value,

@@ -173,7 +173,7 @@ public partial class CombatPreview : Node2D
 		var die = _sampleD20[_rollIndex++ % _sampleD20.Length];
 		var hit = die == 20 || die != 1 && die + 4 >= 12;
 		var damage = die == 20 ? 8 : 5;
-		AddLog($"Spada lunga: d20 {die} + 4 = {die + 4} contro CA 12: {(hit ? "colpito" : "mancato")}.");
+		AddLog($"Spada lunga: d20 {die} + 4 = {die + 4}: {(hit ? "colpito" : "mancato")}.");
 		if (hit)
 		{
 			enemy.Hp = Math.Max(0, enemy.Hp - damage);

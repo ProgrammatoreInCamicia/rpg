@@ -47,6 +47,33 @@ public partial class VillageMap
 		tile.Color = Colors.White.Darkened(shade * 0.5f);
 	}
 
+	private static Node2D MakeEdgePanel(MapEdgeView edge)
+	{
+		var origin = CellToScreen(edge.A);
+		var diamond = Diamond();
+		var first = edge.B.X > edge.A.X ? diamond[1] : edge.B.X < edge.A.X ? diamond[3]
+			: edge.B.Y > edge.A.Y ? diamond[2] : diamond[0];
+		var second = edge.B.X > edge.A.X ? diamond[2] : edge.B.X < edge.A.X ? diamond[0]
+			: edge.B.Y > edge.A.Y ? diamond[3] : diamond[1];
+		var center = (first + second) / 2f;
+		var node = new Node2D { Position = origin + center };
+		first -= center;
+		second -= center;
+		var height = edge.Kind == MapEdgeKind.Window ? 17f : WallHeight;
+		var color = edge.Kind == MapEdgeKind.Door ? DoorWood : Wall;
+		node.AddChild(new Polygon2D
+		{
+			Polygon = new[] { first, second, second + Vector2.Up * height, first + Vector2.Up * height },
+			Color = edge.Kind == MapEdgeKind.Window ? new Color(0.38f, 0.62f, 0.67f, 0.46f) : color,
+		});
+		var frame = new Line2D { Points = new[] { first + Vector2.Up * height, second + Vector2.Up * height },
+			Width = edge.Kind == MapEdgeKind.Window ? 3f : 2f, DefaultColor = color.Lightened(0.18f) };
+		node.AddChild(frame);
+		if (edge.Kind == MapEdgeKind.Window)
+			node.AddChild(new Line2D { Points = new[] { first, second }, Width = 5f, DefaultColor = Wall });
+		return node;
+	}
+
 	private static string? FigureAsset(ActorId id) => id == MappedVillageScenario.Ids.Player
 		? "paladin" : id == MappedVillageScenario.Ids.Guard ? "guard"
 		: id == MappedVillageScenario.Ids.Farmer ? "farmer" : null;

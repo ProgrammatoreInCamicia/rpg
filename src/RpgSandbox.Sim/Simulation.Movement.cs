@@ -69,8 +69,8 @@ internal sealed partial class Simulation
 
         // T6c-1: a waypoint on every square of the way (the arrival is the completion), where contacts are evaluated and
         // the door ahead, if closed, is opened (free, SRD). A door next to the start is opened at once.
-        if (map.IsClosedDoor(path[0]))
-            OpenDoorOnTheWay(actor, map, path[0]);
+        if (map.ClosedDoorBetween(from, path[0]) is { } firstDoor)
+            OpenDoorOnTheWay(actor, map, firstDoor);
         for (var step = 1; step < path.Count; step++)
             World.Scheduler.Schedule(move.StartedAt.Plus(Duration.FromSeconds(MoveAction.SecondsFor(step, move.Speed))), new MoveWaypoint(move.Id, step));
         var how = stealth is not null ? $" Furtività: {stealth.Describe()}."
@@ -147,8 +147,8 @@ internal sealed partial class Simulation
             return;
         Place(actor, move.Path[waypoint.Step - 1]);
         var map = World.Maps[actor.MapArea!.Value];
-        if (map.IsClosedDoor(move.Path[waypoint.Step]))
-            OpenDoorOnTheWay(actor, map, move.Path[waypoint.Step]);
+        if (map.ClosedDoorBetween(move.Path[waypoint.Step - 1], move.Path[waypoint.Step]) is { } nextDoor)
+            OpenDoorOnTheWay(actor, map, nextDoor);
     }
 
     private void OpenDoorOnTheWay(Actor actor, GridMap map, GridPos door)
@@ -170,12 +170,13 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(RejectionReason.NoMap, "Qui non ci sono porte.");
         if (!map.IsDoor(command.At))
             return CommandResult.Rejected(RejectionReason.NotADoor, "Lì non c'è una porta.");
-        if (here == command.At || !here.IsAdjacentOrSame(command.At) || !OpenDiagonal(map, here, command.At))
+        if ((!map.IsEdgeDoor(command.At) && here == command.At) || !here.IsAdjacentOrSame(command.At)
+            || here != command.At && !OpenDiagonal(map, here, command.At))
             return CommandResult.Rejected(RejectionReason.OutOfReach, "La porta è troppo lontana: avvicinati.");
         if (map.Doors[command.At] == command.Open)
             return CommandResult.Rejected(RejectionReason.AlreadyDone, command.Open ? "La porta è già aperta." : "La porta è già chiusa.");
         // Nobody can be standing in a closing door, nor be about to step into it.
-        if (!command.Open && World.Actors.Values.Any(a => a.MapArea == map.Area
+        if (!command.Open && !map.IsEdgeDoor(command.At) && World.Actors.Values.Any(a => a.MapArea == map.Area
                 && (CurrentPosition(a) == command.At || a.CurrentAction is MoveAction m && NextSquare(m) == command.At)))
             return CommandResult.Rejected(RejectionReason.DoorBlocked, "Qualcuno è sulla porta.");
 
@@ -222,7 +223,5 @@ internal sealed partial class Simulation
     }
 
     /// <summary>A diagonal interaction cannot pass through the corner of two blocked squares.</summary>
-    private static bool OpenDiagonal(GridMap map, GridPos from, GridPos to) =>
-        from.X == to.X || from.Y == to.Y ||
-        (map.IsWalkable(new GridPos(to.X, from.Y)) && map.IsWalkable(new GridPos(from.X, to.Y)));
+    private static bool OpenDiagonal(GridMap map, GridPos from, GridPos to) => map.DiagonalOpen(from, to);
 }

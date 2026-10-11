@@ -322,6 +322,9 @@ public sealed record MapView
     public required IReadOnlyList<string> Rows { get; init; }
     public required IReadOnlyDictionary<char, LocationId> Zones { get; init; }
 
+    /// <summary>Thin walls, windows and doors between squares. Door state is in PlayerView.Doors.</summary>
+    public IReadOnlyList<MapEdgeView> Edges { get; init; } = Array.Empty<MapEdgeView>();
+
     /// <summary>T6c: exits of the map (common knowledge, like the roads): where journeys start and where they lead.</summary>
     public IReadOnlyList<ExitView> Exits { get; init; } = Array.Empty<ExitView>();
 }

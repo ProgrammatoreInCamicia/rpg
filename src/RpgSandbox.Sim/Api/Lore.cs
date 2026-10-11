@@ -34,6 +34,9 @@ public sealed record CreatureCardView
     /// <summary>Already looked at closely (no further Insight on it).</summary>
     public bool Observed { get; init; }
 
+    /// <summary>At least one permitted Insight or proficient Study attempt remains.</summary>
+    public bool CanObserve { get; init; }
+
     /// <summary>What the player knows of its kind; null if it is of no known kind.</summary>
     public KindCardView? KindLore { get; init; }
 }
