@@ -1,7 +1,11 @@
 {
   "source": "Original to this project (ADAPTATION of the SRD 5.2.1 stat blocks Bandit, Guard and Commoner, CC BY 4.0): the test bench village's people, with their own abilities and skills; attacks recomputed from those abilities by the SRD rules.",
   "creatures": [
-    { "id": "raider", "name": "Razziatore",
+    { "id": "raider", "name": "Razziatore", "kind": "human",
+      "tells": [
+        { "dc": 10, "text": "Si muove leggero, sulle punte: è abituato a colpire e sparire." },
+        { "dc": 15, "text": "Mentre ti parla tiene d'occhio le vie di fuga, non te." }
+      ],
       "abilities": { "str": 11, "dex": 15, "con": 12, "int": 10, "wis": 10, "cha": 9 }, "proficiency": 2, "skills": ["Stealth", "SleightOfHand"],
       "armorClass": 13, "hitPoints": 11, "speed": 30, "initiative": 2,
       "gear": ["leather-armor", "light-crossbow", "scimitar"], "items": [["bolt", 20]],
@@ -10,7 +14,11 @@
         { "name": "Balestra leggera", "bonus": 4, "damage": "1d8", "damageBonus": 2, "type": "Piercing", "range": [80, 320],
           "requires": "light-crossbow", "item": "bolt", "fate": "Spent" }
       ] },
-    { "id": "village-guard", "name": "Guardia del villaggio",
+    { "id": "village-guard", "name": "Guardia del villaggio", "kind": "human",
+      "tells": [
+        { "dc": 10, "text": "Tiene la lancia come chi l'ha usata davvero." },
+        { "dc": 14, "text": "Sotto la cotta, le spalle di chi ha fatto molti turni di guardia: non si stanca facilmente." }
+      ],
       "abilities": { "str": 13, "dex": 12, "con": 12, "int": 10, "wis": 13, "cha": 10 }, "proficiency": 2, "skills": ["Perception", "Intimidation"],
       "armorClass": 16, "hitPoints": 11, "speed": 30, "initiative": 1,
       "gear": ["chain-shirt", "shield", "spear"], "items": [],
@@ -19,7 +27,11 @@
         { "name": "Lancia (lanciata)", "bonus": 3, "damage": "1d6", "damageBonus": 1, "type": "Piercing", "range": [20, 60],
           "item": "spear", "fate": "Thrown" }
       ] },
-    { "id": "farmer", "name": "Contadino",
+    { "id": "farmer", "name": "Contadino", "kind": "human",
+      "tells": [
+        { "dc": 8, "text": "Impugna il bastone come un attrezzo, non come un'arma." },
+        { "dc": 12, "text": "Ha le mani dure del lavoro nei campi, ma non ha mai combattuto davvero." }
+      ],
       "abilities": { "str": 13, "dex": 10, "con": 13, "int": 9, "wis": 12, "cha": 10 }, "proficiency": 2, "skills": [],
       "armorClass": 10, "hitPoints": 5, "speed": 30, "initiative": 0, "flees": true,
       "gear": ["club"], "items": [],

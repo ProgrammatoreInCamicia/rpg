@@ -468,7 +468,7 @@ Contratto completo in chat.txt ("CONTRATTO C4" e le note successive). In sintesi
 - Salvataggi (schema 19): le razioni di una persona stanno nel suo inventario (non c'è più un campo a parte), il deposito salva il suo contenuto; oggetti sconosciuti o quantità non positive nel contenuto sono rifiutati.
 - Debito noto: come la torcia, la razione è riconosciuta dal suo id nel motore.
 
-## C5a — Ciò che il giocatore sa delle creature (proposta, in corso)
+## C5a — Ciò che il giocatore sa delle creature
 
 Decisioni dell'utente: il mondo non si adatta al giocatore; tono duro, vicino all'OSR, con il piccolo aiuto che darebbe un DM. Nessun numero del nemico e nessuna etichetta di difficoltà a schermo, se non imparati.
 
@@ -479,3 +479,10 @@ Decisioni dell'utente: il mondo non si adatta al giocatore; tono duro, vicino al
 3. **«Osserva»** (`ObserveCommand { Actor, Target }`) su un attore che il giocatore vede: la Sim sceglie le prove come un DM. Intuizione (Search, Saggezza) sempre, per l'individuo; Study (Intelligenza) solo se il personaggio è competente nell'abilità che quel tipo richiede (Storia per umanoidi, Natura per bestie, Arcano per mostri, Religione per non morti: tabella SRD Areas of Knowledge). Ogni prova rivela gli indizi della sua abilità con CD non superiore al totale (`tells` nei dati della creatura: abilità, CD, testo, individuo o tipo). Un tentativo di Intuizione per individuo e uno di Study per tipo. Il fallimento non rivela nulla. In combattimento costa l'azione; fuori è immediato (ADAPTATION).
 4. **Invarianti (Codex):** l'esito di «Osserva» è conoscenza personale e voce del registro del giocatore, non un fatto che gli NPC percepiscono o raccontano; si impara da attacchi e comportamenti solo se il giocatore li ha percepiti e attribuiti. La scheda non mostra identificativi interni, numeri di combattimento non dedotti né descrizioni non ancora apprese.
 5. **Vista:** per ogni attore visibile una scheda tipizzata (ciò che sai dell'individuo e del suo tipo, la CA come intervallo dedotto); `PlayerView` elenca anche i tipi conosciuti.
+
+Implementazione (C5a, Sim):
+- **Dati**: `original/kinds.json` elenca i tipi (`id`, `name` come appare, `type` SRD, `tells` da Study); ogni creatura e personaggio ha `kind`; le creature hanno `tells` per l'Intuizione (`{ "dc", "text" }`, CD 1-30). Nuove abilità: Arcana, History, Investigation, Nature.
+- **API**: `ObserveCommand { Actor, Target }`; rifiuti `NotVisible`, `AlreadyDone` (nulla di nuovo da tentare), `NotYourTurn`, `NoActionLeft`. Il messaggio e il fatto `Observe` (partecipante solo il giocatore) riportano i tiri e ciò che si nota.
+- **Viste**: `VisibleActorView.Card` (`CreatureCardView`: `Kind`, `Tells`, `Attacks`, `ArmorClassAbove`/`ArmorClassAtMost`/`ArmorClass`, `Observed`, `KindLore`) e `PlayerView.KnownKinds` (`KindCardView`: `Name`, `Tells`, `Attacks`, `Studied`).
+- **Salvataggi** (schema 20): la conoscenza del giocatore; creature e tipi sconosciuti sono rifiutati.
+- Fuori per ora: le voci degli NPC, i comportamenti visti (fuga, resa) nella scheda, il grado di pericolo per zona.

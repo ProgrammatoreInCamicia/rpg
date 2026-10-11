@@ -144,6 +144,9 @@ internal sealed class Actor
     /// <summary>C2: everyone this actor has fought against: it holds them hostile from then on.</summary>
     public SortedSet<ActorId> FoughtWith { get; } = new(Comparer<ActorId>.Create((a, b) => string.CompareOrdinal(a.Value, b.Value)));
 
+    /// <summary>C5a, the player only: what it has learned of the creatures it met and of their kinds.</summary>
+    public Lore Lore { get; } = new();
+
     /// <summary>C2: awake and alive: it can see, hear, decide and act.</summary>
     public bool Conscious => Vitality.State == LifeState.Alive && !Vitality.KnockedOut;
 }

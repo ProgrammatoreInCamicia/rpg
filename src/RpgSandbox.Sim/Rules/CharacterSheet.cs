@@ -9,6 +9,7 @@ public enum Ability { Strength, Dexterity, Constitution, Intelligence, Wisdom, C
 public enum Skill
 {
     Athletics, Insight, Intimidation, Medicine, Perception, Persuasion, Religion, SleightOfHand, Stealth,
+    Arcana, History, Investigation, Nature, // C5a: the Intelligence skills of the Study action
 }
 
 public static class Abilities
@@ -23,7 +24,7 @@ public static class Abilities
         Skill.SleightOfHand or Skill.Stealth => Ability.Dexterity,
         Skill.Insight or Skill.Medicine or Skill.Perception => Ability.Wisdom,
         Skill.Intimidation or Skill.Persuasion => Ability.Charisma,
-        Skill.Religion => Ability.Intelligence,
+        Skill.Religion or Skill.Arcana or Skill.History or Skill.Investigation or Skill.Nature => Ability.Intelligence,
         _ => throw new ArgumentOutOfRangeException(nameof(skill)),
     };
 }

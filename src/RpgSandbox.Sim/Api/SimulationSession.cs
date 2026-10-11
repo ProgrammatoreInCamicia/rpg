@@ -258,6 +258,7 @@ public sealed class SimulationSession
             Areas = Freeze(w.Areas.Values.Select(x => new AreaView { Id = x.Id, Name = x.Name })),
             Locations = Freeze(w.Locations.Values.Select(l => new LocationView { Id = l.Id, Name = l.Name, Area = l.Area })),
             Routes = Freeze(w.Routes.Select(r => new RouteView { From = r.Key.From, To = r.Key.To, TravelTime = r.Value })),
+            KnownKinds = Freeze(player.Lore.Kinds.Where(k => w.Content.Kinds.ContainsKey(k.Key)).Select(k => _sim.KindCardOf(player, w.Content.Kinds[k.Key]))),
             VisibleActors = Freeze(w.Actors.Values.Where(x => x.Id != player.Id && Visible(x)).Select(x => new VisibleActorView
             {
                 Id = x.Id,
@@ -276,6 +277,7 @@ public sealed class SimulationSession
                 Torch = _sim.TorchLit(x),
                 Condition = x.Vitality.Describe(),
                 Hostile = x.Conscious && _sim.HoldsHostile(x, player),
+                Card = _sim.CardOf(x),
             })),
             VisibleStores = Freeze(w.Stores.Values.Where(s => s.Position is { } sp && map is not null
                 ? w.Locations[s.Location].Area == map.Area && (SeenOnMap(sp) || me is { } m && m.IsAdjacentOrSame(sp))

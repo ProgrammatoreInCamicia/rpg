@@ -13,7 +13,8 @@ internal sealed partial class Simulation
         RememberDoors(); // a command may open a door or move the player's view (T6c-5)
         // Anything louder than a whisper ends sneaking (SRD Hide): talking, depositing, waiting... Taking food quietly,
         // stopping, a door or a torch do not (a lit torch gives you away by its light anyway); a normal walk ends it in StartMove.
-        if (result.Success && command is not (MoveCommand or StopCommand or TakeFoodCommand or DoorCommand or TorchCommand or PickUpCommand or DropCommand)
+        if (result.Success && command is not (MoveCommand or StopCommand or TakeFoodCommand or DoorCommand or TorchCommand or PickUpCommand or DropCommand
+                or ObserveCommand)
             && World.Actors.TryGetValue(command.Actor, out var actor))
             actor.Sneak = null;
         return result;
@@ -36,10 +37,11 @@ internal sealed partial class Simulation
                     CombatActionCommand act => TakeAction(fight, actor, act),
                     PickUpCommand pick => PickUp(pick),
                     DropCommand drop => Drop(drop),
+                    ObserveCommand observe => Observe(fight, observe),
                     _ => CommandResult.Rejected(RejectionReason.InCombat, $"{actor.Name} sta combattendo."),
                 };
         }
-        else if (command is AttackCommand or EndTurnCommand or CombatActionCommand or PickUpCommand or DropCommand)
+        else if (command is AttackCommand or EndTurnCommand or CombatActionCommand or PickUpCommand or DropCommand or ObserveCommand)
             return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {command.Actor}.");
         return DispatchOutsideFights(command);
     }
@@ -59,6 +61,7 @@ internal sealed partial class Simulation
         EndTurnCommand or CombatActionCommand => CommandResult.Rejected(RejectionReason.NotInCombat, "Non stai combattendo."),
         PickUpCommand pick => PickUp(pick),
         DropCommand drop => Drop(drop),
+        ObserveCommand observe => Observe(null, observe),
         _ => CommandResult.Rejected(RejectionReason.UnknownCommand, $"Comando non supportato: {command.GetType().Name}."),
     };
 

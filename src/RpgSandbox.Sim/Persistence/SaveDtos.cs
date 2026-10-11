@@ -109,6 +109,7 @@ internal sealed class ActorDto
     public EquipmentDto Equipment { get; set; } = new();
     public VitalityDto? Vitality { get; set; }
     public List<string> FoughtWith { get; set; } = new();
+    public LoreDto? Lore { get; set; }
 }
 
 internal sealed class StoreDto
@@ -511,4 +512,29 @@ internal sealed class ContentFileDto
 {
     public string Name { get; set; } = "";
     public string Text { get; set; } = "";
+}
+
+/// <summary>C5a: what the player knows of creatures and kinds.</summary>
+internal sealed class LoreDto
+{
+    public List<CreatureLoreDto> Creatures { get; set; } = new();
+    public List<KindLoreDto> Kinds { get; set; } = new();
+}
+
+internal sealed class CreatureLoreDto
+{
+    public string Creature { get; set; } = "";
+    public int? ArmorClassAbove { get; set; }
+    public int? ArmorClassAtMost { get; set; }
+    public List<string> Attacks { get; set; } = new();
+    public List<string> Tells { get; set; } = new();
+    public bool Observed { get; set; }
+}
+
+internal sealed class KindLoreDto
+{
+    public string Kind { get; set; } = "";
+    public List<string> Attacks { get; set; } = new();
+    public List<string> Tells { get; set; } = new();
+    public bool Studied { get; set; }
 }

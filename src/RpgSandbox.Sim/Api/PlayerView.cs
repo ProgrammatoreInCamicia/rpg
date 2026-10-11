@@ -68,6 +68,9 @@ public sealed record PlayerView
     /// <summary>Other actors the player can see: in its area where there is light, on the road only by daylight.</summary>
     public required IReadOnlyList<VisibleActorView> VisibleActors { get; init; }
 
+    /// <summary>C5a: the kinds of creatures the player has learned something about.</summary>
+    public IReadOnlyList<KindCardView> KnownKinds { get; init; } = Array.Empty<KindCardView>();
+
     /// <summary>Stores in the player's area that the player can see (lit, or where the player stands).</summary>
     public required IReadOnlyList<StoreView> VisibleStores { get; init; }
 
@@ -139,6 +142,9 @@ public sealed record VisibleActorView
     /// attitude one can read at a glance, never the reason nor what it knows.
     /// </summary>
     public bool Hostile { get; init; }
+
+    /// <summary>C5a: what the player knows of it (right click → information): only what it saw and made out.</summary>
+    public CreatureCardView? Card { get; init; }
 }
 
 /// <summary>T6c-5: how much the player knows of a door.</summary>

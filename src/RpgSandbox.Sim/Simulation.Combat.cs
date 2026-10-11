@@ -510,6 +510,7 @@ internal sealed partial class Simulation
             playerText: (a, t) => $"{a} {how} {t}{extra}. {seen}.");
         var blow = World.RecordFact("Attack", $"{attacker.Name} {how} {target.Name}: {result.Describe()}.",
             $"{attacker.Name} {how} {target.Name}: {seen}.", Participants(attacker, target));
+        LearnFrom(attacker, target, attack, result); // C5a
         WitnessFight(e, attacker, target, opening: false, blow);
         Fell(e, target, attacker, outcome);
         return $"{attacker.Name} {how} {target.Name}{extra}. {seen}.";

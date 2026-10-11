@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 19;
+    public const int SchemaVersion = 20;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -189,6 +189,18 @@ internal static class SaveGame
             Equipment = new EquipmentDto { Armor = a.Equipment.Armor, Shield = a.Equipment.Shield, MainHand = a.Equipment.MainHand },
             Vitality = ToDto(a.Vitality.Snapshot()),
             FoughtWith = a.FoughtWith.Select(f => f.Value).ToList(),
+            Lore = a.Lore.IsEmpty ? null : new LoreDto
+            {
+                Creatures = a.Lore.Creatures.Select(c => new CreatureLoreDto
+                {
+                    Creature = c.Key.Value, ArmorClassAbove = c.Value.ArmorClassAbove, ArmorClassAtMost = c.Value.ArmorClassAtMost,
+                    Attacks = c.Value.Attacks.ToList(), Tells = c.Value.Tells.ToList(), Observed = c.Value.Observed,
+                }).ToList(),
+                Kinds = a.Lore.Kinds.Select(k => new KindLoreDto
+                {
+                    Kind = k.Key, Attacks = k.Value.Attacks.ToList(), Tells = k.Value.Tells.ToList(), Studied = k.Value.Studied,
+                }).ToList(),
+            },
         }).ToList(),
         NextEncounterId = w.NextEncounterId,
         Encounters = w.Encounters.Values.Select(ToDto).ToList(),
@@ -484,6 +496,30 @@ internal static class SaveGame
             };
             foreach (var foe in a.FoughtWith ?? throw new InvalidDataException($"avversari di '{a.Id}' mancanti"))
                 Check(actor.FoughtWith.Add(new ActorId(Required(foe, "avversario"))), $"avversario ripetuto per '{a.Id}'");
+            if (a.Lore is { } lore) // C5a: the player's only
+            {
+                Check(a.IsPlayer && lore.Creatures is not null && lore.Kinds is not null, $"conoscenze di '{a.Id}' non valide");
+                foreach (var c in lore.Creatures!)
+                {
+                    Check(c is not null && c.Attacks is not null && c.Tells is not null
+                          && !(c.ArmorClassAbove is { } above && c.ArmorClassAtMost is { } atMost && above >= atMost)
+                          && !actor.Lore.Creatures.ContainsKey(new ActorId(Required(c.Creature, "creatura conosciuta"))),
+                        $"conoscenza di '{c?.Creature}' non valida");
+                    var known = actor.Lore.Of(new ActorId(c!.Creature));
+                    (known.ArmorClassAbove, known.ArmorClassAtMost, known.Observed) = (c.ArmorClassAbove, c.ArmorClassAtMost, c.Observed);
+                    known.Attacks.UnionWith(c.Attacks!);
+                    known.Tells.AddRange(c.Tells!);
+                }
+                foreach (var k in lore.Kinds!)
+                {
+                    Check(k is not null && k.Attacks is not null && k.Tells is not null && content.Kinds.ContainsKey(k.Kind ?? "")
+                          && !actor.Lore.Kinds.ContainsKey(k.Kind!), $"conoscenza del tipo '{k?.Kind}' non valida");
+                    var known = actor.Lore.OfKind(k!.Kind!);
+                    known.Studied = k.Studied;
+                    known.Attacks.UnionWith(k.Attacks!);
+                    known.Tells.AddRange(k.Tells!);
+                }
+            }
             foreach (var o in a.Knowledge)
                 actor.Knowledge.Add(FromDto(o));
             foreach (var c in a.Claims ?? throw new InvalidDataException($"debiti di '{a.Id}' mancanti"))
@@ -922,6 +958,7 @@ internal static class SaveGame
         foreach (var actor in w.Actors.Values)
         {
             Check(actor.FoughtWith.All(w.Actors.ContainsKey) && !actor.FoughtWith.Contains(actor.Id), $"avversari di '{actor.Id}' non validi");
+            Check(actor.Lore.Creatures.Keys.All(w.Actors.ContainsKey) && !actor.Lore.Creatures.ContainsKey(actor.Id), $"conoscenze di '{actor.Id}' su creature sconosciute");
             var fighting = w.Encounters.Values.Any(e => e.Order.Any(c => c.Actor == actor.Id));
             var lying = actor.CurrentAction is DownedAction;
             var fallen = !actor.Conscious && actor.Vitality.State != LifeState.Dead;

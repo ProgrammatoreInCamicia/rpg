@@ -1,0 +1,6 @@
+{
+  "source": "Original to this project; creature types from SRD 5.2.1 (Wizards of the Coast LLC), CC BY 4.0.",
+  "kinds": [
+    { "id": "human", "name": "Umano", "type": "Humanoid" }
+  ]
+}

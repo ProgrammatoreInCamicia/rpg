@@ -29,11 +29,40 @@ public sealed record CreatureDefinition
     public required int InitiativeBonus { get; init; }
     public bool Flees { get; init; }
 
+    /// <summary>C5a: its kind (a <see cref="KindDefinition"/> id) and what a careful look (Insight) can tell of it.</summary>
+    public required string Kind { get; init; }
+    public IReadOnlyList<Tell> Tells { get; init; } = Array.Empty<Tell>();
+
     /// <summary>Items worn or wielded (one each) and other items carried (with how many).</summary>
     public required IReadOnlyList<string> Gear { get; init; }
     public required IReadOnlyList<(string Item, int Count)> Items { get; init; }
     public long Coins { get; init; }
     public required IReadOnlyList<AttackProfile> Attacks { get; init; }
+}
+
+/// <summary>SRD creature types (they decide which knowledge the Study action draws on).</summary>
+public enum CreatureType
+{
+    Aberration, Beast, Celestial, Construct, Dragon, Elemental, Fey, Fiend, Giant, Humanoid, Monstrosity, Ooze, Plant, Undead,
+}
+
+/// <summary>C5a: something one can make out about a creature with a high enough check (DC), told in the world's words.</summary>
+public sealed record Tell(int Dc, string Text);
+
+/// <summary>
+/// C5a: a kind of creature (human, wolf, ...): what it looks like by name, its SRD type, and what one may recall about
+/// the kind with the Study action (<see cref="Tells"/>).
+/// </summary>
+public sealed record KindDefinition(string Id, string Name, CreatureType Type, IReadOnlyList<Tell> Tells)
+{
+    /// <summary>SRD "Areas of Knowledge": the skill that recalls lore about creatures of this type.</summary>
+    public Skill StudySkill => Type switch
+    {
+        CreatureType.Aberration or CreatureType.Construct or CreatureType.Elemental or CreatureType.Fey or CreatureType.Monstrosity => Skill.Arcana,
+        CreatureType.Giant or CreatureType.Humanoid => Skill.History,
+        CreatureType.Celestial or CreatureType.Fiend or CreatureType.Undead => Skill.Religion,
+        _ => Skill.Nature, // Beasts, Dragons, Oozes, Plants
+    };
 }
 
 /// <summary>A player character as built by the rules: computed into a sheet and a profile (D1a).</summary>
@@ -48,6 +77,9 @@ public sealed record CharacterDefinition
     public required Equipment Equipment { get; init; }
     public required IReadOnlyList<(string Item, int Count)> Items { get; init; }
     public long Coins { get; init; }
+
+    /// <summary>C5a: its kind (a <see cref="KindDefinition"/> id).</summary>
+    public required string Kind { get; init; }
 
     /// <summary>The weapons (by item id) whose mastery the character has unlocked.</summary>
     public required IReadOnlyList<string> Masteries { get; init; }
@@ -84,6 +116,13 @@ public sealed class ContentPack
     public required IReadOnlyDictionary<string, ClassDefinition> Classes { get; init; }
     public required IReadOnlyDictionary<string, CreatureDefinition> Creatures { get; init; }
     public required IReadOnlyDictionary<string, CharacterDefinition> Characters { get; init; }
+
+    /// <summary>C5a: kinds of creatures, by id.</summary>
+    public IReadOnlyDictionary<string, KindDefinition> Kinds { get; init; } = new Dictionary<string, KindDefinition>();
+
+    /// <summary>C5a: the kind an actor built from <paramref name="build"/> is.</summary>
+    public KindDefinition KindOf(string build) =>
+        Kinds[Creatures.TryGetValue(build, out var c) ? c.Kind : Characters[build].Kind];
 
     /// <summary>D1b: scenarios (worlds to play), by id, as read from their files; see Scenarios.ScenarioFile.</summary>
     internal IReadOnlyDictionary<string, JsonElement> Scenarios { get; init; } = new Dictionary<string, JsonElement>();
@@ -143,6 +182,7 @@ public sealed class ContentPack
         var classes = new Dictionary<string, ClassDefinition>();
         var creatures = new Dictionary<string, CreatureDefinition>();
         var characters = new Dictionary<string, CharacterDefinition>();
+        var kinds = new Dictionary<string, KindDefinition>();
         var documents = listed.Select(n => (Name: n, Root: Parse(texts[n], n))).ToList();
         // Items first: everything else refers to them.
         foreach (var (name, root) in documents)
@@ -151,6 +191,9 @@ public sealed class ContentPack
                     Add(items, ReadItem(e, name), name);
         foreach (var (name, root) in documents)
         {
+            if (root.TryGetProperty("kinds", out var kn))
+                foreach (var e in kn.EnumerateArray())
+                    Add(kinds, ReadKind(e, name), name);
             if (root.TryGetProperty("classes", out var cl))
                 foreach (var e in cl.EnumerateArray())
                     Add(classes, ReadClass(e, name), name);
@@ -166,13 +209,16 @@ public sealed class ContentPack
         foreach (var (name, root) in documents)
             if (root.TryGetProperty("scenario", out var sc) && !scenarios.TryAdd(Text(sc, "id", name), sc))
                 throw new InvalidDataException($"contenuti: scenario ripetuto ({name})");
+        foreach (var (build, kind) in creatures.Select(c => (c.Key, c.Value.Kind)).Concat(characters.Select(c => (c.Key, c.Value.Kind))))
+            if (!kinds.ContainsKey(kind))
+                throw new InvalidDataException($"contenuti: '{build}' è di un tipo sconosciuto '{kind}'");
         foreach (var dup in creatures.Keys.Intersect(characters.Keys))
             throw new InvalidDataException($"contenuti: '{dup}' è sia una creatura sia un personaggio");
 
         return new ContentPack
         {
             Id = id, Version = version, Hash = HashOf(ordered), Files = ordered,
-            Items = items, Classes = classes, Creatures = creatures, Characters = characters, Scenarios = scenarios,
+            Items = items, Classes = classes, Creatures = creatures, Characters = characters, Kinds = kinds, Scenarios = scenarios,
         };
     }
 
@@ -251,6 +297,7 @@ public sealed class ContentPack
             ArmorClass = Int(e, "armorClass", where), HitPoints = Int(e, "hitPoints", where), Speed = Int(e, "speed", where),
             InitiativeBonus = Int(e, "initiative", where), Flees = e.TryGetProperty("flees", out var f) && f.GetBoolean(),
             Gear = gear, Items = carried, Coins = e.TryGetProperty("coins", out var c) ? c.GetInt64() : 0, Attacks = attacks,
+            Kind = Text(e, "kind", where), Tells = TellsOf(e, where),
         };
         if (creature.HitPoints < 1 || creature.ArmorClass < 1 || creature.Speed < 0 || attacks.Length == 0)
             throw new InvalidDataException($"contenuti: {where}: punti ferita, CA, velocità o attacchi non validi");
@@ -278,6 +325,21 @@ public sealed class ContentPack
         };
     }
 
+    private static KindDefinition ReadKind(JsonElement e, string file)
+    {
+        var id = Text(e, "id", file);
+        var where = $"{file}, tipo '{id}'";
+        return new KindDefinition(id, Text(e, "name", where), EnumOf<CreatureType>(Field(e, "type", where), where), TellsOf(e, where));
+    }
+
+    /// <summary>C5a: optional "tells": [{ "dc": 12, "text": "..." }], each with a DC from 1 to 30 and a text.</summary>
+    private static IReadOnlyList<Tell> TellsOf(JsonElement e, string where) =>
+        e.TryGetProperty("tells", out _)
+            ? Array(e, "tells", where).Select(t => Int(t, "dc", where) is var dc and >= 1 and <= 30
+                ? new Tell(dc, Text(t, "text", where))
+                : throw new InvalidDataException($"contenuti: {where}: un indizio ha una CD tra 1 e 30")).ToArray()
+            : System.Array.Empty<Tell>();
+
     private static CharacterDefinition ReadCharacter(JsonElement e, string file, IReadOnlyDictionary<string, ItemDefinition> items,
         IReadOnlyDictionary<string, ClassDefinition> classes)
     {
@@ -304,6 +366,7 @@ public sealed class ContentPack
             Skills = Array(e, "skills", where).Select(x => EnumOf<Skill>(x, where)).ToArray(), Equipment = equipment,
             Items = Stacks(e, items, where), Coins = e.TryGetProperty("coins", out var c) ? c.GetInt64() : 0,
             Masteries = Array(e, "masteries", where).Select(x => KnownItem(x.GetString(), items, where)).ToArray(),
+            Kind = Text(e, "kind", where),
         };
     }
 
@@ -374,7 +437,8 @@ public sealed class ContentPack
     {
         var id = value switch
         {
-            ItemDefinition i => i.Id, ClassDefinition c => c.Id, CreatureDefinition r => r.Id, CharacterDefinition h => h.Id, _ => "",
+            ItemDefinition i => i.Id, ClassDefinition c => c.Id, CreatureDefinition r => r.Id, CharacterDefinition h => h.Id,
+            KindDefinition k => k.Id, _ => "",
         };
         if (!into.TryAdd(id, value))
             throw new InvalidDataException($"contenuti: '{id}' ripetuto ({file})");
