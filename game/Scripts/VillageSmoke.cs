@@ -43,6 +43,19 @@ public partial class VillageSmoke : Node
 		await Frames(10);
 		Require(_map.View.Position == MappedVillageScenario.Ids.PlayerStart, "Player does not start at the inn");
 		Capture("1-start.png");
+		_map.OpenInventoryForSmoke();
+		Require(_map.EquipmentLabelsForSmoke.Any(x => x == "Armatura: Cotta di maglia")
+			&& _map.EquipmentLabelsForSmoke.Any(x => x == "Scudo: Scudo")
+			&& _map.EquipmentLabelsForSmoke.Any(x => x == "Mano principale: Spada lunga"),
+			"D1a: equipment slots are not shown from the typed view");
+		Require(!_map.DropEnabledForSmoke(new ItemId("chain-mail"))
+			&& !_map.DropEnabledForSmoke(new ItemId("shield"))
+			&& !_map.DropEnabledForSmoke(new ItemId("longsword"))
+			&& _map.DropEnabledForSmoke(new ItemId("javelin")),
+			"D1a: the inventory permits dropping equipped gear or blocks spare javelins");
+		await Frames(2);
+		Capture("45-d1a-equipment.png");
+		_map.CloseInventoryForSmoke();
 
 		// Real time with pause: the world goes on while the player stands still.
 		var t0 = _map.View.Now;

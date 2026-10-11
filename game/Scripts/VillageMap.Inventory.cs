@@ -9,6 +9,7 @@ public partial class VillageMap
 	private Button _inventoryButton = null!;
 	private PanelContainer _inventoryPanel = null!;
 	private Label _coinsLabel = null!;
+	private VBoxContainer _equipmentRows = null!;
 	private VBoxContainer _inventoryRows = null!;
 	private VBoxContainer _groundRows = null!;
 	private readonly Dictionary<GridPos, Node2D> _groundMarks = new();
@@ -39,6 +40,10 @@ public partial class VillageMap
 		column.AddChild(scroll);
 		var contents = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		scroll.AddChild(contents);
+		contents.AddChild(new Label { Text = "Equipaggiamento" });
+		_equipmentRows = new VBoxContainer();
+		contents.AddChild(_equipmentRows);
+		contents.AddChild(new HSeparator());
 		contents.AddChild(new Label { Text = "Con te" });
 		_inventoryRows = new VBoxContainer();
 		contents.AddChild(_inventoryRows);
@@ -56,20 +61,30 @@ public partial class VillageMap
 		_coinsLabel.Text = $"Denaro: {gold} mo · {silver} ma · {copper} mr";
 		_inventoryButton.Text = $"Inventario ({_view.Inventory.Sum(i => i.Count)})";
 		var key = $"{_view.Position}|{_view.Dead}|{_view.Combat?.Round}:{_view.Combat?.Turn}|{_view.Coins}|"
-			+ string.Join(";", _view.Inventory.Select(i => $"{i.Item}:{i.Name}:{i.Count}")) + "|"
+			+ string.Join(";", _view.Equipment.Select(e => $"{e.Slot}:{e.Item}:{e.Name}")) + "|"
+			+ string.Join(";", _view.Inventory.Select(i => $"{i.Item}:{i.Name}:{i.Count}:{i.Equipped}")) + "|"
 			+ string.Join(";", _view.GroundItems.Select(i => $"{i.At}:{i.Item}:{i.Name}:{i.Count}"));
 		if (key == _inventoryKey)
 			return;
 		_inventoryKey = key;
+		ClearRows(_equipmentRows);
 		ClearRows(_inventoryRows);
 		ClearRows(_groundRows);
+		if (_view.Equipment.Count == 0)
+			_equipmentRows.AddChild(new Label { Text = "Niente equipaggiato." });
+		foreach (var worn in _view.Equipment)
+			_equipmentRows.AddChild(new Label { Text = $"{EquipmentSlotName(worn.Slot)}: {worn.Name}" });
 		if (_view.Inventory.Count == 0)
 			_inventoryRows.AddChild(new Label { Text = "Nessun oggetto." });
 		foreach (var stack in _view.Inventory)
 		{
 			var row = new HBoxContainer();
-			row.AddChild(new Label { Text = $"{stack.Name} ×{stack.Count}", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
-			var drop = new Button { Text = "Lascia 1", Disabled = _view.Dead || _view.Position is null };
+			var worn = stack.Equipped > 0 ? " (in uso)" : "";
+			row.AddChild(new Label { Text = $"{stack.Name} ×{stack.Count}{worn}", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+				TooltipText = stack.Equipped > 0 ? $"{stack.Equipped} equipaggiato/i" : "" });
+			var drop = new Button { Text = "Lascia 1", Disabled = _view.Dead || _view.Position is null
+				|| stack.Count <= stack.Equipped,
+				TooltipText = stack.Count <= stack.Equipped ? "È equipaggiato: non puoi lasciarlo finché non puoi cambiarlo." : "" };
 			drop.Pressed += () => Drop(stack.Item, 1);
 			row.AddChild(drop);
 			_inventoryRows.AddChild(row);
@@ -97,6 +112,14 @@ public partial class VillageMap
 		}
 	}
 
+	private static string EquipmentSlotName(EquipmentSlot slot) => slot switch
+	{
+		EquipmentSlot.Armor => "Armatura",
+		EquipmentSlot.Shield => "Scudo",
+		EquipmentSlot.MainHand => "Mano principale",
+		_ => slot.ToString(),
+	};
+
 	private bool GroundInReach(GridPos at) => _view.Position is { } here
 		&& Math.Max(Math.Abs(here.X - at.X), Math.Abs(here.Y - at.Y)) <= 1;
 
@@ -120,6 +143,15 @@ public partial class VillageMap
 	}
 	internal bool InventoryPanelVisibleForSmoke => _inventoryPanel.Visible;
 	internal void OpenInventoryForSmoke() => _inventoryPanel.Visible = true;
+	internal void CloseInventoryForSmoke() => _inventoryPanel.Visible = false;
+	internal IReadOnlyList<string> EquipmentLabelsForSmoke => _equipmentRows.GetChildren()
+		.OfType<Label>().Select(label => label.Text).ToArray();
+	internal bool DropEnabledForSmoke(ItemId item)
+	{
+		var index = _view.Inventory.ToList().FindIndex(i => i.Item == item);
+		return index >= 0 && _inventoryRows.GetChild(index) is HBoxContainer row
+			&& row.GetChildren().OfType<Button>().SingleOrDefault() is { Disabled: false };
+	}
 
 	private void Drop(ItemId item, int count) => Order("lascia un oggetto", walk: false, () =>
 	{

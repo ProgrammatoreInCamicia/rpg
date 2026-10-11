@@ -93,7 +93,7 @@ public partial class VillageMap : Node2D
 
 	public override void _Ready()
 	{
-		_sim = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
+		_sim = SimulationSession.Create(ScenarioFile.Load("living-village"));
 		_view = _sim.GetPlayerView();
 
 		BuildMap();
