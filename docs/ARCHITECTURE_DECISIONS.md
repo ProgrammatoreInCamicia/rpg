@@ -203,3 +203,36 @@ scelti per Luogo invece che da un tema della mappa; `VillageMap` che crea da sé
 mappa; il pannello e i comandi del solo cibo. La vecchia scena a Luoghi (`Main.cs`) resta regressione e non guida le
 API. Negli smoke gli id fissi sono fixture e vanno bene. Codex frena giustamente: input e output generici per le
 meccaniche nuove sì, ma nessun framework di trame o ruoli prima che serva.
+
+## 15. La prima sandbox: un angolo di Blackmarsh (decisioni dell'utente, 2026-10-11)
+
+**Fonte e licenza.** *Blackmarsh* di Robert S. Conley. La versione 11 (RTF) dichiara tutto il testo, la mappa della
+regione e la mappa di Castle Blackmarsh sotto **CC BY 4.0**, la stessa licenza dello SRD 5.2.1: si usa quella, con
+attribuzione e indicazione delle modifiche. Le illustrazioni non sono libere e non si usano. Altri materiali letti:
+*Hexcrawl Basics* (Todd Leback, OGL 1.0a con nomi, luoghi e trame riservati) e *Worlds Without Number* (Sine Nomine,
+gratuito ma con tutti i diritti riservati): solo ispirazione, nessun testo, tabella, nome o numero copiato; i nostri
+sistemi (esplorazione a esagoni, turno di fazione) si progettano da zero. Gli archivi restano fuori da git.
+
+**Confine.** La costa sud della Smoking Bay, circa 3×3 esagoni attorno a Castle Blackmarsh (0913): l'isola di vedetta
+(0912), Inuacus Keep (1113), le rovine di Darkheart (0918), la congrega (1214), il faro (0712), il frassino del viz e le
+case dei maghi nelle paludi (0813, 0814), la Collina della Strega (1213). Si potrà allargare.
+
+**Il personaggio.** In futuro il giocatore crea il suo personaggio (sistema di creazione da progettare). Per ora c'è il
+Paladino di livello 1, punto; il profilo del giocatore però andrà calcolato dalla scheda, non scritto a mano.
+
+**Regolamento.** Blackmarsh è scritto per un altro regolamento: ciò che lo SRD 5.2.1 non ha si traduce o si crea, come
+fa Solasta (incantesimi, mostri, oggetti nuovi), usando le schede SRD come metro e marcando tutto ciò che è nostro come
+ADATTAMENTO o contenuto originale. Nomi e testi originali, mai materiale non aperto.
+
+**Il mondo non si adegua al giocatore.** Un personaggio di livello 1 è un principiante: molte cose saranno fuori dalla
+sua portata (Sir Causari è un guerriero di 10°, Darkheart uno spettro di 12°). Il villaggio di prova aveva una sola
+guardia; una città vera risponde in proporzione (più guardie, sergenti, cavalieri). Servono la progressione (esperienza
+e livelli) e modi per leggere il pericolo prima di correrlo.
+
+**Primo pezzo giocabile.** La città e l'isola di vedetta, con tre fazioni attive: il governo elfico, i restauratori
+umani di Sir Causari, i razziatori Vasan. Sotterraneo e rovine dopo.
+
+**Ordine dei lavori (prima le meccaniche di base):** C3a (Scatto, Disimpegno, Schivata); inventario e denaro; contenuti
+come dati (profili calcolati dalla scheda, schede delle creature, armi, scenari in file); progressione e risposta del
+mondo (livelli fino al 3, schede più forti, rinforzi, segnali del pericolo); mappe collegate e una mappa regionale
+minima; poi la prima fetta di Blackmarsh.

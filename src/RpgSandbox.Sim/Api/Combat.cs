@@ -25,6 +25,34 @@ public sealed record AttackCommand : Command
 /// <summary>End the actor's turn; the other turns are then resolved up to the player's next one.</summary>
 public sealed record EndTurnCommand : Command;
 
+/// <summary>C3a: actions other than attacking (SRD 5.2.1 Actions).</summary>
+public enum CombatAction
+{
+    /// <summary>Dash: for the rest of the turn, extra movement equal to one's Speed.</summary>
+    Dash,
+
+    /// <summary>Disengage: for the rest of the turn, one's movement provokes no Opportunity Attacks.</summary>
+    Disengage,
+
+    /// <summary>Dodge: until the start of one's next turn, attacks against one have Disadvantage if one sees the attacker.</summary>
+    Dodge,
+}
+
+/// <summary>C3a: take one of the actions other than attacking, on the actor's turn in a fight. It uses the action.</summary>
+public sealed record CombatActionCommand : Command
+{
+    public required CombatAction Action { get; init; }
+}
+
+/// <summary>C3a: whether an action other than attacking can be taken now, and why not.</summary>
+public sealed record ActionOptionView
+{
+    public required CombatAction Action { get; init; }
+    public required bool Valid { get; init; }
+    public RejectionReason Reason { get; init; }
+    public string? Why { get; init; }
+}
+
 /// <summary>Seen from the player: on its side or against it.</summary>
 public enum CombatSide { Ally, Enemy }
 
@@ -53,6 +81,9 @@ public sealed record CombatView
 
     /// <summary>Squares the player can move to right now, with their cost. Empty when it is not the player's turn.</summary>
     public required IReadOnlyList<ReachableSquareView> Reachable { get; init; }
+
+    /// <summary>C3a: the actions other than attacking (Dash, Disengage, Dodge): can each be taken now.</summary>
+    public IReadOnlyList<ActionOptionView> Actions { get; init; } = Array.Empty<ActionOptionView>();
 
     /// <summary>For each visible enemy and each of the player's attacks: can it be made now, and how.</summary>
     public required IReadOnlyList<TargetView> Targets { get; init; }
@@ -105,6 +136,12 @@ public sealed record CombatSelfView
 
     /// <summary>SRD: one Reaction, regained at the start of one's own turn.</summary>
     public required bool ReactionAvailable { get; init; }
+
+    /// <summary>C3a: this turn's movement provokes no Opportunity Attacks (Disengage).</summary>
+    public bool Disengaged { get; init; }
+
+    /// <summary>C3a: dodging until the start of its next turn: attacks it sees coming have Disadvantage.</summary>
+    public bool Dodging { get; init; }
 }
 
 /// <summary>Another combatant the player sees: never its exact Hit Points.</summary>
@@ -114,6 +151,9 @@ public sealed record CombatantView
     public required string Name { get; init; }
     public required GridPos Position { get; init; }
     public required CombatSide Side { get; init; }
+
+    /// <summary>C3a: it is dodging (a defensive stance one can see).</summary>
+    public bool Dodging { get; init; }
 
     /// <summary>The C1 descriptor: "illeso", "ferito", "malconcio", "tramortito", "a terra", "morto".</summary>
     public required string Condition { get; init; }
@@ -167,6 +207,11 @@ public enum CombatLogKind
 
     /// <summary>C4: someone runs from the fight; out of every enemy's sight for a round, it is out of it.</summary>
     Fled,
+
+    /// <summary>C3a: someone Dashes, Disengages or Dodges.</summary>
+    Dash,
+    Disengage,
+    Dodge,
     DeathSave,
     Downed,
     KnockedOut,

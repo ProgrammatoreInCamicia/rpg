@@ -33,10 +33,11 @@ internal sealed partial class Simulation
                     MoveCommand move => CombatMove(fight, actor, move),
                     AttackCommand attack => Attack(attack),
                     EndTurnCommand end => EndTurn(end),
+                    CombatActionCommand act => TakeAction(fight, actor, act),
                     _ => CommandResult.Rejected(RejectionReason.InCombat, $"{actor.Name} sta combattendo."),
                 };
         }
-        else if (command is AttackCommand or EndTurnCommand)
+        else if (command is AttackCommand or EndTurnCommand or CombatActionCommand)
             return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {command.Actor}.");
         return DispatchOutsideFights(command);
     }
@@ -53,7 +54,7 @@ internal sealed partial class Simulation
         DoorCommand door => UseDoor(door),
         TorchCommand torch => UseTorch(torch),
         AttackCommand attack => Attack(attack),
-        EndTurnCommand => CommandResult.Rejected(RejectionReason.NotInCombat, "Non stai combattendo."),
+        EndTurnCommand or CombatActionCommand => CommandResult.Rejected(RejectionReason.NotInCombat, "Non stai combattendo."),
         _ => CommandResult.Rejected(RejectionReason.UnknownCommand, $"Comando non supportato: {command.GetType().Name}."),
     };
 

@@ -916,3 +916,10 @@ internal sealed partial class Simulation
         };
     }
 }
+
+// C3a: Dash, Disengage, Dodge (SRD 5.2.1 Actions).
+internal sealed partial class Simulation
+{
+    private CommandResult TakeAction(Encounter e, Actor actor, CombatActionCommand command) =>
+        CommandResult.Rejected(RejectionReason.UnknownCommand, "Scatto, Disimpegno e Schivata arrivano con la C3a.");
+}
