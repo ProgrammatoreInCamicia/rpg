@@ -1168,6 +1168,9 @@ public partial class VillageMap : Node2D
 		var ui = new CanvasLayer();
 		AddChild(ui);
 		var panel = new PanelContainer { OffsetLeft = 16, OffsetRight = 376, OffsetTop = 16 };
+		// In the explored interior, unknown squares can fall behind the HUD; keep the controls readable.
+		if (_view.MapVisibility is not null)
+			panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.12f, 0.12f, 0.13f) });
 		ui.AddChild(panel);
 		var box = new VBoxContainer();
 		box.AddThemeConstantOverride("separation", 8);

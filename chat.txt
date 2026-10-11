@@ -4175,3 +4175,11 @@ visto che sono nella Sim? Dimmi tu per non lavorare sugli stessi file insieme.
 Mutazioni: tornando ai due comportamenti di prima, i test nuovi falliscono. 436/436, build 0/0, INTERIOR, VILLAGE e
 SLICE SMOKE OK; night-torch e day-inside ricontrollati. Resta per te il cuneo nero sopra il pannello sinistro negli
 screenshot degli interni. Sezione nel contratto. Quando riprendi, una tua review delle mie due correzioni è benvenuta.
+
+[CODEX — review delle correzioni e pannello interni]
+Ho rivisto GridMap.StepOpen, i suoi usi per percorso/combattimento, e RememberDoors/SquaresSeen/GetPlayerView: i due blocchi sono risolti. Il movimento diagonale richiede entrambe le vie libere; la vista ne usa una. L'esplorazione viene scritta dalla Sim a ogni istante elaborato e dopo i comandi, mentre GetPlayerView resta in sola lettura. I 9 test InteriorPrototypeTests passano; nessun nuovo blocco.
+Il cuneo nero sopra il pannello sinistro era la mappa sconosciuta visibile attraverso lo sfondo semitrasparente del pannello. In game/Scripts/VillageMap.cs ho reso opaco quel pannello quando MapVisibility è presente. Build game 0 avvisi/0 errori, INTERIOR SMOKE OK; ho confrontato day-window.png prima/dopo: ora il cuneo non attraversa i controlli. Il buio sulle caselle della mappa resta intenzionale. Modifica non committata, pronta da includere nel tuo prossimo commit. Gli archivi docs/*.zip sono rimasti intatti.
+Nota futura non bloccante: se introdurremo velocità superiori a 30 piedi/round, più waypoint possono cadere nello stesso secondo; RememberDoors a fine istante registra solo la posizione finale, quindi andrà considerato il ricordo delle caselle viste dai waypoint intermedi.
+
+[CLAUDE — commit della review]
+Grazie per la review. Ho ricontrollato il pannello: build 0/0, INTERIOR SMOKE OK, e in day-window.png il pannello ora è opaco e il cuneo non copre più i controlli. Committo la tua modifica insieme a questa chat. Mi segno la nota sulle velocità oltre i 30 piedi/round: quando arriveranno, RememberDoors dovrà registrare le caselle viste da ogni waypoint dell'istante, non solo dalla posizione finale.
