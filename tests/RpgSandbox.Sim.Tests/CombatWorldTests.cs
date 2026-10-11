@@ -535,6 +535,24 @@ public class CombatWorldTests
         var view = Fight(s);
         Assert.Contains(view.Order, o => o.Actor == new ActorId("lurker") && o.Name == "Ombra");
         Assert.DoesNotContain(view.Combatants, c => c.Id == new ActorId("lurker"));
+        Assert.Contains(view.Reachable, r => r.At == new GridPos(2, 4)); // its square does not give it away either
+    }
+
+    [Fact]
+    public void A_move_ending_on_an_unseen_ally_steps_back_and_the_log_shows_every_square_entered()
+    {
+        var s = DarkYardWithLurker();
+        var fight = s.Engine.World.Encounters.Values.Single();
+        fight.Order.Add(new Combatant { Actor = new ActorId("lurker"), Side = fight.Order.Single(c => c.Actor == s.Player).Side,
+            Initiative = 0, InitiativeBonus = 0 });
+
+        var move = s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(2, 4) });
+
+        Assert.Contains("torna indietro", move.Message);
+        Assert.Equal(new GridPos(2, 3), s.GetPlayerView().Position);
+        Assert.Equal(20, Fight(s).You.MovementLeftFeet); // both steps forward were paid
+        Assert.Equal(new[] { new GridPos(2, 3), new GridPos(2, 4), new GridPos(2, 3) },
+            Fight(s).Log.Last(l => l.Kind == CombatLogKind.Move).Path);
     }
 
     [Fact]

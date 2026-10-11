@@ -196,3 +196,10 @@ punto le meccaniche: non è la prima sandbox e non va protetto. Della seconda sa
 
 **Limite.** Le regole sono quelle SRD fantasy: vanno bene per qualunque ambientazione fantasy; un genere molto diverso
 vorrebbe un altro modulo di regole, che è già separato (`RpgSandbox.Sim.Rules`).
+
+**Punti cablati del client** (elenco di Codex, 2026-10-11; da sciogliere quando servirà, non ora): il deposito di
+Consegna/Prendi fissato sul granaio; il ritorno dal campo fissato su strada e campo dei banditi; i colori del pavimento
+scelti per Luogo invece che da un tema della mappa; `VillageMap` che crea da sé il villaggio e costruisce una sola
+mappa; il pannello e i comandi del solo cibo. La vecchia scena a Luoghi (`Main.cs`) resta regressione e non guida le
+API. Negli smoke gli id fissi sono fixture e vanno bene. Codex frena giustamente: input e output generici per le
+meccaniche nuove sì, ma nessun framework di trame o ruoli prima che serva.

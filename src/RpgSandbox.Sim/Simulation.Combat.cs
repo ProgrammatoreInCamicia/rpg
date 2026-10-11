@@ -492,10 +492,11 @@ internal sealed partial class Simulation
     private int MovementLeft(Encounter e, Actor actor) => ProfileOf(actor).Speed - CombatantOf(e, actor.Id).MovedFeet;
 
     /// <summary>
-    /// The creatures a mover takes into account when planning: its allies and those it sees. Nobody plans around what it
-    /// cannot perceive (the client's green squares never reveal a hidden creature); the real move then stops before one.
+    /// The creatures a mover takes into account when planning: those it sees, allies included (there is no memory of
+    /// where an unseen ally stands). Nobody plans around what it cannot perceive, so the client's green squares never
+    /// reveal a hidden creature; the real move then deals with the creatures really there.
     /// </summary>
-    private Func<Actor, bool> Perceived(Encounter e, Actor mover) => a => Allies(e, mover, a) || SeesActor(mover, a);
+    private Func<Actor, bool> Perceived(Encounter e, Actor mover) => a => SeesActor(mover, a);
 
     /// <summary>
     /// The cheapest way to <paramref name="to"/> (or, with <paramref name="stopNextTo"/>, to a square next to it) by the
@@ -679,17 +680,26 @@ internal sealed partial class Simulation
             walked.Add(square);
             from = square;
         }
-        // Nobody ends a move on another creature: back off to the last free square walked (the feet stay spent).
+        // Nobody ends a move on another creature: step back to the last free square walked. ADAPTATION: the steps back
+        // cost nothing more (the feet of the steps forward stay spent). The log's path is every square really entered,
+        // in order, steps back included, so it always ends where the mover stands.
+        var trail = new List<GridPos>(walked);
+        var back = 0;
         while (walked.Count > 0 && everyone[walked[^1]].Any())
         {
             walked.RemoveAt(walked.Count - 1);
-            Place(actor, walked.Count > 0 ? walked[^1] : start);
+            var to = walked.Count > 0 ? walked[^1] : start;
+            Place(actor, to);
+            trail.Add(to);
+            back++;
         }
         EvaluateContacts();
-        if (walked.Count > 0 || stopped is not null)
+        var why = back > 0 ? $"c'è qualcuno, torna indietro di {back} {(back == 1 ? "casella" : "caselle")}"
+            : stopped;
+        if (trail.Count > 0 || why is not null)
             Record(e, CombatLogKind.Move, actor, null,
-                (a, _) => $"{a} si sposta di {walked.Count} caselle{(stopped is null ? "" : $" e si ferma: {stopped}")}.", path: walked);
-        return (walked.Count, stopped);
+                (a, _) => $"{a} si sposta di {walked.Count} caselle{(why is null ? "" : $" e si ferma: {why}")}.", path: trail);
+        return (walked.Count, why);
     }
 
     // ---------------------------------------------------------------- NPCs in a fight
