@@ -24,6 +24,10 @@ public sealed record CombatProfile
     /// </summary>
     public bool Flees { get; init; }
 
+    /// <summary>C3b: what it carries to begin with (catalog id and how many), and its coins in copper pieces.</summary>
+    public IReadOnlyList<(string Item, int Count)> Kit { get; init; } = Array.Empty<(string, int)>();
+    public long Coins { get; init; }
+
     public Vitality NewVitality() => new(MaxHitPoints, MakesDeathSaves);
 }
 
@@ -62,10 +66,13 @@ public static class CombatProfiles
             Attacks = new[]
             {
                 AttackProfile.With(sheet, Weapons.Longsword, proficient: true, masteryUnlocked: true),
-                AttackProfile.With(sheet, Weapons.Javelin, proficient: true, thrown: true, masteryUnlocked: true),
+                AttackProfile.With(sheet, Weapons.Javelin, proficient: true, thrown: true, masteryUnlocked: true)
+                    with { Item = Items.Javelin.Id, Fate = ItemFate.Thrown },
                 AttackProfile.Unarmed(sheet),
             },
             MakesDeathSaves = true,
+            // C3b: starting equipment A (SRD 5.2.1 Paladin): 6 Javelins and 9 GP; the rest is worn or wielded (D1).
+            Kit = new[] { (Items.Javelin.Id, 6) }, Coins = 900,
         };
     }
 
@@ -73,10 +80,12 @@ public static class CombatProfiles
     public static CombatProfile Bandit() => new()
     {
         Name = "Bandito", MaxHitPoints = 11, ArmorClass = 12, InitiativeBonus = 1, MakesDeathSaves = false,
+        Kit = new[] { (Items.Bolt.Id, 20) }, // ADAPTATION: the stat block names no ammunition; a case of 20 bolts
         Attacks = new[]
         {
             StatBlock("Scimitarra", 3, new Dice(1, 6), 1, DamageType.Slashing),
-            StatBlock("Balestra leggera", 3, new Dice(1, 8), 1, DamageType.Piercing, range: (80, 320)),
+            StatBlock("Balestra leggera", 3, new Dice(1, 8), 1, DamageType.Piercing, range: (80, 320))
+                with { Item = Items.Bolt.Id, Fate = ItemFate.Spent },
         },
     };
 
@@ -84,10 +93,12 @@ public static class CombatProfiles
     public static CombatProfile Guard() => new()
     {
         Name = "Guardia", MaxHitPoints = 11, ArmorClass = 16, InitiativeBonus = 1, MakesDeathSaves = false,
+        Kit = new[] { (Items.Spear.Id, 1) }, // its one Spear: it fights with it, and would have to throw it
         Attacks = new[]
         {
             StatBlock("Lancia", 3, new Dice(1, 6), 1, DamageType.Piercing),
-            StatBlock("Lancia (lanciata)", 3, new Dice(1, 6), 1, DamageType.Piercing, range: (20, 60)),
+            StatBlock("Lancia (lanciata)", 3, new Dice(1, 6), 1, DamageType.Piercing, range: (20, 60))
+                with { Item = Items.Spear.Id, Fate = ItemFate.Thrown },
         },
     };
 

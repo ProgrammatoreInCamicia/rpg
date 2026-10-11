@@ -81,6 +81,31 @@ internal sealed class GridMap
     /// <summary>Doors by square (true = open), in reading order.</summary>
     public IReadOnlyDictionary<GridPos, bool> Doors => _doors;
 
+    private readonly SortedDictionary<GridPos, SortedDictionary<ItemId, int>> _ground = new(Comparer<GridPos>.Create((a, b) => (a.Y, a.X).CompareTo((b.Y, b.X))));
+
+    /// <summary>C3b: items lying on the squares, in reading order (only squares with something).</summary>
+    public IReadOnlyDictionary<GridPos, SortedDictionary<ItemId, int>> Ground => _ground;
+
+    public int OnGround(GridPos at, ItemId item) => _ground.TryGetValue(at, out var here) && here.TryGetValue(item, out var n) ? n : 0;
+
+    /// <summary>Puts (or, negative, takes) items on a walkable square; a kind that drops to none is removed.</summary>
+    public void PutOnGround(GridPos at, ItemId item, int count)
+    {
+        if (!IsWalkable(at))
+            throw new InvalidOperationException($"nessuno spazio per oggetti in {at}");
+        var total = OnGround(at, item) + count;
+        if (total < 0)
+            throw new InvalidOperationException($"meno di {-count} {item} in {at}");
+        if (!_ground.TryGetValue(at, out var here))
+            _ground[at] = here = new SortedDictionary<ItemId, int>();
+        if (total == 0)
+            here.Remove(item);
+        else
+            here[item] = total;
+        if (here.Count == 0)
+            _ground.Remove(at);
+    }
+
     public bool IsDoor(GridPos p) => _doors.ContainsKey(p);
 
     public bool IsClosedDoor(GridPos p) => _doors.TryGetValue(p, out var open) && !open;

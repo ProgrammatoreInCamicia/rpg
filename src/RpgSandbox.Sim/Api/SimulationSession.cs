@@ -139,6 +139,8 @@ public sealed class SimulationSession
         Id = actor.Id,
         Name = actor.Name,
         IsPlayer = actor.IsPlayer,
+        Inventory = Freeze(actor.Inventory.Select(i => Stack(i.Key, i.Value))),
+        Coins = actor.Coins,
         Faction = actor.Faction,
         Location = actor.Location,
         Food = actor.Food,
@@ -288,7 +290,13 @@ public sealed class SimulationSession
             Attacks = Freeze(Simulation.ProfileOf(player).Attacks.Select(a => new AttackOptionView
             {
                 Name = a.Name, Melee = a.Melee, ReachFeet = a.ReachFeet, NormalRange = a.Range?.Normal, LongRange = a.Range?.Long,
+                Uses = a.Item is { } item ? new ItemId(item) : null, Remaining = a.Item is { } kept ? player.Carried(kept) : null,
             })),
+            Inventory = Freeze(player.Inventory.Select(i => Stack(i.Key, i.Value))),
+            Coins = player.Coins,
+            GroundItems = map is null ? Array.Empty<GroundItemView>() : Freeze(map.Ground
+                .Where(g => me is { } eye && (eye.IsAdjacentOrSame(g.Key) || _sim.CanSee(map, eye, g.Key)))
+                .SelectMany(g => g.Value.Select(i => new GroundItemView { At = g.Key, Item = i.Key, Name = NameOf(i.Key), Count = i.Value }))),
             PeopleHere = Freeze(present.Select(p => new PersonView
             {
                 Id = p.Id,
@@ -347,6 +355,10 @@ public sealed class SimulationSession
             })),
         };
     }
+
+    private static string NameOf(ItemId item) => Rules.Items.ById(item.Value)?.Name ?? item.Value;
+
+    private static ItemStackView Stack(ItemId item, int count) => new() { Item = item, Name = NameOf(item), Count = count };
 
     private static string Summary(Observation o) => o.Kind == DeedKind.Theft
         ? $"furto di {o.Amount} razioni da {o.StoreName}, giorno {o.ObservedAt.Day + 1} alle {o.ObservedAt.Hour:00}:{o.ObservedAt.Minute:00}" +

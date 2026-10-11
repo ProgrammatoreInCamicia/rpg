@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 16;
+    public const int SchemaVersion = 17;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -172,7 +172,8 @@ internal static class SaveGame
             Position = a.Position is { } p ? new PosDto { X = p.X, Y = p.Y } : null,
             MapArea = a.MapArea?.Value,
             Sneak = a.Sneak,
-            Torches = a.Torches,
+            Inventory = a.Inventory.Select(i => new ItemCountDto { Item = i.Key.Value, Count = i.Value }).ToList(),
+            Coins = a.Coins,
             TorchLitUntil = a.TorchLitUntil?.Seconds,
             Doors = a.DoorMemory.Select(d => new RememberedDoorDto
             {
@@ -218,6 +219,7 @@ internal static class SaveGame
             Doors = m.Doors.Select(d => new DoorDto { X = d.Key.X, Y = d.Key.Y, Open = d.Value }).ToList(),
             Exits = m.Exits.Select(e => new ExitDto { Location = e.Key.Value, X = e.Value.X, Y = e.Value.Y }).ToList(),
             Posts = m.Posts.Select(p => new PostDto { Location = p.Key.Location.Value, Kind = p.Key.Kind.ToString(), X = p.Value.X, Y = p.Value.Y }).ToList(),
+            Ground = m.Ground.SelectMany(g => g.Value.Select(i => new GroundItemDto { X = g.Key.X, Y = g.Key.Y, Item = i.Key.Value, Count = i.Value })).ToList(),
         }).ToList(),
     };
 
@@ -384,6 +386,13 @@ internal static class SaveGame
                 Enum.TryParse<PostKind>(p.Kind, out var kind) && Enum.IsDefined(kind) ? kind : throw new InvalidDataException($"tipo di posto sconosciuto '{p.Kind}'"),
                 new GridPos(p.X, p.Y)));
             AddUnique(w.Maps, area, new GridMap(area, m.Rows!, zones, occupied, lights, doors, exits, posts), "mappa");
+            foreach (var g in m.Ground ?? throw new InvalidDataException($"oggetti a terra della mappa '{area}' mancanti"))
+            {
+                var square = new GridPos(g?.X ?? -1, g?.Y ?? -1);
+                Check(g is not null && Items.ById(g.Item ?? "") is not null && g.Count > 0 && w.Maps[area].IsWalkable(square)
+                      && w.Maps[area].OnGround(square, new ItemId(g.Item!)) == 0, $"oggetti a terra della mappa '{area}' non validi");
+                w.Maps[area].PutOnGround(square, new ItemId(g!.Item!), g.Count);
+            }
         }
         foreach (var store in w.Stores.Values.Where(s => s.Position is not null))
             Check(w.Maps.TryGetValue(w.Locations[store.Location].Area, out var sm) && sm.ZoneAt(store.Position!.Value) == store.Location,
@@ -454,7 +463,7 @@ internal static class SaveGame
                 Position = a.Position is { } ap ? new GridPos(ap.X, ap.Y) : null,
                 MapArea = a.MapArea is null ? null : new AreaId(a.MapArea),
                 Sneak = a.Sneak,
-                Torches = a.Torches,
+                Coins = a.Coins,
                 TorchLitUntil = a.TorchLitUntil is { } lit ? new GameTime(lit) : null,
                 Sheet = FromDto(a.Sheet!),
                 Combat = CombatProfiles.ById(a.Combat ?? "") is not null ? a.Combat! : throw new InvalidDataException($"profilo di combattimento di '{a.Id}' sconosciuto"),
@@ -483,6 +492,12 @@ internal static class SaveGame
                       && door.SeenAt <= d.Now && a.IsPlayer, $"porta ricordata da '{a.Id}' non valida");
                 Check(actor.DoorMemory.TryAdd(new DoorKey(new AreaId(door!.Area), new GridPos(door.X, door.Y)), new RememberedDoor(door.Open, new GameTime(door.SeenAt))),
                     $"porta ricordata due volte da '{a.Id}'");
+            }
+            foreach (var item in a.Inventory ?? throw new InvalidDataException($"inventario di '{a.Id}' mancante"))
+            {
+                Check(item is not null && Items.ById(item.Item ?? "") is not null && item.Count > 0 && actor.Carried(item.Item!) == 0,
+                    $"inventario di '{a.Id}' non valido");
+                actor.Give(item!.Item!, item.Count);
             }
             ValidateActor(w, actor);
             AddUnique(w.Actors, actor.Id, actor, "attore");
@@ -640,7 +655,7 @@ internal static class SaveGame
         if (a.CurrentAction is GuardAction guard)
             Check(w.Stores.ContainsKey(guard.Store), $"sorveglianza di '{a.Id}' su deposito sconosciuto");
         Check(a.Food >= 0, $"attore '{a.Id}' con razioni negative");
-        Check(a.Torches >= 0, $"attore '{a.Id}' con torce negative");
+        Check(a.Coins >= 0 && a.Inventory.All(i => Items.ById(i.Key.Value) is not null && i.Value > 0), $"inventario di '{a.Id}' non valido");
         Check(a.Faction is null || w.Factions.ContainsKey(a.Faction.Value), $"attore '{a.Id}' di fazione sconosciuta");
         Check(a.Location is null || w.Locations.ContainsKey(a.Location.Value), $"attore '{a.Id}' in luogo sconosciuto");
         if (a.Position is { } pos)
@@ -784,7 +799,7 @@ internal static class SaveGame
             Actor = c.Actor.Value, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus,
             MovedFeet = c.MovedFeet, ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
             LastSeenEnemy = ToDto(c.LastSeenEnemy), JoinedInRound = c.JoinedInRound, Fleeing = c.Fleeing,
-            Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging,
+            Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted,
         }).ToList(),
         Log = e.Log.Select(r => new CombatRecordDto
         {
@@ -832,7 +847,7 @@ internal static class SaveGame
                     LastSeenEnemy = c.LastSeenEnemy is { } seen ? new GridPos(seen.X, seen.Y) : null,
                     JoinedInRound = c.JoinedInRound is { } joined && joined >= 1 && joined <= dto.Round ? joined
                         : c.JoinedInRound is null ? null : throw new InvalidDataException($"ingresso nello scontro di '{id}' non valido"),
-                    Fleeing = c.Fleeing, Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging,
+                    Fleeing = c.Fleeing, Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted,
                 });
             }
             Check(e.Order.Any(c => c.Side == 0) && e.Order.Any(c => c.Side == 1), $"scontro {dto.Id} senza due lati");

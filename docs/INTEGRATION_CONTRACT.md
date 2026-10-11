@@ -430,3 +430,14 @@ Contratto completo in chat.txt ("CONTRATTO C4" e le note successive). In sintesi
 - Vista: `CombatView.Actions` (ognuna valida o con il motivo), `CombatSelfView.Disengaged`/`Dodging`, `CombatantView.Dodging`; voci di registro `Dash`, `Disengage`, `Dodge`.
 - IA: chi fugge si disimpegna se ha un nemico accanto, altrimenti scatta; chi non arriva al bersaglio nel turno e non ha un attacco utile scatta per avvicinarsi. Nessun NPC schiva per ora (scegliere quando conviene richiede di valutare il pericolo: C5).
 - Schema dei salvataggi 16.
+
+## C3b — Inventario e denaro
+
+- **Catalogo** (`Rules/Items.cs`): torcia, giavellotto, lancia, dardo da balestra (id, nome, peso in libbre, costo in rame). Cresce quando serve.
+- **Inventario**: `Actor.Inventory` (oggetto → quantità) e `Actor.Coins` in monete di rame (1 mo = 10 ma = 100 mr; il penny d'argento di Blackmarsh vale 1 ma). Le torce sono l'oggetto `torch` (`PlayerView.Torches` resta). Le razioni restano `Food` finché i depositi non conterranno oggetti (D1).
+- **Corredo**: ogni profilo ha oggetti e monete di partenza (`CombatProfile.Kit`/`Coins`); lo scenario può sostituirli (`AddActor(items:, coins:)`). Paladino: 6 giavellotti e 9 mo (equipaggiamento iniziale A dello SRD); Bandito: 20 dardi (ADATTAMENTO: la scheda non indica munizioni); Guardia: la sua lancia.
+- **Attacchi con oggetti** (`AttackProfile.Item`/`Fate`): senza l'oggetto l'attacco non è valido (`NoAmmo`). Un'arma da lancio finisce a terra sulla casella del bersaglio, colpito o mancato; una munizione è consumata. LIMITE: lo SRD permette di recuperare metà delle munizioni cercando dopo lo scontro (da fare). Un NPC non lancia la sua ultima arma se ha un attacco in mischia (la Guardia tiene la lancia).
+- **A terra**: gli oggetti stanno sulle caselle delle mappe. `PickUpCommand` dalla propria casella o da una adiacente: fuori dallo scontro immediato (non mentre si è impegnati in altro), nello scontro usa l'interazione gratuita con un oggetto del turno (una sola, poi `NoActionLeft`). `DropCommand` sulla propria casella, gratuito. Raccogliere e lasciare non tolgono la furtività.
+- **Vista**: `PlayerView.Inventory`, `Coins`, `GroundItems` (solo ciò che si vede o si ha accanto); `AttackOptionView.Uses`/`Remaining`; `ActorView.Inventory`/`Coins` (debug).
+- Fuori: negozi (B1), saccheggio e furto di oggetti, equipaggiamento indossato che cambia il profilo (D1), ingombro.
+- Schema dei salvataggi 17 (inventari e monete negli attori, oggetti a terra nelle mappe, interazione del turno).

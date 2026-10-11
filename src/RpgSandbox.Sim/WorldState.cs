@@ -54,8 +54,34 @@ internal sealed class Actor
     /// </summary>
     public int? Sneak { get; set; }
 
-    /// <summary>Unlit torches carried.</summary>
-    public int Torches { get; set; }
+    /// <summary>C3b: carried items by catalog id (only kinds with at least one). Torches are items like any other.</summary>
+    public SortedDictionary<ItemId, int> Inventory { get; } = new();
+
+    /// <summary>C3b: coins, in copper pieces.</summary>
+    public long Coins { get; set; }
+
+    /// <summary>How many of an item it carries.</summary>
+    public int Carried(string item) => Inventory.TryGetValue(new ItemId(item), out var n) ? n : 0;
+
+    /// <summary>Adds (or, negative, removes) items; a kind that drops to none is removed.</summary>
+    public void Give(string item, int count)
+    {
+        var id = new ItemId(item);
+        var total = Carried(item) + count;
+        if (total < 0)
+            throw new InvalidOperationException($"{Id} has fewer than {-count} {item}.");
+        if (total == 0)
+            Inventory.Remove(id);
+        else
+            Inventory[id] = total;
+    }
+
+    /// <summary>Unlit torches carried (the "torch" items).</summary>
+    public int Torches
+    {
+        get => Carried(Items.Torch.Id);
+        set => Give(Items.Torch.Id, value - Carried(Items.Torch.Id));
+    }
 
     /// <summary>
     /// While a torch burns in the actor's hand: when it goes out (SRD: a Torch burns for 1 hour). Lit while
@@ -478,6 +504,9 @@ internal sealed class Combatant
     public int Dashes { get; set; }
     public bool Disengaged { get; set; }
     public bool Dodging { get; set; }
+
+    /// <summary>C3b: the turn's free interaction with an object (picking something up) is used.</summary>
+    public bool Interacted { get; set; }
 }
 
 internal sealed record OpeningAttack(ActorId Attacker, ActorId Target, string Attack, bool NonLethal);
@@ -582,7 +611,10 @@ internal sealed class WorldState
                 Home = a.IsPlayer ? null : a.Location, Shift = a.Shift, ArrivedAt = GameTime.Start, Sheet = a.Sheet, Position = a.At, Torches = a.Torches,
                 MapArea = a.At is null ? null : world.Locations[a.Location].Area,
                 Combat = a.Combat, Vitality = CombatProfiles.ById(a.Combat)!.NewVitality(),
+                Coins = a.Coins ?? CombatProfiles.ById(a.Combat)!.Coins,
             });
+            foreach (var (item, count) in a.Items ?? CombatProfiles.ById(a.Combat)!.Kit) // C3b: the kit unless the scenario says otherwise
+                world.Actors[a.Id].Give(item, count);
         }
         foreach (var s in scenario.Stores)
             world.Stores.Add(s.Id, new Store { Id = s.Id, Name = s.Name, Location = s.Location, Owner = s.Owner, Food = s.Food, Position = s.At, Access = s.Access?.ToArray() ?? Array.Empty<GridPos>() });

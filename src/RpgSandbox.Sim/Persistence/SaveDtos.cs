@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace RpgSandbox.Sim.Persistence;
 
-// Plain serialization shapes for the save file (schema version 16). Times are seconds since the
+// Plain serialization shapes for the save file (schema version 17). Times are seconds since the
 // scenario start; ids are their string/number values. Kept separate from the domain on purpose:
 // the domain can change shape while the file format changes only deliberately.
 
@@ -98,7 +98,8 @@ internal sealed class ActorDto
     public PosDto? Position { get; set; }
     public string? MapArea { get; set; }
     public int? Sneak { get; set; }
-    public int Torches { get; set; }
+    public List<ItemCountDto> Inventory { get; set; } = new();
+    public long Coins { get; set; }
     public long? TorchLitUntil { get; set; }
     public List<RememberedDoorDto> Doors { get; set; } = new();
     public List<ObservationDto> Knowledge { get; set; } = new();
@@ -321,6 +322,7 @@ internal sealed class MapDto
     public List<DoorDto> Doors { get; set; } = new();
     public List<ExitDto> Exits { get; set; } = new();
     public List<PostDto> Posts { get; set; } = new();
+    public List<GroundItemDto> Ground { get; set; } = new();
 }
 
 internal sealed class MoveActionDto : ActionDto
@@ -433,6 +435,7 @@ internal sealed class CombatantDto
     public int Dashes { get; set; }
     public bool Disengaged { get; set; }
     public bool Dodging { get; set; }
+    public bool Interacted { get; set; }
 }
 
 internal sealed class OpeningDto
@@ -469,4 +472,18 @@ internal sealed class WantedDto
 {
     public string Actor { get; set; } = "";
     public long Fact { get; set; }
+}
+
+internal sealed class ItemCountDto
+{
+    public string Item { get; set; } = "";
+    public int Count { get; set; }
+}
+
+internal sealed class GroundItemDto
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+    public string Item { get; set; } = "";
+    public int Count { get; set; }
 }

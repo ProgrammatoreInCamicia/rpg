@@ -49,7 +49,8 @@ internal sealed record LocationDefinition(LocationId Id, string Name, AreaId Are
 internal sealed record RouteDefinition(LocationId A, LocationId B, Duration TravelTime);
 internal sealed record ActorDefinition(
     ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food, FactionId? Faction, WorkShift? Shift,
-    CharacterSheet Sheet, GridPos? At, int Torches = 0, string Combat = "commoner");
+    CharacterSheet Sheet, GridPos? At, int Torches = 0, string Combat = "commoner",
+    IReadOnlyList<(string Item, int Count)>? Items = null, long? Coins = null);
 internal sealed record StoreDefinition(StoreId Id, string Name, LocationId Location, int Food, FactionId? Owner, GridPos? At,
     IReadOnlyList<GridPos>? Access = null);
 internal sealed record MapDefinition(AreaId Area, IReadOnlyList<string> Rows, IReadOnlyDictionary<char, LocationId> Zones)
@@ -147,13 +148,14 @@ public sealed class ScenarioBuilder
     /// </summary>
     public ScenarioBuilder AddActor(string id, string name, string locationId, bool isPlayer = false, int food = 0,
         string? factionId = null, string? workLocationId = null, Duration shiftStart = default, Duration shiftEnd = default,
-        CharacterSheet? sheet = null, (int X, int Y)? at = null, int torches = 0, string? combat = null)
+        CharacterSheet? sheet = null, (int X, int Y)? at = null, int torches = 0, string? combat = null,
+        IEnumerable<(string Item, int Count)>? items = null, long? coins = null)
     {
         var shift = workLocationId is null ? null : new WorkShift(new LocationId(workLocationId), shiftStart, shiftEnd);
         // C2: the combat profile; by default the player is the Paladin, everyone else a Commoner.
         _actors.Add(new ActorDefinition(new ActorId(id), name, new LocationId(locationId), isPlayer, food, ToFaction(factionId), shift,
             sheet ?? CharacterSheet.Commoner(), at is { } p ? new GridPos(p.X, p.Y) : null, torches,
-            combat ?? (isPlayer ? "paladin" : "commoner")));
+            combat ?? (isPlayer ? "paladin" : "commoner"), items?.ToArray(), coins)); // C3b: null = the profile's kit and coins
         return this;
     }
 
@@ -254,6 +256,8 @@ public sealed class ScenarioBuilder
                 $"Actor '{actor.Id}' belongs to unknown faction '{actor.Faction}'.");
             Require(Invariants.Sheet(actor.Id.Value, actor.Sheet));
             Require(CombatProfiles.ById(actor.Combat) is not null, $"Actor '{actor.Id}' has unknown combat profile '{actor.Combat}'.");
+            Require((actor.Items ?? Array.Empty<(string, int)>()).All(i => Items.ById(i.Item) is not null && i.Count > 0) && actor.Coins is null or >= 0
+                && actor.Torches >= 0, $"Actor '{actor.Id}' has unknown items, or negative amounts."); // C3b
             if (actor.Shift is { } shift)
             {
                 Require(Invariants.Shift(actor.Id.Value, actor.IsPlayer, shift.Start, shift.End));

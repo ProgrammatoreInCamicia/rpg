@@ -317,6 +317,7 @@ public class KnowledgeTests
     [InlineData(13)] // v14 adds combat profiles, Hit Points and fights in progress
     [InlineData(14)] // v15 makes observations about any deed (theft, fight, killing)
     [InlineData(15)] // v16 adds Dash, Disengage and Dodge to combatants
+    [InlineData(16)] // v17 adds inventories, coins and items on the ground
     public void Older_save_versions_are_rejected(int version)
     {
         var json = JsonNode.Parse(NewSession().SaveToString())!;

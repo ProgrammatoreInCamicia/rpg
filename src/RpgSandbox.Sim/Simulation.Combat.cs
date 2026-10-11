@@ -268,6 +268,7 @@ internal sealed partial class Simulation
         c.Dashes = 0;
         c.Disengaged = false;
         c.Dodging = false; // C3a: a Dodge lasts until the start of one's next turn
+        c.Interacted = false; // C3b
         c.ActionUsed = c.OpeningSpent;
         c.OpeningSpent = false;
         if (c.JoinedInRound == e.Round)
@@ -439,6 +440,8 @@ internal sealed partial class Simulation
             return new(RejectionReason.AlreadyDone, $"{target.Name} è già morto.");
         if (!SeesActor(attacker, target))
             return new(RejectionReason.NotVisible, $"Non vedi {target.Name}.");
+        if (attack.Item is { } needed && attacker.Carried(needed) == 0) // C3b
+            return new(RejectionReason.NoAmmo, $"Non ne hai più: {Items.ById(needed)!.Name}.");
         var map = World.Maps[attacker.MapArea!.Value];
         var at = CurrentPosition(attacker)!.Value;
         var there = CurrentPosition(target)!.Value;
@@ -485,6 +488,12 @@ internal sealed partial class Simulation
         var check = CheckAttack(e, attacker, target, attack, nonLethal);
         var result = Attacks.Roll(World.Rng, attack, ProfileOf(target).ArmorClass, check.Advantage, check.Disadvantage, check.AutoCritical);
         var outcome = target.Vitality.TakeDamage(result.Damage, result.Critical, knockOut: nonLethal && attack.Melee);
+        if (attack.Item is { } item) // C3b: the javelin leaves the hand and lands by the target; the bolt is spent
+        {
+            attacker.Give(item, -1);
+            if (attack.Fate == ItemFate.Thrown)
+                World.Maps[e.Area].PutOnGround(CurrentPosition(target)!.Value, new ItemId(item), 1);
+        }
         attacker.Sneak = null; // attacking gives one away (SRD Hide)
         attacker.FoughtWith.Add(target.Id);
         target.FoughtWith.Add(attacker.Id);
@@ -769,7 +778,7 @@ internal sealed partial class Simulation
 
         AttackProfile? Usable(Actor target) =>
             ProfileOf(npc).Attacks.Where(a => a.Melee).Concat(ProfileOf(npc).Attacks.Where(a => !a.Melee))
-                .FirstOrDefault(a => CheckAttack(e, npc, target, a, nonLethal: false).Valid);
+                .FirstOrDefault(a => CheckAttack(e, npc, target, a, nonLethal: false).Valid && !KeepsLastWeapon(npc, a));
 
         bool TryAttack(Actor target)
         {
@@ -974,4 +983,12 @@ internal sealed partial class Simulation
         CombatAction.Disengage => "si disimpegna: in questo turno muoversi non provoca attacchi di opportunità",
         _ => "si mette in guardia: fino al suo prossimo turno chi lo attacca, se lo vede arrivare, ha svantaggio",
     };
+}
+
+// C3b: NPCs and the items their attacks use.
+internal sealed partial class Simulation
+{
+    /// <summary>An NPC does not throw its last weapon of a kind while it has a melee attack to fight with (a Guard keeps its Spear).</summary>
+    private static bool KeepsLastWeapon(Actor npc, AttackProfile attack) =>
+        attack.Fate == ItemFate.Thrown && npc.Carried(attack.Item!) <= 1 && ProfileOf(npc).Attacks.Any(a => a.Melee);
 }

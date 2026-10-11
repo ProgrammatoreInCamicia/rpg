@@ -32,6 +32,10 @@ public sealed record AttackProfile
     /// <summary>SRD Heavy: Disadvantage when the wielder lacks Strength 13 (melee) or Dexterity 13 (ranged).</summary>
     public bool HeavyDisadvantage { get; init; }
 
+    /// <summary>C3b: the item the attack needs (a javelin to throw, a bolt to shoot), by catalog id, and what becomes of it.</summary>
+    public string? Item { get; init; }
+    public ItemFate Fate { get; init; }
+
     /// <summary>
     /// A character's attack with a weapon (SRD): Finesse uses the better of Strength and Dexterity, a Ranged weapon
     /// Dexterity, anything else (thrown melee weapons too) Strength; the Proficiency Bonus is added if proficient; with
