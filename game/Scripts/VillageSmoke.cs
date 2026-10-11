@@ -239,6 +239,101 @@ public partial class VillageSmoke : Node
 		await DaylightAssault();
 		await CombatActions();
 		await InventoryPreview();
+		await InventoryCombat();
+	}
+
+	/// <summary>C3b: spend the last thrown weapon, save/load, collect it through the client, and throw it again.</summary>
+	private async Task InventoryCombat()
+	{
+		var session = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
+		var javelin = new ItemId("javelin");
+		const string throwName = "Giavellotto (lanciato)";
+		var spare = session.Execute(new DropCommand { Actor = session.Player, Item = javelin, Count = 5 });
+		Require(spare.Success, $"C3b: cannot leave spare javelins: {spare.Message}");
+		var before = System.IO.Path.Combine(_outputDir, "c3b-before-throw.json");
+		using (var stream = File.Create(before)) session.Save(stream);
+		_map.SetPaused(true);
+		_map.LoadGameFromPath(before);
+		_map.OpenInventoryForSmoke();
+		Require(_map.View.Coins == 900 && _map.View.Inventory.Single(i => i.Item == javelin).Count == 1,
+			"C3b: coins or carried javelin are missing from the client view");
+		var guard = MappedVillageScenario.Ids.Guard;
+		_map.OpenCombatForSmoke(guard, throwName);
+		Require(_map.View.Combat is not null && !_map.View.Dead,
+			$"C3b: the thrown weapon did not open a lasting fight: {_map.LastMessage}");
+		Require(_map.View.Attacks.Single(a => a.Name == throwName).Remaining == 0,
+			"C3b: the thrown javelin was not consumed in the client view");
+		var fallen = _map.View.GroundItems.SingleOrDefault(i => i.Item == javelin && i.At != _map.View.Position)
+			?? throw new InvalidOperationException("C3b: the thrown javelin is not visible on the target square");
+		Require(_map.GroundMarkVisibleForSmoke(fallen.At),
+			"C3b: the thrown javelin is not visible on the target square");
+		var mid = System.IO.Path.Combine(_outputDir, "c3b-last-javelin-thrown.json");
+		_map.SaveGameToPath(mid);
+		_map.LoadGameFromPath(mid);
+		Require(_map.View.Attacks.Single(a => a.Name == throwName).Remaining == 0
+			&& _map.View.GroundItems.Any(i => i.Item == javelin && i.At == fallen.At),
+			"C3b: loading restored the spent javelin or lost the ground item");
+		if (_map.View.Combat is { IsYourTurn: true })
+			_map.EndCombatTurnForSmoke();
+		for (var i = 0; i < 60 && _map.View.Combat is not { IsYourTurn: true, You.ActionAvailable: true }; i++)
+			await Frames(1);
+		Require(_map.View.Combat is { IsYourTurn: true, You.ActionAvailable: true } ready
+			&& ready.Targets.Any(t => t.Target == guard && t.Attack == throwName
+				&& !t.Valid && t.Reason == RejectionReason.NoAmmo),
+			"C3b: an empty quiver did not disable the attack with NoAmmo");
+		_map.SelectCombatantForSmoke(guard);
+		Require(_map.CombatAttackLabelsForSmoke.Any(text => text.Contains("Giavellotto") && text.Contains("finiti")),
+			"C3b: the fight panel does not explain that the javelins are finished");
+		await Frames(2);
+		Capture("42-c3b-out-of-javelins.png");
+		for (var turn = 0; turn < 8 && !_map.View.Dead; turn++)
+		{
+			if (_map.View.Combat is not { IsYourTurn: true } fight)
+			{
+				await Frames(2);
+				continue;
+			}
+			if (_map.View.Position!.Value.StepsTo(fallen.At) > 1)
+			{
+				var approach = fight.Reachable.Where(r => r.At.StepsTo(fallen.At) <= 1)
+					.OrderBy(r => r.CostFeet).FirstOrDefault();
+				if (approach is not null)
+					_map.MoveTo(approach.At);
+			}
+			if (_map.View.Position!.Value.StepsTo(fallen.At) <= 1)
+			{
+				var stack = _map.View.GroundItems.Single(i => i.Item == javelin && i.At == fallen.At);
+				_map.PickUpForSmoke(stack);
+				Require(_map.View.Attacks.Single(a => a.Name == throwName).Remaining == 1,
+					"C3b: the client did not collect the thrown javelin");
+				await Frames(2);
+				Capture("43-c3b-javelin-recovered.png");
+				break;
+			}
+			_map.EndCombatTurnForSmoke();
+			await Frames(2);
+		}
+		Require(_map.View.Attacks.Single(a => a.Name == throwName).Remaining == 1,
+			"C3b: the player did not reach and collect the javelin");
+		for (var turn = 0; turn < 8 && _map.View.Combat is not null && !_map.View.Dead; turn++)
+		{
+			if (_map.View.Combat is { IsYourTurn: true, You.ActionAvailable: true } fight)
+			{
+				var throwAgain = fight.Targets.FirstOrDefault(t => t.Target == guard && t.Attack == throwName && t.Valid);
+				if (throwAgain is not null)
+				{
+					_map.AttackCombatTargetForSmoke(throwAgain);
+					break;
+				}
+			}
+			if (_map.View.Combat is { IsYourTurn: true })
+				_map.EndCombatTurnForSmoke();
+			await Frames(2);
+		}
+		Require(_map.View.Attacks.Single(a => a.Name == throwName).Remaining == 0,
+			"C3b: the recovered javelin was not thrown again");
+		await Frames(2);
+		Capture("44-c3b-javelin-rethrown.png");
 	}
 
 	/// <summary>Render the published C3b view contract before the inventory rules are wired into the Sim.</summary>

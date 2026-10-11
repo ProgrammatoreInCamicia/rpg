@@ -161,6 +161,8 @@ public partial class VillageMap
 	}
 	internal bool CombatActionEnabledForSmoke(CombatAction action) => !_combatActionButtons[action].Disabled;
 	internal MovePreview CombatMovePreviewForSmoke(GridPos cell) => _sim.PreviewMove(_sim.Player, cell);
+	internal IReadOnlyList<string> CombatAttackLabelsForSmoke => _combatAttacks.GetChildren()
+		.OfType<Button>().Select(button => button.Text).ToArray();
 	internal bool PlayerDodgeMarkVisibleForSmoke => _tokens.TryGetValue(_view.Id, out var token)
 		&& token.GetNode<Line2D>("DodgeMark").Visible;
 

@@ -53,7 +53,7 @@ public partial class VillageMap
 		var gold = _view.Coins / 100;
 		var silver = _view.Coins % 100 / 10;
 		var copper = _view.Coins % 10;
-		_coinsLabel.Text = $"Denaro: {gold} mo · {silver} ma · {copper} mr\nA Blackmarsh, 1 penny d'argento = 1 ma.";
+		_coinsLabel.Text = $"Denaro: {gold} mo · {silver} ma · {copper} mr";
 		_inventoryButton.Text = $"Inventario ({_view.Inventory.Sum(i => i.Count)})";
 		var key = $"{_view.Position}|{_view.Dead}|{_view.Combat?.Round}:{_view.Combat?.Turn}|{_view.Coins}|"
 			+ string.Join(";", _view.Inventory.Select(i => $"{i.Item}:{i.Name}:{i.Count}")) + "|"
@@ -109,6 +109,17 @@ public partial class VillageMap
 		ShowMessage(result.Message);
 		Refresh();
 	});
+
+	internal void PickUpForSmoke(GroundItemView stack)
+	{
+		var index = _view.GroundItems.ToList().FindIndex(i => i.At == stack.At && i.Item == stack.Item);
+		if (index < 0 || _groundRows.GetChild(index) is not HBoxContainer row
+			|| row.GetChildren().OfType<Button>().SingleOrDefault() is not { Disabled: false } button)
+			throw new InvalidOperationException("The ground item has no enabled pickup button");
+		button.EmitSignal(Button.SignalName.Pressed);
+	}
+	internal bool InventoryPanelVisibleForSmoke => _inventoryPanel.Visible;
+	internal void OpenInventoryForSmoke() => _inventoryPanel.Visible = true;
 
 	private void Drop(ItemId item, int count) => Order("lascia un oggetto", walk: false, () =>
 	{
