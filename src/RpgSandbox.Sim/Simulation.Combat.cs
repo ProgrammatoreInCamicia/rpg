@@ -161,11 +161,11 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(RejectionReason.AlreadyThere, $"{actor.Name} è già lì.");
         if (plan.Feet > left)
             return CommandResult.Rejected(RejectionReason.TooFar, $"Troppo lontano: servono {plan.Feet} piedi, te ne restano {left}.");
-        var walked = WalkInCombat(e, actor, plan);
+        var (walked, stopped) = WalkInCombat(e, actor, plan);
         CheckEnd(e);
         return new CommandResult
         {
-            Message = walked < plan.Path.Count ? $"{actor.Name} si ferma dopo {walked} caselle." : $"{actor.Name} si sposta di {walked} caselle.",
+            Message = stopped is not null ? $"{actor.Name} si ferma dopo {walked} caselle: {stopped}." : $"{actor.Name} si sposta di {walked} caselle.",
         };
     }
 
@@ -492,10 +492,17 @@ internal sealed partial class Simulation
     private int MovementLeft(Encounter e, Actor actor) => ProfileOf(actor).Speed - CombatantOf(e, actor.Id).MovedFeet;
 
     /// <summary>
+    /// The creatures a mover takes into account when planning: its allies and those it sees. Nobody plans around what it
+    /// cannot perceive (the client's green squares never reveal a hidden creature); the real move then stops before one.
+    /// </summary>
+    private Func<Actor, bool> Perceived(Encounter e, Actor mover) => a => Allies(e, mover, a) || SeesActor(mover, a);
+
+    /// <summary>
     /// The cheapest way to <paramref name="to"/> (or, with <paramref name="stopNextTo"/>, to a square next to it) by the
-    /// SRD rules: 5 feet a square, diagonals included, no cutting corners; closed doors block (opening them is C3); an
-    /// ally's space can be crossed, an incapacitated creature's space is Difficult Terrain, any other creature blocks;
-    /// nobody ends on another creature. Null when there is no way. The movement left is not checked here.
+    /// SRD rules, around the creatures the mover perceives: 5 feet a square, diagonals included, no cutting corners;
+    /// closed doors block (opening them is C3); an ally's space can be crossed, an incapacitated creature's space is
+    /// Difficult Terrain, any other creature blocks; nobody ends on another creature. Null when there is no way. The
+    /// movement left is not checked here.
     /// </summary>
     private CombatPlan? PlanCombatMove(Encounter e, Actor mover, GridPos to, bool stopNextTo)
     {
@@ -504,8 +511,9 @@ internal sealed partial class Simulation
         var here = new CombatPlan(Array.Empty<GridPos>(), Array.Empty<int>(), 0);
         if (stopNextTo ? from.StepsTo(to) == 1 && OpenDiagonal(map, from, to) : from == to)
             return here; // already there
-        var occupants = OccupantsOf(map, mover);
-        var reach = CombatReach(e, mover, map, from, occupants, to);
+        var knows = Perceived(e, mover);
+        var occupants = OccupantsOf(map, mover, knows);
+        var reach = CombatReach(e, mover, map, from, to, knows);
         var ends = stopNextTo
             ? reach.Keys.Where(p => p.StepsTo(to) == 1 && OpenDiagonal(map, p, to))
             : reach.Keys.Where(p => p == to);
@@ -521,18 +529,39 @@ internal sealed partial class Simulation
         return new CombatPlan(path, path.Select(p => reach[p].Feet).ToArray(), reach[end].Feet);
     }
 
-    /// <summary>Squares where a creature other than <paramref name="mover"/> stands (nobody ends a move there).</summary>
-    private HashSet<GridPos> OccupantsOf(GridMap map, Actor mover) =>
-        World.Actors.Values.Where(a => a.Id != mover.Id && a.MapArea == map.Area && CurrentPosition(a) is not null)
-            .Select(a => CurrentPosition(a)!.Value).ToHashSet();
+    /// <summary>Other creatures on the map that <paramref name="counts"/> keeps, by square.</summary>
+    private ILookup<GridPos, Actor> CreaturesOn(GridMap map, Actor mover, Func<Actor, bool> counts) =>
+        World.Actors.Values.Where(a => a.Id != mover.Id && a.MapArea == map.Area && CurrentPosition(a) is not null && counts(a))
+            .ToLookup(a => CurrentPosition(a)!.Value);
+
+    /// <summary>Squares where a creature other than the mover stands, among those it counts (nobody ends a move there).</summary>
+    private HashSet<GridPos> OccupantsOf(GridMap map, Actor mover, Func<Actor, bool> counts) =>
+        CreaturesOn(map, mover, counts).Select(g => g.Key).ToHashSet();
+
+    /// <summary>
+    /// SRD Moving Around Other Creatures: an ally's space is free to cross, an incapacitated creature's is Difficult
+    /// Terrain, any other creature's blocks.
+    /// </summary>
+    private static (int Feet, bool Blocked) EnterCost(Encounter e, Actor mover, IEnumerable<Actor> there)
+    {
+        var feet = FeetPerSquare;
+        foreach (var other in there)
+        {
+            if (Allies(e, mover, other))
+                continue;
+            if (other.Conscious)
+                return (feet, true);
+            feet = 2 * FeetPerSquare; // Difficult Terrain
+        }
+        return (feet, false);
+    }
 
     /// <summary>Dijkstra over feet from <paramref name="from"/>; ties go to the path closest to the straight line to <paramref name="aim"/>.</summary>
     private Dictionary<GridPos, (int Feet, long Drift, GridPos Prev)> CombatReach(Encounter e, Actor mover, GridMap map, GridPos from,
-        HashSet<GridPos> occupants, GridPos aim, int? maxFeet = null)
+        GridPos aim, Func<Actor, bool> knows, int? maxFeet = null)
     {
         long Drift(GridPos p) => Math.Abs((long)(aim.X - from.X) * (p.Y - from.Y) - (long)(aim.Y - from.Y) * (p.X - from.X));
-        var others = World.Actors.Values.Where(a => a.Id != mover.Id && a.MapArea == map.Area && CurrentPosition(a) is not null)
-            .ToLookup(a => CurrentPosition(a)!.Value);
+        var others = CreaturesOn(map, mover, knows);
         var best = new Dictionary<GridPos, (int Feet, long Drift, GridPos Prev)>();
         var open = new SortedSet<(int Feet, long Drift, int Y, int X)> { (0, 0, from.Y, from.X) };
         var dist = new Dictionary<GridPos, (int Feet, long Drift)> { [from] = (0, 0) };
@@ -546,17 +575,7 @@ internal sealed partial class Simulation
                 var next = new GridPos(here.X + dx, here.Y + dy);
                 if (!map.IsWalkable(next) || map.IsClosedDoor(next) || !map.DiagonalOpen(here, next))
                     continue;
-                var cost = FeetPerSquare;
-                var blocked = false;
-                foreach (var other in others[next])
-                {
-                    if (Allies(e, mover, other))
-                        continue;
-                    if (other.Conscious)
-                        blocked = true;
-                    else
-                        cost = 2 * FeetPerSquare; // Difficult Terrain
-                }
+                var (cost, blocked) = EnterCost(e, mover, others[next]);
                 if (blocked)
                     continue;
                 var candidate = (Feet: current.Feet + cost, Drift: current.Drift + Drift(next));
@@ -579,7 +598,7 @@ internal sealed partial class Simulation
     private static readonly (int Dx, int Dy)[] Steps =
         { (0, -1), (1, 0), (0, 1), (-1, 0), (1, -1), (1, 1), (-1, 1), (-1, -1) };
 
-    /// <summary>The squares the player can move to now, with their cost.</summary>
+    /// <summary>The squares the player can move to now, with their cost, around the creatures it perceives.</summary>
     private IReadOnlyList<ReachableSquareView> ReachableSquares(Encounter e, Actor actor)
     {
         var left = MovementLeft(e, actor);
@@ -587,8 +606,9 @@ internal sealed partial class Simulation
             return Array.Empty<ReachableSquareView>();
         var map = World.Maps[e.Area];
         var from = CurrentPosition(actor)!.Value;
-        var occupants = OccupantsOf(map, actor);
-        return CombatReach(e, actor, map, from, occupants, from, left)
+        var knows = Perceived(e, actor);
+        var occupants = OccupantsOf(map, actor, knows);
+        return CombatReach(e, actor, map, from, from, knows, left)
             .Where(r => !occupants.Contains(r.Key))
             .OrderBy(r => r.Key.Y).ThenBy(r => r.Key.X)
             .Select(r => new ReachableSquareView { At = r.Key, CostFeet = r.Value.Feet })
@@ -613,19 +633,35 @@ internal sealed partial class Simulation
     private static AttackProfile? MeleeAttack(Actor actor) => ProfileOf(actor).Attacks.FirstOrDefault(a => a.Melee);
 
     /// <summary>
-    /// Walks a planned path square by square. Before each step out of an enemy's reach, that enemy may make an
-    /// Opportunity Attack (its Reaction); a mover that drops stops there. Returns the squares walked.
+    /// Walks a planned path square by square, against the creatures really there: one the mover did not perceive stops
+    /// it before its square (and nobody stays on another creature: it steps back). Before each step out of an enemy's
+    /// reach, that enemy may make an Opportunity Attack (its Reaction); a mover that drops stops there. Returns the
+    /// squares walked, and why it stopped short (null if it did not).
     /// </summary>
-    private int WalkInCombat(Encounter e, Actor actor, CombatPlan plan)
+    private (int Walked, string? Stopped) WalkInCombat(Encounter e, Actor actor, CombatPlan plan)
     {
         var me = CombatantOf(e, actor.Id);
         var map = World.Maps[e.Area];
+        var speed = ProfileOf(actor).Speed;
+        var everyone = CreaturesOn(map, actor, _ => true);
         actor.Sneak = null;
+        var start = CurrentPosition(actor)!.Value;
         var walked = new List<GridPos>();
-        var from = CurrentPosition(actor)!.Value;
-        var spent = 0;
-        foreach (var (square, feet) in plan.Path.Zip(plan.Cost))
+        var from = start;
+        string? stopped = null;
+        foreach (var square in plan.Path)
         {
+            var (feet, blocked) = EnterCost(e, actor, everyone[square]);
+            if (blocked)
+            {
+                stopped = "qualcuno gli sbarra la strada";
+                break;
+            }
+            if (me.MovedFeet + feet > speed)
+            {
+                stopped = "il passo costa più del previsto";
+                break;
+            }
             foreach (var foe in Threats(e, actor, from, square).ToList())
             {
                 CombatantOf(e, foe.Id).ReactionUsed = true;
@@ -634,17 +670,26 @@ internal sealed partial class Simulation
                     break;
             }
             if (!actor.Conscious)
+            {
+                stopped = "è caduto";
                 break;
-            me.MovedFeet += feet - spent;
-            spent = feet;
+            }
+            me.MovedFeet += feet;
             Place(actor, square);
             walked.Add(square);
             from = square;
         }
+        // Nobody ends a move on another creature: back off to the last free square walked (the feet stay spent).
+        while (walked.Count > 0 && everyone[walked[^1]].Any())
+        {
+            walked.RemoveAt(walked.Count - 1);
+            Place(actor, walked.Count > 0 ? walked[^1] : start);
+        }
         EvaluateContacts();
-        if (walked.Count > 0)
-            Record(e, CombatLogKind.Move, actor, null, (a, _) => $"{a} si sposta di {walked.Count} caselle.", path: walked);
-        return walked.Count;
+        if (walked.Count > 0 || stopped is not null)
+            Record(e, CombatLogKind.Move, actor, null,
+                (a, _) => $"{a} si sposta di {walked.Count} caselle{(stopped is null ? "" : $" e si ferma: {stopped}")}.", path: walked);
+        return (walked.Count, stopped);
     }
 
     // ---------------------------------------------------------------- NPCs in a fight
@@ -688,7 +733,7 @@ internal sealed partial class Simulation
             npc.LastDecision = new DecisionTrace(World.Now, "Scontro: aspetta", "Nessun avversario in vista.", Array.Empty<string>());
             return;
         }
-        var occupied = OccupantsOf(World.Maps[e.Area], npc).Contains(spot);
+        var occupied = OccupantsOf(World.Maps[e.Area], npc, Perceived(e, npc)).Contains(spot);
         if (PlanCombatMove(e, npc, spot, stopNextTo: occupied) is { } plan && Truncate(e, npc, plan) is { } step)
         {
             npc.LastDecision = new DecisionTrace(World.Now, "Scontro: si avvicina",
@@ -708,7 +753,7 @@ internal sealed partial class Simulation
     private CombatPlan? Truncate(Encounter e, Actor npc, CombatPlan plan)
     {
         var left = MovementLeft(e, npc);
-        var occupants = OccupantsOf(World.Maps[e.Area], npc);
+        var occupants = OccupantsOf(World.Maps[e.Area], npc, Perceived(e, npc));
         for (var n = plan.Path.Count; n > 0; n--)
             if (plan.Cost[n - 1] <= left && !occupants.Contains(plan.Path[n - 1]))
                 return new CombatPlan(plan.Path.Take(n).ToArray(), plan.Cost.Take(n).ToArray(), plan.Cost[n - 1]);
@@ -754,6 +799,7 @@ internal sealed partial class Simulation
     {
         if (EncounterOf(player) is not { } e)
             return null;
+        // Allies are known by name (one knows who fights on its side); where anyone stands, only if the player sees it.
         bool Known(Actor x) => x.Id == player.Id || Allies(e, player, x) || SeesActor(player, x);
         var me = CombatantOf(e, player.Id);
         var yourTurn = IsTurnOf(e, player);
@@ -783,7 +829,7 @@ internal sealed partial class Simulation
                 MovementLeftFeet = Math.Max(0, MovementLeft(e, player)), SquaresLeft = Math.Max(0, MovementLeft(e, player)) / FeetPerSquare,
                 ActionAvailable = !me.ActionUsed, ReactionAvailable = !me.ReactionUsed,
             },
-            Combatants = e.Order.Select(c => World.Actors[c.Actor]).Where(x => x.Id != player.Id && Known(x) && CurrentPosition(x) is not null)
+            Combatants = e.Order.Select(c => World.Actors[c.Actor]).Where(x => x.Id != player.Id && SeesActor(player, x))
                 .Select(x => new CombatantView
                 {
                     Id = x.Id, Name = x.Name, Position = CurrentPosition(x)!.Value,

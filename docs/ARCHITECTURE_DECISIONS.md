@@ -167,3 +167,32 @@ tests/RpgSandbox.Sim.Tests/  # xUnit: scenari e invarianti
 - ~~SRD 5.1 o 5.2.1?~~ Deciso: SRD 5.2.1 (regole 2024).
 - Raccontare le informazioni: deciso "Parla con…" con reazioni diverse per ascoltatore (soluzione C), come tappa successiva. Proposta delle tappe 4 e 5 in `chat.txt`.
 - Combattimento: turni puri, oppure in futuro anche una modalità alla BG (turni risolti automaticamente con pausa, o tempo reale con pausa vero e proprio)?
+
+## 14. Un motore di meccaniche, non una storia (decisione dell'utente, 2026-10-11)
+
+Obiettivo dichiarato dall'utente: il motore deve poter reggere sandbox diverse, ognuna con la propria macrotrama, sulle
+stesse meccaniche. Il villaggio (granaio, contadino, guardia, Razziatore) è soltanto un banco di prova per mettere a
+punto le meccaniche: non è la prima sandbox e non va protetto. Della seconda sandbox non ci si preoccupa ora.
+
+**Com'è oggi.**
+- Già generico: tempo, scheduler, dadi riproducibili e salvataggi autonomi; mappe, percorsi, luce, vista, udito,
+  porte, torce, furtività; le regole SRD (schede, attacchi, punti ferita, scontro); lo scenario come dati letti dal
+  motore; il contratto con il client (viste e comandi).
+- Cablato sulla prova: la lista fissa di regole degli NPC (razzia, confisca, restituzione, presidio, rapporto,
+  vigilanza, routine); la conoscenza, che riguarda solo i furti; il cibo come unica risorsa; le fazioni con la sola
+  politica di razzia e l'ostilità "razziatore o no"; i quattro profili di combattimento nel codice; i testi italiani
+  dentro il motore; nessuno strato di trama.
+
+**Regole da adesso.**
+1. Ogni meccanica nuova nasce generica: un inventario, non "i giavellotti"; un fatto, non "il furto".
+2. Si generalizza al secondo esempio, non prima. Con un esempio solo si sbaglia l'astrazione. La prossima occasione è la
+   C4: l'aggressione è il secondo tipo di fatto che si vede, si racconta e ha conseguenze. Lì "furto" diventa un fatto
+   qualunque (testimoni, racconti, autorità, conseguenze), e l'ostilità diventa un rapporto fra fazioni e persone.
+3. Il motore non conosce nomi di contenuto: niente id di scenario, di luoghi o di persone nella Sim, salvo negli
+   scenari e nei test.
+4. Più avanti, quando servirà, nell'ordine: contenuti in file di dati (scenari, profili, armi, testi); comportamenti
+   degli NPC componibili per ruoli e obiettivi invece della lista fissa; lo strato della macrotrama (eventi e svolte
+   innescati dallo stato del mondo).
+
+**Limite.** Le regole sono quelle SRD fantasy: vanno bene per qualunque ambientazione fantasy; un genere molto diverso
+vorrebbe un altro modulo di regole, che è già separato (`RpgSandbox.Sim.Rules`).

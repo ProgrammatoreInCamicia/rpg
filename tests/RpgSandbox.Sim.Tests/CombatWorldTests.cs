@@ -487,6 +487,56 @@ public class CombatWorldTests
         Assert.Contains("punti ferita di 'foe'", LoadFromString(json.ToJsonString()).Error);
     }
 
+    /// <summary>Night: a lamp lights the squares around (2,2); a villager the player cannot see rests at (2,4), in the dark.</summary>
+    private static SimulationSession DarkYardWithLurker() =>
+        FirstSeed(seed =>
+        {
+            var x = Yard(seed, hour: 1, more: b => b
+                .AddLight("a", (2, 2), brightFeet: 5, dimFeet: 0)
+                .AddActor("lurker", "Ombra", "yard", at: (2, 4)));
+            Assert.True(Attack(x, Foe).Success);
+            return x;
+        }, x => x.GetPlayerView().Combat is { IsYourTurn: true } && x.GetPlayerView().Position == new GridPos(2, 2));
+
+    [Fact]
+    public void Green_squares_and_the_preview_never_reveal_a_creature_the_player_cannot_see()
+    {
+        var s = DarkYardWithLurker();
+        Assert.False(s.Engine.SeesActor(Of(s, s.Player), Of(s, new ActorId("lurker"))));
+
+        Assert.Contains(Fight(s).Reachable, r => r.At == new GridPos(2, 4));
+        var preview = s.PreviewMove(s.Player, new GridPos(2, 5));
+        Assert.True(preview.Valid);
+        Assert.Equal(new[] { new GridPos(2, 3), new GridPos(2, 4), new GridPos(2, 5) }, preview.Path);
+    }
+
+    [Fact]
+    public void The_real_move_stops_before_a_creature_the_player_did_not_see()
+    {
+        var s = DarkYardWithLurker();
+
+        var move = s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(2, 5) });
+
+        Assert.True(move.Success);
+        Assert.Equal(new GridPos(2, 3), s.GetPlayerView().Position);
+        Assert.Contains("sbarra la strada", move.Message);
+        Assert.Equal(25, Fight(s).You.MovementLeftFeet); // only the square walked is spent
+    }
+
+    [Fact]
+    public void An_ally_out_of_sight_is_named_in_the_order_but_its_square_is_not_shown()
+    {
+        var s = DarkYardWithLurker();
+        // A companion fighting on the player's side, far off in the dark (companions come later: set by hand).
+        var fight = s.Engine.World.Encounters.Values.Single();
+        var side = fight.Order.Single(c => c.Actor == s.Player).Side;
+        fight.Order.Add(new Combatant { Actor = new ActorId("lurker"), Side = side, Initiative = 0, InitiativeBonus = 0 });
+
+        var view = Fight(s);
+        Assert.Contains(view.Order, o => o.Actor == new ActorId("lurker") && o.Name == "Ombra");
+        Assert.DoesNotContain(view.Combatants, c => c.Id == new ActorId("lurker"));
+    }
+
     [Fact]
     public void The_village_profiles_are_the_srd_stat_blocks()
     {
