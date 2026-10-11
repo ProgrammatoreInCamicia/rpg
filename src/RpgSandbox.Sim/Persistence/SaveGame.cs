@@ -217,7 +217,7 @@ internal static class SaveGame
             Faction = e.Job switch { FactionUpkeep u => u.Faction.Value, EvaluateFaction v => v.Faction.Value, _ => null },
             Encounter = (e.Job as CombatRound)?.Encounter,
         }).ToList(),
-        Facts = w.RecentFacts.Select(f => new FactDto { Id = f.Id.Value, At = f.At.Seconds, Kind = f.Kind, Description = f.Description, Participants = f.Participants.Select(p => p.Value).ToList() }).ToList(),
+        Facts = w.RecentFacts.Select(f => new FactDto { Id = f.Id.Value, At = f.At.Seconds, Kind = f.Kind, Description = f.Description, PlayerDescription = f.PlayerDescription, Participants = f.Participants.Select(p => p.Value).ToList() }).ToList(),
         Maps = w.Maps.Values.Select(m => new MapDto
         {
             Area = m.Area.Value, Rows = m.Rows.ToList(), Zones = m.Zones.ToDictionary(z => z.Key.ToString(), z => z.Value.Value),
@@ -628,7 +628,7 @@ internal static class SaveGame
             "scadenza di un'azione che non è in corso");
 
         foreach (var f in d.Facts)
-            w.RecentFacts.AddLast(new Fact { Id = new FactId(f.Id), At = new GameTime(f.At), Kind = f.Kind, Description = f.Description, Participants = f.Participants.Select(p => new ActorId(p)).ToArray() });
+            w.RecentFacts.AddLast(new Fact { Id = new FactId(f.Id), At = new GameTime(f.At), Kind = f.Kind, Description = f.Description, PlayerDescription = f.PlayerDescription, Participants = f.Participants.Select(p => new ActorId(p)).ToArray() });
         Check(w.RecentFacts.All(f => f.Id.Value < w.NextFactId), "contatore dei fatti incoerente");
 
         return w;

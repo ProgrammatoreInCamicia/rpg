@@ -584,6 +584,9 @@ internal sealed class Fact
     public required string Kind { get; init; }
     public required string Description { get; init; }
 
+    /// <summary>C5a: the same fact as the player saw it (no numbers it could not know), when it differs.</summary>
+    public string? PlayerDescription { get; init; }
+
     /// <summary>Who took part: they know it happened (used to show the player what concerns them).</summary>
     public IReadOnlyList<ActorId> Participants { get; init; } = Array.Empty<ActorId>();
 }
@@ -688,10 +691,14 @@ internal sealed class WorldState
 
     public IEnumerable<Actor> MembersOf(FactionId faction) => Actors.Values.Where(a => a.Faction == faction);
 
-    public FactId RecordFact(string kind, string description, params ActorId[] participants)
+    public FactId RecordFact(string kind, string description, params ActorId[] participants) =>
+        RecordFact(kind, description, null, participants);
+
+    /// <summary>C5a: a fact with its own text for the player (see <see cref="Fact.PlayerDescription"/>).</summary>
+    public FactId RecordFact(string kind, string description, string? playerDescription, params ActorId[] participants)
     {
         var id = new FactId(NextFactId++);
-        RecentFacts.AddLast(new Fact { Id = id, At = Now, Kind = kind, Description = description, Participants = participants.Distinct().ToArray() });
+        RecentFacts.AddLast(new Fact { Id = id, At = Now, Kind = kind, Description = description, PlayerDescription = playerDescription, Participants = participants.Distinct().ToArray() });
         while (RecentFacts.Count > RecentFactCapacity)
             RecentFacts.RemoveFirst();
         return id;

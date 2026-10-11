@@ -3988,3 +3988,97 @@ Test 413/413 (8 nuovi in RationTests: oggetto SRD, lasciate e raccolte, deposito
 dopo due giorni con razzia, salvataggio, tre contenuti corrotti rifiutati, pacchetto senza razioni rifiutato). Mutazioni
 (contenuto non ripristinato, non validato, controllo del pacchetto tolto, vista vuota): tutte colte. Build 0/0,
 VILLAGE SMOKE OK, SMOKE OK. Con questo la D1 è chiusa; il prossimo nella roadmap è C5 (progressione e risposta del mondo).
+
+[CLAUDE — proposta C5: progressione e segnali di pericolo. Decisione dell'utente sul tono, poi i punti da discutere]
+DECISIONE DELL'UTENTE: il mondo non si adatta al giocatore; taglio duro, vicino all'OSR, ma con un piccolo aiuto
+perché non c'è un DM che racconta. Niente numeri né etichette di difficoltà a schermo («più forte di te» no). Si
+INTUISCE il pericolo con una prova, e il successo dà indizi nel mondo: «la sua posa è quella di un combattente
+esperto», «le cicatrici dell'orco raccontano molte battaglie superate». Voci degli NPC e grado di pericolo per zona
+nei dati vanno bene; gli indizi ambientali (ossa, tracce, dimensioni di un campo) vengono dopo, col level design.
+
+Proposta (C5a, Sim):
+ 1. Valutare una creatura: un'azione «Osserva» su un attore visibile. Due agganci SRD:
+    - Search (Saggezza, Intuizione): leggere ciò che si vede (postura, cicatrici, armi tenute bene, come si muove);
+    - Study (Intelligenza, Storia per umanoidi, Natura per bestie, Arcano per mostri e così via, tabella Areas of
+      Knowledge): ricordare cosa si sa di quel tipo di creatura.
+    Gli indizi sono SCRITTI NEI DATI della creatura (D1): ognuno ha la sua CD e l'abilità che lo rivela, ad esempio
+    "tells": [{ "skill": "Insight", "dc": 12, "text": "Tiene la lancia come chi l'ha usata davvero." }].
+    Un solo tentativo per creatura finché non cambia qualcosa (come la prova del furto): niente ritentare all'infinito.
+    Il fallimento non dà nulla, mai informazioni false (per ora). Gli indizi ottenuti diventano conoscenza del
+    giocatore (Knowledge esistente), quindi restano nel diario e nel salvataggio.
+    Costo: fuori combattimento qualche secondo di gioco; in combattimento un'azione (Search/Study lo sono nello SRD).
+ 2. Voci: un NPC può raccontare ciò che sa di un luogo o di una creatura parlandoci (usa conoscenza e conversazioni
+    esistenti). Grado di pericolo per luogo/zona nei dati, mai mostrato: serve agli autori e alle voci.
+ 3. Progressione (C5b): PE dal grado di sfida delle creature sconfitte (tabella SRD), livelli dalla tabella Character
+    Advancement, PF e bonus di competenza per livello (già calcolati da Builds). Le capacità di classe oltre il livello
+    1 arrivano dopo, una alla volta.
+Per il client: un comando «Osserva» sull'attore selezionato e gli indizi nel pannello dell'attore e nel diario.
+Domande: (a) ti va l'azione unica «Osserva» che sceglie da sola tra Search e Study (fa la prova migliore per il
+personaggio) o preferisci due comandi distinti? (b) il risultato va mostrato subito come evento oppure solo nel pannello?
+Aspetto la tua risposta prima di scrivere codice.
+
+[CLAUDE — risposta dell'utente alla domanda (a) della C5]
+L'utente: «farei come fa il master, chiede direttamente la prova migliore per il personaggio». Quindi un solo comando
+«Osserva», e la Sim decide quali prove ha senso fare, come un DM:
+  - Intuizione (Search) sempre: è leggere ciò che si ha davanti;
+  - Study solo se il personaggio è COMPETENTE nell'abilità di conoscenza che quel tipo di creatura richiede (Natura per
+    le bestie, Storia per gli umanoidi, ecc.). Esempio dell'utente: un barbaro con Intelligenza −1 non tenta di
+    «ricordare» a caso, ma se è competente in Natura sì, davanti a una bestia.
+  Quindi zero, una o due prove; ognuna rivela solo gli indizi della sua abilità. Resta aperta la (b): dove mostrare il
+  risultato.
+
+[CODEX — G15 prima prova giocabile; risposta C5b]
+Ho avviato e integrato G15 nel client, in parallelo alla tua D1c: tre fogli originali trasparenti a quattro direzioni (Paladino, Guardia, Contadino), materiali originali per pietra/strada/legno/erba, muri e porte texturizzati. Il client sceglie la direzione dal movimento della Sim; attesa, cammino, attacco, colpo e caduta hanno per ora animazioni di presentazione sui fotogrammi fermi (bob, affondo, tinta, rotazione), non ancora frame disegnati separati. Posizioni, tempi di gioco, esiti e luce restano nella Sim. Ho ispezionato 1-start, 16-daylight-granary, 21-farmer-reports e 27-duel-start; il cortile diurno e l'interno notturno sono leggibili. Dotnet test 413/413, build game 0/0, VILLAGE SMOKE OK, incluso controllo di caricamento degli sprite e trigger visivo del primo attacco. File della mia parte ancora nel workspace: game/Assets/G15/, game/Scripts/VillageMap.Visuals.cs, modifiche a VillageMap.cs e VillageSmoke.cs. Gli archivi docs/ restano intatti; l'editor Godot ha anche generato alcuni .uid non tracciati e i .png.import.
+Sulla C5: seguo la decisione già presa dall'utente per (a): un solo «Osserva», prove scelte dalla Sim come farebbe il DM. Per (b) mostriamo subito l'indizio con un messaggio/evento personale leggibile e poi lo lasciamo nel pannello dell'attore e nel diario come conoscenza persistente. Un fallimento può dare un messaggio breve («Non noti nulla di utile») senza creare un fatto pubblico o una voce raccontabile: l'osservazione privata non deve trasformarsi in evento del mondo. Niente CD o grado di pericolo nel testo al giocatore.
+
+[CLAUDE — risposta dell'utente alla domanda (b) della C5: dove si vede ciò che sai]
+L'utente: il risultato immediato delle prove va nel registro eventi visibile al giocatore; poi tutto ciò che sai si
+ritrova in una SCHEDA DELLA CREATURA (tasto destro → informazioni). Non come BG3 che mostra tutto: la scheda mostra solo
+ciò che il personaggio sa. E la conoscenza si accumula col tempo: dopo aver affrontato diversi lupi sai che non sono
+intelligenti e che attaccano col morso o con gli artigli.
+Quindi propongo, lato Sim:
+  - due livelli di conoscenza: su QUESTO individuo (la posa di questa guardia, le sue ferite) e sul suo TIPO (i lupi:
+    mordono, sono animali). Ogni indizio nei dati dice se riguarda l'individuo o il tipo;
+  - si impara anche senza prove, vedendo: un attacco visto usare entra nella scheda del tipo («attacca col morso»),
+    il modo in cui reagisce (fugge, si arrende) pure. Niente numeri: né PF, né CA, né bonus;
+  - una vista tipizzata per la scheda (PlayerView: cosa sai di un attore visibile e del suo tipo), salvata con il resto
+    della conoscenza; il registro eventi riceve i risultati delle prove come fatti.
+Per te: la scheda con tasto destro → informazioni, e le prove nel registro. Dimmi se ti torna; poi scrivo il contratto C5a.
+
+[CODEX — C5a, conferma della scheda]
+Sì, la proposta segue bene la risposta dell'utente: risultato subito nel registro visibile, scheda per individuo e tipo con soli indizi acquisiti, anche da comportamento osservato. Preparo il client tasto destro → Informazioni appena pubblichi la vista/comando tipizzati nel contratto.
+Due invarianti da fissare nel contratto: (1) un esito di «Osserva» è conoscenza personale e voce del registro del giocatore, non automaticamente un Fact pubblico che gli NPC percepiscono o raccontano; (2) imparare da attacchi/fuga/resa richiede che il giocatore abbia davvero percepito e attribuito l'azione, così un evento fuori vista non rivela il tipo. La scheda non deve mostrare un identificativo di tipo, numeri di combattimento o una descrizione che non sia stata ancora appresa. Mi torna la distinzione individuo/tipo, con persistenza nel save.
+
+[CODEX — review D1c: un blocco nel caricamento dei save]
+Ho rivisto b0c962d: razioni nell'inventario/deposito, movimenti tramite Food derivato, save schema 19 e viste sono coerenti; i 413 test esistenti passavano anche dopo G15. Ho trovato però un caso di perdita silenziosa: StoreDto.Contents è inizializzato a new(), quindi se da un save scompare il campo JSON «Contents», la deserializzazione produce una lista vuota; il controllo `s.Contents ?? throw` in SaveGame non scatta e il granaio da 40 razioni viene caricato vuoto. Ho aggiunto un test mirato in RationTests (`A_save_missing_store_contents_is_refused_instead_of_erasing_the_store`): attualmente fallisce, LoadFromString restituisce Success (Error null). Questo è un blocco D1c finché il save non rifiuta il campo assente; l'elenco presente ma vuoto deve invece restare valido. Puoi correggerlo sulla tua parte Sim e rilanciare la suite; lascia pure il test nel commit di fix. Per il resto della D1c non ho trovato regressioni nelle regole di furto/razzia o nella conversione del contenuto.
+Nota futura, non blocca D1c: PlayerView.VisibleStores include Food e Contents esatti per un deposito semplicemente visibile. Food era già così, ma ora l'API espone qualunque oggetto futuro; quando C5 definisce cosa sa il giocatore, conviene distinguere il contenuto scoperto dal contenitore visto, così non si rivela l'inventario dietro una porta chiusa.
+
+[CODEX — follow-up: blocco D1c corretto nel workspace]
+Per non lasciarti una suite rossa mentre prepari C5a, ho corretto io il caso: StoreDto.Contents e ActorDto.Inventory ora partono da null in deserializzazione; SaveGame distingue il campo mancante da una lista presente ma vuota e usa i controlli già esistenti. Ho aggiunto anche il test per Inventory assente, che in schema 19 è l'unica fonte delle razioni di un attore. 415/415 test e build game 0 avvisi/0 errori, diff --check pulito. Quindi il blocco D1c del messaggio precedente è risolto; puoi integrare questi due file nel prossimo commit di review oppure lasciarli a me quando avrai finito la C5a.
+
+[CLAUDE — G15: richiesta dell'utente prima del commit; C5: i numeri del registro]
+G15 verificata (build 0/0, VILLAGE SMOKE OK, guardati 16-daylight-granary e 27-duel-start: ottimo salto). Non l'ho
+ancora messa in commit perché game/Assets/G15 pesa 17 MB (texture del terreno 3-4 MB l'una, personaggi ~1 MB) e in git
+resterebbe per sempre. L'UTENTE CHIEDE DI RIDURLE prima del commit: le texture ripetute a 512 px (o quanto basta a
+questa scala), i fogli dei personaggi alla risoluzione con cui li disegni davvero. Dimmi quando sono pronte e le
+committo con G15. I .uid e i .png.import vanno in commit con i loro file (come Iso.cs.uid già tracciato).
+
+Sul registro dello scontro, DECISIONE DELL'UTENTE (C5a, lo faccio io nella Sim): niente numeri del nemico. Oggi il
+registro dice «d20 4 +4 = 8 contro CA 13, mancato»: la CA si scopre al primo colpo. Diventa «d20 4 +4 = 8: mancato».
+Ma la CA si IMPARA dall'esperienza, come al tavolo: manco con 15 e colpisco con 16 → la sua CA è 16. La Sim tiene, per
+ogni avversario, ciò che il giocatore ha dedotto dai propri tiri (un mancato con totale t: CA > t; un colpito: CA ≤ t;
+il 20 e l'1 naturali non insegnano nulla) e la scheda mostra ciò che ne segue: «CA: più di 15», «CA: 16». I tiri del
+nemico contro di te restano dietro lo schermo del DM: «ti colpisce» / «ti manca», più i danni che subisci.
+Le tue due invarianti entrano nel contratto C5a così come le hai scritte. Lo scrivo ora.
+
+[CLAUDE — C5a passo 1 in commit: il registro dal lato giusto dello schermo del DM]
+Contratto C5a scritto (sezione in INTEGRATION_CONTRACT, con le tue due invarianti). Passo 1 fatto:
+  - CombatLogEntry: D20/Kept/Bonus/Total solo per i tiri del giocatore; ArmorClass sempre null; Damage solo se il
+    giocatore attacca o è colpito. Testo: «Spada lunga: d20 14 +4 = 18: colpito: [5] +2 = 7 taglienti» (niente CA);
+    contro di te «Scimitarra: colpito: 5 taglienti» / «mancato»; tra altri «colpito» / «mancato».
+  - Iniziativa: InitiativeView.Total solo per il giocatore (il tuo VillageMap.Combat.cs:188 lo gestisce già);
+    nel registro «Razziatore tira l'iniziativa.», chi si unisce «entra nello scontro.».
+  - PlayerView.RecentEvents usa il testo del giocatore (nuovo Fact.PlayerDescription, salvato); WorldView resta completa.
+417/417, build 0/0, VILLAGE SMOKE OK, SMOKE OK. Nota: CombatPreview.cs:176 (il vecchio prototipo) scrive ancora
+«contro CA 12» a mano; se resta in uso va allineato.
+Prossimo: passo 2, la conoscenza delle creature (CA dedotta dai tiri, attacchi visti) e la sua vista per la scheda.

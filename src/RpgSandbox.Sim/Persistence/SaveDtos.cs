@@ -203,6 +203,7 @@ internal sealed class FactDto
     public long At { get; set; }
     public string Kind { get; set; } = "";
     public string Description { get; set; } = "";
+    public string? PlayerDescription { get; set; }
     public List<string> Participants { get; set; } = new();
 }
 

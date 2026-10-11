@@ -467,3 +467,15 @@ Contratto completo in chat.txt ("CONTRATTO C4" e le note successive). In sintesi
 - Uno scenario con razioni richiede che i contenuti definiscano l'oggetto `ration`.
 - Salvataggi (schema 19): le razioni di una persona stanno nel suo inventario (non c'è più un campo a parte), il deposito salva il suo contenuto; oggetti sconosciuti o quantità non positive nel contenuto sono rifiutati.
 - Debito noto: come la torcia, la razione è riconosciuta dal suo id nel motore.
+
+## C5a — Ciò che il giocatore sa delle creature (proposta, in corso)
+
+Decisioni dell'utente: il mondo non si adatta al giocatore; tono duro, vicino all'OSR, con il piccolo aiuto che darebbe un DM. Nessun numero del nemico e nessuna etichetta di difficoltà a schermo, se non imparati.
+
+1. **Registro senza numeri del nemico.** Il giocatore vede i propri tiri («d20 4 +4 = 8: mancato») ma non la CA del bersaglio; i tiri dei nemici restano dietro lo schermo («ti colpisce: 7 taglienti», «ti manca»; tra altri: «colpisce», «manca»). Vale per `CombatLogEntry` (i campi numerici restano solo dove il tiro è del giocatore; `ArmorClass` mai), per il testo del registro e per `PlayerView.RecentEvents`. L'iniziativa dei nemici mostra l'ordine, non il tiro. La `WorldView` (debug) resta completa.
+2. **Conoscenza delle creature** (solo il giocatore, nel salvataggio), su due livelli:
+   - sull'**individuo**: la CA dedotta dai propri tiri (un mancato con totale t: CA > t; un colpito: CA ≤ t; il 20 e l'1 naturali non insegnano nulla; se un nuovo esito contraddice ciò che si sapeva, si riparte da quello), gli attacchi con arma visti usare, gli indizi osservati;
+   - sul **tipo** (dai dati: `kind`, ad esempio umano, lupo): gli attacchi naturali visti usare (morso, artigli) e gli indizi sul tipo. Si impara solo ciò che il giocatore ha percepito: un attacco fuori vista non insegna nulla.
+3. **«Osserva»** (`ObserveCommand { Actor, Target }`) su un attore che il giocatore vede: la Sim sceglie le prove come un DM. Intuizione (Search, Saggezza) sempre, per l'individuo; Study (Intelligenza) solo se il personaggio è competente nell'abilità che quel tipo richiede (Storia per umanoidi, Natura per bestie, Arcano per mostri, Religione per non morti: tabella SRD Areas of Knowledge). Ogni prova rivela gli indizi della sua abilità con CD non superiore al totale (`tells` nei dati della creatura: abilità, CD, testo, individuo o tipo). Un tentativo di Intuizione per individuo e uno di Study per tipo. Il fallimento non rivela nulla. In combattimento costa l'azione; fuori è immediato (ADAPTATION).
+4. **Invarianti (Codex):** l'esito di «Osserva» è conoscenza personale e voce del registro del giocatore, non un fatto che gli NPC percepiscono o raccontano; si impara da attacchi e comportamenti solo se il giocatore li ha percepiti e attribuiti. La scheda non mostra identificativi interni, numeri di combattimento non dedotti né descrizioni non ancora apprese.
+5. **Vista:** per ogni attore visibile una scheda tipizzata (ciò che sai dell'individuo e del suo tipo, la CA come intervallo dedotto); `PlayerView` elenca anche i tipi conosciuti.

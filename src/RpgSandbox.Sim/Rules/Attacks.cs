@@ -107,6 +107,9 @@ public sealed record AttackProfile
     }
 }
 
+/// <summary>C5a: who reads an attack line: the one who rolled, the one struck, or someone looking on.</summary>
+public enum AttackPerspective { Attacker, Target, Witness }
+
 /// <summary>The result of one attack, ready for the dice log.</summary>
 public sealed record AttackResult
 {
@@ -139,6 +142,25 @@ public sealed record AttackResult
         var dice = DamageDice.Count == 0 ? "" : $"[{string.Join(", ", DamageDice)}] ";
         var sign = DamageBonus >= 0 ? "+" : "−";
         return $"{roll}, {(Critical ? "COLPO CRITICO" : "colpito")}: {dice}{sign}{Math.Abs(DamageBonus)} = {Damage} {TypeName(Type)}";
+    }
+
+    /// <summary>
+    /// C5a: the same attack as one side of the GM screen sees it. The attacker sees its own roll but not the target's
+    /// AC ("d20 4 +4 = 8: mancato"); the target sees no roll, only what it suffers; anyone else sees hit or miss.
+    /// </summary>
+    public string DescribeFor(AttackPerspective perspective)
+    {
+        var hit = Critical ? "COLPO CRITICO" : "colpito";
+        var damage = $"{Damage} {TypeName(Type)}";
+        return perspective switch
+        {
+            AttackPerspective.Attacker when !Hit => Grazed ? $"{Attack}: {Roll.Describe()}: mancato, ma lo sfiora: {damage}" : $"{Attack}: {Roll.Describe()}: mancato",
+            AttackPerspective.Attacker => $"{Attack}: {Roll.Describe()}: {hit}: " +
+                                          $"{(DamageDice.Count == 0 ? "" : $"[{string.Join(", ", DamageDice)}] ")}{(DamageBonus >= 0 ? "+" : "−")}{Math.Abs(DamageBonus)} = {damage}",
+            AttackPerspective.Target when !Hit => Grazed ? $"{Attack}: mancato, ma ti sfiora: {damage}" : $"{Attack}: mancato",
+            AttackPerspective.Target => $"{Attack}: {hit}: {damage}",
+            _ => $"{Attack}: {(Hit ? hit : "mancato")}",
+        };
     }
 
     public static string TypeName(DamageType type) => type switch

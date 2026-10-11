@@ -75,7 +75,8 @@ internal sealed partial class Simulation
         e.Order.Insert(index, joiner);
         if (!e.RoundClosed && index <= e.Turn)
             e.Turn++; // the turn in progress stays the same combatant's
-        Record(e, CombatLogKind.Joined, npc, null, (a, _) => $"{a} entra nello scontro (iniziativa {roll.Roll.Describe()}).", roll.Roll);
+        Record(e, CombatLogKind.Joined, npc, null, (a, _) => $"{a} entra nello scontro (iniziativa {roll.Roll.Describe()}).", roll.Roll,
+            playerText: (a, _) => $"{a} entra nello scontro."); // C5a
         World.RecordFact("JoinedFight", $"{npc.Name} entra nello scontro.", npc.Id);
     }
 

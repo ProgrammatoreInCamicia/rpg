@@ -151,8 +151,8 @@ internal sealed partial class Simulation
         foreach (var roll in rolls)
         {
             var who = World.Actors[new ActorId(roll.Id)];
-            Record(e, CombatLogKind.Initiative, who, null, (a, _) => $"Iniziativa di {a}: {roll.Roll.Describe()}.",
-                roll.Roll);
+            Record(e, CombatLogKind.Initiative, who, null, (a, _) => $"Iniziativa di {a}: {roll.Roll.Describe()}.", roll.Roll,
+                playerText: who.IsPlayer ? null : (a, _) => $"{a} tira l'iniziativa."); // C5a: a foe's roll stays behind the screen
         }
         if (!CheckEnd(e))
             RunTurns(e);
@@ -503,12 +503,16 @@ internal sealed partial class Simulation
         e.AttackedThisRound = true;
         var how = kind == CombatLogKind.OpportunityAttack ? "coglie l'occasione e attacca" : "attacca";
         var extra = (check.Advantage ? " (vantaggio)" : "") + (check.Disadvantage ? " (svantaggio)" : "") + (check.LongRange ? " (gittata lunga)" : "");
+        // C5a: the player reads it from its side of the GM screen.
+        var seen = result.DescribeFor(attacker.IsPlayer ? AttackPerspective.Attacker : target.IsPlayer ? AttackPerspective.Target : AttackPerspective.Witness);
         Record(e, kind, attacker, target, (a, t) => $"{a} {how} {t}{extra}. {result.Describe()}.", result.Roll,
-            attack: attack.Name, armorClass: result.TargetArmorClass, hit: result.Hit, critical: result.Critical, damage: result.Damage);
-        var blow = World.RecordFact("Attack", $"{attacker.Name} {how} {target.Name}: {result.Describe()}.", Participants(attacker, target));
+            attack: attack.Name, armorClass: result.TargetArmorClass, hit: result.Hit, critical: result.Critical, damage: result.Damage,
+            playerText: (a, t) => $"{a} {how} {t}{extra}. {seen}.");
+        var blow = World.RecordFact("Attack", $"{attacker.Name} {how} {target.Name}: {result.Describe()}.",
+            $"{attacker.Name} {how} {target.Name}: {seen}.", Participants(attacker, target));
         WitnessFight(e, attacker, target, opening: false, blow);
         Fell(e, target, attacker, outcome);
-        return $"{attacker.Name} {how} {target.Name}{extra}. {result.Describe()}.";
+        return $"{attacker.Name} {how} {target.Name}{extra}. {seen}.";
     }
 
     /// <summary>Records a creature dropping (down, knocked out, killed).</summary>
@@ -847,7 +851,8 @@ internal sealed partial class Simulation
     /// </summary>
     private void Record(Encounter e, CombatLogKind kind, Actor? actor, Actor? target, Func<string, string, string> text,
         D20Roll? roll = null, string? attack = null, int? armorClass = null, bool? hit = null, bool critical = false,
-        int? damage = null, IReadOnlyList<GridPos>? path = null, IReadOnlyList<int>? d20 = null, int? kept = null)
+        int? damage = null, IReadOnlyList<GridPos>? path = null, IReadOnlyList<int>? d20 = null, int? kept = null,
+        Func<string, string, string>? playerText = null)
     {
         var player = World.Actors[World.Player];
         bool Seen(Actor? x) => x is not null && (x.IsPlayer || SeesActor(player, x));
@@ -864,7 +869,7 @@ internal sealed partial class Simulation
             Kept = kept ?? roll?.Kept, Bonus = roll?.Bonus, Total = roll?.Total, ArmorClass = armorClass, Hit = hit, Critical = critical,
             Damage = damage, Path = path?.ToArray() ?? Array.Empty<GridPos>(),
             Text = text(actor?.Name ?? "", target?.Name ?? ""),
-            PlayerText = perceived ? text(sawActor ? actor?.Name ?? "" : "Qualcuno", sawTarget ? target?.Name ?? "" : "qualcuno") : null,
+            PlayerText = perceived ? (playerText ?? text)(sawActor ? actor?.Name ?? "" : "Qualcuno", sawTarget ? target?.Name ?? "" : "qualcuno") : null,
             PlayerSawActor = sawActor, PlayerSawTarget = sawTarget,
         });
     }
@@ -895,7 +900,7 @@ internal sealed partial class Simulation
                 var known = Known(who);
                 return new InitiativeView
                 {
-                    Actor = known ? who.Id : null, Name = known ? who.Name : "Qualcuno", Total = known ? c.Initiative : null,
+                    Actor = known ? who.Id : null, Name = known ? who.Name : "Qualcuno", Total = who.IsPlayer ? c.Initiative : null, // C5a
                     Current = !e.RoundClosed && i == e.Turn,
                 };
             }).ToArray(),
@@ -937,8 +942,11 @@ internal sealed partial class Simulation
             Log = e.Log.Where(r => r.PlayerText is not null).Select(r => new CombatLogEntry
             {
                 Round = r.Round, Kind = r.Kind, Actor = r.PlayerSawActor ? r.Actor : null, Target = r.PlayerSawTarget ? r.Target : null,
-                Attack = r.Attack, D20 = r.D20, Kept = r.Kept, Bonus = r.Bonus, Total = r.Total, ArmorClass = r.ArmorClass, Hit = r.Hit,
-                Critical = r.Critical, Damage = r.Damage, Path = r.PlayerSawActor ? r.Path : Array.Empty<GridPos>(), Text = r.PlayerText!,
+                // C5a: only the player's own rolls are shown; a target's AC never (it is learned, see Lore).
+                Attack = r.Attack, D20 = r.Actor == player.Id ? r.D20 : Array.Empty<int>(), Kept = r.Actor == player.Id ? r.Kept : null,
+                Bonus = r.Actor == player.Id ? r.Bonus : null, Total = r.Actor == player.Id ? r.Total : null, ArmorClass = null, Hit = r.Hit,
+                Critical = r.Critical, Damage = r.Actor == player.Id || r.Target == player.Id ? r.Damage : null,
+                Path = r.PlayerSawActor ? r.Path : Array.Empty<GridPos>(), Text = r.PlayerText!,
             }).ToArray(),
         };
     }

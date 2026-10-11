@@ -54,6 +54,9 @@ public class CombatWorldTests
 
     private static CombatView Fight(SimulationSession s) => s.GetPlayerView().Combat ?? throw new InvalidOperationException("No fight.");
 
+    /// <summary>The fight as it really went (C5a: the player does not see a foe's dice).</summary>
+    private static List<CombatRecord> TrueLog(SimulationSession s) => s.Engine.World.Encounters.Values.Single().Log;
+
     private static Actor Of(SimulationSession s, ActorId id) => s.Engine.World.Actors[id];
 
     // ---------------------------------------------------------------- opening
@@ -80,7 +83,8 @@ public class CombatWorldTests
         Assert.Equal(new[] { CombatLogKind.Started, CombatLogKind.Attack, CombatLogKind.Initiative, CombatLogKind.Initiative },
             fight.Log.Take(4).Select(l => l.Kind));
         Assert.Equal(s.Player, fight.Log[1].Actor);
-        Assert.Equal(2, fight.Log.Single(l => l.Kind == CombatLogKind.Initiative && l.Actor == Foe).D20.Count); // surprised: Disadvantage
+        Assert.Equal(2, TrueLog(s).Single(l => l.Kind == CombatLogKind.Initiative && l.Actor == Foe).D20.Count); // surprised: Disadvantage
+        Assert.Empty(fight.Log.Single(l => l.Kind == CombatLogKind.Initiative && l.Actor == Foe).D20); // C5a: behind the screen
         Assert.Single(fight.Log.Single(l => l.Kind == CombatLogKind.Initiative && l.Actor == s.Player).D20);
         // Whoever went first, it is now the player's first turn, with the action already spent on that blow.
         Assert.True(fight.IsYourTurn);
@@ -99,7 +103,7 @@ public class CombatWorldTests
         var log = Fight(s).Log;
         Assert.Equal(new[] { CombatLogKind.Started, CombatLogKind.OpeningAttackPending, CombatLogKind.Initiative, CombatLogKind.Initiative },
             log.Take(4).Select(l => l.Kind));
-        Assert.All(log.Where(l => l.Kind == CombatLogKind.Initiative), l => Assert.Single(l.D20)); // nobody surprised
+        Assert.All(TrueLog(s).Where(l => l.Kind == CombatLogKind.Initiative), l => Assert.Single(l.D20)); // nobody surprised
         // The player's blow comes only once its turn has started.
         var turn = log.ToList().FindIndex(l => l.Kind == CombatLogKind.TurnStarted && l.Actor == s.Player);
         var blow = log.ToList().FindIndex(l => l.Kind == CombatLogKind.Attack && l.Actor == s.Player);

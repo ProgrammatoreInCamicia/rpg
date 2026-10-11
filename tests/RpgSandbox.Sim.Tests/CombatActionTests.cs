@@ -56,6 +56,9 @@ public class CombatActionTests
 
     private static CombatView Fight(SimulationSession s) => s.GetPlayerView().Combat!;
 
+    /// <summary>The fight as it really went (C5a: the player does not see a foe's dice).</summary>
+    private static List<CombatRecord> TrueLog(SimulationSession s) => s.Engine.World.Encounters.Values.Single().Log;
+
     private static CommandResult Do(SimulationSession s, CombatAction action) =>
         s.Execute(new CombatActionCommand { Actor = s.Player, Action = action });
 
@@ -107,8 +110,8 @@ public class CombatActionTests
 
         var round = Fight(s).Round;
         var dodge = Fight(s).Log.Single(l => l.Kind == CombatLogKind.Dodge);
-        var log = Fight(s).Log.ToList();
-        var blow = log.Skip(log.IndexOf(dodge)).First(l => l.Kind == CombatLogKind.Attack && l.Actor == Foe); // the first blow after the Dodge
+        var truth = TrueLog(s);
+        var blow = truth.SkipWhile(l => l.Kind != CombatLogKind.Dodge).First(l => l.Kind == CombatLogKind.Attack && l.Actor == Foe); // the first blow after the Dodge
         Assert.Equal(round - 1, dodge.Round);
         Assert.Equal(2, blow.D20.Count); // Disadvantage: two dice
         Assert.False(Fight(s).You.Dodging); // over at the start of the player's next turn
