@@ -1,0 +1,205 @@
+using RpgSandbox.Sim.Rules;
+
+namespace RpgSandbox.Sim.Api;
+
+// C2: the fight in the world. The rules live in the Sim; the client shows the snapshot and sends commands, it never rolls
+// dice nor subtracts Hit Points. In a fight, MoveCommand is an instant move within the turn's movement.
+
+/// <summary>
+/// Attack with one of the attacks of the actor's combat profile. In a fight, on the actor's turn: it uses the action.
+/// Outside a fight it starts one: against a target that does not expect it (it does not see the attacker, or does not
+/// hold it hostile) the attack is resolved at once, before initiative; against one that does, initiative comes first
+/// and the attack waits for the attacker's turn (<see cref="CombatView.PendingOpeningAttack"/>).
+/// </summary>
+public sealed record AttackCommand : Command
+{
+    public required ActorId Target { get; init; }
+
+    /// <summary>The attack's name, as in <see cref="TargetView.Attack"/>.</summary>
+    public required string Attack { get; init; }
+
+    /// <summary>SRD Knocking Out: a melee hit that would drop the target to 0 leaves it at 1 HP, unconscious.</summary>
+    public bool NonLethal { get; init; }
+}
+
+/// <summary>End the actor's turn; the other turns are then resolved up to the player's next one.</summary>
+public sealed record EndTurnCommand : Command;
+
+/// <summary>Seen from the player: on its side or against it.</summary>
+public enum CombatSide { Ally, Enemy }
+
+/// <summary>The fight the player is in, as the player knows it.</summary>
+public sealed record CombatView
+{
+    public required int Round { get; init; }
+
+    /// <summary>Whose turn it is; null if the player cannot see that combatant.</summary>
+    public ActorId? Turn { get; init; }
+    public required bool IsYourTurn { get; init; }
+
+    /// <summary>Initiative order, first to last; the same through the fight.</summary>
+    public required IReadOnlyList<InitiativeView> Order { get; init; }
+
+    public required CombatSelfView You { get; init; }
+
+    /// <summary>The other combatants the player can see.</summary>
+    public required IReadOnlyList<CombatantView> Combatants { get; init; }
+
+    /// <summary>Squares the player can move to right now, with their cost. Empty when it is not the player's turn.</summary>
+    public required IReadOnlyList<ReachableSquareView> Reachable { get; init; }
+
+    /// <summary>For each visible enemy and each of the player's attacks: can it be made now, and how.</summary>
+    public required IReadOnlyList<TargetView> Targets { get; init; }
+
+    /// <summary>An opening attack waiting for its attacker's turn (against a target that expected it), if the player knows of it.</summary>
+    public PendingAttackView? PendingOpeningAttack { get; init; }
+
+    /// <summary>What the player perceived of the fight, oldest first.</summary>
+    public required IReadOnlyList<CombatLogEntry> Log { get; init; }
+}
+
+public sealed record InitiativeView
+{
+    /// <summary>Null for a combatant the player cannot see: it shows as "Qualcuno".</summary>
+    public ActorId? Actor { get; init; }
+    public required string Name { get; init; }
+
+    /// <summary>The initiative total, for combatants the player can see.</summary>
+    public int? Total { get; init; }
+    public required bool Current { get; init; }
+}
+
+/// <summary>The player in the fight: its own numbers are exact.</summary>
+public sealed record CombatSelfView
+{
+    public required int HitPoints { get; init; }
+    public required int MaxHitPoints { get; init; }
+    public required LifeState State { get; init; }
+    public required bool KnockedOut { get; init; }
+    public required int DeathSaveSuccesses { get; init; }
+    public required int DeathSaveFailures { get; init; }
+    public required int MovementLeftFeet { get; init; }
+    public required int SquaresLeft { get; init; }
+    public required bool ActionAvailable { get; init; }
+
+    /// <summary>SRD: one Reaction, regained at the start of one's own turn.</summary>
+    public required bool ReactionAvailable { get; init; }
+}
+
+/// <summary>Another combatant the player sees: never its exact Hit Points.</summary>
+public sealed record CombatantView
+{
+    public required ActorId Id { get; init; }
+    public required string Name { get; init; }
+    public required GridPos Position { get; init; }
+    public required CombatSide Side { get; init; }
+
+    /// <summary>The C1 descriptor: "illeso", "ferito", "malconcio", "tramortito", "a terra", "morto".</summary>
+    public required string Condition { get; init; }
+}
+
+public sealed record ReachableSquareView
+{
+    public required GridPos At { get; init; }
+    public required int CostFeet { get; init; }
+}
+
+public sealed record TargetView
+{
+    public required ActorId Target { get; init; }
+    public required string Attack { get; init; }
+    public required bool Valid { get; init; }
+
+    /// <summary>Why it cannot be made now (None when valid), and the text for the UI.</summary>
+    public RejectionReason Reason { get; init; }
+    public string? Why { get; init; }
+
+    public bool Advantage { get; init; }
+    public bool Disadvantage { get; init; }
+    public bool LongRange { get; init; }
+
+    /// <summary>Every hit is a Critical Hit (an unconscious target within 5 feet).</summary>
+    public bool AutoCritical { get; init; }
+}
+
+public sealed record PendingAttackView
+{
+    /// <summary>Null when the player cannot see the attacker.</summary>
+    public ActorId? Attacker { get; init; }
+    public required ActorId Target { get; init; }
+    public required string Attack { get; init; }
+}
+
+public enum CombatLogKind
+{
+    Started,
+    Initiative,
+    TurnStarted,
+    Move,
+    Attack,
+    OpportunityAttack,
+    OpeningAttackPending,
+    OpeningAttackCancelled,
+    DeathSave,
+    Downed,
+    KnockedOut,
+    Died,
+    Ended,
+}
+
+/// <summary>One thing the player perceived in the fight, with the dice when there are any.</summary>
+public sealed record CombatLogEntry
+{
+    public required int Round { get; init; }
+    public required CombatLogKind Kind { get; init; }
+
+    /// <summary>Null when the player does not see who did it ("Qualcuno").</summary>
+    public ActorId? Actor { get; init; }
+    public ActorId? Target { get; init; }
+    public string? Attack { get; init; }
+
+    /// <summary>The d20s rolled (two with Advantage or Disadvantage), the one kept, the bonus, the total and the AC.</summary>
+    public IReadOnlyList<int> D20 { get; init; } = Array.Empty<int>();
+    public int? Kept { get; init; }
+    public int? Bonus { get; init; }
+    public int? Total { get; init; }
+    public int? ArmorClass { get; init; }
+    public bool? Hit { get; init; }
+    public bool Critical { get; init; }
+
+    /// <summary>Damage dealt (never the Hit Points left).</summary>
+    public int? Damage { get; init; }
+
+    /// <summary>For Move: the squares actually walked, in order (it may stop short, for an opportunity attack).</summary>
+    public IReadOnlyList<GridPos> Path { get; init; } = Array.Empty<GridPos>();
+
+    /// <summary>Ready-made text for the UI.</summary>
+    public required string Text { get; init; }
+}
+
+/// <summary>
+/// What a MoveCommand to that square would do, computed by the same code and without touching the world: no dice, no
+/// state. Only threats the player knows of are listed; a hidden creature may still react to the real move.
+/// </summary>
+public sealed record MovePreview
+{
+    public required bool Valid { get; init; }
+    public RejectionReason Reason { get; init; }
+    public string Message { get; init; } = "";
+
+    /// <summary>The squares to walk, in order (the start excluded), and the feet spent once on each.</summary>
+    public IReadOnlyList<GridPos> Path { get; init; } = Array.Empty<GridPos>();
+    public IReadOnlyList<int> CostFeet { get; init; } = Array.Empty<int>();
+    public int TotalFeet { get; init; }
+
+    /// <summary>Opportunity attacks the move would provoke, by threats the player knows of.</summary>
+    public IReadOnlyList<ProvocationView> Provokes { get; init; } = Array.Empty<ProvocationView>();
+}
+
+public sealed record ProvocationView
+{
+    /// <summary>The step of <see cref="MovePreview.Path"/> that leaves the reach: the attack comes before it.</summary>
+    public required int Step { get; init; }
+    public required ActorId By { get; init; }
+    public required string Name { get; init; }
+}

@@ -110,6 +110,17 @@ public enum RejectionReason
     DoorBlocked,
     NoTorch,
     AlreadyDone,
+
+    // C2: the fight
+    NotInCombat,
+    NotYourTurn,
+    InCombat,
+    NoActionLeft,
+    NoMovementLeft,
+    NotVisible,
+    TooFar,
+    UnknownAttack,
+    NotHostile,
 }
 
 public sealed record CommandResult

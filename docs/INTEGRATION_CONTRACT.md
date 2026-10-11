@@ -383,3 +383,22 @@ Sulle mappe "nello stesso luogo" diventa contatto fisico; fuori mappa non cambia
 - **UnseenNearby**: conta solo le presenze adiacenti non viste che il giocatore sente. Chi è furtivo con una Furtività superiore alla sua Percezione passiva non conta.
 - **Limite aperto** (Codex): `PlayerView.MapLight` mostra la luce reale di tutta la mappa, quindi un cambio fuori vista può trasparire dalla luce. Si risolve con una tappa di nebbia di guerra (luce e oggetti percepiti).
 - Schema dei salvataggi 13.
+
+## C2 — Lo scontro nel mondo (API pubblicata; regole in arrivo con C2a e C2b)
+
+Contratto completo in chat.txt ("CONTRATTO C2" e le due note successive). In sintesi:
+- **Chi combatte**: ogni attore ha un profilo C1 (`paladin`, `bandit`, `guard`, `commoner`) e la sua `Vitality` (le ferite restano). Gli attacchi vengono solo dal profilo. LIMITE: munizioni e armi lanciate non si consumano (C3).
+- **Apertura** (ADATTAMENTO): `AttackCommand` fuori dallo scontro, bersaglio visibile e a portata o a gittata.
+  - Se il bersaglio non se lo aspetta (non vede chi attacca, o non lo considera ostile) il colpo si risolve subito, poi l'iniziativa; il bersaglio è sorpreso e chi attacca ha già speso l'azione del primo turno.
+  - Se se lo aspetta (lo vede e lo sa ostile: fazione del Razziatore, un Claim aperto, uno scontro precedente) si tira prima l'iniziativa e l'attacco parte al turno di chi attacca, se il bersaglio è ancora a portata (`PendingOpeningAttack`).
+  - In C2 lo scontro è fra chi attacca e chi è attaccato; gli altri entrano in C4.
+- **Tempo**: i turni di un round si risolvono all'istante T, poi il mondo va a T+6 s. Durante il turno del giocatore il mondo è fermo e `Advance` non fa passare tempo. I turni degli NPC si risolvono dopo `EndTurnCommand`. I comandi del mondo sono rifiutati (`InCombat`).
+- **Turno**: movimento (Velocità 30 = 6 caselle, 5 piedi a casella) e un'azione (`AttackCommand`). `MoveCommand` in scontro è istantaneo e si può spezzare. Lo spazio di un alleato si attraversa liberamente; quello di un'altra creatura che si può attraversare è terreno difficile (salvo Tiny); non si attraversa un avversario cosciente; non ci si ferma su una creatura.
+- **Attacchi**: mischia a 5 piedi; distanza con linea di vista, Svantaggio oltre la gittata normale e con un avversario adiacente che ti vede; Vantaggio se il bersaglio non ti vede o è privo di sensi; critico automatico contro un privo di sensi entro 5 piedi; `NonLethal` solo in mischia.
+- **Attacchi di Opportunità** (dalla C3 alla C2): una Reazione, recuperata all'inizio del proprio turno; si attacca chi esce dalla propria portata muovendosi, prima che esca. Gli NPC la usano sempre; quella del giocatore in C2 è automatica.
+- **Anteprima**: `SimulationSession.PreviewMove` usa lo stesso calcolo del `MoveCommand`, non tocca il mondo, ed elenca in `Provokes` solo le minacce note al giocatore.
+- **Vita e morte**: tiri contro la morte all'inizio del turno, e ogni 6 s fuori dallo scontro; lo Stabile torna a 1 PF dopo 1d4 ore; il Tramortito rinviene dopo un Riposo Breve di 1 ora. `PlayerView.Dead`.
+- **Fine**: un lato senza nessuno cosciente; oppure un round intero senza che nessuno veda un avversario e senza attacchi.
+- **Vista**: `PlayerView.Combat` (ordine, turno, i propri numeri esatti, avversari solo con il descrittore C1, caselle raggiungibili, bersagli con motivo, registro strutturato filtrato per percezione, con il percorso dei movimenti); `VisibleActorView.Condition`.
+- **IA**: attacca l'avversario cosciente visibile più vicino; se non può, si avvicina; senza avversari visibili va dove l'ha visto l'ultima volta. Fuga e resa in C4.
+- Stato attuale (C2-API): tipi pubblicati, `Combat` sempre null, `AttackCommand`/`EndTurnCommand`/`PreviewMove` rifiutati con `NotInCombat`. Schema dei salvataggi 13 (diventerà 14 con la C2a).

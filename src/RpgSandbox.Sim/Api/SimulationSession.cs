@@ -66,6 +66,13 @@ public sealed class SimulationSession
         return new AdvanceResult { Outcome = AdvanceOutcome.TimeLimitReached, Now = World.Now };
     }
 
+    /// <summary>
+    /// C2: what a <see cref="MoveCommand"/> of <paramref name="actor"/> to <paramref name="to"/> would do in its fight
+    /// (path, cost, opportunity attacks it would provoke), computed like the command but without touching the world.
+    /// </summary>
+    public MovePreview PreviewMove(ActorId actor, GridPos to) =>
+        new() { Valid = false, Reason = RejectionReason.NotInCombat, Message = "Lo scontro arriva con la C2a." };
+
     /// <summary>Writes a complete, self-contained snapshot of the game. Call between steps, never during one.</summary>
     public void Save(Stream stream)
     {

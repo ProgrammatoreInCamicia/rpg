@@ -85,6 +85,12 @@ public sealed record PlayerView
 
     /// <summary>Recent facts the player took part in (oldest first): what happened to the player, as the player knows it.</summary>
     public IReadOnlyList<FactView> RecentEvents { get; init; } = Array.Empty<FactView>();
+
+    /// <summary>C2: the fight the player is in; null outside a fight. While it is the player's turn the world is still.</summary>
+    public CombatView? Combat { get; init; }
+
+    /// <summary>C2: the player is dead. The world may go on; the client offers to load a game.</summary>
+    public bool Dead { get; init; }
 }
 
 /// <summary>Another actor as seen from outside: where it is and what it is visibly doing. No intentions, no knowledge.</summary>
@@ -111,6 +117,9 @@ public sealed record VisibleActorView
 
     /// <summary>Carrying a burning torch (visible from afar).</summary>
     public bool Torch { get; init; }
+
+    /// <summary>C2: how hurt it looks, the C1 descriptor ("illeso", "ferito", "malconcio", ...); never the exact Hit Points.</summary>
+    public string? Condition { get; init; }
 }
 
 /// <summary>T6c-5: how much the player knows of a door.</summary>

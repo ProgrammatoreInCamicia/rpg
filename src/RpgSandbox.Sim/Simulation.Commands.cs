@@ -30,6 +30,7 @@ internal sealed partial class Simulation
         StopCommand stop => Stop(stop),
         DoorCommand door => UseDoor(door),
         TorchCommand torch => UseTorch(torch),
+        AttackCommand or EndTurnCommand => CommandResult.Rejected(RejectionReason.NotInCombat, "Lo scontro arriva con la C2a."),
         _ => CommandResult.Rejected(RejectionReason.UnknownCommand, $"Comando non supportato: {command.GetType().Name}."),
     };
 

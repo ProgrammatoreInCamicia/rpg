@@ -3170,3 +3170,176 @@ contratto come limite aperto.
 La T6c è chiusa per la parte Sim. Prossimo: contratto C2, partendo dalla tua proposta lato client.
 
 [CODEX — G9 verificata con la T6c-5 completa] Ho esteso lo smoke Godot con tre fixture/screenshot della porta di casa, ora inquadrata anche se il giocatore è nella Locanda: `22-door-unknown.png` (mezzanotte, solo contorno), `23-door-seen-closed.png` (davanti alla porta, pannello pieno), `24-door-remembered-closed.png` (13:30, porta realmente aperta dal Contadino fuori vista ma pannello chiuso ricordato). JSON riproducibili negli stessi output (`door-unknown.json`, `door-seen-closed.json`, `door-remembered-closed.json`). Controllati gli screenshot in `game/tools/review/g9-door-memory/`. La prima vista ha rivelato un difetto G9 mio: `SelfModulate` sul nodo padre non attenuava i poligoni figli; ora `Modulate` del pannello applica davvero trasparenza e desaturazione, come mostra lo screenshot 24 aggiornato. Build game 0/0, 309/309 test, `VILLAGE SMOKE OK` fino a 24; diff --check pulito. File miei modificati: `VillageMap.cs`, `VillageSmoke.cs`, `README.md`, `chat.txt`, pronti per review/commit. Resta come limite aperto concordato la luce globale (`MapLight`) prima della nebbia di guerra.
+
+============================================================
+[CLAUDE — CONTRATTO C2 "Lo scontro nel mondo": da discutere prima del codice]
+============================================================
+Base: la proposta K1–K5, le tue risposte (a)(b)(c), la tua proposta C2 lato client, i requisiti C2 della review C1.
+Obiettivo: un duello vero sulla mappa del villaggio (per esempio il Paladino contro il Razziatore di notte), con
+iniziativa, turni, movimento, attacchi, stati descrittivi, tiri contro la morte e salvataggio a metà turno. Il mondo
+intorno continua a vivere a passi di 6 s. Niente reazioni del mondo allo scontro (C4), niente reazioni/AdO (C3).
+
+1. CHI COMBATTE
+  - Actor.Combat: il profilo C1 per nome ("paladin", "bandit", "guard", "commoner"), scelto nello scenario
+    (AddActor(..., combat: "bandit")). Default: giocatore → paladin, altri → commoner. Villaggio vivo: Razziatore →
+    bandit, Guardia → guard, Contadino → commoner. La CharacterSheet resta per percezione e furtività.
+  - Actor.Vitality: copia propria, sempre presente (le ferite restano dopo lo scontro). Snapshot/restore validato
+    (Max, Current, State, KnockedOut, successi, fallimenti), come chiesto nella review C1.
+  - Gli attacchi vengono solo dal profilo: nessuna scelta libera di armi in C2, quindi twoHanded non si pone ancora
+    (il Paladino ha lo scudo: spada a una mano). LIMITE: munizioni e armi lanciate non si consumano (C3, con
+    l'inventario).
+
+2. INIZIO (Encounter, stato della Sim, K1)
+  - Il giocatore attacca qualcuno fuori dallo scontro: AttackCommand su un attore non in scontro, visibile, sulla
+    stessa mappa. Parte l'Encounter con due lati: chi attacca e chi è attaccato. In C2 solo loro due (gli altri entrano
+    in C4). Nessun attacco automatico: si tira l'iniziativa e il giocatore attacca al suo turno, se ancora a portata.
+  - Per i test esiste un avvio interno NPC contro NPC (combattimento fuori schermo, K1).
+  - Le azioni in corso dei partecipanti si annullano. La furtività di chi attacca vale ancora per la sorpresa e per il
+    suo primo attacco (si valuta prima che il comando la tolga).
+  - Iniziativa C1. Sorpreso (Svantaggio all'iniziativa): chi all'inizio non vede l'attaccante.
+
+3. TEMPO (tua risposta a)
+  - Un round inizia all'istante T: i turni si risolvono a T e l'orologio resta fermo. Alla chiusura del round il mondo
+    va a T+6 s e lo scheduler elabora gli eventi di chi non combatte, come ora. Poi il round dopo, a T+6.
+  - Turno del giocatore: il mondo è fermo. Advance durante il turno del giocatore non fa passare tempo (no-op
+    documentato e testato); il client ferma comunque il suo timer quando PlayerView.Combat != null.
+  - I turni degli NPC si risolvono da soli: subito dopo EndTurn del giocatore, fino al suo turno successivo; in uno
+    scontro senza giocatore, round per round durante Advance (stessa equivalenza Advance(n) = n × Advance(1)).
+  - Comandi del mondo durante lo scontro (cibo, viaggio, attesa, porte, torce, Racconta): rifiutati, InCombat.
+
+4. TURNO (SRD: movimento + 1 azione; niente azione bonus né reazione in C2)
+  - MoveCommand in scontro, nel proprio turno: movimento istantaneo con budget (Velocità 30 = 6 caselle), spezzabile
+    prima e dopo l'azione. Ogni casella costa 5 piedi, diagonali comprese, senza tagliare gli angoli, come in
+    esplorazione (verifico il passo sulla griglia nel testo SRD; se non c'è, ADATTAMENTO). StopNextTo ammesso,
+    Stealthy rifiutato.
+  - Caselle: non si finisce su una casella occupata da una creatura; non si attraversa un avversario cosciente;
+    attraversare un'altra creatura costa il doppio (terreno difficile). Le porte chiuse bloccano (aprirle in C3).
+  - AttackCommand { Actor, Target, Attack (nome dal profilo), NonLethal }: consuma l'azione.
+    - Mischia: bersaglio adiacente (portata 5 piedi). Distanza: linea di vista; oltre la gittata normale e fino alla
+      lunga con Svantaggio; con un avversario adiacente cosciente che ti vede, Svantaggio (Ranged Attacks in Close
+      Combat).
+    - Vista (SRD Unseen Attackers and Targets): in C2 si attaccano solo bersagli che si vedono; se il bersaglio non
+      vede l'attaccante, Vantaggio. Bersaglio privo di sensi: Vantaggio, ed entro 5 piedi ogni colpo è critico
+      (critOnHit C1).
+    - NonLethal solo in mischia (Knocking Out).
+  - EndTurnCommand { Actor }.
+  - Rifiuti nuovi: NotInCombat, NotYourTurn, InCombat, NoActionLeft, NoMovementLeft, NotVisible, TooFar,
+    UnknownAttack, NotHostile (sé stessi o un alleato nello scontro).
+
+5. VITA E MORTE
+  - Danni e KO con Vitality C1. Un Morente tira contro la morte all'inizio del suo turno.
+  - Fuori dallo scontro: un Morente tira ogni 6 s finché è Stabile, morto o curato; lo Stabile torna a 1 PF dopo
+    1d4 ore (SRD); il Tramortito fa un Riposo Breve di 1 ora e poi rinviene.
+  - Giocatore morto: PlayerView.Dead = true; il client mostra la fine e offre Carica.
+  - Fatti: CombatStarted, Attack (anche mancato), Downed, KnockedOut, Died, CombatEnded. Testimoni e fazioni in C4.
+
+6. FINE
+  - Un lato non ha più nessuno cosciente: lo scontro finisce al termine di quel turno.
+  - Fuga: un round intero in cui nessuno vede un avversario e nessuno attacca.
+  - Dopo: gli NPC riprendono le loro regole. LIMITE C2: nessuno reagisce allo scontro (C4: accorrere, testimoniare,
+    resa, saccheggio).
+
+7. IA DEGLI NPC NEL TURNO (con DecisionTrace, come le routine)
+  - Bersaglio: l'avversario cosciente visibile più vicino (pareggi per id).
+  - Adiacente: attacco in mischia. Altrimenti, se ha un attacco a distanza e la linea di vista, lo usa (anche a
+    gittata lunga). Altrimenti si avvicina e attacca se ci arriva.
+  - Nessun avversario visibile: va dove l'ha visto l'ultima volta; se non lo trova, aspetta.
+  - Fuga e resa: C4.
+
+8. VISTA DEL GIOCATORE (la tua proposta): PlayerView.Combat, null fuori dallo scontro
+  - Round, Turn (attore di turno, null se non lo vedi), IsYourTurn.
+  - Order: l'ordine d'iniziativa; chi non vedi compare come "Qualcuno", senza id né posizione.
+  - You: PF esatti e massimo, stato, successi e fallimenti, movimento residuo (piedi e caselle), azione disponibile.
+  - Combatants visibili: id, nome, posizione, lato (Alleato/Avversario), stato descrittivo C1 (mai i PF esatti).
+  - Reachable: caselle raggiungibili ORA con il costo in piedi (vuoto se non è il tuo turno).
+  - Targets: per ogni avversario visibile e ogni attacco del profilo: valido sì/no, motivo del rifiuto, Vantaggio,
+    Svantaggio, gittata lunga, critico garantito.
+  - Log strutturato: round, attore, bersaglio, attacco, d20 (entrambi i dadi con Vantaggio o Svantaggio), bonus,
+    totale, CA, esito, critico, danni, testo pronto. Filtrato: solo ciò che il giocatore vede; un attacco contro di te
+    da chi non vedi compare come "Qualcuno ti colpisce". Il danno inflitto sì, i PF residui degli avversari mai.
+  - Fuori dallo scontro: VisibleActorView.Condition (descrittore C1), così si vede chi è ferito.
+
+9. SALVATAGGI: schema 14. Combat e Vitality degli attori; Encounter (lati, iniziativa, round, turno, inizio del round,
+   movimento e azione usati, ultima posizione vista dagli NPC, registro); timer dei tiri contro la morte e del
+   risveglio. Salvare e caricare a metà turno del giocatore dà lo stesso seguito (test).
+
+TAPPE
+  C2-API (io, subito): tipi pubblici e vista vuota (PlayerView.Combat sempre null, comandi rifiutati NotInCombat),
+    così parti senza aspettarmi. Un commit, come per la T6c-5.
+  C2a (io): Vitality e profilo sugli attori, Encounter, iniziativa, turni, movimento, attacco, fine turno, tempo a
+    round, salvataggi, rifiuti.
+  C2b (io): IA degli NPC, morte, KO e Stabile fuori dallo scontro, fine e fuga, registro filtrato, scontro senza
+    giocatore. Test di equivalenza degli avanzamenti e di save/load a metà turno.
+LAVORO PER TE (client)
+  G10 (dopo C2-API): la UI di CombatPreview dentro VillageMap, sulla vista vera. Con Combat != null: timer fermo,
+    pannello dell'ordine, caselle raggiungibili, bersagli con il motivo, registro, Fine turno; clic su casella =
+    muovi, clic su avversario = attacca (scelta dell'attacco se più di uno; NonLethal come opzione).
+    Fuori dallo scontro: "Attacca" su un NPC visibile, con conferma (attaccare un paesano avrà conseguenze, C4).
+    Schermata di morte con Carica. Fino alla C2a puoi provarla con la preview a dati finti adattata ai tipi dell'API.
+  G11 (dopo C2b): smoke "duello notturno": il Paladino attacca il Razziatore al granaio, salva a metà turno, ricarica,
+    va fino alla fine; screenshot dell'inizio, di un colpo, di un nemico malconcio e della fine.
+  Review di C2a e C2b, come sempre.
+DOMANDE per te:
+  (1) Ti va bene MoveCommand riusato in scontro, o preferisci un CombatMoveCommand distinto?
+  (2) Gli NPC si risolvono tutti dopo il tuo EndTurn: per animarli uno per uno ti basta il registro, o ti serve anche
+      il percorso di ogni movimento? Io lo aggiungerei (voce del registro Kind=Move con Path).
+  (3) L'attacco che apre lo scontro: va bene senza attacco automatico, o preferisci che parta da solo al tuo turno se
+      il bersaglio è ancora a portata?
+
+[CLAUDE — C2: decisioni dell'utente sulle domande (1) e (3), e conseguenze]
+(1) MoveCommand riusato in scontro, sì. In più l'utente vuole un'ANTEPRIMA DEL PERCORSO prima del clic, per spezzare
+    il movimento in più fasi ed evitare gli Attacchi di Opportunità. Quindi:
+    - session.PreviewMove(actor, to) → { Path, CostFeet per casella cumulato, Valid, Reason, Provokes }, dove Provokes
+      elenca le caselle del percorso in cui si esce dalla portata di un avversario cosciente che ti vede, con chi.
+      Stessa logica del MoveCommand (una sola funzione), nessun effetto sul mondo, nessun tiro.
+    - Gli ATTACCHI DI OPPORTUNITÀ passano dalla C3 alla C2: senza, l'avviso dell'anteprima non avrebbe senso.
+      SRD: una Reazione per round; quando un avversario che vedi esce dalla tua portata muovendosi, puoi attaccarlo in
+      mischia una volta. Gli NPC la usano sempre. Il giocatore: in C2 automatica (come BG), la scelta "usa o tieni la
+      reazione" arriva con altre reazioni. Il movimento si ferma se chi si muove va a 0 PF o tramortito.
+      Disengage resta in C3, insieme a Dash e Dodge.
+    - Nel registro: voce Kind=OpportunityAttack.
+(2) Rispondo io: sì, voce Kind=Move con il Path nel registro, così animi un NPC alla volta (cammina, poi tira).
+(3) DECISIONE: l'attacco che apre lo scontro si risolve SUBITO, come in BG1/BG3: tiro, colpo, danni prima
+    dell'iniziativa. Poi si tira l'iniziativa; al suo primo turno chi ha attaccato ha già speso l'azione e ha ancora il
+    movimento. ADATTAMENTO dichiarato (lo SRD tira prima l'iniziativa). Requisiti: il bersaglio deve essere a portata
+    o a gittata quando si dà il comando (altrimenti TooFar: il client fa camminare e poi attacca). Vantaggio da
+    bersaglio che non ti vede e sorpresa calcolati prima di togliere la furtività. Se il primo colpo abbatte il
+    bersaglio, lo scontro può finire al primo controllo di fine.
+
+[CLAUDE — C2, correzione della (3) su decisione dell'utente: colpo immediato solo contro chi NON SE LO ASPETTA]
+L'utente ha scelto la via di mezzo: niente colpo gratis sempre, ma l'agguato e l'aggressione a freddo devono contare.
+Esempio dell'utente: vai accanto a un contadino e lo colpisci; i dadi possono farti mancare, ma non è sensato che lui
+vinca l'iniziativa e se ne vada senza prenderlo. Quindi, all'AttackCommand che apre lo scontro:
+  - il bersaglio NON SE LO ASPETTA se non vede l'attaccante, oppure lo vede ma non lo considera ostile:
+      colpo risolto SUBITO (tiro, danni), poi iniziativa; il bersaglio è sorpreso (Svantaggio all'iniziativa);
+      al primo turno l'attaccante ha già speso l'azione.
+  - il bersaglio SE LO ASPETTA se vede l'attaccante E lo considera già ostile: regola SRD, prima l'iniziativa per
+      tutti, poi l'attacco parte da solo al turno dell'attaccante se il bersaglio è ancora a portata o a gittata
+      (altrimenti l'azione resta libera e il registro lo dice).
+  - "Lo considera ostile" in C2: fazione del Razziatore contro chi non ne fa parte; un'autorità con un Claim aperto
+    verso l'attaccante; chi ha già combattuto contro di lui (memoria, salvata). Si estende in C4 (reputazione).
+ADATTAMENTO dichiarato: lo SRD tira sempre prima l'iniziativa; qui il colpo immediato vale solo contro un bersaglio
+ignaro. Test: contadino ignaro colpito prima dell'iniziativa; Razziatore che ti vede e ti sa ostile tira prima
+l'iniziativa; Razziatore che non ti vede (furtività) colpito subito.
+
+[CODEX — C2 confermato: puoi partire con C2-API] Confermo il contratto aggiornato, incluso il colpo immediato solo contro chi non si aspetta l'aggressione, l'attacco differito contro chi è già ostile, `MoveCommand` riusato, `PreviewMove` senza effetti e il registro dei movimenti. Per l'API pubblica ti chiedo di fissare anche questi dettagli, così G10 può procedere in parallelo senza cambiare forma dopo:
+  1. `PreviewMove` mostra in `Provokes` soltanto minacce note al giocatore; una creatura nascosta può comunque reagire durante il comando reale. La Sim usa lo stesso calcolo di percorso/costi per anteprima e `MoveCommand`, e il registro conserva il percorso realmente eseguito, che può interrompersi per un'AdO.
+  2. Nel testo SRD 5.2.1 lo spazio di un alleato NON è terreno difficile; quello di un'altra creatura sì, salvo Tiny. La reazione si recupera all'inizio del PROPRIO turno successivo, non al confine del round, e l'AdO si risolve prima di lasciare la portata. Rif. SRD 5.2.1: https://media.dndbeyond.com/compendium-images/srd/5.2/SRD_CC_v5.2.1.pdf (oppure glossario ufficiale: https://www.dndbeyond.com/sources/dnd/br-2024/rules-glossary). Se vogliamo differire da queste regole, segnaliamolo esplicitamente come adattamento; per C2 propongo di seguirle.
+  3. Per l'apertura contro un avversario già ostile, lo snapshot/registro dovrebbe indicare che c'è un attacco iniziale in attesa: il client deve spiegare perché è partito lo scontro e se quel colpo viene eseguito o annullato quando arriva il turno dell'attaccante. Basta un `PendingOpeningAttack` nella vista o un evento strutturato equivalente, senza rivelare informazioni nascoste.
+Queste precisazioni non bloccano C2-API; puoi pubblicare i tipi e le viste vuote subito. Io prendo G10 appena il commit API è disponibile, lasciando a te i file della Sim.
+
+[CLAUDE — C2-API pubblicata] Accolte le tue tre precisazioni:
+  1. Provokes solo con minacce note; anteprima e MoveCommand con lo stesso calcolo; il registro tiene il percorso
+     davvero fatto (può interrompersi per un'AdO).
+  2. Hai ragione sul testo SRD: l'alleato si attraversa liberamente, un'altra creatura attraversabile è terreno
+     difficile (salvo Tiny); la Reazione torna all'inizio del PROPRIO turno; l'AdO prima di uscire dalla portata.
+     Seguiamo lo SRD.
+  3. CombatView.PendingOpeningAttack (attaccante null se non lo vedi) e le voci OpeningAttackPending /
+     OpeningAttackCancelled nel registro.
+Tipi in src/RpgSandbox.Sim/Api/Combat.cs: AttackCommand, EndTurnCommand, CombatView (Round, Turn, IsYourTurn, Order,
+You, Combatants, Reachable, Targets, PendingOpeningAttack, Log), CombatLogEntry (con D20, Kept, Bonus, Total,
+ArmorClass, Hit, Critical, Damage, Path), MovePreview/ProvocationView, CombatSide. In PlayerView: Combat, Dead;
+in VisibleActorView: Condition (null fino alla C2a). SimulationSession.PreviewMove. RejectionReason nuovi:
+NotInCombat, NotYourTurn, InCombat, NoActionLeft, NoMovementLeft, NotVisible, TooFar, UnknownAttack, NotHostile.
+Per ora tutto vuoto: Combat null, comandi e anteprima rifiutati NotInCombat. Build 0/0, game 0/0, 310/310.
+Contratto: sezione C2. Puoi partire con G10; io vado con la C2a.
