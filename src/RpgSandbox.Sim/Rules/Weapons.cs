@@ -1,7 +1,7 @@
 namespace RpgSandbox.Sim.Rules;
 
-// Weapons from the SRD 5.2.1 "Weapons" table (CC-BY-4.0, see CREDITS.md): damage, properties and mastery as printed.
-// Only the weapons the game uses so far are listed.
+// Weapons from the SRD 5.2.1 "Weapons" table (CC-BY-4.0, see CREDITS.md): damage, properties and mastery as printed,
+// now data (game/content/srd/items.json, D1a).
 
 public enum DamageType { Bludgeoning, Piercing, Slashing }
 
@@ -35,6 +35,8 @@ public sealed record Dice(int Count, int Sides)
 
 public sealed record Weapon
 {
+    /// <summary>D1a: the item this weapon is (its id in the content pack).</summary>
+    public string Id { get; init; } = "";
     public required string Name { get; init; }
     public required WeaponCategory Category { get; init; }
 
@@ -52,81 +54,24 @@ public sealed record Weapon
     /// <summary>Normal and long range in feet (Ammunition or Thrown), if any.</summary>
     public (int Normal, int Long)? Range { get; init; }
 
+    /// <summary>D1a: the ammunition it shoots (an item id), for Ammunition weapons.</summary>
+    public string? Ammunition { get; init; }
+
     public bool Has(WeaponProperty property) => (Properties & property) == property;
 }
 
-/// <summary>The SRD 5.2.1 weapons the game uses, with the table's values.</summary>
+/// <summary>Shortcuts to the default pack's weapons (game/content/srd/items.json), for tests and tools.</summary>
 public static class Weapons
 {
-    public static readonly Weapon Club = new()
-    {
-        Name = "Bastone", Category = WeaponCategory.Simple, Ranged = false, Damage = new Dice(1, 4),
-        Type = DamageType.Bludgeoning, Properties = WeaponProperty.Light, Mastery = WeaponMastery.Slow,
-    };
-
-    public static readonly Weapon Dagger = new()
-    {
-        Name = "Pugnale", Category = WeaponCategory.Simple, Ranged = false, Damage = new Dice(1, 4),
-        Type = DamageType.Piercing, Properties = WeaponProperty.Finesse | WeaponProperty.Light | WeaponProperty.Thrown,
-        Range = (20, 60), Mastery = WeaponMastery.Nick,
-    };
-
-    public static readonly Weapon Javelin = new()
-    {
-        Name = "Giavellotto", Category = WeaponCategory.Simple, Ranged = false, Damage = new Dice(1, 6),
-        Type = DamageType.Piercing, Properties = WeaponProperty.Thrown, Range = (30, 120), Mastery = WeaponMastery.Slow,
-    };
-
-    public static readonly Weapon Mace = new()
-    {
-        Name = "Mazza", Category = WeaponCategory.Simple, Ranged = false, Damage = new Dice(1, 6),
-        Type = DamageType.Bludgeoning, Mastery = WeaponMastery.Sap,
-    };
-
-    public static readonly Weapon Spear = new()
-    {
-        Name = "Lancia", Category = WeaponCategory.Simple, Ranged = false, Damage = new Dice(1, 6),
-        Type = DamageType.Piercing, Properties = WeaponProperty.Thrown | WeaponProperty.Versatile,
-        TwoHandedDamage = new Dice(1, 8), Range = (20, 60), Mastery = WeaponMastery.Sap,
-    };
-
-    public static readonly Weapon LightCrossbow = new()
-    {
-        Name = "Balestra leggera", Category = WeaponCategory.Simple, Ranged = true, Damage = new Dice(1, 8),
-        Type = DamageType.Piercing,
-        Properties = WeaponProperty.Ammunition | WeaponProperty.Loading | WeaponProperty.TwoHanded,
-        Range = (80, 320), Mastery = WeaponMastery.Slow,
-    };
-
-    public static readonly Weapon Shortbow = new()
-    {
-        Name = "Arco corto", Category = WeaponCategory.Simple, Ranged = true, Damage = new Dice(1, 6),
-        Type = DamageType.Piercing, Properties = WeaponProperty.Ammunition | WeaponProperty.TwoHanded,
-        Range = (80, 320), Mastery = WeaponMastery.Vex,
-    };
-
-    public static readonly Weapon Longsword = new()
-    {
-        Name = "Spada lunga", Category = WeaponCategory.Martial, Ranged = false, Damage = new Dice(1, 8),
-        Type = DamageType.Slashing, Properties = WeaponProperty.Versatile, TwoHandedDamage = new Dice(1, 10),
-        Mastery = WeaponMastery.Sap,
-    };
-
-    public static readonly Weapon Scimitar = new()
-    {
-        Name = "Scimitarra", Category = WeaponCategory.Martial, Ranged = false, Damage = new Dice(1, 6),
-        Type = DamageType.Slashing, Properties = WeaponProperty.Finesse | WeaponProperty.Light, Mastery = WeaponMastery.Nick,
-    };
-
-    public static readonly Weapon Shortsword = new()
-    {
-        Name = "Spada corta", Category = WeaponCategory.Martial, Ranged = false, Damage = new Dice(1, 6),
-        Type = DamageType.Piercing, Properties = WeaponProperty.Finesse | WeaponProperty.Light, Mastery = WeaponMastery.Vex,
-    };
-
-    public static readonly Weapon Greatsword = new()
-    {
-        Name = "Spadone", Category = WeaponCategory.Martial, Ranged = false, Damage = new Dice(2, 6),
-        Type = DamageType.Slashing, Properties = WeaponProperty.Heavy | WeaponProperty.TwoHanded, Mastery = WeaponMastery.Graze,
-    };
+    public static Weapon Club => ContentPack.Default.Weapon("club");
+    public static Weapon Dagger => ContentPack.Default.Weapon("dagger");
+    public static Weapon Javelin => ContentPack.Default.Weapon("javelin");
+    public static Weapon Mace => ContentPack.Default.Weapon("mace");
+    public static Weapon Spear => ContentPack.Default.Weapon("spear");
+    public static Weapon LightCrossbow => ContentPack.Default.Weapon("light-crossbow");
+    public static Weapon Shortbow => ContentPack.Default.Weapon("shortbow");
+    public static Weapon Longsword => ContentPack.Default.Weapon("longsword");
+    public static Weapon Scimitar => ContentPack.Default.Weapon("scimitar");
+    public static Weapon Shortsword => ContentPack.Default.Weapon("shortsword");
+    public static Weapon Greatsword => ContentPack.Default.Weapon("greatsword");
 }

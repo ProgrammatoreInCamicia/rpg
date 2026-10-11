@@ -40,6 +40,9 @@ public sealed class Scenario
     internal IReadOnlyList<MapDefinition> Maps { get; }
     internal ActorId Player { get; }
 
+    /// <summary>D1a: the contents it is played with.</summary>
+    internal ContentPack Content { get; init; } = ContentPack.Default;
+
     /// <summary>Initial state of the random number generator: same scenario and seed, same game.</summary>
     internal ulong Seed { get; }
 }
@@ -49,7 +52,7 @@ internal sealed record LocationDefinition(LocationId Id, string Name, AreaId Are
 internal sealed record RouteDefinition(LocationId A, LocationId B, Duration TravelTime);
 internal sealed record ActorDefinition(
     ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food, FactionId? Faction, WorkShift? Shift,
-    CharacterSheet Sheet, GridPos? At, int Torches = 0, string Combat = "commoner",
+    CharacterSheet? Sheet, GridPos? At, int Torches = 0, string Build = "commoner",
     IReadOnlyList<(string Item, int Count)>? Items = null, long? Coins = null);
 internal sealed record StoreDefinition(StoreId Id, string Name, LocationId Location, int Food, FactionId? Owner, GridPos? At,
     IReadOnlyList<GridPos>? Access = null);
@@ -79,6 +82,10 @@ public sealed class ScenarioBuilder
     private readonly List<StoreDefinition> _stores = new();
     private readonly List<MapDefinition> _maps = new();
     private ulong _seed = 0x5EED_2026_1009UL;
+    private readonly ContentPack _content;
+
+    /// <summary>D1a: a scenario is played with a content pack (the game's own by default).</summary>
+    public ScenarioBuilder(ContentPack? content = null) => _content = content ?? ContentPack.Default;
 
     /// <summary>Sets the random seed. Scenarios have a fixed default, so tests and new games are reproducible.</summary>
     public ScenarioBuilder WithSeed(ulong seed)
@@ -148,14 +155,15 @@ public sealed class ScenarioBuilder
     /// </summary>
     public ScenarioBuilder AddActor(string id, string name, string locationId, bool isPlayer = false, int food = 0,
         string? factionId = null, string? workLocationId = null, Duration shiftStart = default, Duration shiftEnd = default,
-        CharacterSheet? sheet = null, (int X, int Y)? at = null, int torches = 0, string? combat = null,
+        CharacterSheet? sheet = null, (int X, int Y)? at = null, int torches = 0, string? combat = null, string? build = null,
         IEnumerable<(string Item, int Count)>? items = null, long? coins = null)
     {
         var shift = workLocationId is null ? null : new WorkShift(new LocationId(workLocationId), shiftStart, shiftEnd);
-        // C2: the combat profile; by default the player is the Paladin, everyone else a Commoner.
+        // D1a: what the actor is (a creature or a pregenerated character of the content pack; "combat" is the old name of
+        // it); by default the player is the Paladin, everyone else a Commoner. A sheet, if given, is the actor's own.
         _actors.Add(new ActorDefinition(new ActorId(id), name, new LocationId(locationId), isPlayer, food, ToFaction(factionId), shift,
-            sheet ?? CharacterSheet.Commoner(), at is { } p ? new GridPos(p.X, p.Y) : null, torches,
-            combat ?? (isPlayer ? "paladin" : "commoner"), items?.ToArray(), coins)); // C3b: null = the profile's kit and coins
+            sheet, at is { } p ? new GridPos(p.X, p.Y) : null, torches,
+            build ?? combat ?? (isPlayer ? "paladin" : "commoner"), items?.ToArray(), coins)); // C3b: null = the kit and coins of the build
         return this;
     }
 
@@ -254,9 +262,10 @@ public sealed class ScenarioBuilder
             Require(actor.Food >= 0, $"Actor '{actor.Id}' starts with negative food.");
             Require(actor.Faction is null || factionIds.Contains(actor.Faction.Value),
                 $"Actor '{actor.Id}' belongs to unknown faction '{actor.Faction}'.");
-            Require(Invariants.Sheet(actor.Id.Value, actor.Sheet));
-            Require(CombatProfiles.ById(actor.Combat) is not null, $"Actor '{actor.Id}' has unknown combat profile '{actor.Combat}'.");
-            Require((actor.Items ?? Array.Empty<(string, int)>()).All(i => Items.ById(i.Item) is not null && i.Count > 0) && actor.Coins is null or >= 0
+            if (actor.Sheet is not null)
+                Require(Invariants.Sheet(actor.Id.Value, actor.Sheet));
+            Require(_content.IsBuild(actor.Build), $"Actor '{actor.Id}' is built from unknown content '{actor.Build}'.");
+            Require((actor.Items ?? Array.Empty<(string, int)>()).All(i => _content.Item(i.Item) is not null && i.Count > 0) && actor.Coins is null or >= 0
                 && actor.Torches >= 0, $"Actor '{actor.Id}' has unknown items, or negative amounts."); // C3b
             if (actor.Shift is { } shift)
             {
@@ -293,7 +302,7 @@ public sealed class ScenarioBuilder
         Require(players.Count == 1, $"A scenario needs exactly one player actor, found {players.Count}.");
 
         return new Scenario(_areas.ToArray(), _locations.ToArray(), _routes.ToArray(), _factions.ToArray(),
-            _actors.ToArray(), _stores.ToArray(), _maps.ToArray(), players[0].Id, _seed);
+            _actors.ToArray(), _stores.ToArray(), _maps.ToArray(), players[0].Id, _seed) { Content = _content };
     }
 
     /// <summary>Maps, and the squares of everything placed on them, are checked by building the actual grids.</summary>

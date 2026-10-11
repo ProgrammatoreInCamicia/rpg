@@ -30,8 +30,12 @@ internal sealed class Actor
     public required bool IsPlayer { get; init; }
     public FactionId? Faction { get; init; }
 
-    /// <summary>What the rules know about the actor (abilities, skills, armor).</summary>
-    public CharacterSheet Sheet { get; init; } = CharacterSheet.Commoner();
+    /// <summary>
+    /// What the rules know about the actor (abilities, skills, armor): derived from its <see cref="Build"/> and
+    /// equipment (D1a), unless a scenario gave it a sheet of its own (<see cref="SheetOverride"/>).
+    /// </summary>
+    public CharacterSheet Sheet { get; set; } = CharacterSheet.Commoner();
+    public bool SheetOverride { get; init; }
 
     /// <summary>Where the actor lives; routine brings NPCs back here outside work hours.</summary>
     public LocationId? Home { get; init; }
@@ -131,8 +135,14 @@ internal sealed class Actor
     /// <summary>Only the latest decision is kept (NPCs only).</summary>
     public DecisionTrace? LastDecision { get; set; }
 
-    /// <summary>C2: the actor's combat profile, by name (<see cref="CombatProfiles.Ids"/>).</summary>
-    public string Combat { get; init; } = "commoner";
+    /// <summary>D1a: what the actor is, by id in its world's content pack: a creature or a pregenerated character.</summary>
+    public string Build { get; init; } = "commoner";
+
+    /// <summary>D1a: what it wears and wields (each item is in its inventory).</summary>
+    public Equipment Equipment { get; set; } = Equipment.None;
+
+    /// <summary>D1a: its combat profile, derived from the build and the equipment (see Simulation.Refresh).</summary>
+    public CombatProfile Profile { get; set; } = CombatProfiles.Commoner();
 
     /// <summary>C2: Hit Points and life state, the actor's own instance; wounds stay after a fight.</summary>
     public Vitality Vitality { get; set; } = CombatProfiles.Commoner().NewVitality();
@@ -566,6 +576,17 @@ internal sealed class WorldState
 
     public Scheduler Scheduler { get; set; } = new();
 
+    /// <summary>D1a: the contents this world is played with (and saved with).</summary>
+    public ContentPack Content { get; init; } = ContentPack.Default;
+
+    /// <summary>D1a: recomputes an actor's profile (and sheet, unless its own) from its build and equipment.</summary>
+    public void Refresh(Actor actor)
+    {
+        actor.Profile = Builds.Profile(Content, actor.Build, actor.Equipment);
+        if (!actor.SheetOverride)
+            actor.Sheet = Builds.Sheet(Content, actor.Build, actor.Equipment);
+    }
+
     /// <summary>The only randomness of the simulation; its state is part of the save.</summary>
     public SplitMix64 Rng { get; set; } = new(0);
 
@@ -582,7 +603,7 @@ internal sealed class WorldState
 
     public static WorldState FromScenario(Scenario scenario)
     {
-        var world = new WorldState { Player = scenario.Player, Rng = new SplitMix64(scenario.Seed) };
+        var world = new WorldState { Player = scenario.Player, Rng = new SplitMix64(scenario.Seed), Content = scenario.Content };
         foreach (var a in scenario.Areas)
             world.Areas.Add(a.Id, new Area { Id = a.Id, Name = a.Name });
         foreach (var l in scenario.Locations)
@@ -608,13 +629,21 @@ internal sealed class WorldState
             world.Actors.Add(a.Id, new Actor
             {
                 Id = a.Id, Name = a.Name, IsPlayer = a.IsPlayer, Faction = a.Faction, Location = a.Location, Food = a.Food,
-                Home = a.IsPlayer ? null : a.Location, Shift = a.Shift, ArrivedAt = GameTime.Start, Sheet = a.Sheet, Position = a.At, Torches = a.Torches,
+                Home = a.IsPlayer ? null : a.Location, Shift = a.Shift, ArrivedAt = GameTime.Start, Position = a.At, Torches = a.Torches,
+                Sheet = a.Sheet ?? CharacterSheet.Commoner(),
                 MapArea = a.At is null ? null : world.Locations[a.Location].Area,
-                Combat = a.Combat, Vitality = CombatProfiles.ById(a.Combat)!.NewVitality(),
-                Coins = a.Coins ?? CombatProfiles.ById(a.Combat)!.Coins,
+                Build = a.Build, SheetOverride = a.Sheet is not null,
+                Coins = a.Coins ?? Builds.Coins(world.Content, a.Build),
             });
-            foreach (var (item, count) in a.Items ?? CombatProfiles.ById(a.Combat)!.Kit) // C3b: the kit unless the scenario says otherwise
+            foreach (var (item, count) in a.Items ?? Builds.Kit(world.Content, a.Build)) // the kit unless the scenario says otherwise
                 world.Actors[a.Id].Give(item, count);
+            // It wears and wields what its build says, as far as it carries it (a scenario may hand out other items).
+            var actor = world.Actors[a.Id];
+            var worn = Builds.InitialEquipment(world.Content, a.Build);
+            string? Kept(string? item) => item is not null && actor.Carried(item) > 0 ? item : null;
+            actor.Equipment = new Equipment(Kept(worn.Armor), Kept(worn.Shield), Kept(worn.MainHand));
+            world.Refresh(world.Actors[a.Id]);
+            world.Actors[a.Id].Vitality = world.Actors[a.Id].Profile.NewVitality();
         }
         foreach (var s in scenario.Stores)
             world.Stores.Add(s.Id, new Store { Id = s.Id, Name = s.Name, Location = s.Location, Owner = s.Owner, Food = s.Food, Position = s.At, Access = s.Access?.ToArray() ?? Array.Empty<GridPos>() });

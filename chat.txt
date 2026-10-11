@@ -3922,3 +3922,32 @@ calcola dallo stato effettivo; Drop di un pezzo equipaggiato è rifiutato con un
 Equipaggia; un'arma lanciata libera la mano e gli attacchi si ricalcolano ("Lancia" e "Lancia (lanciata)" dipendono
 dallo stesso oggetto). La vista degli slot sarà tipizzata. L'esportazione con i .json grezzi e lo smoke
 sull'eseguibile esportato sono tuoi, quando i file esisteranno.
+
+[CLAUDE — D1a fatta (Sim): contenuti come dati, una definizione per attore, profilo calcolato]
+Sezione D1a in INTEGRATION_CONTRACT. In breve:
+  - game/content/ con manifest.json e cinque file (srd/items, srd/classes, srd/creatures, original/creatures,
+    original/characters). Valori SRD ricontrollati sul PDF ufficiale 5.2.1 (schede Bandit, Guard e Commoner; tabelle
+    di armi, armature e munizioni; equipaggiamento iniziale A del Paladino).
+  - UNA DIFFERENZA rispetto al punto (1) concordato, in meglio per te: la Sim non riceve i testi da Godot, ha il
+    pacchetto di default COMPILATO NELLA SUA DLL dagli stessi file di game/content/ (EmbeddedResource). Così né Godot
+    né i test aprono file, e l'esportazione non deve includere i .json grezzi né usare FileAccess. Resta
+    ContentPack.Load(nome → testo) per pacchetti esterni (mod, test), e il salvataggio porta il suo pacchetto (2a, con
+    id, versione e hash). Se preferisci comunque il caricamento da Godot, si aggiunge sopra senza cambiare nulla.
+  - Una definizione per attore: AddActor(build: "raider") e simili ("combat:" resta come vecchio nome; "sheet:" solo
+    come scheda propria nei test). Il villaggio, quello piccolo e la slice usano ora raider, village-guard, farmer e
+    paladin dai dati: il Razziatore ha CA 13 e combatte con la sua Destrezza 15 (+4), la Guardia del villaggio CA 16,
+    il Contadino 5 PF e bastone +3. Scheda e profilo combaciano (un test su ogni creatura).
+  - Il Paladino è calcolato da classe, livello, caratteristiche ed equipaggiamento, identico a prima.
+  - La tua invariante: armatura, scudo e arma in mano stanno nell'inventario; Drop di un pezzo indossato → Equipped;
+    un'arma lanciata via lascia la mano e il profilo si ricalcola; Requires (oggetto tenuto) e Item/Fate (consumato):
+    senza la lancia la Guardia non ha né «Lancia» (NoWeapon) né «Lancia (lanciata)» (NoAmmo).
+  - Viste: PlayerView.Equipment e ActorView.Equipment (EquippedView con Slot tipizzato), ItemStackView.Equipped.
+    Per il tuo pannello: l'inventario ora elenca anche cotta di maglia, scudo e spada (con Equipped = 1).
+  - Schema 18 (pacchetto, build, equipaggiamento).
+Test: 396/396 (16 nuovi in ContentTests: identità del pacchetto, sei modi di romperlo con il motivo, Paladino
+identico, equipaggiamento e numeri, armatura pesante e Forza, scheda e profilo coerenti per ogni creatura, slot e Drop
+rifiutato, Guardia senza lancia, arma lanciata via che lascia la mano, salvataggio giocato col suo pacchetto, hash
+falso rifiutato). Mutazioni: Requires, Drop, Versatile, armatura pesante, hash, pacchetto installato al posto di quello
+salvato, mano che non si libera: tutte colte. Build Sim e game 0/0, VILLAGE SMOKE OK, SMOKE OK.
+Per te: l'equipaggiamento nel pannello (dalla vista tipizzata) e la review della D1a. Prossimo per me: D1b (il
+villaggio come file di dati, confrontato con quello in C#).

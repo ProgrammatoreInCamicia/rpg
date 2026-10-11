@@ -1,0 +1,30 @@
+{
+  "source": "Original to this project (ADAPTATION of the SRD 5.2.1 stat blocks Bandit, Guard and Commoner, CC BY 4.0): the test bench village's people, with their own abilities and skills; attacks recomputed from those abilities by the SRD rules.",
+  "creatures": [
+    { "id": "raider", "name": "Razziatore",
+      "abilities": { "str": 11, "dex": 15, "con": 12, "int": 10, "wis": 10, "cha": 9 }, "proficiency": 2, "skills": ["Stealth", "SleightOfHand"],
+      "armorClass": 13, "hitPoints": 11, "speed": 30, "initiative": 2,
+      "gear": ["leather-armor", "light-crossbow", "scimitar"], "items": [["bolt", 20]],
+      "attacks": [
+        { "name": "Scimitarra", "bonus": 4, "damage": "1d6", "damageBonus": 2, "type": "Slashing", "requires": "scimitar" },
+        { "name": "Balestra leggera", "bonus": 4, "damage": "1d8", "damageBonus": 2, "type": "Piercing", "range": [80, 320],
+          "requires": "light-crossbow", "item": "bolt", "fate": "Spent" }
+      ] },
+    { "id": "village-guard", "name": "Guardia del villaggio",
+      "abilities": { "str": 13, "dex": 12, "con": 12, "int": 10, "wis": 13, "cha": 10 }, "proficiency": 2, "skills": ["Perception", "Intimidation"],
+      "armorClass": 16, "hitPoints": 11, "speed": 30, "initiative": 1,
+      "gear": ["chain-shirt", "shield", "spear"], "items": [],
+      "attacks": [
+        { "name": "Lancia", "bonus": 3, "damage": "1d6", "damageBonus": 1, "type": "Piercing", "requires": "spear" },
+        { "name": "Lancia (lanciata)", "bonus": 3, "damage": "1d6", "damageBonus": 1, "type": "Piercing", "range": [20, 60],
+          "item": "spear", "fate": "Thrown" }
+      ] },
+    { "id": "farmer", "name": "Contadino",
+      "abilities": { "str": 13, "dex": 10, "con": 13, "int": 9, "wis": 12, "cha": 10 }, "proficiency": 2, "skills": [],
+      "armorClass": 10, "hitPoints": 5, "speed": 30, "initiative": 0, "flees": true,
+      "gear": ["club"], "items": [],
+      "attacks": [
+        { "name": "Bastone", "bonus": 3, "damage": "1d4", "damageBonus": 1, "type": "Bludgeoning", "requires": "club" }
+      ] }
+  ]
+}

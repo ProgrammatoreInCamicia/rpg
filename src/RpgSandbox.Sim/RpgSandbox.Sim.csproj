@@ -11,4 +11,9 @@
     <InternalsVisibleTo Include="RpgSandbox.Sim.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- D1a: the default content pack, compiled in from game/content/ (the files stay where Godot can see them too). -->
+    <EmbeddedResource Include="..\..\game\content\**\*.json" LogicalName="content/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

@@ -1,0 +1,11 @@
+{
+  "id": "rpg-sandbox-core",
+  "version": "1",
+  "files": [
+    "srd/items.json",
+    "srd/classes.json",
+    "srd/creatures.json",
+    "original/creatures.json",
+    "original/characters.json"
+  ]
+}

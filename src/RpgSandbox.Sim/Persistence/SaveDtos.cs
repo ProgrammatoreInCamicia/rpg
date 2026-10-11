@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace RpgSandbox.Sim.Persistence;
 
-// Plain serialization shapes for the save file (schema version 17). Times are seconds since the
+// Plain serialization shapes for the save file (schema version 18). Times are seconds since the
 // scenario start; ids are their string/number values. Kept separate from the domain on purpose:
 // the domain can change shape while the file format changes only deliberately.
 
@@ -26,6 +26,7 @@ internal sealed class SaveDto
     public List<ScheduledDto> Schedule { get; set; } = new();
     public List<FactDto> Facts { get; set; } = new();
     public List<MapDto> Maps { get; set; } = new();
+    public ContentDto? Content { get; set; }
     public List<EncounterDto> Encounters { get; set; } = new();
     public long NextEncounterId { get; set; }
 }
@@ -104,7 +105,9 @@ internal sealed class ActorDto
     public List<RememberedDoorDto> Doors { get; set; } = new();
     public List<ObservationDto> Knowledge { get; set; } = new();
     public List<long> ActedOn { get; set; } = new();
-    public string Combat { get; set; } = "";
+    public string Build { get; set; } = "";
+    public bool SheetOverride { get; set; }
+    public EquipmentDto Equipment { get; set; } = new();
     public VitalityDto? Vitality { get; set; }
     public List<string> FoughtWith { get; set; } = new();
 }
@@ -486,4 +489,26 @@ internal sealed class GroundItemDto
     public int Y { get; set; }
     public string Item { get; set; } = "";
     public int Count { get; set; }
+}
+
+internal sealed class EquipmentDto
+{
+    public string? Armor { get; set; }
+    public string? Shield { get; set; }
+    public string? MainHand { get; set; }
+}
+
+/// <summary>D1a: the content pack the game is played with, carried whole (with its identity) so the save stands alone.</summary>
+internal sealed class ContentDto
+{
+    public string Id { get; set; } = "";
+    public string Version { get; set; } = "";
+    public string Hash { get; set; } = "";
+    public List<ContentFileDto> Files { get; set; } = new();
+}
+
+internal sealed class ContentFileDto
+{
+    public string Name { get; set; } = "";
+    public string Text { get; set; } = "";
 }

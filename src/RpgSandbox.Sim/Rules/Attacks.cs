@@ -34,6 +34,9 @@ public sealed record AttackProfile
 
     /// <summary>C3b: the item the attack needs (a javelin to throw, a bolt to shoot), by catalog id, and what becomes of it.</summary>
     public string? Item { get; init; }
+
+    /// <summary>D1a: an item the attack needs but keeps (the weapon in hand, the bow): without it, no attack.</summary>
+    public string? Requires { get; init; }
     public ItemFate Fate { get; init; }
 
     /// <summary>

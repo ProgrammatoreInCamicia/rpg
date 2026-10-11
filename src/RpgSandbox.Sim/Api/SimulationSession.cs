@@ -139,7 +139,8 @@ public sealed class SimulationSession
         Id = actor.Id,
         Name = actor.Name,
         IsPlayer = actor.IsPlayer,
-        Inventory = Freeze(actor.Inventory.Select(i => Stack(i.Key, i.Value))),
+        Inventory = Freeze(actor.Inventory.Select(i => Stack(actor, w.Content, i.Key, i.Value))),
+        Equipment = Worn(actor, w.Content),
         Coins = actor.Coins,
         Faction = actor.Faction,
         Location = actor.Location,
@@ -292,11 +293,12 @@ public sealed class SimulationSession
                 Name = a.Name, Melee = a.Melee, ReachFeet = a.ReachFeet, NormalRange = a.Range?.Normal, LongRange = a.Range?.Long,
                 Uses = a.Item is { } item ? new ItemId(item) : null, Remaining = a.Item is { } kept ? player.Carried(kept) : null,
             })),
-            Inventory = Freeze(player.Inventory.Select(i => Stack(i.Key, i.Value))),
+            Inventory = Freeze(player.Inventory.Select(i => Stack(player, w.Content, i.Key, i.Value))),
+            Equipment = Worn(player, w.Content),
             Coins = player.Coins,
             GroundItems = map is null ? Array.Empty<GroundItemView>() : Freeze(map.Ground
                 .Where(g => me is { } eye && (eye.IsAdjacentOrSame(g.Key) || _sim.CanSee(map, eye, g.Key)))
-                .SelectMany(g => g.Value.Select(i => new GroundItemView { At = g.Key, Item = i.Key, Name = NameOf(i.Key), Count = i.Value }))),
+                .SelectMany(g => g.Value.Select(i => new GroundItemView { At = g.Key, Item = i.Key, Name = NameOf(w.Content, i.Key), Count = i.Value }))),
             PeopleHere = Freeze(present.Select(p => new PersonView
             {
                 Id = p.Id,
@@ -356,9 +358,17 @@ public sealed class SimulationSession
         };
     }
 
-    private static string NameOf(ItemId item) => Rules.Items.ById(item.Value)?.Name ?? item.Value;
+    private static string NameOf(Rules.ContentPack content, ItemId item) => content.Item(item.Value)?.Name ?? item.Value;
 
-    private static ItemStackView Stack(ItemId item, int count) => new() { Item = item, Name = NameOf(item), Count = count };
+    private static ItemStackView Stack(Actor actor, Rules.ContentPack content, ItemId item, int count) =>
+        new() { Item = item, Name = NameOf(content, item), Count = count, Equipped = actor.Equipment.Items.Count(i => i == item.Value) };
+
+    /// <summary>D1a: what the actor wears and wields, slot by slot.</summary>
+    private static IReadOnlyList<EquippedView> Worn(Actor actor, Rules.ContentPack content) => Freeze(new[]
+        {
+            (EquipmentSlot.Armor, actor.Equipment.Armor), (EquipmentSlot.Shield, actor.Equipment.Shield), (EquipmentSlot.MainHand, actor.Equipment.MainHand),
+        }.Where(s => s.Item2 is not null)
+        .Select(s => new EquippedView { Slot = s.Item1, Item = new ItemId(s.Item2!), Name = NameOf(content, new ItemId(s.Item2!)) }));
 
     private static string Summary(Observation o) => o.Kind == DeedKind.Theft
         ? $"furto di {o.Amount} razioni da {o.StoreName}, giorno {o.ObservedAt.Day + 1} alle {o.ObservedAt.Hour:00}:{o.ObservedAt.Minute:00}" +

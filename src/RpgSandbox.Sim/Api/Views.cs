@@ -47,6 +47,9 @@ public sealed record ActorView
     public IReadOnlyList<ItemStackView> Inventory { get; init; } = Array.Empty<ItemStackView>();
     public long Coins { get; init; }
 
+    /// <summary>D1a: what it wears and wields, slot by slot.</summary>
+    public IReadOnlyList<EquippedView> Equipment { get; init; } = Array.Empty<EquippedView>();
+
     /// <summary>Where the actor is. Null while travelling: a traveller is at neither end of the route.</summary>
     public LocationId? Location { get; init; }
 

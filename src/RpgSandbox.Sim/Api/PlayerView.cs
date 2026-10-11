@@ -99,6 +99,9 @@ public sealed record PlayerView
     public IReadOnlyList<ItemStackView> Inventory { get; init; } = Array.Empty<ItemStackView>();
     public long Coins { get; init; }
 
+    /// <summary>D1a: what it wears and wields, slot by slot.</summary>
+    public IReadOnlyList<EquippedView> Equipment { get; init; } = Array.Empty<EquippedView>();
+
     /// <summary>C3b: items lying on the squares of the player's map that it sees (in sight with light, or next to it).</summary>
     public IReadOnlyList<GroundItemView> GroundItems { get; init; } = Array.Empty<GroundItemView>();
 }

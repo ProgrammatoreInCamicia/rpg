@@ -127,7 +127,7 @@ public class InventoryTests
 
         Assert.True(s.Execute(new AttackCommand { Actor = Foe, Target = s.Player, Attack = "Balestra leggera" }).Success);
 
-        Assert.Equal(19, s.GetWorldView().Actor(Foe).Inventory.Single().Count);
+        Assert.Equal(19, s.GetWorldView().Actor(Foe).Inventory.Single(i => i.Item == new ItemId("bolt")).Count);
         Assert.Empty(s.Engine.World.Maps[new AreaId("a")].Ground);
     }
 

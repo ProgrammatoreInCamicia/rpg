@@ -560,10 +560,10 @@ public class CombatWorldTests
     {
         var s = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
 
-        Assert.Equal(("paladin", 11), (Of(s, s.Player).Combat, Of(s, s.Player).Vitality.Maximum));
-        Assert.Equal(("guard", 11), (Of(s, Guard).Combat, Of(s, Guard).Vitality.Maximum));
-        Assert.Equal(("commoner", 4), (Of(s, Farmer).Combat, Of(s, Farmer).Vitality.Maximum));
-        Assert.Equal(("bandit", 11), (Of(s, Raider).Combat, Of(s, Raider).Vitality.Maximum));
+        Assert.Equal(("paladin", 11), (Of(s, s.Player).Build, Of(s, s.Player).Vitality.Maximum));
+        Assert.Equal(("village-guard", 11), (Of(s, Guard).Build, Of(s, Guard).Vitality.Maximum));
+        Assert.Equal(("farmer", 5), (Of(s, Farmer).Build, Of(s, Farmer).Vitality.Maximum));
+        Assert.Equal(("raider", 11), (Of(s, Raider).Build, Of(s, Raider).Vitality.Maximum));
     }
 
     [Fact]

@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 17;
+    public const int SchemaVersion = 18;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -114,6 +114,11 @@ internal static class SaveGame
     private static SaveDto ToDto(WorldState w) => new()
     {
         Version = SchemaVersion,
+        Content = new ContentDto
+        {
+            Id = w.Content.Id, Version = w.Content.Version, Hash = w.Content.Hash,
+            Files = w.Content.Files.Select(f => new ContentFileDto { Name = f.Name, Text = f.Text }).ToList(),
+        },
         Now = w.Now.Seconds,
         Player = w.Player.Value,
         NextActionId = w.NextActionId,
@@ -181,7 +186,8 @@ internal static class SaveGame
             }).ToList(),
             Knowledge = a.Knowledge.Select(ToDto).ToList(),
             ActedOn = a.ActedOn.Select(o => o.Value).ToList(),
-            Combat = a.Combat,
+            Build = a.Build, SheetOverride = a.SheetOverride,
+            Equipment = new EquipmentDto { Armor = a.Equipment.Armor, Shield = a.Equipment.Shield, MainHand = a.Equipment.MainHand },
             Vitality = ToDto(a.Vitality.Snapshot()),
             FoughtWith = a.FoughtWith.Select(f => f.Value).ToList(),
         }).ToList(),
@@ -334,7 +340,8 @@ internal static class SaveGame
 
     private static WorldState FromDto(SaveDto d)
     {
-        var w = new WorldState { Player = new ActorId(Required(d.Player, "player")), Now = new GameTime(d.Now) };
+        var content = RestoreContent(d.Content);
+        var w = new WorldState { Player = new ActorId(Required(d.Player, "player")), Now = new GameTime(d.Now), Content = content };
         w.NextActionId = d.NextActionId;
         w.NextFactId = d.NextFactId;
         w.NextObservationId = d.NextObservationId;
@@ -389,7 +396,7 @@ internal static class SaveGame
             foreach (var g in m.Ground ?? throw new InvalidDataException($"oggetti a terra della mappa '{area}' mancanti"))
             {
                 var square = new GridPos(g?.X ?? -1, g?.Y ?? -1);
-                Check(g is not null && Items.ById(g.Item ?? "") is not null && g.Count > 0 && w.Maps[area].IsWalkable(square)
+                Check(g is not null && w.Content.Item(g.Item ?? "") is not null && g.Count > 0 && w.Maps[area].IsWalkable(square)
                       && w.Maps[area].OnGround(square, new ItemId(g.Item!)) == 0, $"oggetti a terra della mappa '{area}' non validi");
                 w.Maps[area].PutOnGround(square, new ItemId(g!.Item!), g.Count);
             }
@@ -465,12 +472,11 @@ internal static class SaveGame
                 Sneak = a.Sneak,
                 Coins = a.Coins,
                 TorchLitUntil = a.TorchLitUntil is { } lit ? new GameTime(lit) : null,
-                Sheet = FromDto(a.Sheet!),
-                Combat = CombatProfiles.ById(a.Combat ?? "") is not null ? a.Combat! : throw new InvalidDataException($"profilo di combattimento di '{a.Id}' sconosciuto"),
+                Sheet = FromDto(a.Sheet!), // replaced by the derived one unless it is the actor's own (see below)
+                Build = content.IsBuild(a.Build ?? "") ? a.Build! : throw new InvalidDataException($"attore '{a.Id}' fatto di un contenuto sconosciuto '{a.Build}'"),
+                SheetOverride = a.SheetOverride,
                 Vitality = FromDto(a.Vitality ?? throw new InvalidDataException($"punti ferita di '{a.Id}' mancanti"), a.Id),
             };
-            Check(actor.Vitality.MakesDeathSaves == Simulation.ProfileOf(actor).MakesDeathSaves,
-                $"punti ferita di '{a.Id}' incoerenti con il suo profilo");
             foreach (var foe in a.FoughtWith ?? throw new InvalidDataException($"avversari di '{a.Id}' mancanti"))
                 Check(actor.FoughtWith.Add(new ActorId(Required(foe, "avversario"))), $"avversario ripetuto per '{a.Id}'");
             foreach (var o in a.Knowledge)
@@ -495,10 +501,22 @@ internal static class SaveGame
             }
             foreach (var item in a.Inventory ?? throw new InvalidDataException($"inventario di '{a.Id}' mancante"))
             {
-                Check(item is not null && Items.ById(item.Item ?? "") is not null && item.Count > 0 && actor.Carried(item.Item!) == 0,
+                Check(item is not null && content.Item(item.Item ?? "") is not null && item.Count > 0 && actor.Carried(item.Item!) == 0,
                     $"inventario di '{a.Id}' non valido");
                 actor.Give(item!.Item!, item.Count);
             }
+            // D1a: what it wears and wields is in its inventory and of the right kind; then its profile is derived again.
+            var eq = a.Equipment ?? throw new InvalidDataException($"equipaggiamento di '{a.Id}' mancante");
+            actor.Equipment = new Equipment(eq.Armor, eq.Shield, eq.MainHand);
+            Check(actor.Equipment.Items.All(i => actor.Carried(i) >= actor.Equipment.Items.Count(x => x == i))
+                  && (eq.Armor is null || content.Item(eq.Armor)?.Armor is { Type: not ArmorType.Shield })
+                  && (eq.Shield is null || content.Item(eq.Shield)?.Armor is { Type: ArmorType.Shield })
+                  && (eq.MainHand is null || content.Item(eq.MainHand)?.Weapon is not null), $"equipaggiamento di '{a.Id}' non valido");
+            w.Refresh(actor);
+            if (actor.SheetOverride)
+                actor.Sheet = FromDto(a.Sheet!);
+            Check(actor.Vitality.MakesDeathSaves == actor.Profile.MakesDeathSaves && actor.Vitality.Maximum == actor.Profile.MaxHitPoints,
+                $"punti ferita di '{a.Id}' incoerenti con il suo profilo");
             ValidateActor(w, actor);
             AddUnique(w.Actors, actor.Id, actor, "attore");
         }
@@ -611,6 +629,21 @@ internal static class SaveGame
         return w;
     }
 
+    /// <summary>
+    /// D1a: the content pack the game was played with, rebuilt from the save itself (never from the installed files),
+    /// with its identity checked: a save whose texts do not match its own hash is damaged.
+    /// </summary>
+    private static ContentPack RestoreContent(ContentDto? dto)
+    {
+        Check(dto is not null && dto.Files is not null && dto.Files.All(f => f is not null && !string.IsNullOrEmpty(f.Name) && f.Text is not null),
+            "contenuti del salvataggio mancanti o incompleti");
+        Check(dto!.Files!.Select(f => f.Name).Distinct().Count() == dto.Files!.Count, "file dei contenuti ripetuto");
+        var pack = ContentPack.Load(dto.Files.ToDictionary(f => f.Name, f => f.Text));
+        Check(pack.Id == dto.Id && pack.Version == dto.Version && pack.Hash == dto.Hash,
+            "i contenuti del salvataggio non corrispondono alla loro impronta");
+        return pack;
+    }
+
     /// <summary>Checks references that may point to any actor; runs once all actors are loaded.</summary>
     private static void ValidateKnowledge(WorldState w, Actor a)
     {
@@ -655,7 +688,7 @@ internal static class SaveGame
         if (a.CurrentAction is GuardAction guard)
             Check(w.Stores.ContainsKey(guard.Store), $"sorveglianza di '{a.Id}' su deposito sconosciuto");
         Check(a.Food >= 0, $"attore '{a.Id}' con razioni negative");
-        Check(a.Coins >= 0 && a.Inventory.All(i => Items.ById(i.Key.Value) is not null && i.Value > 0), $"inventario di '{a.Id}' non valido");
+        Check(a.Coins >= 0 && a.Inventory.All(i => w.Content.Item(i.Key.Value) is not null && i.Value > 0), $"inventario di '{a.Id}' non valido");
         Check(a.Faction is null || w.Factions.ContainsKey(a.Faction.Value), $"attore '{a.Id}' di fazione sconosciuta");
         Check(a.Location is null || w.Locations.ContainsKey(a.Location.Value), $"attore '{a.Id}' in luogo sconosciuto");
         if (a.Position is { } pos)

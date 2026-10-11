@@ -1,0 +1,30 @@
+{
+  "source": "SRD 5.2.1 (Wizards of the Coast LLC), CC BY 4.0: stat blocks Bandit, Guard, Commoner. Names translated into Italian. Gear as printed; the Bandit's 20 bolts are an ADAPTATION (the stat block names no ammunition); \"flees\" is a behaviour of ours (ADAPTATION), not part of the stat block.",
+  "creatures": [
+    { "id": "bandit", "name": "Bandito",
+      "abilities": { "str": 11, "dex": 12, "con": 12, "int": 10, "wis": 10, "cha": 10 }, "proficiency": 2, "skills": [],
+      "armorClass": 12, "hitPoints": 11, "speed": 30, "initiative": 1,
+      "gear": ["leather-armor", "light-crossbow", "scimitar"], "items": [["bolt", 20]],
+      "attacks": [
+        { "name": "Scimitarra", "bonus": 3, "damage": "1d6", "damageBonus": 1, "type": "Slashing", "requires": "scimitar" },
+        { "name": "Balestra leggera", "bonus": 3, "damage": "1d8", "damageBonus": 1, "type": "Piercing", "range": [80, 320],
+          "requires": "light-crossbow", "item": "bolt", "fate": "Spent" }
+      ] },
+    { "id": "guard", "name": "Guardia",
+      "abilities": { "str": 13, "dex": 12, "con": 12, "int": 10, "wis": 11, "cha": 10 }, "proficiency": 2, "skills": ["Perception"],
+      "armorClass": 16, "hitPoints": 11, "speed": 30, "initiative": 1,
+      "gear": ["chain-shirt", "shield", "spear"], "items": [],
+      "attacks": [
+        { "name": "Lancia", "bonus": 3, "damage": "1d6", "damageBonus": 1, "type": "Piercing", "requires": "spear" },
+        { "name": "Lancia (lanciata)", "bonus": 3, "damage": "1d6", "damageBonus": 1, "type": "Piercing", "range": [20, 60],
+          "item": "spear", "fate": "Thrown" }
+      ] },
+    { "id": "commoner", "name": "Popolano",
+      "abilities": { "str": 10, "dex": 10, "con": 10, "int": 10, "wis": 10, "cha": 10 }, "proficiency": 2, "skills": [],
+      "armorClass": 10, "hitPoints": 4, "speed": 30, "initiative": 0, "flees": true,
+      "gear": ["club"], "items": [],
+      "attacks": [
+        { "name": "Bastone", "bonus": 2, "damage": "1d4", "damageBonus": 0, "type": "Bludgeoning", "requires": "club" }
+      ] }
+  ]
+}

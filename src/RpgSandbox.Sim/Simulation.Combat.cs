@@ -10,7 +10,7 @@ internal sealed partial class Simulation
 {
     private const int FeetPerSquare = 5;
 
-    internal static CombatProfile ProfileOf(Actor actor) => CombatProfiles.ById(actor.Combat)!;
+    internal static CombatProfile ProfileOf(Actor actor) => actor.Profile; // D1a: derived from the build and equipment
 
     internal Encounter? EncounterOf(Actor actor) =>
         World.Encounters.Values.FirstOrDefault(e => e.Order.Any(c => c.Actor == actor.Id));
@@ -441,7 +441,9 @@ internal sealed partial class Simulation
         if (!SeesActor(attacker, target))
             return new(RejectionReason.NotVisible, $"Non vedi {target.Name}.");
         if (attack.Item is { } needed && attacker.Carried(needed) == 0) // C3b
-            return new(RejectionReason.NoAmmo, $"Non ne hai più: {Items.ById(needed)!.Name}.");
+            return new(RejectionReason.NoAmmo, $"Non ne hai più: {World.Content.Item(needed)?.Name ?? needed}.");
+        if (attack.Requires is { } weapon && attacker.Carried(weapon) == 0) // D1a: no weapon in hand, no attack with it
+            return new(RejectionReason.NoWeapon, $"Non hai più: {World.Content.Item(weapon)?.Name ?? weapon}.");
         var map = World.Maps[attacker.MapArea!.Value];
         var at = CurrentPosition(attacker)!.Value;
         var there = CurrentPosition(target)!.Value;
@@ -491,6 +493,7 @@ internal sealed partial class Simulation
         if (attack.Item is { } item) // C3b: the javelin leaves the hand and lands by the target; the bolt is spent
         {
             attacker.Give(item, -1);
+            Unequip(attacker, item); // D1a: a weapon thrown away leaves the hand
             if (attack.Fate == ItemFate.Thrown)
                 World.Maps[e.Area].PutOnGround(CurrentPosition(target)!.Value, new ItemId(item), 1);
         }
@@ -990,5 +993,19 @@ internal sealed partial class Simulation
 {
     /// <summary>An NPC does not throw its last weapon of a kind while it has a melee attack to fight with (a Guard keeps its Spear).</summary>
     private static bool KeepsLastWeapon(Actor npc, AttackProfile attack) =>
-        attack.Fate == ItemFate.Thrown && npc.Carried(attack.Item!) <= 1 && ProfileOf(npc).Attacks.Any(a => a.Melee);
+        attack.Fate == ItemFate.Thrown && npc.Carried(attack.Item!) <= 1 && ProfileOf(npc).Attacks.Any(a => a.Melee && a.Requires == attack.Item);
+}
+
+// D1a: equipment.
+internal sealed partial class Simulation
+{
+    /// <summary>When an actor no longer carries an item it wore or wielded, the slot is empty and its profile is derived again.</summary>
+    private void Unequip(Actor actor, string item)
+    {
+        if (actor.Carried(item) > 0 || !actor.Equipment.Items.Contains(item))
+            return;
+        var e = actor.Equipment;
+        actor.Equipment = new Equipment(e.Armor == item ? null : e.Armor, e.Shield == item ? null : e.Shield, e.MainHand == item ? null : e.MainHand);
+        World.Refresh(actor);
+    }
 }

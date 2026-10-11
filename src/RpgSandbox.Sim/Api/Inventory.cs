@@ -24,6 +24,9 @@ public sealed record ItemStackView
     public required ItemId Item { get; init; }
     public required string Name { get; init; }
     public required int Count { get; init; }
+
+    /// <summary>D1a: how many of these are worn or wielded (they cannot be dropped).</summary>
+    public int Equipped { get; init; }
 }
 
 /// <summary>Items of one kind lying on a square of the player's map, as the player sees them.</summary>
@@ -33,4 +36,15 @@ public sealed record GroundItemView
     public required ItemId Item { get; init; }
     public required string Name { get; init; }
     public required int Count { get; init; }
+}
+
+/// <summary>D1a: where a worn or wielded item is.</summary>
+public enum EquipmentSlot { Armor, Shield, MainHand }
+
+/// <summary>D1a: an item worn or wielded (it is also counted in the inventory).</summary>
+public sealed record EquippedView
+{
+    public required EquipmentSlot Slot { get; init; }
+    public required ItemId Item { get; init; }
+    public required string Name { get; init; }
 }

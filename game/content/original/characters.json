@@ -1,0 +1,11 @@
+{
+  "source": "Original to this project, built with the SRD 5.2.1 rules (CC BY 4.0): the pregenerated Paladin. Standard Array as suggested for the Paladin (15, 10, 13, 8, 12, 14), Acolyte background (+2 Cha, +1 Wis; Insight, Religion), class skills Athletics and Persuasion, starting equipment A (Chain Mail, Shield, Longsword, 6 Javelins, 9 GP; Holy Symbol and Priest's Pack not modelled yet), Weapon Mastery: Longsword and Javelin.",
+  "characters": [
+    { "id": "paladin", "title": "Paladino 1 (Accolito)", "class": "paladin", "level": 1,
+      "abilities": { "str": 15, "dex": 10, "con": 13, "int": 8, "wis": 13, "cha": 16 },
+      "skills": ["Athletics", "Insight", "Persuasion", "Religion"],
+      "equipment": { "armor": "chain-mail", "shield": "shield", "mainHand": "longsword" },
+      "items": [["javelin", 6]], "coins": 900,
+      "masteries": ["longsword", "javelin"] }
+  ]
+}

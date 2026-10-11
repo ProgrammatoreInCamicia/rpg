@@ -10,7 +10,7 @@ internal sealed partial class Simulation
     private CommandResult PickUp(PickUpCommand command)
     {
         var actor = World.Actors[command.Actor];
-        if (Items.ById(command.Item.Value) is not { } item)
+        if (World.Content.Item(command.Item.Value) is not { } item)
             return CommandResult.Rejected(RejectionReason.NothingThere, "Oggetto sconosciuto.");
         if (command.Count <= 0)
             return CommandResult.Rejected(RejectionReason.InvalidAmount, "Quanti?");
@@ -40,12 +40,15 @@ internal sealed partial class Simulation
     private CommandResult Drop(DropCommand command)
     {
         var actor = World.Actors[command.Actor];
-        if (Items.ById(command.Item.Value) is not { } item)
+        if (World.Content.Item(command.Item.Value) is not { } item)
             return CommandResult.Rejected(RejectionReason.NotCarried, "Oggetto sconosciuto.");
         if (command.Count <= 0)
             return CommandResult.Rejected(RejectionReason.InvalidAmount, "Quanti?");
         if (actor.Carried(item.Id) < command.Count)
             return CommandResult.Rejected(RejectionReason.NotCarried, $"Non hai {command.Count} × {item.Name}.");
+        // D1a: what one wears or wields stays on until there is a command to take it off.
+        if (actor.Carried(item.Id) - command.Count < actor.Equipment.Items.Count(i => i == item.Id))
+            return CommandResult.Rejected(RejectionReason.Equipped, $"{item.Name}: lo indossi o lo impugni, non puoi lasciarlo.");
         if (MapOf(actor) is not { } map || CurrentPosition(actor) is not { } here)
             return CommandResult.Rejected(RejectionReason.NoMap, "Qui non puoi lasciare niente.");
         if (EncounterOf(actor) is { } e && !IsTurnOf(e, actor))

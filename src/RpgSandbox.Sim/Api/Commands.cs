@@ -126,6 +126,10 @@ public enum RejectionReason
     NoAmmo,
     NothingThere,
     NotCarried,
+
+    // D1a: equipment
+    NoWeapon,
+    Equipped,
 }
 
 public sealed record CommandResult
