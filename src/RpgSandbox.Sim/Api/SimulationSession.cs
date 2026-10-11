@@ -114,6 +114,7 @@ public sealed class SimulationSession
             Stores = Freeze(w.Stores.Values.Select(s => new StoreView
             {
                 Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food, Owner = s.Owner, Position = s.Position, Access = Freeze(s.Access),
+                Contents = Freeze(s.Contents.Select(i => new ItemStackView { Item = i.Key, Name = NameOf(w.Content, i.Key), Count = i.Value })),
             })),
             Factions = Freeze(w.Factions.Values.Select(f => new FactionView
             {
@@ -281,6 +282,7 @@ public sealed class SimulationSession
                 : InArea(s.Location) && (s.Location == player.Location || PlaceVisible(s.Location))).Select(s => new StoreView
             {
                 Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food, Owner = s.Owner, Position = s.Position, Access = Freeze(s.Access),
+                Contents = Freeze(s.Contents.Select(i => new ItemStackView { Item = i.Key, Name = NameOf(w.Content, i.Key), Count = i.Value })),
             })),
             Observations = Freeze(player.Knowledge.Select(o => ToView(o, w))),
             ReportOptions = Freeze(options),

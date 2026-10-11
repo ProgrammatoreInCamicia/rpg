@@ -458,3 +458,12 @@ Contratto completo in chat.txt ("CONTRATTO C4" e le note successive). In sintesi
 - Uno scenario può essere un file del pacchetto di contenuti (`game/content/scenarios/*.json`, elencato nel manifest): aree, luoghi, percorsi, mappe (righe, zone, uscite, posti, luci, porte), fazioni (con razzie e inimicizie), depositi e persone (definizione, casella, lavoro con orari "HH:MM", torce, oggetti e monete). Caselle come `[x, y]`.
 - `ScenarioFile.Load(id, pack)` lo traduce nelle stesse chiamate di `ScenarioBuilder`, quindi uno scenario in file e uno in C# rispettano le stesse regole e danno gli stessi errori; `ScenarioFile.Ids(pack)` elenca gli scenari di un pacchetto.
 - Il villaggio vivo esiste in entrambe le forme (`scenarios/living-village.json` e `MappedVillageScenario.CreateLivingVillage()`): danno lo stesso salvataggio iniziale, byte per byte, e vivono gli stessi due giorni. Il client può passare alla versione in file quando vuole; quella in C# resta per i test.
+
+## D1c — Razioni come oggetti, depositi come contenitori
+
+- La razione è un oggetto del catalogo (`ration`, «Razione»: SRD Rations, 2 lb, 5 ma). Le razioni di una persona sono quelle nel suo inventario: `Food` (attore e `PlayerView`) è il loro conteggio; compaiono in `Inventory` come ogni altro oggetto e si possono lasciare a terra e raccogliere (lasciate a terra non sono più cibo portato).
+- Un deposito è un contenitore: `StoreView.Contents` elenca ciò che contiene (oggi solo razioni); `StoreView.Food` resta il conteggio delle razioni.
+- Furti, razzie, confische, consegne e consumo spostano gli stessi oggetti: la loro semantica e i loro test sono invariati.
+- Uno scenario con razioni richiede che i contenuti definiscano l'oggetto `ration`.
+- Salvataggi (schema 19): le razioni di una persona stanno nel suo inventario (non c'è più un campo a parte), il deposito salva il suo contenuto; oggetti sconosciuti o quantità non positive nel contenuto sono rifiutati.
+- Debito noto: come la torcia, la razione è riconosciuta dal suo id nel motore.

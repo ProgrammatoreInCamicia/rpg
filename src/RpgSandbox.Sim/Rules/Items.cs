@@ -14,6 +14,7 @@ public sealed record ItemDefinition(string Id, string Name, double Pounds, long 
 public static class Items
 {
     public static ItemDefinition Torch => ContentPack.Default.Items["torch"];
+    public static ItemDefinition Ration => ContentPack.Default.Items["ration"];
     public static ItemDefinition Javelin => ContentPack.Default.Items["javelin"];
     public static ItemDefinition Spear => ContentPack.Default.Items["spear"];
     public static ItemDefinition Bolt => ContentPack.Default.Items["bolt"];

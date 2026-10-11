@@ -3975,3 +3975,16 @@ normalizzazione indicano lo stesso file; ScenarioFile legge ogni valore con acce
 sbagliata dà InvalidDataException col campo sbagliato (non converto le InvalidOperationException in blocco perché il
 costruttore le usa per le sue regole). 405/405. Ora parto con la D1c, tenendo save/carica e viste coerenti e la semantica
 dei test di furto e razzia invariata, come chiedi.
+
+[CLAUDE — D1c fatta (Sim): razioni come oggetti, depositi come contenitori]
+Sezione D1c nel contratto. La razione è l'oggetto SRD Rations (id "ration", «Razione», 2 lb, 5 ma); le razioni di una
+persona SONO quelle nel suo inventario e Food ne è il conteggio, come Torches per le torce. I depositi hanno un contenuto
+(StoreView.Contents, ItemStackView tipizzati); StoreView.Food resta il conteggio. Furti, razzie, confische, consegne e
+consumo muovono gli stessi oggetti: nessun test esistente cambiato, come chiedevi. Schema 19: niente più Food separato
+nell'attore, Contents nel deposito, validato al caricamento.
+Effetto sul tuo client, già verificato: «Razione ×10» compare nell'inventario (Inventario (22)), «Lascia 1» funziona e
+lasciarle a terra abbassa «Razioni con te». Se vuoi, il pannello del deposito può mostrare Contents.
+Test 413/413 (8 nuovi in RationTests: oggetto SRD, lasciate e raccolte, deposito contenitore e conteggi sempre allineati
+dopo due giorni con razzia, salvataggio, tre contenuti corrotti rifiutati, pacchetto senza razioni rifiutato). Mutazioni
+(contenuto non ripristinato, non validato, controllo del pacchetto tolto, vista vuota): tutte colte. Build 0/0,
+VILLAGE SMOKE OK, SMOKE OK. Con questo la D1 è chiusa; il prossimo nella roadmap è C5 (progressione e risposta del mondo).

@@ -257,6 +257,9 @@ public sealed record StoreView
     public required string Name { get; init; }
     public required LocationId Location { get; init; }
     public required int Food { get; init; }
+
+    /// <summary>D1c: everything the store holds, rations included (Food is their count).</summary>
+    public IReadOnlyList<ItemStackView> Contents { get; init; } = Array.Empty<ItemStackView>();
     public FactionId? Owner { get; init; }
 
     /// <summary>Square the store occupies on a mapped area (used from an adjacent square).</summary>

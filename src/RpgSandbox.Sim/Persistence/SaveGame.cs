@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 18;
+    public const int SchemaVersion = 19;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -155,7 +155,6 @@ internal static class SaveGame
             IsPlayer = a.IsPlayer,
             Faction = a.Faction?.Value,
             Location = a.Location?.Value,
-            Food = a.Food,
             Action = ToDto(a.CurrentAction),
             Assignment = a.Assignment is { } r
                 ? new RaidAssignmentDto
@@ -195,7 +194,8 @@ internal static class SaveGame
         Encounters = w.Encounters.Values.Select(ToDto).ToList(),
         Stores = w.Stores.Values.Select(s => new StoreDto
         {
-            Id = s.Id.Value, Name = s.Name, Location = s.Location.Value, Owner = s.Owner?.Value, Food = s.Food,
+            Id = s.Id.Value, Name = s.Name, Location = s.Location.Value, Owner = s.Owner?.Value,
+            Contents = s.Contents.Select(i => new ItemCountDto { Item = i.Key.Value, Count = i.Value }).ToList(),
             Position = s.Position is { } sp ? new PosDto { X = sp.X, Y = sp.Y } : null,
             Access = s.Access.Select(a => new PosDto { X = a.X, Y = a.Y }).ToList(),
         }).ToList(),
@@ -365,14 +365,20 @@ internal static class SaveGame
         foreach (var s in d.Stores)
         {
             Check(w.Locations.ContainsKey(new LocationId(s.Location)), $"deposito '{s.Id}' in luogo sconosciuto");
-            Check(s.Food >= 0, $"deposito '{s.Id}' con razioni negative");
-            AddUnique(w.Stores, new StoreId(s.Id), new Store
+            var store = new Store
             {
                 Id = new StoreId(s.Id), Name = s.Name, Location = new LocationId(s.Location),
-                Owner = s.Owner is null ? null : new FactionId(s.Owner), Food = s.Food, Position = s.Position is { } sp ? new GridPos(sp.X, sp.Y) : null,
+                Owner = s.Owner is null ? null : new FactionId(s.Owner), Position = s.Position is { } sp ? new GridPos(sp.X, sp.Y) : null,
                 Access = (s.Access ?? throw new InvalidDataException($"accesso del deposito '{s.Id}' mancante"))
                     .Select(a => a is null ? throw new InvalidDataException($"accesso del deposito '{s.Id}' non valido") : new GridPos(a.X, a.Y)).ToArray(),
-            }, "deposito");
+            };
+            foreach (var item in s.Contents ?? throw new InvalidDataException($"contenuto del deposito '{s.Id}' mancante"))
+            {
+                Check(item is not null && content.Item(item.Item ?? "") is not null && item.Count > 0 && store.Holds(item.Item!) == 0,
+                    $"contenuto del deposito '{s.Id}' non valido");
+                store.Put(item!.Item!, item.Count);
+            }
+            AddUnique(w.Stores, store.Id, store, "deposito");
         }
         foreach (var m in d.Maps ?? throw new InvalidDataException("elenco delle mappe mancante"))
         {
@@ -450,7 +456,6 @@ internal static class SaveGame
                 IsPlayer = a.IsPlayer,
                 Faction = a.Faction is null ? null : new FactionId(a.Faction),
                 Location = a.Location is null ? null : new LocationId(a.Location),
-                Food = a.Food,
                 CurrentAction = FromDto(a.Action, new ActorId(a.Id)),
                 LastDecision = FromDto(a.LastDecision),
                 Assignment = a.Assignment is { } r

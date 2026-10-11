@@ -65,19 +65,16 @@ internal sealed class Actor
     public long Coins { get; set; }
 
     /// <summary>How many of an item it carries.</summary>
-    public int Carried(string item) => Inventory.TryGetValue(new ItemId(item), out var n) ? n : 0;
+    public int Carried(string item) => Stock.Count(Inventory, item);
 
     /// <summary>Adds (or, negative, removes) items; a kind that drops to none is removed.</summary>
-    public void Give(string item, int count)
+    public void Give(string item, int count) => Stock.Add(Inventory, item, count, Id.Value);
+
+    /// <summary>D1c: rations carried are "ration" items like any other. Never negative.</summary>
+    public int Food
     {
-        var id = new ItemId(item);
-        var total = Carried(item) + count;
-        if (total < 0)
-            throw new InvalidOperationException($"{Id} has fewer than {-count} {item}.");
-        if (total == 0)
-            Inventory.Remove(id);
-        else
-            Inventory[id] = total;
+        get => Carried(Stock.Ration);
+        set => Give(Stock.Ration, value - Carried(Stock.Ration));
     }
 
     /// <summary>Unlit torches carried (the "torch" items).</summary>
@@ -101,9 +98,6 @@ internal sealed class Actor
 
     /// <summary>When the actor last arrived at <see cref="Location"/>: decides whether a witness saw a deed from its start.</summary>
     public GameTime ArrivedAt { get; set; }
-
-    /// <summary>Rations carried. Never negative.</summary>
-    public int Food { get; set; }
 
     /// <summary>At most one action at a time.</summary>
     public PendingAction? CurrentAction { get; set; }
@@ -273,8 +267,45 @@ internal sealed class Store
     public IReadOnlyList<GridPos> Access { get; init; } = Array.Empty<GridPos>();
     public FactionId? Owner { get; init; }
 
-    /// <summary>Rations stored. Never negative.</summary>
-    public int Food { get; set; }
+    /// <summary>D1c: a store is a container: the items in it by catalog id (only kinds with at least one).</summary>
+    public SortedDictionary<ItemId, int> Contents { get; } = new();
+
+    /// <summary>How many of an item it holds.</summary>
+    public int Holds(string item) => Stock.Count(Contents, item);
+
+    /// <summary>Puts in (or, negative, takes out) items; a kind that drops to none is removed.</summary>
+    public void Put(string item, int count) => Stock.Add(Contents, item, count, Id.Value);
+
+    /// <summary>Rations stored ("ration" items). Never negative.</summary>
+    public int Food
+    {
+        get => Holds(Stock.Ration);
+        set => Put(Stock.Ration, value - Holds(Stock.Ration));
+    }
+}
+
+/// <summary>D1c: items counted by catalog id, as carried by an actor or held in a store.</summary>
+internal static class Stock
+{
+    /// <summary>The item rations are (SRD Rations, one day's food). ADAPTATION: still known to the engine by its id.</summary>
+    public const string Ration = "ration";
+
+    public static int Count(SortedDictionary<ItemId, int> items, string item) =>
+        items.TryGetValue(new ItemId(item), out var n) ? n : 0;
+
+    public static void Add(SortedDictionary<ItemId, int> items, string item, int count, string holder)
+    {
+        var id = new ItemId(item);
+        var total = (long)Count(items, item) + count;
+        if (total < 0)
+            throw new InvalidOperationException($"{holder} has fewer than {-count} {item}.");
+        if (total > int.MaxValue)
+            throw new InvalidOperationException($"{holder} cannot hold more {item}.");
+        if (total == 0)
+            items.Remove(id);
+        else
+            items[id] = (int)total;
+    }
 }
 
 /// <summary>"Raid when food is low": the only faction policy so far.</summary>

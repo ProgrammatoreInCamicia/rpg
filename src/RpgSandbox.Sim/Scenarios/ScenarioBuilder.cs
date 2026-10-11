@@ -260,6 +260,7 @@ public sealed class ScenarioBuilder
         {
             Require(locationIds.Contains(actor.Location), $"Actor '{actor.Id}' starts at unknown location '{actor.Location}'.");
             Require(actor.Food >= 0, $"Actor '{actor.Id}' starts with negative food.");
+            Require(actor.Food == 0 || _content.Item(Stock.Ration) is not null, $"Actor '{actor.Id}' has rations, but the contents define no '{Stock.Ration}' item.");
             Require(actor.Faction is null || factionIds.Contains(actor.Faction.Value),
                 $"Actor '{actor.Id}' belongs to unknown faction '{actor.Faction}'.");
             if (actor.Sheet is not null)
@@ -278,6 +279,7 @@ public sealed class ScenarioBuilder
         {
             Require(locationIds.Contains(store.Location), $"Store '{store.Id}' is at unknown location '{store.Location}'.");
             Require(store.Food >= 0, $"Store '{store.Id}' starts with negative food.");
+            Require(store.Food == 0 || _content.Item(Stock.Ration) is not null, $"Store '{store.Id}' holds rations, but the contents define no '{Stock.Ration}' item.");
             Require(store.Owner is null || factionIds.Contains(store.Owner.Value),
                 $"Store '{store.Id}' is owned by unknown faction '{store.Owner}'.");
         }

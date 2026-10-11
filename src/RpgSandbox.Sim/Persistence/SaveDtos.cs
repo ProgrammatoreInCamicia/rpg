@@ -83,7 +83,6 @@ internal sealed class ActorDto
     public bool IsPlayer { get; set; }
     public string? Faction { get; set; }
     public string? Location { get; set; }
-    public int Food { get; set; }
     public ActionDto? Action { get; set; }
     public RaidAssignmentDto? Assignment { get; set; }
     public DecisionDto? LastDecision { get; set; }
@@ -118,7 +117,7 @@ internal sealed class StoreDto
     public string Name { get; set; } = "";
     public string Location { get; set; } = "";
     public string? Owner { get; set; }
-    public int Food { get; set; }
+    public List<ItemCountDto> Contents { get; set; } = new();
     public PosDto? Position { get; set; }
     public List<PosDto> Access { get; set; } = new();
 }
