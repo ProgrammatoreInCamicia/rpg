@@ -123,6 +123,12 @@ public sealed record VisibleActorView
 
     /// <summary>C2: how hurt it looks, the C1 descriptor ("illeso", "ferito", "malconcio", ...); never the exact Hit Points.</summary>
     public string? Condition { get; init; }
+
+    /// <summary>
+    /// C4: this actor holds the player hostile right now (it would fight it). ADAPTATION of the interface, BG style: an
+    /// attitude one can read at a glance, never the reason nor what it knows.
+    /// </summary>
+    public bool Hostile { get; init; }
 }
 
 /// <summary>T6c-5: how much the player knows of a door.</summary>

@@ -357,6 +357,8 @@ public sealed class SimulationSession
         StoreName = o.StoreName,
         Location = o.Location,
         Amount = o.Amount,
+        Culprit = o.Thief,
+        CulpritName = o.ThiefName,
         Thief = o.Thief,
         ThiefName = o.ThiefName,
         ObservedAt = o.ObservedAt,

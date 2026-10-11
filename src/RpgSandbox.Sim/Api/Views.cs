@@ -115,8 +115,10 @@ public sealed record GuardDutyView
     public required GameTime Since { get; init; }
     public required GameTime Until { get; init; }
 }
-
-/// <summary>What an actor knows about a theft, as perceived or as told. Never a read of the current world.</summary>
+/// <summary>
+/// What an actor knows about a deed (C4: a theft, an assault, a killing), as perceived or as told. Never a read of the
+/// current world.
+/// </summary>
 public sealed record ObservationView
 {
     public required ObservationId Id { get; init; }
@@ -124,14 +126,42 @@ public sealed record ObservationView
     /// <summary>The first-hand observation this one descends from (itself, if first-hand).</summary>
     public required ObservationId Origin { get; init; }
 
-    /// <summary>"Theft" for now. New kinds are announced before they appear.</summary>
+    /// <summary>
+    /// "Theft", "Assault" (a fight: who started it, if that was perceived) or "Killing" (a death blow, a deed of its own:
+    /// who struck it is not necessarily who started the fight). New kinds are announced before they appear.
+    /// </summary>
     public required string Kind { get; init; }
-    public required StoreId Store { get; init; }
-    public required string StoreName { get; init; }
-    public required LocationId Location { get; init; }
-    public required int Amount { get; init; }
 
-    /// <summary>Null when the thief was not recognised.</summary>
+    /// <summary>Theft only: the store, its name and the rations taken.</summary>
+    public StoreId? Store { get; init; }
+    public string? StoreName { get; init; }
+    public int? Amount { get; init; }
+
+    /// <summary>The place where it happened; null on open ground (the road).</summary>
+    public LocationId? Location { get; init; }
+
+    /// <summary>
+    /// Where on the map, if known: the exact square when seen; for a fight only heard, the centre of the 5×5 block it
+    /// came from (approximate on purpose). Null off the maps.
+    /// </summary>
+    public GridPos? Square { get; init; }
+
+    /// <summary>
+    /// Who did it, if recognised: the thief; for an Assault who STARTED the fight (known only to whoever perceived the
+    /// opening); for a Killing who struck the death blow. Null when not known.
+    /// </summary>
+    public ActorId? Culprit { get; init; }
+    public string? CulpritName { get; init; }
+
+    /// <summary>Who suffered it, if known: for an Assault who was attacked at the opening; for a Killing who died.</summary>
+    public ActorId? Victim { get; init; }
+    public string? VictimName { get; init; }
+
+    /// <summary>Everyone seen taking part (in a fight, on either side), with their names. Empty when only heard.</summary>
+    public IReadOnlyList<ActorId> Involved { get; init; } = Array.Empty<ActorId>();
+    public IReadOnlyList<string> InvolvedNames { get; init; } = Array.Empty<string>();
+
+    /// <summary>Deprecated alias of <see cref="Culprit"/> for thefts.</summary>
     public ActorId? Thief { get; init; }
     public string? ThiefName { get; init; }
 

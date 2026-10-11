@@ -161,6 +161,12 @@ public enum CombatLogKind
     OpportunityAttack,
     OpeningAttackPending,
     OpeningAttackCancelled,
+
+    /// <summary>C4: someone joins the fight (it acts from the next round on).</summary>
+    Joined,
+
+    /// <summary>C4: someone runs from the fight; out of every enemy's sight for a round, it is out of it.</summary>
+    Fled,
     DeathSave,
     Downed,
     KnockedOut,

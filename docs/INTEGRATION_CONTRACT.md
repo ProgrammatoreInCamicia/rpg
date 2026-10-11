@@ -404,3 +404,19 @@ Contratto completo in chat.txt ("CONTRATTO C2" e le due note successive). In sin
 - **Chi è a terra non percepisce né decide**: niente vista, udito, testimonianze, presidio, rapporti o incarichi di fazione. Un morto non agisce più.
 - **Limiti C2**: nessuno accorre, testimonia o reagisce allo scontro (C4); chi attacca a sorpresa non viene ancora giudicato; gli NPC non finiscono chi è a terra, non fuggono e non si arrendono (C4); la Reazione del giocatore è automatica; munizioni infinite; le porte chiuse bloccano il movimento in scontro (C3); una lotta fra NPC si vede solo se si vedono i combattenti (sentirla è C4).
 - Schema dei salvataggi 14: profilo e `Vitality` di ogni attore (ricostruita e validata), avversari già affrontati, scontri in corso con iniziativa, turno, round, apertura in attesa e registro, `DownedAction` e il lavoro `CombatRound`.
+
+## C4 — Il mondo reagisce agli scontri (API pubblicata; regole in arrivo con C4a, C4b, C4c)
+
+Contratto completo in chat.txt ("CONTRATTO C4" e le note successive). In sintesi:
+- **Fatti generici** (C4a): un'osservazione riguarda un furto (`Theft`), uno scontro (`Assault`) o un'uccisione (`Killing`).
+  - `Culprit` di un `Assault` è chi ha APERTO lo scontro, noto solo a chi ha percepito l'apertura; chi arriva dopo sa chi ha visto battersi (`Involved`), non chi ha cominciato.
+  - `Killing` è un fatto a sé, collegato allo stesso scontro: chi ha dato il colpo mortale non è per forza chi ha cominciato.
+  - Chi sente soltanto sa "rumori di lotta", senza nomi, con una casella approssimata (il centro del blocco 5×5).
+  - I furti si comportano come prima; `Thief`/`ThiefName` restano come alias deprecati di `Culprit`.
+- **Ostilità come rapporto** (C4b): atteggiamento di ogni fazione verso gli estranei (neutrale o ostile), fazioni nemiche, ricercati.
+  - Diventa ricercato chi è riconosciuto come INIZIATORE di un'aggressione (o di un'uccisione che ne segue) contro chi non era nemico della fazione. Chi uccide difendendosi non è colpevole: decidono l'iniziatore noto e i fatti, non soltanto la fazione della vittima.
+  - La guardia affronta un ricercato a vista (colpi per tramortire se non è di una fazione nemica); i popolani se ne tengono lontani.
+- **Reazioni** (C4c): chi vede un alleato o un innocente aggredito entra nello scontro (ADATTAMENTO: iniziativa tirata subito e inserita nell'ordine senza spostare il turno in corso; agisce dal round successivo; voce `Joined`); un'autorità che sente soltanto va a vedere; i popolani si allontanano, e in scontro fuggono sotto metà PF (`Fled`).
+- **Vista**: `VisibleActorView.Hostile` (ADATTAMENTO di interfaccia alla BG: l'atteggiamento si legge, non il motivo).
+- Resa e prigionia: non in C4.
+- Stato attuale (C4-API): tipi pubblicati; `Kind` è sempre `Theft`, `Hostile` sempre false. Schema dei salvataggi 14 (diventerà 15).
