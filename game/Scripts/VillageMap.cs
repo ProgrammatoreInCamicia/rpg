@@ -68,6 +68,7 @@ public partial class VillageMap : Node2D
 
 	private ActionId? _running;
 	private ActorId? _approaching; // walking up to someone to talk to them
+	private (ActorId Target, string Attack, bool NonLethal)? _attackAfterWalking;
 	private LocationId? _exitAfterWalking;
 	private ActorId? _talkingTo;
 	private bool _walking;
@@ -102,10 +103,17 @@ public partial class VillageMap : Node2D
 	{
 		Pan(delta);
 		UpdateHover();
+		if (_view.Combat?.NextRoundAt is { } nextRound && !_view.Dead)
+		{
+			// NPC turns are already resolved by EndTurn. This closes the six-second round and starts the next
+			// player turn; Advance deliberately stops at that turn instead of consuming any later world time.
+			_sim.Advance(Duration.FromSeconds(Math.Max(0, nextRound.Since(_view.Now).Seconds)));
+			Refresh();
+		}
 
 		// The world goes on whether the player moves or not (real time with pause, as in BG1/BG2): the exploration pace
 		// while walking or standing, a fast-forward during fixed-length activities. Only the pause stops the clock.
-		if (!_paused)
+		if (!_paused && _view.Combat is null && !_view.Dead)
 		{
 			_pending += delta * (_running is not null && !_walking ? _speed : _pace);
 			var whole = (long)_pending;
@@ -136,15 +144,25 @@ public partial class VillageMap : Node2D
 				Refresh();
 				if (arrived is { } who)
 					OpenTalk(who);
+				if (_attackAfterWalking is { } pending && !_walking)
+				{
+					_attackAfterWalking = null;
+					FinishApproachAttack(pending);
+				}
 				if (exitReached is { } exit)
 					BeginExitJourney(exit);
 			}
 		}
 		PlaceTokens();
+		UpdateCombatHover();
 	}
 
 	public override void _UnhandledInput(InputEvent @event)
 	{
+		if (_view.Combat is not null && HandleCombatInput(@event))
+			return;
+		if (_view.Dead)
+			return;
 		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Space })
 		{
 			SetPaused(!_paused);
@@ -169,6 +187,13 @@ public partial class VillageMap : Node2D
 			return;
 		if (_view.Map is null || _view.Position is null)
 			return;
+		if (mouse.ButtonIndex == MouseButton.Right)
+		{
+			var point = GetGlobalTransformWithCanvas().AffineInverse() * mouse.Position;
+			if (PersonAt(point) is { } target)
+				SelectOpeningAttack(target);
+			return;
+		}
 		switch (mouse.ButtonIndex)
 		{
 			case MouseButton.Left:
@@ -215,8 +240,14 @@ public partial class VillageMap : Node2D
 	/// <summary>Walk to a square. A walk in progress is replaced (the core stops it on the square reached).</summary>
 	public void MoveTo(GridPos cell) => Order($"vai in {cell}", walk: true, () =>
 	{
+		if (_view.Combat is not null)
+		{
+			ExecuteCombatMove(cell);
+			return;
+		}
 		if (Walk(new MoveCommand { Actor = _sim.Player, To = cell, Stealthy = _sneak }))
 		{
+			_attackAfterWalking = null;
 			_exitAfterWalking = null;
 			_approaching = null;
 		}
@@ -348,7 +379,7 @@ public partial class VillageMap : Node2D
 	/// </summary>
 	private void Order(string label, bool walk, Action run)
 	{
-		if (!_paused)
+		if (!_paused || _view.Combat is not null)
 		{
 			run();
 			return;
@@ -441,6 +472,7 @@ public partial class VillageMap : Node2D
 		_running = null;
 		_walking = false;
 		_approaching = null;
+		_attackAfterWalking = null;
 		_exitAfterWalking = null;
 		_pending = 0;
 		_target.Visible = false;
@@ -525,6 +557,7 @@ public partial class VillageMap : Node2D
 		_peopleKey = "";
 		_lightKey = "";
 		_approaching = null;
+		_attackAfterWalking = null;
 		_exitAfterWalking = null;
 		_talkingTo = null;
 		_queue.Clear();
@@ -547,6 +580,17 @@ public partial class VillageMap : Node2D
 	private void Refresh()
 	{
 		_view = _sim.GetPlayerView();
+		if (_view.Combat is not null)
+		{
+			_talkingTo = null;
+			_running = null;
+			_walking = false;
+			_approaching = null;
+			_attackAfterWalking = null;
+			_exitAfterWalking = null;
+			_queue.Clear();
+			_target.Visible = false;
+		}
 		var onMap = _view.Map is not null && _view.Position is not null;
 		_floor.Visible = onMap;
 		_sorted.Visible = onMap;
@@ -563,7 +607,9 @@ public partial class VillageMap : Node2D
 		_clock.Text = $"Giorno {now.Day + 1}   {now.Hour:00}:{now.Minute:00}:{now.Second:00}   {DayName(_view.Daylight)}   ({HereName(_view.Light)})";
 		var where = _view.Location is { } here ? _view.Locations.Single(l => l.Id == here).Name
 			: onMap ? "strada" : "in viaggio";
-		_status.Text = (_paused ? $"IN PAUSA — ordini in coda: {_queue.Count}. " : "")
+		_status.Text = _view.Dead ? "Sei morto. Carica un salvataggio per riprovare."
+			: _view.Combat is { } combat ? $"Scontro · round {combat.Round}. " + (combat.IsYourTurn ? "È il tuo turno." : "Agiscono gli altri.")
+			: (_paused ? $"IN PAUSA — ordini in coda: {_queue.Count}. " : "")
 			+ (_walking ? $"Cammini… ({where})" : _view.Travel is not null ? "Sei in viaggio."
 				: onMap ? $"Sei qui: {where}. Clicca dove vuoi andare." : $"Sei qui: {where}.");
 		_food.Text = $"Razioni con te: {_view.Food}";
@@ -575,7 +621,9 @@ public partial class VillageMap : Node2D
 		_torch.Text = _view.TorchLitUntil is { } burnsUntil
 			? $"Spegni la torcia (T) — ancora {Math.Max(1, burnsUntil.Since(_view.Now).Seconds / 60)} min"
 			: $"Accendi una torcia (T) — te ne restano {_view.Torches}";
-		_torch.Disabled = _view.TorchLitUntil is null && _view.Torches == 0;
+		_torch.Disabled = _view.Combat is not null || _view.Dead || _view.TorchLitUntil is null && _view.Torches == 0;
+		_pause.Disabled = _view.Combat is not null || _view.Dead;
+		_sneakToggle.Disabled = _view.Combat is not null || _view.Dead;
 		foreach (var door in _view.Doors)
 		{
 			if (!_doorPanels.TryGetValue(door.At, out var panel))
@@ -606,12 +654,15 @@ public partial class VillageMap : Node2D
 			_target.Visible = false;
 
 		// Store controls where a store is in sight; the core decides whether it is within reach.
-		_storeRow.Visible = onMap && _view.VisibleStores.Any(s => s.Id == MappedVillageScenario.Ids.GranaryStore);
+		_storeRow.Visible = onMap && _view.Combat is null && !_view.Dead
+			&& _view.VisibleStores.Any(s => s.Id == MappedVillageScenario.Ids.GranaryStore);
 		foreach (var store in _view.VisibleStores)
 			if (_storeLabels.TryGetValue(store.Id, out var label))
 				label.Text = $"{store.Name}: {store.Food}";
 
 		RefreshPeople();
+		_people.Visible = _view.Combat is null && !_view.Dead;
+		RefreshCombatUi();
 		PlaceTokens();
 	}
 
@@ -657,12 +708,12 @@ public partial class VillageMap : Node2D
 	private void PlaceTokens()
 	{
 		var me = (_view.Id, _view.Position, _view.Move);
-		var figures = new List<(ActorId Id, string Name, string? Doing, bool Player, GridPos? Position, MoveView? Move)>
+		var figures = new List<(ActorId Id, string Name, string? Doing, string? Condition, bool Player, GridPos? Position, MoveView? Move)>
 		{
-			(me.Id, "Tu", null, true, me.Position, me.Move),
+			(me.Id, "Tu", null, _view.Dead ? "morto" : null, true, me.Position, me.Move),
 		};
 		figures.AddRange(_view.VisibleActors.Select(a => (a.Id, a.SeesYou == true ? $"{a.Name} · ti vede" : a.Name,
-			a.Doing, false, a.Position, a.Move)));
+			a.Doing, a.Condition, false, a.Position, a.Move)));
 
 		var shown = new HashSet<ActorId>();
 		foreach (var figure in figures)
@@ -677,12 +728,21 @@ public partial class VillageMap : Node2D
 			}
 			token.Position = SmoothPosition(figure.Position.Value, figure.Move);
 			token.Modulate = Shade(ScreenToCell(token.Position));
+			var prone = figure.Condition is "morto" or "a terra" or "tramortito";
+			token.GetNode<Polygon2D>("Body").Visible = !prone;
+			token.GetNode<Polygon2D>("Head").Visible = !prone;
+			token.GetNode<Polygon2D>("Prone").Visible = prone;
+			if (figure.Condition == "morto")
+				token.Modulate = token.Modulate.Darkened(0.45f);
 			if (figure.Player && _view.Sneaking is not null)
 				token.Modulate = token.Modulate with { A = 0.55f }; // sneaking
 			else if (figure.Move is { Stealthy: true })
 				token.Modulate = token.Modulate with { A = 0.68f }; // the visible slow, cautious gait
 			if (token.GetNodeOrNull<Label>("Name") is { } nameLabel)
-				nameLabel.Text = figure.Doing is { Length: > 0 } doing ? $"{figure.Name}\n{doing}" : figure.Name;
+			{
+				var condition = figure.Condition is null or "illeso" ? "" : $" · {figure.Condition}";
+				nameLabel.Text = figure.Doing is { Length: > 0 } doing ? $"{figure.Name}{condition}\n{doing}" : figure.Name + condition;
+			}
 			token.GetNode<Polygon2D>("Flame").Visible = figure.Player
 				? _view.TorchLitUntil is not null
 				: _view.VisibleActors.Any(a => a.Id == figure.Id && a.Torch);
@@ -953,14 +1013,23 @@ public partial class VillageMap : Node2D
 		token.AddChild(new Polygon2D { Polygon = Diamond(0.4f), Color = new Color(0, 0, 0, 0.35f) });
 		token.AddChild(new Polygon2D
 		{
+			Name = "Body",
 			Polygon = new[] { new Vector2(-6, 0), new Vector2(6, 0), new Vector2(5, -24), new Vector2(-5, -24) },
 			Color = color,
 		});
 		token.AddChild(new Polygon2D
 		{
+			Name = "Head",
 			Polygon = Enumerable.Range(0, 10).Select(i => Vector2.FromAngle(Mathf.Tau * i / 10) * 5.5f).ToArray(),
 			Position = new Vector2(0, -30),
 			Color = new Color(0.95f, 0.82f, 0.68f),
+		});
+		token.AddChild(new Polygon2D
+		{
+			Name = "Prone",
+			Polygon = new[] { new Vector2(-16, -4), new Vector2(-10, -10), new Vector2(15, -5), new Vector2(10, 1) },
+			Color = color,
+			Visible = false,
 		});
 		// A torch in the hand, shown while it burns.
 		token.AddChild(new Polygon2D
@@ -1034,6 +1103,7 @@ public partial class VillageMap : Node2D
 		_sneakToggle.Toggled += SetSneak;
 		box.AddChild(_sneakToggle);
 		_watched = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		_watched.TooltipText = "Clic destro su una persona visibile per scegliere un attacco; viene chiesta conferma.";
 		box.AddChild(_watched);
 		_torch = new Button();
 		_torch.Pressed += ToggleTorch;
@@ -1080,6 +1150,7 @@ public partial class VillageMap : Node2D
 		eventScroll.AddChild(_events);
 		eventsBox.AddChild(eventScroll);
 		box.AddChild(eventsPanel);
+		BuildCombatUi(ui);
 
 		_offMapPanel = new PanelContainer { OffsetLeft = 440, OffsetRight = 840, OffsetTop = 100, OffsetBottom = 245,
 			Visible = false };

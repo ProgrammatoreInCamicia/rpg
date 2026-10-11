@@ -1,5 +1,6 @@
 using Godot;
 using RpgSandbox.Sim.Api;
+using RpgSandbox.Sim.Rules;
 using RpgSandbox.Sim.Scenarios;
 
 namespace RpgSandbox.Game;
@@ -232,6 +233,108 @@ public partial class VillageSmoke : Node
 		await NightRaid();
 		await DiscoveredTheft();
 		await DoorMemory();
+		await CombatHudPreview();
+		await NightDuel();
+	}
+
+	/// <summary>G11: the real C2 encounter through the village client, including a save in the player's turn.</summary>
+	private async Task NightDuel()
+	{
+		_map.SetPaused(true);
+		_map.LoadGameFromPath(System.IO.Path.Combine(_outputDir, "raid-at-granary.json"));
+		await Frames(2);
+		var raider = MappedVillageScenario.Ids.Raider;
+		Require(_map.View.VisibleActors.Any(a => a.Id == raider), "G11: the raider is not visible at the granary");
+		_map.OpenCombatForSmoke(raider, "Giavellotto (lanciato)");
+		Require(_map.View.Combat is not null, $"G11: opening attack did not start a fight: {_map.LastMessage}");
+		await Frames(2);
+		Capture("27-duel-start.png");
+		Require(_map.View.Combat!.Log.Any(e => e.Kind == CombatLogKind.Attack && e.Actor == _map.View.Id),
+			"G11: the opening attack is missing from the combat log");
+		Capture("28-duel-first-attack.png");
+
+		var midTurn = System.IO.Path.Combine(_outputDir, "duel-mid-turn.json");
+		var beforeLoad = _map.View;
+		_map.SaveGameToPath(midTurn);
+		_map.LoadGameFromPath(midTurn);
+		Require(_map.View.Combat is { } loaded && loaded.Round == beforeLoad.Combat!.Round
+			&& loaded.You.ActionAvailable == beforeLoad.Combat.You.ActionAvailable
+			&& _map.View.Now == beforeLoad.Now, "G11: loading mid-turn changed combat resources or time");
+
+		var woundedCaptured = false;
+		var highestRound = _map.View.Combat!.Round;
+		for (var i = 0; i < 12 && _map.View.Combat is not null && !_map.View.Dead; i++)
+		{
+			var fight = _map.View.Combat;
+			highestRound = Math.Max(highestRound, fight.Round);
+			if (!woundedCaptured && fight.Combatants.FirstOrDefault(c => c.Id == raider) is { Condition: "ferito" or "malconcio" })
+			{
+				_map.SelectCombatantForSmoke(raider);
+				await Frames(2);
+				Capture("29-duel-wounded.png");
+				woundedCaptured = true;
+			}
+			if (fight.IsYourTurn && fight.You.ActionAvailable)
+			{
+				var attack = fight.Targets.FirstOrDefault(t => t.Target == raider && t.Valid);
+				if (attack is not null)
+					_map.AttackCombatTargetForSmoke(attack);
+				else if (fight.Reachable.Count > 0)
+					_map.MoveTo(fight.Reachable[0].At);
+			}
+			if (_map.View.Combat is { IsYourTurn: true })
+				_map.EndCombatTurnForSmoke();
+			await Frames(3); // the client advances NextRoundAt between rounds
+		}
+		Require(_map.View.Combat is null || _map.View.Dead, "G11: duel did not reach an ending");
+		Require(highestRound >= 2 && _map.View.Now > beforeLoad.Now,
+			"G11: the client did not advance time between combat rounds");
+		Require(woundedCaptured, "G11: no screenshot of a wounded raider");
+		Capture("30-duel-end.png");
+	}
+
+	/// <summary>G10: typed C2 data exercises the real village HUD before encounters are wired to the Sim.</summary>
+	private async Task CombatHudPreview()
+	{
+		_map.SetPaused(true);
+		_map.LoadGameFromPath(System.IO.Path.Combine(_outputDir, "raid-mid-walk.json"));
+		await Frames(3);
+		var raider = _map.View.VisibleActors.Single(a => a.Id == MappedVillageScenario.Ids.Raider);
+		var player = _map.View.Id;
+		_map.SelectOpeningAttackForSmoke(raider.Id);
+		await Frames(2);
+		Capture("25-opening-attack-preview.png");
+		_map.PreviewCombatForSmoke(new CombatView
+		{
+			Round = 1, Turn = player, IsYourTurn = true,
+			Order = new[]
+			{
+				new InitiativeView { Actor = player, Name = "Paladino", Total = 16, Current = true },
+				new InitiativeView { Actor = raider.Id, Name = raider.Name, Total = 11, Current = false },
+			},
+			You = new CombatSelfView { HitPoints = 11, MaxHitPoints = 11, State = LifeState.Alive,
+				KnockedOut = false, DeathSaveSuccesses = 0, DeathSaveFailures = 0, MovementLeftFeet = 30,
+				SquaresLeft = 6, ActionAvailable = true, ReactionAvailable = true },
+			Combatants = new[] { new CombatantView { Id = raider.Id, Name = raider.Name,
+				Position = raider.Position!.Value, Side = CombatSide.Enemy, Condition = "ferito" } },
+			Reachable = new[] { new ReachableSquareView { At = new GridPos(17, 8), CostFeet = 5 },
+				new ReachableSquareView { At = new GridPos(18, 7), CostFeet = 5 } },
+			Targets = new[]
+			{
+				new TargetView { Target = raider.Id, Attack = "Spada lunga", Valid = false,
+					Reason = RejectionReason.TooFar, Why = "Fuori portata" },
+				new TargetView { Target = raider.Id, Attack = "Giavellotto (lanciato)", Valid = true },
+			},
+			Log = new[] { new CombatLogEntry { Round = 1, Kind = CombatLogKind.Started,
+				Text = "Il Paladino affronta il Razziatore al granaio." },
+				new CombatLogEntry { Round = 1, Kind = CombatLogKind.Initiative,
+				Text = "Iniziativa: Paladino 16, Razziatore 11." } },
+		});
+		await Frames(3);
+		Capture("25-combat-hud-preview.png");
+		_map.SelectCombatantForSmoke(raider.Id);
+		await Frames(2);
+		Capture("26-combat-target-preview.png");
 	}
 
 	/// <summary>G9: frame an unknown farmhouse door, then the player's stale memory after it opens unseen.</summary>

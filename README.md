@@ -42,6 +42,8 @@ tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64_consol
 
 Nel gioco: clic su una casella per camminare, clic sul segnale «Strada per il bosco» per raggiungere il campo dei banditi, Spazio per mettere in pausa/riprendere, X per fermarsi, Maiusc+clic su una porta per entrarci, WASD/frecce per la camera, rotella per lo zoom. Il riquadro «Eventi» mostra con l'ora gli ultimi fatti che riguardano il giocatore. Dal campo, «Torna al villaggio» riporta all'uscita. La vecchia scena a Luoghi si avvia con `--path game res://Scenes/Main.tscn`.
 
+Per attaccare fuori dallo scontro, clic destro su una persona visibile, scegli l'attacco e conferma. Durante lo scontro, passa il mouse sulle caselle verdi per vedere percorso e attacchi di opportunità noti, poi clicca per muoverti. Clicca su un avversario per scegliere l'attacco; «Tramortisci» vale solo per la mischia. «Fine turno» fa agire gli altri combattenti.
+
 Le porte sono mostrate secondo ciò che il personaggio sa: aspetto pieno se le vede adesso, attenuato se ne ricorda uno stato passato, contorno neutro se non le ha mai viste. Il clic diretto per aprire o chiudere usa solo lo stato visto adesso; camminare attraverso una porta segue le normali regole di movimento.
 
 La scena principale usa il villaggio ampliato: Locanda, granaio con accesso sul lato ovest, casa del contadino e strada verso il bosco. La vecchia mappa piccola rimane disponibile come scenario di regressione per i test T6a/T6b. La casella di uscita verso il campo dei banditi si trova all'estremità est della strada.
@@ -50,3 +52,5 @@ Lo smoke `--village-smoke=<dir>` include il furto scoperto di giorno: cattura il
 Include anche tre viste della porta di casa: mai vista dalla Locanda, vista chiusa da vicino e ricordata chiusa dopo che il Contadino l'ha aperta fuori vista.
 
 Lo smoke del villaggio include la razzia notturna: carica salvataggi riproducibili poco prima dell'arrivo del Razziatore, durante il suo cammino e dopo il furto, controlla che il giocatore lo veda al crepuscolo e salva gli screenshot `11-raider-enters.png`–`15-raid-returned.png` nella cartella scelta.
+
+Lo stesso smoke prova anche il duello notturno: apre uno scontro reale con il Razziatore, salva e ricarica durante il turno del giocatore, avanza i round fino alla fine e cattura `27-duel-start.png`–`30-duel-end.png`.
