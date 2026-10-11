@@ -53,4 +53,30 @@ public class ScenarioFileTests
         var error = Assert.Throws<InvalidDataException>(() => ScenarioFile.Load("living-village", ContentPack.Load(files)));
         Assert.Contains("HH:MM", error.Message);
     }
+
+    [Theory]
+    [InlineData("doors", "[{ \"at\": [7, 3], \"open\": \"yes\" }]", "open")]
+    [InlineData("lights", "[{ \"at\": [3], \"bright\": 15, \"dim\": 30 }]", "[x, y]")]
+    [InlineData("posts", "{ \"inn\": \"Rest\" }", "posts")]
+    [InlineData("rows", "[\"####\", 4]", "riga")]
+    public void A_scenario_file_of_the_wrong_shape_says_what_is_wrong(string field, string value, string expected)
+    {
+        var files = ContentPack.Default.Files.ToDictionary(f => f.Name, f => f.Text);
+        var json = JsonNode.Parse(files["scenarios/living-village.json"])!;
+        json["scenario"]!["maps"]![0]![field] = JsonNode.Parse(value);
+        files["scenarios/living-village.json"] = json.ToJsonString();
+
+        var error = Assert.Throws<InvalidDataException>(() => ScenarioFile.Load("living-village", ContentPack.Load(files)));
+        Assert.Contains(expected, error.Message);
+    }
+
+    [Fact]
+    public void Two_names_for_the_same_file_are_refused()
+    {
+        var files = ContentPack.Default.Files.ToDictionary(f => f.Name, f => f.Text);
+        files[@"srd\items.json"] = files["srd/items.json"];
+
+        var error = Assert.Throws<InvalidDataException>(() => ContentPack.Load(files));
+        Assert.Contains("ripetuto", error.Message);
+    }
 }

@@ -119,7 +119,10 @@ public sealed class ContentPack
     /// </summary>
     public static ContentPack Load(IReadOnlyDictionary<string, string> files)
     {
-        var texts = files.ToDictionary(f => f.Key.Replace('\\', '/'), f => f.Value.Replace("\r\n", "\n"));
+        var texts = new Dictionary<string, string>();
+        foreach (var (name, text) in files)
+            if (!texts.TryAdd(name.Replace('\\', '/'), text.Replace("\r\n", "\n")))
+                throw new InvalidDataException($"contenuti: file ripetuto ({name})");
         if (!texts.TryGetValue("manifest.json", out var manifestText))
             throw new InvalidDataException("contenuti: manca manifest.json");
         var manifest = Parse(manifestText, "manifest.json");

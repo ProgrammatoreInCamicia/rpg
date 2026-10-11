@@ -7,7 +7,7 @@ namespace RpgSandbox.Sim.Scenarios;
 /// <summary>
 /// D1b: a scenario written as data (a file of the content pack, e.g. game/content/scenarios/living-village.json) turned
 /// into the same calls a C# scenario makes on <see cref="ScenarioBuilder"/>, so both are checked by the same rules.
-/// Times of day are "HH:MM"; squares are [x, y].
+/// Times of day are "HH:MM"; squares are [x, y]. A value of the wrong shape is an InvalidDataException naming it.
 /// </summary>
 public static class ScenarioFile
 {
@@ -19,98 +19,135 @@ public static class ScenarioFile
         pack ??= ContentPack.Default;
         if (!pack.Scenarios.TryGetValue(id, out var s))
             throw new InvalidDataException($"scenario sconosciuto '{id}'");
-        var where = $"scenario '{id}'";
+        var r = new Reader($"scenario '{id}'");
         var b = new ScenarioBuilder(pack);
-        if (s.TryGetProperty("seed", out var seed))
-            b.WithSeed(seed.GetUInt64());
-        foreach (var a in List(s, "areas"))
-            b.AddArea(Text(a, "id", where), Text(a, "name", where));
-        foreach (var l in List(s, "locations"))
-            b.AddLocation(Text(l, "id", where), Text(l, "name", where), Text(l, "area", where), l.TryGetProperty("lit", out var lit) && lit.GetBoolean());
-        foreach (var r in List(s, "routes"))
-            b.AddRoute(Text(r, "from", where), Text(r, "to", where), Duration.FromMinutes(Field(r, "minutes", where).GetInt32()));
-        foreach (var m in List(s, "maps"))
+        if (r.OptInt(s, "seed") is { } seed)
+            b.WithSeed((ulong)seed);
+        foreach (var a in r.Objects(s, "areas"))
+            b.AddArea(r.Text(a, "id"), r.Text(a, "name"));
+        foreach (var l in r.Objects(s, "locations"))
+            b.AddLocation(r.Text(l, "id"), r.Text(l, "name"), r.Text(l, "area"), r.OptBool(l, "lit") ?? false);
+        foreach (var route in r.Objects(s, "routes"))
+            b.AddRoute(r.Text(route, "from"), r.Text(route, "to"), Duration.FromMinutes(r.Int(route, "minutes")));
+        foreach (var m in r.Objects(s, "maps"))
         {
-            var area = Text(m, "area", where);
-            var zones = Field(m, "zones", where).EnumerateObject()
-                .ToDictionary(z => z.Name.Length == 1 ? z.Name[0] : throw new InvalidDataException($"{where}: zona '{z.Name}' non è un carattere"),
-                    z => z.Value.GetString() ?? "");
-            b.AddMap(area, List(m, "rows").Select(r => r.GetString() ?? "").ToArray(), zones);
-            foreach (var e in List(m, "exits"))
-                b.AddExit(area, Text(e, "location", where), Square(e, "at", where));
-            foreach (var p in List(m, "posts"))
-                b.AddPost(area, Text(p, "location", where),
-                    Enum.TryParse<PostKind>(Text(p, "kind", where), out var kind) && Enum.IsDefined(kind) ? kind
-                        : throw new InvalidDataException($"{where}: tipo di posto sconosciuto"), Square(p, "at", where));
-            foreach (var l in List(m, "lights"))
-                b.AddLight(area, Square(l, "at", where), Field(l, "bright", where).GetInt32(), Field(l, "dim", where).GetInt32());
-            foreach (var d in List(m, "doors"))
-                b.AddDoor(area, Square(d, "at", where), Field(d, "open", where).GetBoolean());
+            var area = r.Text(m, "area");
+            var zones = r.Object(m, "zones").EnumerateObject()
+                .ToDictionary(z => z.Name.Length == 1 ? z.Name[0] : throw r.Error($"zona '{z.Name}' non è un carattere"),
+                    z => r.String(z.Value, $"zona '{z.Name}'"));
+            b.AddMap(area, r.Values(m, "rows").Select(row => r.String(row, "riga della mappa")).ToArray(), zones);
+            foreach (var e in r.Objects(m, "exits"))
+                b.AddExit(area, r.Text(e, "location"), r.Square(e, "at"));
+            foreach (var p in r.Objects(m, "posts"))
+                b.AddPost(area, r.Text(p, "location"),
+                    Enum.TryParse<PostKind>(r.Text(p, "kind"), out var kind) && Enum.IsDefined(kind) ? kind
+                        : throw r.Error("tipo di posto sconosciuto"), r.Square(p, "at"));
+            foreach (var l in r.Objects(m, "lights"))
+                b.AddLight(area, r.Square(l, "at"), r.Int(l, "bright"), r.Int(l, "dim"));
+            foreach (var d in r.Objects(m, "doors"))
+                b.AddDoor(area, r.Square(d, "at"), r.Bool(d, "open"));
         }
-        foreach (var f in List(s, "factions"))
+        foreach (var f in r.Objects(s, "factions"))
         {
-            var fid = Text(f, "id", where);
-            var name = Text(f, "name", where);
-            string? Opt(string field) => f.TryGetProperty(field, out var v) ? v.GetString() : null;
-            if (f.TryGetProperty("raids", out var raids))
-                b.AddRaidingFaction(fid, name, Opt("homeStore") ?? throw new InvalidDataException($"{where}: chi razzia ha un deposito"),
-                    Field(f, "dailyUpkeep", where).GetInt32(), TimeOfDay(Text(f, "upkeepAt", where), where),
-                    Field(raids, "threshold", where).GetInt32(), Field(raids, "amount", where).GetInt32(),
-                    Duration.FromHours(Field(raids, "everyHours", where).GetInt32()));
+            var fid = r.Text(f, "id");
+            var name = r.Text(f, "name");
+            if (r.OptObject(f, "raids") is { } raids)
+                b.AddRaidingFaction(fid, name, r.OptText(f, "homeStore") ?? throw r.Error("chi razzia ha un deposito"),
+                    r.Int(f, "dailyUpkeep"), r.TimeOfDay(r.Text(f, "upkeepAt")),
+                    r.Int(raids, "threshold"), r.Int(raids, "amount"), Duration.FromHours(r.Int(raids, "everyHours")));
             else
-                b.AddFaction(fid, name, Opt("homeStore"), f.TryGetProperty("dailyUpkeep", out var up) ? up.GetInt32() : 0,
-                    f.TryGetProperty("upkeepAt", out var at) ? TimeOfDay(at.GetString() ?? "", where) : default, Opt("authority"));
+                b.AddFaction(fid, name, r.OptText(f, "homeStore"), r.OptInt(f, "dailyUpkeep") ?? 0,
+                    r.OptText(f, "upkeepAt") is { } at ? r.TimeOfDay(at) : default, r.OptText(f, "authority"));
         }
-        foreach (var pair in List(s, "enmities"))
+        foreach (var pair in r.Values(s, "enmities"))
         {
-            var two = pair.EnumerateArray().Select(x => x.GetString() ?? "").ToArray();
+            var two = r.Array(pair, "inimicizia").Select(x => r.String(x, "inimicizia")).ToArray();
             if (two.Length != 2)
-                throw new InvalidDataException($"{where}: un'inimicizia lega due fazioni");
+                throw r.Error("un'inimicizia lega due fazioni");
             b.AddEnmity(two[0], two[1]);
         }
-        foreach (var st in List(s, "stores"))
-            b.AddStore(Text(st, "id", where), Text(st, "name", where), Text(st, "location", where), Field(st, "food", where).GetInt32(),
-                st.TryGetProperty("owner", out var owner) ? owner.GetString() : null,
-                st.TryGetProperty("at", out _) ? Square(st, "at", where) : null,
-                st.TryGetProperty("access", out var access) ? access.EnumerateArray().Select(x => Pair(x, where)).ToArray() : null);
-        foreach (var a in List(s, "actors"))
+        foreach (var st in r.Objects(s, "stores"))
+            b.AddStore(r.Text(st, "id"), r.Text(st, "name"), r.Text(st, "location"), r.Int(st, "food"), r.OptText(st, "owner"),
+                st.TryGetProperty("at", out _) ? r.Square(st, "at") : null,
+                st.TryGetProperty("access", out _) ? r.Values(st, "access").Select(x => r.Pair(x)).ToArray() : null);
+        foreach (var a in r.Objects(s, "actors"))
         {
-            JsonElement? work = a.TryGetProperty("work", out var w) ? w : null;
-            b.AddActor(Text(a, "id", where), Text(a, "name", where), Text(a, "location", where),
-                isPlayer: a.TryGetProperty("player", out var p) && p.GetBoolean(),
-                food: a.TryGetProperty("food", out var food) ? food.GetInt32() : 0,
-                factionId: a.TryGetProperty("faction", out var faction) ? faction.GetString() : null,
-                workLocationId: work is { } wk ? Text(wk, "location", where) : null,
-                shiftStart: work is { } ws ? TimeOfDay(Text(ws, "from", where), where) : default,
-                shiftEnd: work is { } we ? TimeOfDay(Text(we, "to", where), where) : default,
-                at: a.TryGetProperty("at", out _) ? Square(a, "at", where) : null,
-                torches: a.TryGetProperty("torches", out var torches) ? torches.GetInt32() : 0,
-                build: a.TryGetProperty("build", out var build) ? build.GetString() : null,
-                items: a.TryGetProperty("items", out var items)
-                    ? items.EnumerateArray().Select(i => (i[0].GetString() ?? "", i[1].GetInt32())).ToArray() : null,
-                coins: a.TryGetProperty("coins", out var coins) ? coins.GetInt64() : null);
+            var work = r.OptObject(a, "work");
+            b.AddActor(r.Text(a, "id"), r.Text(a, "name"), r.Text(a, "location"),
+                isPlayer: r.OptBool(a, "player") ?? false,
+                food: r.OptInt(a, "food") ?? 0,
+                factionId: r.OptText(a, "faction"),
+                workLocationId: work is { } wk ? r.Text(wk, "location") : null,
+                shiftStart: work is { } ws ? r.TimeOfDay(r.Text(ws, "from")) : default,
+                shiftEnd: work is { } we ? r.TimeOfDay(r.Text(we, "to")) : default,
+                at: a.TryGetProperty("at", out _) ? r.Square(a, "at") : null,
+                torches: r.OptInt(a, "torches") ?? 0,
+                build: r.OptText(a, "build"),
+                items: a.TryGetProperty("items", out _)
+                    ? r.Values(a, "items").Select(i => r.Array(i, "oggetto") is [var item, var count]
+                        ? (r.String(item, "oggetto"), r.Number(count, "quantità"))
+                        : throw r.Error("un oggetto è [id, quantità]")).ToArray()
+                    : null,
+                coins: r.OptInt(a, "coins"));
         }
         return b.Build();
     }
 
-    private static IEnumerable<JsonElement> List(JsonElement e, string name) =>
-        e.TryGetProperty(name, out var v) ? v.EnumerateArray() : Enumerable.Empty<JsonElement>();
-
-    private static JsonElement Field(JsonElement e, string name, string where) =>
-        e.TryGetProperty(name, out var v) ? v : throw new InvalidDataException($"{where}: manca '{name}'");
-
-    private static string Text(JsonElement e, string name, string where) =>
-        Field(e, name, where).GetString() is { Length: > 0 } s ? s : throw new InvalidDataException($"{where}: '{name}' vuoto");
-
-    private static (int X, int Y) Square(JsonElement e, string name, string where) => Pair(Field(e, name, where), where);
-
-    private static (int X, int Y) Pair(JsonElement e, string where)
+    /// <summary>Typed access to the JSON of one scenario: every wrong shape becomes a readable InvalidDataException.</summary>
+    private sealed class Reader(string where)
     {
-        var xy = e.EnumerateArray().Select(v => v.GetInt32()).ToArray();
-        return xy.Length == 2 ? (xy[0], xy[1]) : throw new InvalidDataException($"{where}: una casella è [x, y]");
-    }
+        public InvalidDataException Error(string what) => new($"{where}: {what}");
 
-    private static Duration TimeOfDay(string text, string where) =>
-        TimeSpan.TryParseExact(text, @"hh\:mm", null, out var t) ? Duration.FromMinutes((int)t.TotalMinutes)
-            : throw new InvalidDataException($"{where}: ora non valida '{text}' (HH:MM)");
+        public JsonElement Field(JsonElement e, string name) =>
+            e.TryGetProperty(name, out var v) ? v : throw Error($"manca '{name}'");
+
+        public IEnumerable<JsonElement> Values(JsonElement e, string name) =>
+            e.TryGetProperty(name, out var v) ? Array(v, name) : Enumerable.Empty<JsonElement>();
+
+        public IEnumerable<JsonElement> Objects(JsonElement e, string name) =>
+            Values(e, name).Select(v => v.ValueKind == JsonValueKind.Object ? v : throw Error($"'{name}' contiene qualcosa che non è un oggetto"));
+
+        public JsonElement[] Array(JsonElement e, string what) =>
+            e.ValueKind == JsonValueKind.Array ? e.EnumerateArray().ToArray() : throw Error($"'{what}' non è un elenco");
+
+        public JsonElement Object(JsonElement e, string name) =>
+            Field(e, name) is { ValueKind: JsonValueKind.Object } o ? o : throw Error($"'{name}' non è un oggetto");
+
+        public JsonElement? OptObject(JsonElement e, string name) =>
+            e.TryGetProperty(name, out _) ? Object(e, name) : null;
+
+        public string String(JsonElement e, string what) =>
+            e.ValueKind == JsonValueKind.String && e.GetString() is { Length: > 0 } s ? s : throw Error($"'{what}' non è un testo");
+
+        public string Text(JsonElement e, string name) => String(Field(e, name), name);
+
+        public string? OptText(JsonElement e, string name) => e.TryGetProperty(name, out _) ? Text(e, name) : null;
+
+        public int Number(JsonElement e, string what) =>
+            e.ValueKind == JsonValueKind.Number && e.TryGetInt32(out var n) ? n : throw Error($"'{what}' non è un numero intero");
+
+        public int Int(JsonElement e, string name) => Number(Field(e, name), name);
+
+        public int? OptInt(JsonElement e, string name) => e.TryGetProperty(name, out _) ? Int(e, name) : null;
+
+        public bool Bool(JsonElement e, string name) => Field(e, name).ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => throw Error($"'{name}' non è vero o falso"),
+        };
+
+        public bool? OptBool(JsonElement e, string name) => e.TryGetProperty(name, out _) ? Bool(e, name) : null;
+
+        public (int X, int Y) Square(JsonElement e, string name) => Pair(Field(e, name));
+
+        public (int X, int Y) Pair(JsonElement e) =>
+            e.ValueKind == JsonValueKind.Array && e.EnumerateArray().ToArray() is [var x, var y]
+                ? (Number(x, "x"), Number(y, "y"))
+                : throw Error("una casella è [x, y]");
+
+        public Duration TimeOfDay(string text) =>
+            TimeSpan.TryParseExact(text, @"hh\:mm", null, out var t) ? Duration.FromMinutes((int)t.TotalMinutes)
+                : throw Error($"ora non valida '{text}' (HH:MM)");
+    }
 }
