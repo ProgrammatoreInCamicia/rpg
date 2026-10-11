@@ -384,7 +384,7 @@ Sulle mappe "nello stesso luogo" diventa contatto fisico; fuori mappa non cambia
 - **Limite aperto** (Codex): `PlayerView.MapLight` mostra la luce reale di tutta la mappa, quindi un cambio fuori vista può trasparire dalla luce. Si risolve con una tappa di nebbia di guerra (luce e oggetti percepiti).
 - Schema dei salvataggi 13.
 
-## C2 — Lo scontro nel mondo (API pubblicata; regole in arrivo con C2a e C2b)
+## C2 — Lo scontro nel mondo
 
 Contratto completo in chat.txt ("CONTRATTO C2" e le due note successive). In sintesi:
 - **Chi combatte**: ogni attore ha un profilo C1 (`paladin`, `bandit`, `guard`, `commoner`) e la sua `Vitality` (le ferite restano). Gli attacchi vengono solo dal profilo. LIMITE: munizioni e armi lanciate non si consumano (C3).
@@ -392,7 +392,7 @@ Contratto completo in chat.txt ("CONTRATTO C2" e le due note successive). In sin
   - Se il bersaglio non se lo aspetta (non vede chi attacca, o non lo considera ostile) il colpo si risolve subito, poi l'iniziativa; il bersaglio è sorpreso e chi attacca ha già speso l'azione del primo turno.
   - Se se lo aspetta (lo vede e lo sa ostile: fazione del Razziatore, un Claim aperto, uno scontro precedente) si tira prima l'iniziativa e l'attacco parte al turno di chi attacca, se il bersaglio è ancora a portata (`PendingOpeningAttack`).
   - In C2 lo scontro è fra chi attacca e chi è attaccato; gli altri entrano in C4.
-- **Tempo**: i turni di un round si risolvono all'istante T, poi il mondo va a T+6 s. Durante il turno del giocatore il mondo è fermo e `Advance` non fa passare tempo. I turni degli NPC si risolvono dopo `EndTurnCommand`. I comandi del mondo sono rifiutati (`InCombat`).
+- **Tempo**: i turni di un round si risolvono tutti all'istante T in cui il round inizia; il round dopo inizia a T+6 s (un lavoro dello scheduler), e intanto il mondo intorno vive. Durante il turno del giocatore il mondo è fermo: `Advance` non fa passare tempo e `AdvanceUntilCompleted` si ferma con `AdvanceOutcome.YourTurn`. Il client può quindi continuare a far scorrere il tempo come sempre: fra un round e l'altro (`CombatView.NextRoundAt`) passano i 6 s, oppure ci salta subito. I turni degli NPC si risolvono dopo `EndTurnCommand`. Chi combatte può solo muoversi, attaccare o finire il turno (`InCombat`); chi è a terra non fa nulla (`ActorBusy`).
 - **Turno**: movimento (Velocità 30 = 6 caselle, 5 piedi a casella) e un'azione (`AttackCommand`). `MoveCommand` in scontro è istantaneo e si può spezzare. Lo spazio di un alleato si attraversa liberamente; quello di un'altra creatura che si può attraversare è terreno difficile (salvo Tiny); non si attraversa un avversario cosciente; non ci si ferma su una creatura.
 - **Attacchi**: mischia a 5 piedi; distanza con linea di vista, Svantaggio oltre la gittata normale e con un avversario adiacente che ti vede; Vantaggio se il bersaglio non ti vede o è privo di sensi; critico automatico contro un privo di sensi entro 5 piedi; `NonLethal` solo in mischia.
 - **Attacchi di Opportunità** (dalla C3 alla C2): una Reazione, recuperata all'inizio del proprio turno; si attacca chi esce dalla propria portata muovendosi, prima che esca. Gli NPC la usano sempre; quella del giocatore in C2 è automatica.
@@ -401,4 +401,6 @@ Contratto completo in chat.txt ("CONTRATTO C2" e le due note successive). In sin
 - **Fine**: un lato senza nessuno cosciente; oppure un round intero senza che nessuno veda un avversario e senza attacchi.
 - **Vista**: `PlayerView.Combat` (ordine, turno, i propri numeri esatti, avversari solo con il descrittore C1, caselle raggiungibili, bersagli con motivo, registro strutturato filtrato per percezione, con il percorso dei movimenti); `VisibleActorView.Condition`.
 - **IA**: attacca l'avversario cosciente visibile più vicino; se non può, si avvicina; senza avversari visibili va dove l'ha visto l'ultima volta. Fuga e resa in C4.
-- Stato attuale (C2-API): tipi pubblicati, `Combat` sempre null, `AttackCommand`/`EndTurnCommand`/`PreviewMove` rifiutati con `NotInCombat`. Schema dei salvataggi 13 (diventerà 14 con la C2a).
+- **Chi è a terra non percepisce né decide**: niente vista, udito, testimonianze, presidio, rapporti o incarichi di fazione. Un morto non agisce più.
+- **Limiti C2**: nessuno accorre, testimonia o reagisce allo scontro (C4); chi attacca a sorpresa non viene ancora giudicato; gli NPC non finiscono chi è a terra, non fuggono e non si arrendono (C4); la Reazione del giocatore è automatica; munizioni infinite; le porte chiuse bloccano il movimento in scontro (C3); una lotta fra NPC si vede solo se si vedono i combattenti (sentirla è C4).
+- Schema dei salvataggi 14: profilo e `Vitality` di ogni attore (ricostruita e validata), avversari già affrontati, scontri in corso con iniziativa, turno, round, apertura in attesa e registro, `DownedAction` e il lavoro `CombatRound`.

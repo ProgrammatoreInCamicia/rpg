@@ -155,6 +155,9 @@ public enum AdvanceOutcome
 
     /// <summary>The awaited action was cancelled (e.g. an NPC's routine wait interrupted). It did not succeed.</summary>
     Cancelled,
+
+    /// <summary>C2: a fight reached the player's turn: the world waits for the player's commands.</summary>
+    YourTurn,
 }
 
 public sealed record AdvanceResult

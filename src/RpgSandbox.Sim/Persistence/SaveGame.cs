@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 13;
+    public const int SchemaVersion = 14;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -177,7 +177,12 @@ internal static class SaveGame
             }).ToList(),
             Knowledge = a.Knowledge.Select(ToDto).ToList(),
             ActedOn = a.ActedOn.Select(o => o.Value).ToList(),
+            Combat = a.Combat,
+            Vitality = ToDto(a.Vitality.Snapshot()),
+            FoughtWith = a.FoughtWith.Select(f => f.Value).ToList(),
         }).ToList(),
+        NextEncounterId = w.NextEncounterId,
+        Encounters = w.Encounters.Values.Select(ToDto).ToList(),
         Stores = w.Stores.Values.Select(s => new StoreDto
         {
             Id = s.Id.Value, Name = s.Name, Location = s.Location.Value, Owner = s.Owner?.Value, Food = s.Food,
@@ -194,11 +199,13 @@ internal static class SaveGame
                 MoveWaypoint => "MoveWaypoint",
                 FactionUpkeep => "FactionUpkeep",
                 EvaluateFaction => "EvaluateFaction",
+                CombatRound => "CombatRound",
                 _ => throw new InvalidOperationException($"Unknown job {e.Job}"),
             },
             Action = e.Job switch { CompleteAction c => c.Action.Value, MoveWaypoint w => w.Action.Value, _ => (long?)null },
             Step = (e.Job as MoveWaypoint)?.Step,
             Faction = e.Job switch { FactionUpkeep u => u.Faction.Value, EvaluateFaction v => v.Faction.Value, _ => null },
+            Encounter = (e.Job as CombatRound)?.Encounter,
         }).ToList(),
         Facts = w.RecentFacts.Select(f => new FactDto { Id = f.Id.Value, At = f.At.Seconds, Kind = f.Kind, Description = f.Description, Participants = f.Participants.Select(p => p.Value).ToList() }).ToList(),
         Maps = w.Maps.Values.Select(m => new MapDto
@@ -303,6 +310,7 @@ internal static class SaveGame
             ReportAction rep => new ReportActionDto { Recipient = rep.Recipient.Value, Observation = rep.Observation.Value },
             GuardAction ga => new GuardActionDto { Store = ga.Store.Value },
             ConfiscateAction ca => new ConfiscateActionDto { Target = ca.Target.Value, Store = ca.Store.Value },
+            DownedAction => new DownedActionDto(),
             MoveAction mv => new MoveActionDto { From = new PosDto { X = mv.From.X, Y = mv.From.Y }, Path = mv.Path.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(), Speed = mv.Speed, Stealthy = mv.Stealthy },
             _ => throw new InvalidOperationException($"Unknown action {action.GetType().Name}"),
         };
@@ -443,7 +451,13 @@ internal static class SaveGame
                 Torches = a.Torches,
                 TorchLitUntil = a.TorchLitUntil is { } lit ? new GameTime(lit) : null,
                 Sheet = FromDto(a.Sheet!),
+                Combat = CombatProfiles.ById(a.Combat ?? "") is not null ? a.Combat! : throw new InvalidDataException($"profilo di combattimento di '{a.Id}' sconosciuto"),
+                Vitality = FromDto(a.Vitality ?? throw new InvalidDataException($"punti ferita di '{a.Id}' mancanti"), a.Id),
             };
+            Check(actor.Vitality.MakesDeathSaves == Simulation.ProfileOf(actor).MakesDeathSaves,
+                $"punti ferita di '{a.Id}' incoerenti con il suo profilo");
+            foreach (var foe in a.FoughtWith ?? throw new InvalidDataException($"avversari di '{a.Id}' mancanti"))
+                Check(actor.FoughtWith.Add(new ActorId(Required(foe, "avversario"))), $"avversario ripetuto per '{a.Id}'");
             foreach (var o in a.Knowledge)
                 actor.Knowledge.Add(FromDto(o));
             foreach (var c in a.Claims ?? throw new InvalidDataException($"debiti di '{a.Id}' mancanti"))
@@ -478,6 +492,7 @@ internal static class SaveGame
             ValidateKnowledge(w, actor);
         foreach (var faction in w.Factions.Values)
             Check(faction.Authority is null || w.Actors.ContainsKey(faction.Authority.Value), $"autorità di '{faction.Id}' sconosciuta");
+        RestoreEncounters(w, d);
 
         var entries = d.Schedule.Select(e => new Scheduler.Entry(new GameTime(e.Due), e.Sequence, e.Job switch
         {
@@ -485,6 +500,7 @@ internal static class SaveGame
             "MoveWaypoint" => new MoveWaypoint(new ActionId(e.Action ?? throw new InvalidDataException("azione mancante")), e.Step ?? throw new InvalidDataException("passo mancante")),
             "FactionUpkeep" => new FactionUpkeep(ExistingFaction(w, e.Faction)),
             "EvaluateFaction" => new EvaluateFaction(ExistingFaction(w, e.Faction)),
+            "CombatRound" => new CombatRound(e.Encounter ?? throw new InvalidDataException("scontro mancante")),
             _ => throw new InvalidDataException($"lavoro sconosciuto '{e.Job}'"),
         })).ToList();
         // Everything due at or before Now was processed before saving.
@@ -509,6 +525,16 @@ internal static class SaveGame
             else
                 Check(evaluations.Count == 0, $"valutazione programmata per '{faction.Id}', che non ha una politica");
         }
+
+        // C2: a fight between rounds has exactly its next round scheduled, 6 s after the last began; one waiting for the
+        // player's turn has none.
+        foreach (var e in w.Encounters.Values)
+        {
+            var rounds = entries.Where(x => x.Job is CombatRound r && r.Encounter == e.Id).ToList();
+            Check(e.RoundClosed ? rounds.Count == 1 && rounds[0].Due == e.RoundStart.Plus(Duration.FromSeconds(6)) : rounds.Count == 0,
+                $"round dello scontro {e.Id} non programmato correttamente");
+        }
+        Check(entries.All(x => x.Job is not CombatRound r || w.Encounters.ContainsKey(r.Encounter)), "round di uno scontro inesistente");
 
         // Waypoints belong to a walk in progress, at the instant its path reaches that step.
         foreach (var entry in entries.Where(e => e.Job is MoveWaypoint))
@@ -695,8 +721,135 @@ internal static class SaveGame
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
                 Interruptible = wait.Interruptible,
             },
+            DownedActionDto => new DownedAction { Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description },
             _ => throw new InvalidDataException("tipo di azione sconosciuto"),
         };
+    }
+
+    // ---------------------------------------------------------------- C2: fights
+
+    private static VitalityDto ToDto(VitalitySnapshot v) => new()
+    {
+        Maximum = v.Maximum, MakesDeathSaves = v.MakesDeathSaves, Current = v.Current, State = v.State.ToString(),
+        KnockedOut = v.KnockedOut, DeathSaveSuccesses = v.DeathSaveSuccesses, DeathSaveFailures = v.DeathSaveFailures,
+    };
+
+    private static Vitality FromDto(VitalityDto v, string owner)
+    {
+        var state = Enum.TryParse<LifeState>(v.State, out var s) && Enum.IsDefined(s) ? s
+            : throw new InvalidDataException($"stato vitale di '{owner}' sconosciuto");
+        try
+        {
+            return Vitality.Restore(new VitalitySnapshot(v.Maximum, v.MakesDeathSaves, v.Current, state, v.KnockedOut,
+                v.DeathSaveSuccesses, v.DeathSaveFailures));
+        }
+        catch (InvalidDataException e)
+        {
+            throw new InvalidDataException($"punti ferita di '{owner}': {e.Message}");
+        }
+    }
+
+    private static PosDto? ToDto(GridPos? p) => p is { } q ? new PosDto { X = q.X, Y = q.Y } : null;
+
+    private static EncounterDto ToDto(Encounter e) => new()
+    {
+        Id = e.Id, Area = e.Area.Value, Round = e.Round, Turn = e.Turn, RoundStart = e.RoundStart.Seconds,
+        RoundClosed = e.RoundClosed, AttackedThisRound = e.AttackedThisRound,
+        Opening = e.Opening is { } o
+            ? new OpeningDto { Attacker = o.Attacker.Value, Target = o.Target.Value, Attack = o.Attack, NonLethal = o.NonLethal }
+            : null,
+        Combatants = e.Order.Select(c => new CombatantDto
+        {
+            Actor = c.Actor.Value, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus,
+            MovedFeet = c.MovedFeet, ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
+            LastSeenEnemy = ToDto(c.LastSeenEnemy),
+        }).ToList(),
+        Log = e.Log.Select(r => new CombatRecordDto
+        {
+            Round = r.Round, Kind = r.Kind.ToString(), Actor = r.Actor?.Value, Target = r.Target?.Value, Attack = r.Attack,
+            D20 = r.D20.ToList(), Kept = r.Kept, Bonus = r.Bonus, Total = r.Total, ArmorClass = r.ArmorClass, Hit = r.Hit,
+            Critical = r.Critical, Damage = r.Damage, Path = r.Path.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
+            Text = r.Text, PlayerText = r.PlayerText, PlayerSawActor = r.PlayerSawActor, PlayerSawTarget = r.PlayerSawTarget,
+        }).ToList(),
+    };
+
+    /// <summary>
+    /// C2: fights in progress, and the rules that bind them to the actors: each combatant in one fight only, on the
+    /// fight's map, doing nothing else; both sides present; a round either waiting for the player's turn or closed; the
+    /// fallen outside a fight lying down (a Downed action), the conscious never.
+    /// </summary>
+    private static void RestoreEncounters(WorldState w, SaveDto d)
+    {
+        w.NextEncounterId = d.NextEncounterId;
+        foreach (var dto in d.Encounters ?? throw new InvalidDataException("elenco degli scontri mancante"))
+        {
+            Check(dto is not null && dto.Combatants is not null && dto.Log is not null, "scontro non valido");
+            var area = new AreaId(Required(dto!.Area, "area di uno scontro"));
+            Check(w.Maps.TryGetValue(area, out var map), $"scontro {dto.Id} senza mappa");
+            Check(dto.Id > 0 && dto.Id < w.NextEncounterId, "contatore degli scontri incoerente");
+            var e = new Encounter
+            {
+                Id = dto.Id, Area = area, Round = dto.Round, Turn = dto.Turn, RoundStart = new GameTime(dto.RoundStart),
+                RoundClosed = dto.RoundClosed, AttackedThisRound = dto.AttackedThisRound,
+            };
+            foreach (var c in dto.Combatants!)
+            {
+                Check(c is not null, $"combattente non valido nello scontro {dto.Id}");
+                var id = new ActorId(Required(c!.Actor, "combattente"));
+                Check(w.Actors.TryGetValue(id, out var actor), $"combattente sconosciuto '{id}'");
+                Check(actor!.MapArea == area && actor.Position is { } pos && map!.IsWalkable(pos) && actor.CurrentAction is null,
+                    $"combattente '{id}' fuori dalla mappa dello scontro o impegnato in altro");
+                Check(c.Side is 0 or 1 && c.MovedFeet >= 0 && c.MovedFeet <= Simulation.ProfileOf(actor).Speed,
+                    $"combattente '{id}' non valido");
+                Check(e.Order.All(o => o.Actor != id) && w.Encounters.Values.All(o => o.Order.All(x => x.Actor != id)),
+                    $"'{id}' è in più di uno scontro");
+                e.Order.Add(new Combatant
+                {
+                    Actor = id, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus, MovedFeet = c.MovedFeet,
+                    ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
+                    LastSeenEnemy = c.LastSeenEnemy is { } seen ? new GridPos(seen.X, seen.Y) : null,
+                });
+            }
+            Check(e.Order.Any(c => c.Side == 0) && e.Order.Any(c => c.Side == 1), $"scontro {dto.Id} senza due lati");
+            Check(e.Round >= 1 && e.Turn >= 0 && e.Turn < e.Order.Count && e.RoundStart <= w.Now, $"turno dello scontro {dto.Id} non valido");
+            // Only the player's turn makes the world wait: a round still open is waiting for it, now.
+            Check(e.RoundClosed || (e.Order[e.Turn].Actor == w.Player && w.Actors[w.Player].Conscious && e.RoundStart == w.Now),
+                $"scontro {dto.Id} fermo sul turno di qualcun altro");
+            if (dto.Opening is { } o)
+            {
+                var attacker = new ActorId(Required(o.Attacker, "attaccante"));
+                var target = new ActorId(Required(o.Target, "bersaglio"));
+                Check(e.Order.Any(c => c.Actor == attacker) && e.Order.Any(c => c.Actor == target)
+                      && Simulation.ProfileOf(w.Actors[attacker]).Attacks.Any(a => a.Name == o.Attack),
+                    $"attacco d'apertura dello scontro {dto.Id} non valido");
+                e.Opening = new OpeningAttack(attacker, target, o.Attack, o.NonLethal);
+            }
+            foreach (var r in dto.Log!)
+            {
+                Check(r is not null && Enum.TryParse<CombatLogKind>(r.Kind, out var kind) && Enum.IsDefined(kind) && r.Text is not null
+                      && r.D20 is not null && r.Path is not null && r.Path.All(p => p is not null), $"registro dello scontro {dto.Id} non valido");
+                Check((r!.Actor is null || w.Actors.ContainsKey(new ActorId(r.Actor))) && (r.Target is null || w.Actors.ContainsKey(new ActorId(r.Target))),
+                    $"registro dello scontro {dto.Id} con attori sconosciuti");
+                e.Log.Add(new CombatRecord
+                {
+                    Round = r.Round, Kind = Enum.Parse<CombatLogKind>(r.Kind), Actor = r.Actor is null ? null : new ActorId(r.Actor),
+                    Target = r.Target is null ? null : new ActorId(r.Target), Attack = r.Attack, D20 = r.D20!.ToArray(), Kept = r.Kept,
+                    Bonus = r.Bonus, Total = r.Total, ArmorClass = r.ArmorClass, Hit = r.Hit, Critical = r.Critical, Damage = r.Damage,
+                    Path = r.Path!.Select(p => new GridPos(p!.X, p.Y)).ToArray(), Text = r.Text!, PlayerText = r.PlayerText,
+                    PlayerSawActor = r.PlayerSawActor, PlayerSawTarget = r.PlayerSawTarget,
+                });
+            }
+            AddUnique(w.Encounters, e.Id, e, "scontro");
+        }
+        foreach (var actor in w.Actors.Values)
+        {
+            Check(actor.FoughtWith.All(w.Actors.ContainsKey) && !actor.FoughtWith.Contains(actor.Id), $"avversari di '{actor.Id}' non validi");
+            var fighting = w.Encounters.Values.Any(e => e.Order.Any(c => c.Actor == actor.Id));
+            var lying = actor.CurrentAction is DownedAction;
+            var fallen = !actor.Conscious && actor.Vitality.State != LifeState.Dead;
+            Check(lying ? fallen && !fighting : !fallen || fighting, $"'{actor.Id}': stato a terra incoerente");
+            Check(actor.Vitality.State != LifeState.Dead || actor.CurrentAction is null, $"'{actor.Id}' è morto ma agisce");
+        }
     }
 
     private static Observation FromDto(ObservationDto o)

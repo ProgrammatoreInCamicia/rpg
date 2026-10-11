@@ -55,7 +55,8 @@ internal sealed partial class Simulation
     /// </summary>
     public AdvanceOutcome? ProcessUntil(GameTime target, ActionId? stopAfter)
     {
-        while (World.Scheduler.NextDue is { } due && due <= target)
+        // C2: while it is the player's turn in a fight, the world waits.
+        while (!PlayerTurnPending && World.Scheduler.NextDue is { } due && due <= target)
         {
             World.Now = due;
             var entries = World.Scheduler.TakeDueAt(due);
@@ -103,6 +104,9 @@ internal sealed partial class Simulation
                         break;
                     case EvaluateFaction evaluate:
                         EvaluateFactionPolicy(World.Factions[evaluate.Faction]);
+                        break;
+                    case CombatRound round:
+                        StartRound(round.Encounter);
                         break;
                 }
             }

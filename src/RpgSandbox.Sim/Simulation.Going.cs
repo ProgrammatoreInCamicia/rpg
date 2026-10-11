@@ -162,7 +162,7 @@ internal sealed partial class Simulation
     /// </summary>
     private bool Covers(Actor guard, Store store)
     {
-        if (guard.GuardDuty is not { } duty || duty.Store != store.Id || store.Position is null)
+        if (guard.GuardDuty is not { } duty || duty.Store != store.Id || store.Position is null || !guard.Conscious)
             return false;
         var area = World.Locations[store.Location].Area;
         if (guard.MapArea != area || CurrentPosition(guard) is not { } at)

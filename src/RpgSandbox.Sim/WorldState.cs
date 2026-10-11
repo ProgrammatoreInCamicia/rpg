@@ -104,6 +104,18 @@ internal sealed class Actor
 
     /// <summary>Only the latest decision is kept (NPCs only).</summary>
     public DecisionTrace? LastDecision { get; set; }
+
+    /// <summary>C2: the actor's combat profile, by name (<see cref="CombatProfiles.Ids"/>).</summary>
+    public string Combat { get; init; } = "commoner";
+
+    /// <summary>C2: Hit Points and life state, the actor's own instance; wounds stay after a fight.</summary>
+    public Vitality Vitality { get; set; } = CombatProfiles.Commoner().NewVitality();
+
+    /// <summary>C2: everyone this actor has fought against: it holds them hostile from then on.</summary>
+    public SortedSet<ActorId> FoughtWith { get; } = new(Comparer<ActorId>.Create((a, b) => string.CompareOrdinal(a.Value, b.Value)));
+
+    /// <summary>C2: awake and alive: it can see, hear, decide and act.</summary>
+    public bool Conscious => Vitality.State == LifeState.Alive && !Vitality.KnockedOut;
 }
 
 /// <summary>A daily shift at a workplace, between two times of day.</summary>
@@ -357,6 +369,90 @@ internal sealed class WaitAction : PendingAction
     public required bool Interruptible { get; init; }
 }
 
+/// <summary>
+/// C2: lying unconscious outside a fight. Dying: a Death Saving Throw every 6 seconds; Stable: 1 Hit Point back after
+/// 1d4 hours; knocked out: awake after a Short Rest of 1 hour (SRD).
+/// </summary>
+internal sealed class DownedAction : PendingAction
+{
+    public override string Kind => "Downed";
+}
+
+/// <summary>C2: a fight on a map, in turns of 6-second rounds (SRD Combat).</summary>
+internal sealed class Encounter
+{
+    public required long Id { get; init; }
+    public required AreaId Area { get; init; }
+
+    /// <summary>Initiative order, fixed for the whole fight.</summary>
+    public List<Combatant> Order { get; } = new();
+
+    public int Round { get; set; } = 1;
+
+    /// <summary>Index in <see cref="Order"/> of the turn in progress (the player's, while the world waits for it).</summary>
+    public int Turn { get; set; }
+
+    /// <summary>When the current round began: its turns all happen at this instant, the world catches up 6 s later.</summary>
+    public GameTime RoundStart { get; set; }
+
+    /// <summary>Every turn of the round is done: the next round starts at RoundStart + 6 s (a scheduled job).</summary>
+    public bool RoundClosed { get; set; }
+
+    /// <summary>Someone attacked during the current round (a round without attacks nor sight of an enemy ends the fight).</summary>
+    public bool AttackedThisRound { get; set; }
+
+    /// <summary>An opening attack against a target that expected it, waiting for its attacker's first turn.</summary>
+    public OpeningAttack? Opening { get; set; }
+
+    public List<CombatRecord> Log { get; } = new();
+}
+
+internal sealed class Combatant
+{
+    public required ActorId Actor { get; init; }
+
+    /// <summary>0: who started the fight; 1: who was attacked.</summary>
+    public required int Side { get; init; }
+    public required int Initiative { get; init; }
+    public required int InitiativeBonus { get; init; }
+    public int MovedFeet { get; set; }
+    public bool ActionUsed { get; set; }
+    public bool ReactionUsed { get; set; }
+
+    /// <summary>The opening attack was resolved at once: the attacker's first turn has no action left.</summary>
+    public bool OpeningSpent { get; set; }
+
+    /// <summary>Where this combatant last saw an enemy (NPCs go there when they lose sight of it).</summary>
+    public GridPos? LastSeenEnemy { get; set; }
+}
+
+internal sealed record OpeningAttack(ActorId Attacker, ActorId Target, string Attack, bool NonLethal);
+
+/// <summary>One thing that happened in a fight, with what the player perceived of it (null text: nothing).</summary>
+internal sealed class CombatRecord
+{
+    public required int Round { get; init; }
+    public required CombatLogKind Kind { get; init; }
+    public ActorId? Actor { get; init; }
+    public ActorId? Target { get; init; }
+    public string? Attack { get; init; }
+    public IReadOnlyList<int> D20 { get; init; } = Array.Empty<int>();
+    public int? Kept { get; init; }
+    public int? Bonus { get; init; }
+    public int? Total { get; init; }
+    public int? ArmorClass { get; init; }
+    public bool? Hit { get; init; }
+    public bool Critical { get; init; }
+    public int? Damage { get; init; }
+    public IReadOnlyList<GridPos> Path { get; init; } = Array.Empty<GridPos>();
+    public required string Text { get; init; }
+
+    /// <summary>As the player perceived it, or null if it perceived nothing.</summary>
+    public string? PlayerText { get; init; }
+    public bool PlayerSawActor { get; init; }
+    public bool PlayerSawTarget { get; init; }
+}
+
 internal sealed class Fact
 {
     public required FactId Id { get; init; }
@@ -397,6 +493,10 @@ internal sealed class WorldState
     public long NextFactId { get; set; } = 1;
     public long NextObservationId { get; set; } = 1;
 
+    /// <summary>C2: fights in progress, by id.</summary>
+    public SortedDictionary<long, Encounter> Encounters { get; } = new();
+    public long NextEncounterId { get; set; } = 1;
+
     public static WorldState FromScenario(Scenario scenario)
     {
         var world = new WorldState { Player = scenario.Player, Rng = new SplitMix64(scenario.Seed) };
@@ -424,6 +524,7 @@ internal sealed class WorldState
                 Id = a.Id, Name = a.Name, IsPlayer = a.IsPlayer, Faction = a.Faction, Location = a.Location, Food = a.Food,
                 Home = a.IsPlayer ? null : a.Location, Shift = a.Shift, ArrivedAt = GameTime.Start, Sheet = a.Sheet, Position = a.At, Torches = a.Torches,
                 MapArea = a.At is null ? null : world.Locations[a.Location].Area,
+                Combat = a.Combat, Vitality = CombatProfiles.ById(a.Combat)!.NewVitality(),
             });
         }
         foreach (var s in scenario.Stores)

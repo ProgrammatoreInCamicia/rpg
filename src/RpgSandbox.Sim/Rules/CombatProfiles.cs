@@ -24,6 +24,19 @@ public sealed record CombatProfile
 /// <summary>Ready-made fighters: the protagonist from its sheet, the others copied from the SRD stat blocks.</summary>
 public static class CombatProfiles
 {
+    /// <summary>C2: the profiles an actor can have, by the name scenarios and saves use.</summary>
+    public static IReadOnlyList<string> Ids { get; } = new[] { "paladin", "bandit", "guard", "commoner" };
+
+    /// <summary>C2: the profile of that name, or null if there is none.</summary>
+    public static CombatProfile? ById(string id) => id switch
+    {
+        "paladin" => Paladin(),
+        "bandit" => Bandit(),
+        "guard" => Guard(),
+        "commoner" => Commoner(),
+        _ => null,
+    };
+
     /// <summary>
     /// The level 1 Paladin of <see cref="Sheets.Paladin"/>: Hit Points 10 + Constitution modifier = 11 (SRD Level 1
     /// Hit Points by Class), AC 18 (Chain Mail and Shield), Initiative = Dexterity modifier. Starting equipment A:

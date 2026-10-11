@@ -99,7 +99,7 @@ public static class MappedVillageScenario
                 at: (Ids.GranaryStoreSquare.X, Ids.GranaryStoreSquare.Y))
             .AddActor(Ids.Player.Value, "Protagonista", Ids.Inn.Value, isPlayer: true, food: 10, sheet: Sheets.Paladin(),
                 at: (Ids.PlayerStart.X, Ids.PlayerStart.Y), torches: 3) // from an explorer's pack
-            .AddActor(Ids.Guard.Value, "Guardia", Ids.Inn.Value, factionId: Ids.VillageFaction.Value, sheet: Sheets.VillageGuard(),
+            .AddActor(Ids.Guard.Value, "Guardia", Ids.Inn.Value, factionId: Ids.VillageFaction.Value, sheet: Sheets.VillageGuard(), combat: "guard",
                 at: (Ids.GuardStart.X, Ids.GuardStart.Y))
             .Build();
 
@@ -145,11 +145,12 @@ public static class MappedVillageScenario
             .AddActor(Ids.Player.Value, "Protagonista", Ids.Inn.Value, isPlayer: true, food: 10, sheet: Sheets.Paladin(),
                 at: (Ids.PlayerStart.X, Ids.PlayerStart.Y), torches: 3)
             .AddActor(Ids.Guard.Value, "Guardia", Ids.Inn.Value, factionId: Ids.VillageFaction.Value,
-                sheet: Sheets.VillageGuard(), at: (Ids.GuardStart.X, Ids.GuardStart.Y))
+                sheet: Sheets.VillageGuard(), combat: "guard",
+                at: (Ids.GuardStart.X, Ids.GuardStart.Y))
             .AddActor(Ids.Farmer.Value, "Contadino", Ids.FarmerHouse.Value, factionId: Ids.VillageFaction.Value,
                 workLocationId: Ids.Granary.Value, shiftStart: Duration.FromHours(13), shiftEnd: Duration.FromHours(18), // T6c-2
                 sheet: Sheets.Farmer(), at: (Ids.FarmerHome.X, Ids.FarmerHome.Y))
             .AddActor(Ids.Raider.Value, "Razziatore", Ids.BanditCamp.Value, factionId: Ids.Bandits.Value,
-                sheet: Sheets.Raider())
+                sheet: Sheets.Raider(), combat: "bandit")
             .Build();
 }

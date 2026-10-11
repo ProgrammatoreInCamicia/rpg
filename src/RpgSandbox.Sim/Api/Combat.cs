@@ -37,6 +37,12 @@ public sealed record CombatView
     public ActorId? Turn { get; init; }
     public required bool IsYourTurn { get; init; }
 
+    /// <summary>
+    /// Between rounds (every turn played, the world catching up its 6 seconds): when the next round begins. The client
+    /// keeps advancing time as usual, or jumps straight to it. Null during a turn.
+    /// </summary>
+    public GameTime? NextRoundAt { get; init; }
+
     /// <summary>Initiative order, first to last; the same through the fight.</summary>
     public required IReadOnlyList<InitiativeView> Order { get; init; }
 
@@ -56,6 +62,21 @@ public sealed record CombatView
 
     /// <summary>What the player perceived of the fight, oldest first.</summary>
     public required IReadOnlyList<CombatLogEntry> Log { get; init; }
+}
+
+/// <summary>C2: one of the player's attacks, to choose from (also outside a fight, to start one).</summary>
+public sealed record AttackOptionView
+{
+    /// <summary>The name an <see cref="AttackCommand"/> takes.</summary>
+    public required string Name { get; init; }
+
+    /// <summary>Melee (only these can knock out: <see cref="AttackCommand.NonLethal"/>), or ranged.</summary>
+    public required bool Melee { get; init; }
+    public required int ReachFeet { get; init; }
+
+    /// <summary>For a ranged attack: normal and long range in feet.</summary>
+    public int? NormalRange { get; init; }
+    public int? LongRange { get; init; }
 }
 
 public sealed record InitiativeView

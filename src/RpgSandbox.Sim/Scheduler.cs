@@ -17,6 +17,9 @@ internal sealed record FactionUpkeep(FactionId Faction) : ScheduledJob;
 /// <summary>A faction re-evaluates its policy.</summary>
 internal sealed record EvaluateFaction(FactionId Faction) : ScheduledJob;
 
+/// <summary>C2: the next round of a fight begins (6 seconds after the previous one).</summary>
+internal sealed record CombatRound(long Encounter) : ScheduledJob;
+
 /// <summary>
 /// Explicit deadlines ordered by (due time, scheduling sequence). Simulation time jumps from one
 /// deadline to the next instead of stepping second by second. Ties resolve in scheduling order.
@@ -52,7 +55,10 @@ internal sealed class Scheduler
         return removed > 0;
     }
 
-    public GameTime? NextDue => _entries.Count == 0 ? null : _entries.Min.Due;
+    /// <summary>C2: removes the next round of a fight that ended.</summary>
+    public void RemoveRound(long encounter) => _entries.RemoveWhere(e => e.Job is CombatRound r && r.Encounter == encounter);
+
+    public GameTime? NextDue =>_entries.Count == 0 ? null : _entries.Min.Due;
 
     /// <summary>Removes and returns, in order, every entry due exactly at <paramref name="instant"/>.</summary>
     public List<Entry> TakeDueAt(GameTime instant)

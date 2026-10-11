@@ -49,7 +49,7 @@ internal sealed record LocationDefinition(LocationId Id, string Name, AreaId Are
 internal sealed record RouteDefinition(LocationId A, LocationId B, Duration TravelTime);
 internal sealed record ActorDefinition(
     ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food, FactionId? Faction, WorkShift? Shift,
-    CharacterSheet Sheet, GridPos? At, int Torches = 0);
+    CharacterSheet Sheet, GridPos? At, int Torches = 0, string Combat = "commoner");
 internal sealed record StoreDefinition(StoreId Id, string Name, LocationId Location, int Food, FactionId? Owner, GridPos? At,
     IReadOnlyList<GridPos>? Access = null);
 internal sealed record MapDefinition(AreaId Area, IReadOnlyList<string> Rows, IReadOnlyDictionary<char, LocationId> Zones)
@@ -126,11 +126,13 @@ public sealed class ScenarioBuilder
     /// </summary>
     public ScenarioBuilder AddActor(string id, string name, string locationId, bool isPlayer = false, int food = 0,
         string? factionId = null, string? workLocationId = null, Duration shiftStart = default, Duration shiftEnd = default,
-        CharacterSheet? sheet = null, (int X, int Y)? at = null, int torches = 0)
+        CharacterSheet? sheet = null, (int X, int Y)? at = null, int torches = 0, string? combat = null)
     {
         var shift = workLocationId is null ? null : new WorkShift(new LocationId(workLocationId), shiftStart, shiftEnd);
+        // C2: the combat profile; by default the player is the Paladin, everyone else a Commoner.
         _actors.Add(new ActorDefinition(new ActorId(id), name, new LocationId(locationId), isPlayer, food, ToFaction(factionId), shift,
-            sheet ?? CharacterSheet.Commoner(), at is { } p ? new GridPos(p.X, p.Y) : null, torches));
+            sheet ?? CharacterSheet.Commoner(), at is { } p ? new GridPos(p.X, p.Y) : null, torches,
+            combat ?? (isPlayer ? "paladin" : "commoner")));
         return this;
     }
 
@@ -230,6 +232,7 @@ public sealed class ScenarioBuilder
             Require(actor.Faction is null || factionIds.Contains(actor.Faction.Value),
                 $"Actor '{actor.Id}' belongs to unknown faction '{actor.Faction}'.");
             Require(Invariants.Sheet(actor.Id.Value, actor.Sheet));
+            Require(CombatProfiles.ById(actor.Combat) is not null, $"Actor '{actor.Id}' has unknown combat profile '{actor.Combat}'.");
             if (actor.Shift is { } shift)
             {
                 Require(Invariants.Shift(actor.Id.Value, actor.IsPlayer, shift.Start, shift.End));

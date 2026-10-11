@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace RpgSandbox.Sim.Persistence;
 
-// Plain serialization shapes for the save file (schema version 13). Times are seconds since the
+// Plain serialization shapes for the save file (schema version 14). Times are seconds since the
 // scenario start; ids are their string/number values. Kept separate from the domain on purpose:
 // the domain can change shape while the file format changes only deliberately.
 
@@ -26,6 +26,8 @@ internal sealed class SaveDto
     public List<ScheduledDto> Schedule { get; set; } = new();
     public List<FactDto> Facts { get; set; } = new();
     public List<MapDto> Maps { get; set; } = new();
+    public List<EncounterDto> Encounters { get; set; } = new();
+    public long NextEncounterId { get; set; }
 }
 
 internal sealed class AreaDto
@@ -98,6 +100,9 @@ internal sealed class ActorDto
     public List<RememberedDoorDto> Doors { get; set; } = new();
     public List<ObservationDto> Knowledge { get; set; } = new();
     public List<long> ActedOn { get; set; } = new();
+    public string Combat { get; set; } = "";
+    public VitalityDto? Vitality { get; set; }
+    public List<string> FoughtWith { get; set; } = new();
 }
 
 internal sealed class StoreDto
@@ -139,6 +144,7 @@ internal sealed class DecisionDto
 [JsonDerivedType(typeof(GuardActionDto), "Guard")]
 [JsonDerivedType(typeof(ConfiscateActionDto), "Confiscate")]
 [JsonDerivedType(typeof(MoveActionDto), "Move")]
+[JsonDerivedType(typeof(DownedActionDto), "Downed")]
 internal abstract class ActionDto
 {
     public long Id { get; set; }
@@ -182,6 +188,7 @@ internal sealed class ScheduledDto
     public long? Action { get; set; }
     public int? Step { get; set; }
     public string? Faction { get; set; }
+    public long? Encounter { get; set; }
 }
 
 internal sealed class FactDto
@@ -364,4 +371,76 @@ internal sealed class RememberedDoorDto
     public int Y { get; set; }
     public bool Open { get; set; }
     public long SeenAt { get; set; }
+}
+
+// ---------------------------------------------------------------- C2 (schema 14): the fight in the world
+
+internal sealed class VitalityDto
+{
+    public int Maximum { get; set; }
+    public bool MakesDeathSaves { get; set; }
+    public int Current { get; set; }
+    public string State { get; set; } = "";
+    public bool KnockedOut { get; set; }
+    public int DeathSaveSuccesses { get; set; }
+    public int DeathSaveFailures { get; set; }
+}
+
+internal sealed class DownedActionDto : ActionDto;
+
+internal sealed class EncounterDto
+{
+    public long Id { get; set; }
+    public string Area { get; set; } = "";
+    public int Round { get; set; }
+    public int Turn { get; set; }
+    public long RoundStart { get; set; }
+    public bool RoundClosed { get; set; }
+    public bool AttackedThisRound { get; set; }
+    public OpeningDto? Opening { get; set; }
+    public List<CombatantDto> Combatants { get; set; } = new();
+    public List<CombatRecordDto> Log { get; set; } = new();
+}
+
+internal sealed class CombatantDto
+{
+    public string Actor { get; set; } = "";
+    public int Side { get; set; }
+    public int Initiative { get; set; }
+    public int InitiativeBonus { get; set; }
+    public int MovedFeet { get; set; }
+    public bool ActionUsed { get; set; }
+    public bool ReactionUsed { get; set; }
+    public bool OpeningSpent { get; set; }
+    public PosDto? LastSeenEnemy { get; set; }
+}
+
+internal sealed class OpeningDto
+{
+    public string Attacker { get; set; } = "";
+    public string Target { get; set; } = "";
+    public string Attack { get; set; } = "";
+    public bool NonLethal { get; set; }
+}
+
+internal sealed class CombatRecordDto
+{
+    public int Round { get; set; }
+    public string Kind { get; set; } = "";
+    public string? Actor { get; set; }
+    public string? Target { get; set; }
+    public string? Attack { get; set; }
+    public List<int> D20 { get; set; } = new();
+    public int? Kept { get; set; }
+    public int? Bonus { get; set; }
+    public int? Total { get; set; }
+    public int? ArmorClass { get; set; }
+    public bool? Hit { get; set; }
+    public bool Critical { get; set; }
+    public int? Damage { get; set; }
+    public List<PosDto> Path { get; set; } = new();
+    public string Text { get; set; } = "";
+    public string? PlayerText { get; set; }
+    public bool PlayerSawActor { get; set; }
+    public bool PlayerSawTarget { get; set; }
 }

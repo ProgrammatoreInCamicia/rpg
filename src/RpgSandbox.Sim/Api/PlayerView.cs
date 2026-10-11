@@ -91,6 +91,9 @@ public sealed record PlayerView
 
     /// <summary>C2: the player is dead. The world may go on; the client offers to load a game.</summary>
     public bool Dead { get; init; }
+
+    /// <summary>C2: the attacks of the player's combat profile, in the profile's order.</summary>
+    public IReadOnlyList<AttackOptionView> Attacks { get; init; } = Array.Empty<AttackOptionView>();
 }
 
 /// <summary>Another actor as seen from outside: where it is and what it is visibly doing. No intentions, no knowledge.</summary>

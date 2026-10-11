@@ -12,7 +12,8 @@ internal sealed partial class Simulation
 
     private void DecideForFreeNpcs()
     {
-        foreach (var npc in World.Actors.Values.Where(a => !a.IsPlayer && a.CurrentAction is null).ToList())
+        // C2: the fallen and the fighting do not follow their routines.
+        foreach (var npc in World.Actors.Values.Where(a => !a.IsPlayer && a.CurrentAction is null && a.Conscious && EncounterOf(a) is null).ToList())
             Decide(npc);
     }
 

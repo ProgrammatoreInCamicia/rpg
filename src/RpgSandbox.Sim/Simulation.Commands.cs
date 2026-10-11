@@ -19,7 +19,29 @@ internal sealed partial class Simulation
         return result;
     }
 
-    private CommandResult Dispatch(Command command) => command switch
+    private CommandResult Dispatch(Command command)
+    {
+        // C2: who is down does nothing; who is fighting only moves, attacks or ends its turn.
+        if (World.Actors.TryGetValue(command.Actor, out var actor))
+        {
+            if (!actor.Conscious)
+                return CommandResult.Rejected(RejectionReason.ActorBusy,
+                    actor.Vitality.State == LifeState.Dead ? $"{actor.Name} è morto." : $"{actor.Name} è privo di sensi.");
+            if (EncounterOf(actor) is { } fight)
+                return command switch
+                {
+                    MoveCommand move => CombatMove(fight, actor, move),
+                    AttackCommand attack => Attack(attack),
+                    EndTurnCommand end => EndTurn(end),
+                    _ => CommandResult.Rejected(RejectionReason.InCombat, $"{actor.Name} sta combattendo."),
+                };
+        }
+        else if (command is AttackCommand or EndTurnCommand)
+            return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {command.Actor}.");
+        return DispatchOutsideFights(command);
+    }
+
+    private CommandResult DispatchOutsideFights(Command command) => command switch
     {
         TravelCommand travel => StartTravel(travel),
         DepositFoodCommand deposit => StartDeposit(deposit),
@@ -30,7 +52,8 @@ internal sealed partial class Simulation
         StopCommand stop => Stop(stop),
         DoorCommand door => UseDoor(door),
         TorchCommand torch => UseTorch(torch),
-        AttackCommand or EndTurnCommand => CommandResult.Rejected(RejectionReason.NotInCombat, "Lo scontro arriva con la C2a."),
+        AttackCommand attack => Attack(attack),
+        EndTurnCommand => CommandResult.Rejected(RejectionReason.NotInCombat, "Non stai combattendo."),
         _ => CommandResult.Rejected(RejectionReason.UnknownCommand, $"Comando non supportato: {command.GetType().Name}."),
     };
 
@@ -234,6 +257,9 @@ internal sealed partial class Simulation
             case MoveAction move:
                 Place(actor, move.Path[^1]); // contacts follow once the instant's positions are all known
                 break;
+            case DownedAction:
+                CompleteDowned(actor);
+                break;
             case GuardAction:
             case WaitAction:
                 break;
@@ -317,7 +343,7 @@ internal sealed partial class Simulation
         var place = World.Locations[store.Location];
         var stealth = take.StealthTotal ?? 0;
         var witnesses = World.Actors.Values
-            .Where(a => a.Id != thief.Id && a.Location == store.Location)
+            .Where(a => a.Id != thief.Id && a.Location == store.Location && a.Conscious)
             .ToList();
         foreach (var witness in witnesses)
         {
@@ -375,7 +401,7 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Destinatario sconosciuto: {command.Recipient}.");
         if (actor.CurrentAction is not null || (actor.Location is null && actor.Position is null))
             return CommandResult.Rejected(RejectionReason.ActorBusy, $"{actor.Name} è già impegnato.");
-        if (!CanTalk(actor, recipient))
+        if (!CanTalk(actor, recipient) || !recipient.Conscious)
             return CommandResult.Rejected(RejectionReason.RecipientNotPresent, $"{recipient.Name} non è qui.");
         var observation = actor.Knowledge.FirstOrDefault(o => o.Id == command.Observation);
         if (observation is null)

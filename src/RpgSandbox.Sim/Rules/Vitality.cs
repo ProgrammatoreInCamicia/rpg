@@ -193,6 +193,50 @@ public sealed class Vitality
         DeathSaveFailures = 0;
     }
 
+    /// <summary>
+    /// SRD Knocking Out: a knocked-out creature that finishes its Short Rest is no longer Unconscious. Returns false if
+    /// it was not knocked out.
+    /// </summary>
+    public bool Wake()
+    {
+        if (State != LifeState.Alive || !KnockedOut)
+            return false;
+        KnockedOut = false;
+        return true;
+    }
+
+    /// <summary>C2: a copy of every value, for the save (never shared with the live instance).</summary>
+    public VitalitySnapshot Snapshot() =>
+        new(Maximum, MakesDeathSaves, Current, State, KnockedOut, DeathSaveSuccesses, DeathSaveFailures);
+
+    /// <summary>
+    /// C2: rebuilds a Vitality from a snapshot, refusing any combination the rules cannot produce (for instance a dying
+    /// monster, a knocked-out creature at 0, or Death Saving Throws counted outside dying).
+    /// </summary>
+    public static Vitality Restore(VitalitySnapshot s)
+    {
+        string? problem = s switch
+        {
+            { Maximum: < 1 } => "massimo dei punti ferita non valido",
+            _ when s.Current < 0 || s.Current > s.Maximum => "punti ferita fuori dal massimo",
+            _ when !Enum.IsDefined(s.State) => "stato vitale sconosciuto",
+            { State: LifeState.Alive, Current: 0 } => "vivo a 0 punti ferita",
+            { State: not LifeState.Alive } when s.Current != 0 => "a terra con punti ferita",
+            { State: LifeState.Dying or LifeState.Stable, MakesDeathSaves: false } => "morente senza tiri contro la morte",
+            { KnockedOut: true, State: not LifeState.Alive } => "tramortito ma non vivo",
+            _ when s.DeathSaveSuccesses is < 0 or > 2 || s.DeathSaveFailures is < 0 or > 2 => "tiri contro la morte non validi",
+            { State: not LifeState.Dying } when s.DeathSaveSuccesses != 0 || s.DeathSaveFailures != 0 => "tiri contro la morte fuori dal morire",
+            _ => null,
+        };
+        if (problem is not null)
+            throw new InvalidDataException(problem);
+        return new Vitality(s.Maximum, s.MakesDeathSaves, s.Current)
+        {
+            State = s.State, KnockedOut = s.KnockedOut,
+            DeathSaveSuccesses = s.DeathSaveSuccesses, DeathSaveFailures = s.DeathSaveFailures,
+        };
+    }
+
     /// <summary>For the player's eyes about others: never the exact Hit Points (C2 will refine the thresholds).</summary>
     public string Describe() => State switch
     {
@@ -205,3 +249,7 @@ public sealed class Vitality
         _ => "malconcio",
     };
 }
+
+/// <summary>C2: every value of a <see cref="Vitality"/>, for saving and restoring it.</summary>
+public sealed record VitalitySnapshot(int Maximum, bool MakesDeathSaves, int Current, LifeState State, bool KnockedOut,
+    int DeathSaveSuccesses, int DeathSaveFailures);

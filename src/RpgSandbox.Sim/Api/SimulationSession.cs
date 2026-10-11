@@ -44,7 +44,9 @@ public sealed class SimulationSession
     {
         var target = _sim.TargetAfter(duration);
         _sim.ProcessUntil(target, stopAfter: null);
-        World.Now = target;
+        // C2: when it is the player's turn in a fight the world waits; the time asked for does not pass.
+        if (!_sim.PlayerTurnPending)
+            World.Now = target;
     }
 
     /// <summary>
@@ -61,6 +63,8 @@ public sealed class SimulationSession
 
         if (_sim.ProcessUntil(limit, stopAfter: action) is { } ended)
             return new AdvanceResult { Outcome = ended, Now = World.Now };
+        if (_sim.PlayerTurnPending)
+            return new AdvanceResult { Outcome = AdvanceOutcome.YourTurn, Now = World.Now };
 
         World.Now = limit;
         return new AdvanceResult { Outcome = AdvanceOutcome.TimeLimitReached, Now = World.Now };
@@ -70,8 +74,7 @@ public sealed class SimulationSession
     /// C2: what a <see cref="MoveCommand"/> of <paramref name="actor"/> to <paramref name="to"/> would do in its fight
     /// (path, cost, opportunity attacks it would provoke), computed like the command but without touching the world.
     /// </summary>
-    public MovePreview PreviewMove(ActorId actor, GridPos to) =>
-        new() { Valid = false, Reason = RejectionReason.NotInCombat, Message = "Lo scontro arriva con la C2a." };
+    public MovePreview PreviewMove(ActorId actor, GridPos to) => _sim.PreviewMove(actor, to);
 
     /// <summary>Writes a complete, self-contained snapshot of the game. Call between steps, never during one.</summary>
     public void Save(Stream stream)
@@ -264,6 +267,7 @@ public sealed class SimulationSession
                     ? Simulation.Sees(map, x, theirs, player, mine, _sim.LightOn(map, mine))
                     : null,
                 Torch = _sim.TorchLit(x),
+                Condition = x.Vitality.Describe(),
             })),
             VisibleStores = Freeze(w.Stores.Values.Where(s => s.Position is { } sp && map is not null
                 ? w.Locations[s.Location].Area == map.Area && (SeenOnMap(sp) || me is { } m && m.IsAdjacentOrSame(sp))
@@ -275,6 +279,12 @@ public sealed class SimulationSession
             ReportOptions = Freeze(options),
             RecentEvents = Freeze(w.RecentFacts.Where(f => f.Participants.Contains(player.Id)).TakeLast(10)
                 .Select(f => new FactView { Id = f.Id, At = f.At, Kind = f.Kind, Description = f.Description })),
+            Combat = _sim.CombatViewOf(player),
+            Dead = player.Vitality.State == Rules.LifeState.Dead,
+            Attacks = Freeze(Simulation.ProfileOf(player).Attacks.Select(a => new AttackOptionView
+            {
+                Name = a.Name, Melee = a.Melee, ReachFeet = a.ReachFeet, NormalRange = a.Range?.Normal, LongRange = a.Range?.Long,
+            })),
             PeopleHere = Freeze(present.Select(p => new PersonView
             {
                 Id = p.Id,

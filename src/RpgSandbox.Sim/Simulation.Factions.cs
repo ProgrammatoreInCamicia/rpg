@@ -67,7 +67,7 @@ internal sealed partial class Simulation
         inputs.Add($"Bersaglio più vicino: {target.Name}");
 
         var member = World.MembersOf(faction.Id)
-            .FirstOrDefault(m => !m.IsPlayer && m.Location is not null &&
+            .FirstOrDefault(m => !m.IsPlayer && m.Location is not null && m.Conscious && EncounterOf(m) is null &&
                                  (m.CurrentAction is null || m.CurrentAction is WaitAction { Interruptible: true }));
         if (member is null)
             return Trace("Nessun membro disponibile", "Scorte basse, ma tutti i membri sono impegnati.");

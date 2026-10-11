@@ -176,7 +176,7 @@ internal sealed partial class Simulation
     /// light anyone in line of sight is seen.
     /// </summary>
     internal static bool Sees(GridMap map, Actor watcher, GridPos from, Actor target, GridPos at, Light light) =>
-        map.HasLineOfSight(from, at) && light switch
+        watcher.Conscious && map.HasLineOfSight(from, at) && light switch // C2: the fallen see nothing
         {
             Light.Bright => true,
             Light.Dim => target.Sneak is not { } dc || watcher.Sheet.PassivePerception(disadvantage: true) >= dc,
@@ -201,7 +201,7 @@ internal sealed partial class Simulation
         var stealth = take.StealthTotal ?? 0;
         var thiefSquare = CurrentPosition(thief)!.Value;
         NoteSensesChange(map); // the evidence up to this very instant
-        foreach (var witness in World.Actors.Values.Where(a => a.Id != thief.Id && a.MapArea == map.Area).ToList())
+        foreach (var witness in World.Actors.Values.Where(a => a.Id != thief.Id && a.MapArea == map.Area && a.Conscious).ToList())
         {
             var here = CurrentPosition(witness)!.Value;
             var everInSight = take.Sight.ContainsKey(witness.Id);
