@@ -728,7 +728,8 @@ public partial class VillageMap : Node2D
 			}
 			token.Position = SmoothPosition(figure.Position.Value, figure.Move);
 			token.Modulate = Shade(ScreenToCell(token.Position));
-			var prone = figure.Condition is "morto" or "a terra" or "tramortito";
+			var prone = figure.Condition is "morto" or "tramortito"
+				|| figure.Condition?.StartsWith("a terra", StringComparison.Ordinal) == true;
 			token.GetNode<Polygon2D>("Body").Visible = !prone;
 			token.GetNode<Polygon2D>("Head").Visible = !prone;
 			token.GetNode<Polygon2D>("Prone").Visible = prone;
