@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 15;
+    public const int SchemaVersion = 16;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -784,6 +784,7 @@ internal static class SaveGame
             Actor = c.Actor.Value, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus,
             MovedFeet = c.MovedFeet, ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
             LastSeenEnemy = ToDto(c.LastSeenEnemy), JoinedInRound = c.JoinedInRound, Fleeing = c.Fleeing,
+            Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging,
         }).ToList(),
         Log = e.Log.Select(r => new CombatRecordDto
         {
@@ -820,7 +821,7 @@ internal static class SaveGame
                 Check(w.Actors.TryGetValue(id, out var actor), $"combattente sconosciuto '{id}'");
                 Check(actor!.MapArea == area && actor.Position is { } pos && map!.IsWalkable(pos) && actor.CurrentAction is null,
                     $"combattente '{id}' fuori dalla mappa dello scontro o impegnato in altro");
-                Check(c.Side is 0 or 1 && c.MovedFeet >= 0 && c.MovedFeet <= Simulation.ProfileOf(actor).Speed,
+                Check(c.Side is 0 or 1 && c.Dashes is 0 or 1 && c.MovedFeet >= 0 && c.MovedFeet <= Simulation.ProfileOf(actor).Speed * (1 + c.Dashes),
                     $"combattente '{id}' non valido");
                 Check(e.Order.All(o => o.Actor != id) && w.Encounters.Values.All(o => o.Order.All(x => x.Actor != id)),
                     $"'{id}' è in più di uno scontro");
@@ -831,7 +832,7 @@ internal static class SaveGame
                     LastSeenEnemy = c.LastSeenEnemy is { } seen ? new GridPos(seen.X, seen.Y) : null,
                     JoinedInRound = c.JoinedInRound is { } joined && joined >= 1 && joined <= dto.Round ? joined
                         : c.JoinedInRound is null ? null : throw new InvalidDataException($"ingresso nello scontro di '{id}' non valido"),
-                    Fleeing = c.Fleeing,
+                    Fleeing = c.Fleeing, Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging,
                 });
             }
             Check(e.Order.Any(c => c.Side == 0) && e.Order.Any(c => c.Side == 1), $"scontro {dto.Id} senza due lati");

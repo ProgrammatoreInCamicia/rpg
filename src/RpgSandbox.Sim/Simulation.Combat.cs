@@ -265,6 +265,9 @@ internal sealed partial class Simulation
     {
         c.MovedFeet = 0;
         c.ReactionUsed = false; // SRD: a Reaction comes back at the start of one's own turn
+        c.Dashes = 0;
+        c.Disengaged = false;
+        c.Dodging = false; // C3a: a Dodge lasts until the start of one's next turn
         c.ActionUsed = c.OpeningSpent;
         c.OpeningSpent = false;
         if (c.JoinedInRound == e.Round)
@@ -459,6 +462,9 @@ internal sealed partial class Simulation
                                                  && OpenDiagonal(map, p, at) && SeesActor(foe, attacker));
             disadvantage = longRange || closeCombat;
         }
+        // C3a, SRD Dodge: attacks against a dodging target that sees the attacker have Disadvantage.
+        if (e?.Order.FirstOrDefault(c => c.Actor == target.Id) is { Dodging: true } && target.Conscious && SeesActor(target, attacker))
+            disadvantage = true;
         return new(RejectionReason.None, null,
             Advantage: !SeesActor(target, attacker), // also an unconscious target: it sees nothing
             Disadvantage: disadvantage, LongRange: longRange,
@@ -530,7 +536,8 @@ internal sealed partial class Simulation
 
     private sealed record CombatPlan(IReadOnlyList<GridPos> Path, IReadOnlyList<int> Cost, int Feet);
 
-    private int MovementLeft(Encounter e, Actor actor) => ProfileOf(actor).Speed - CombatantOf(e, actor.Id).MovedFeet;
+    private int MovementLeft(Encounter e, Actor actor) =>
+        ProfileOf(actor).Speed * (1 + CombatantOf(e, actor.Id).Dashes) - CombatantOf(e, actor.Id).MovedFeet; // C3a: Dash adds Speed
 
     /// <summary>
     /// The creatures a mover takes into account when planning: those it sees, allies included (there is no memory of
@@ -660,6 +667,8 @@ internal sealed partial class Simulation
     /// <summary>Enemies whose reach <paramref name="mover"/> leaves stepping from <paramref name="from"/> to <paramref name="to"/>, seeing it, with a Reaction to spend.</summary>
     private IEnumerable<Actor> Threats(Encounter e, Actor mover, GridPos from, GridPos to)
     {
+        if (CombatantOf(e, mover.Id).Disengaged)
+            yield break; // C3a: Disengage
         var map = World.Maps[e.Area];
         foreach (var c in e.Order)
         {
@@ -684,7 +693,7 @@ internal sealed partial class Simulation
     {
         var me = CombatantOf(e, actor.Id);
         var map = World.Maps[e.Area];
-        var speed = ProfileOf(actor).Speed;
+        var budget = ProfileOf(actor).Speed * (1 + me.Dashes); // C3a: a Dash counts
         var everyone = CreaturesOn(map, actor, _ => true);
         actor.Sneak = null;
         var start = CurrentPosition(actor)!.Value;
@@ -699,7 +708,7 @@ internal sealed partial class Simulation
                 stopped = "qualcuno gli sbarra la strada";
                 break;
             }
-            if (me.MovedFeet + feet > speed)
+            if (me.MovedFeet + feet > budget)
             {
                 stopped = "il passo costa più del previsto";
                 break;
@@ -787,7 +796,11 @@ internal sealed partial class Simulation
             return;
         }
         var occupied = OccupantsOf(World.Maps[e.Area], npc, Perceived(e, npc)).Contains(spot);
-        if (PlanCombatMove(e, npc, spot, stopNextTo: occupied) is { } plan && Truncate(e, npc, plan) is { } step)
+        var way = PlanCombatMove(e, npc, spot, stopNextTo: occupied);
+        // C3a: out of reach this turn, and nothing better to do with the action: Dash to close in.
+        if (way is not null && way.Feet > MovementLeft(e, npc) && !c.ActionUsed)
+            Act(e, npc, CombatAction.Dash);
+        if (way is { } plan && Truncate(e, npc, plan) is { } step)
         {
             npc.LastDecision = new DecisionTrace(World.Now, "Scontro: si avvicina",
                 target is not null ? $"Va verso {target.Name}." : "Va dove ha visto l'avversario l'ultima volta.", Array.Empty<string>());
@@ -880,15 +893,17 @@ internal sealed partial class Simulation
                 KnockedOut = player.Vitality.KnockedOut, DeathSaveSuccesses = player.Vitality.DeathSaveSuccesses,
                 DeathSaveFailures = player.Vitality.DeathSaveFailures,
                 MovementLeftFeet = Math.Max(0, MovementLeft(e, player)), SquaresLeft = Math.Max(0, MovementLeft(e, player)) / FeetPerSquare,
-                ActionAvailable = !me.ActionUsed, ReactionAvailable = !me.ReactionUsed,
+                ActionAvailable = !me.ActionUsed, ReactionAvailable = !me.ReactionUsed, Disengaged = me.Disengaged, Dodging = me.Dodging,
             },
             Combatants = e.Order.Select(c => World.Actors[c.Actor]).Where(x => x.Id != player.Id && SeesActor(player, x))
                 .Select(x => new CombatantView
                 {
                     Id = x.Id, Name = x.Name, Position = CurrentPosition(x)!.Value,
                     Side = Allies(e, player, x) ? CombatSide.Ally : CombatSide.Enemy, Condition = x.Vitality.Describe(),
+                    Dodging = CombatantOf(e, x.Id).Dodging,
                 }).ToArray(),
             Reachable = yourTurn ? ReachableSquares(e, player) : Array.Empty<ReachableSquareView>(),
+            Actions = Enum.GetValues<CombatAction>().Select(a => ActionOption(e, player, a)).ToArray(),
             Targets = enemies.SelectMany(x => ProfileOf(player).Attacks.Select(a =>
             {
                 var check = CheckAttack(e, player, x, a, nonLethal: false);
@@ -920,6 +935,43 @@ internal sealed partial class Simulation
 // C3a: Dash, Disengage, Dodge (SRD 5.2.1 Actions).
 internal sealed partial class Simulation
 {
-    private CommandResult TakeAction(Encounter e, Actor actor, CombatActionCommand command) =>
-        CommandResult.Rejected(RejectionReason.UnknownCommand, "Scatto, Disimpegno e Schivata arrivano con la C3a.");
+    private CommandResult TakeAction(Encounter e, Actor actor, CombatActionCommand command)
+    {
+        if (ActionOption(e, actor, command.Action) is { Valid: false } refused)
+            return CommandResult.Rejected(refused.Reason, refused.Why!);
+        Act(e, actor, command.Action);
+        return new CommandResult { Message = $"{actor.Name} {Verb(command.Action)}." };
+    }
+
+    /// <summary>Whether an action other than attacking can be taken now: on one's own turn, with the action unused.</summary>
+    private ActionOptionView ActionOption(Encounter e, Actor actor, CombatAction action)
+    {
+        var (reason, why) = !Enum.IsDefined(action) ? (RejectionReason.UnknownCommand, "Azione sconosciuta.")
+            : !IsTurnOf(e, actor) ? (RejectionReason.NotYourTurn, "Non è il tuo turno.")
+            : CombatantOf(e, actor.Id).ActionUsed ? (RejectionReason.NoActionLeft, "Hai già usato l'azione in questo turno.")
+            : (RejectionReason.None, (string?)null);
+        return new ActionOptionView { Action = action, Valid = reason == RejectionReason.None, Reason = reason, Why = why };
+    }
+
+    /// <summary>Uses the action for a Dash, a Disengage or a Dodge, and records it.</summary>
+    private void Act(Encounter e, Actor actor, CombatAction action)
+    {
+        var c = CombatantOf(e, actor.Id);
+        c.ActionUsed = true;
+        switch (action)
+        {
+            case CombatAction.Dash: c.Dashes++; break;
+            case CombatAction.Disengage: c.Disengaged = true; break;
+            case CombatAction.Dodge: c.Dodging = true; break;
+        }
+        var kind = action switch { CombatAction.Dash => CombatLogKind.Dash, CombatAction.Disengage => CombatLogKind.Disengage, _ => CombatLogKind.Dodge };
+        Record(e, kind, actor, null, (a, _) => $"{a} {Verb(action)}.");
+    }
+
+    private static string Verb(CombatAction action) => action switch
+    {
+        CombatAction.Dash => "scatta: il movimento raddoppia per questo turno",
+        CombatAction.Disengage => "si disimpegna: in questo turno muoversi non provoca attacchi di opportunità",
+        _ => "si mette in guardia: fino al suo prossimo turno chi lo attacca, se lo vede arrivare, ha svantaggio",
+    };
 }

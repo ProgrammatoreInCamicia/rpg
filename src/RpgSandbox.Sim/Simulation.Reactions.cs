@@ -158,6 +158,10 @@ internal sealed partial class Simulation
         var occupied = OccupantsOf(map, npc, knows);
         bool Unseen(GridPos sq) => !enemies.Any(x => Sees(map, x, CurrentPosition(x)!.Value, npc, sq, LightOn(map, sq)));
         int Distance(GridPos sq) => enemies.Count == 0 ? int.MaxValue : enemies.Min(x => CurrentPosition(x)!.Value.StepsTo(sq));
+        // C3a: with an enemy next to it, Disengage (no opportunity attacks); otherwise Dash (twice as far).
+        if (!c.ActionUsed)
+            Act(e, npc, enemies.Any(x => CurrentPosition(x)!.Value.StepsTo(from) == 1 && OpenDiagonal(map, CurrentPosition(x)!.Value, from))
+                ? CombatAction.Disengage : CombatAction.Dash);
         var best = CombatReach(e, npc, map, from, from, knows, MovementLeft(e, npc))
             .Where(r => !occupied.Contains(r.Key))
             .Select(r => (Square: r.Key, Feet: r.Value.Feet))
