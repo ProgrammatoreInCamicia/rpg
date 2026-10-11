@@ -84,6 +84,26 @@ public class RationTests
     }
 
     [Fact]
+    public void A_save_missing_store_contents_is_refused_instead_of_erasing_the_store()
+    {
+        var json = JsonNode.Parse(Village().SaveToString())!;
+        var granary = json["Stores"]!.AsArray().First(st => (string)st!["Id"]! == GranaryStore.Value)!.AsObject();
+        Assert.True(granary.Remove("Contents"));
+
+        Assert.Contains("contenuto del deposito", LoadFromString(json.ToJsonString()).Error);
+    }
+
+    [Fact]
+    public void A_save_missing_actor_inventory_is_refused_instead_of_erasing_rations()
+    {
+        var json = JsonNode.Parse(Village().SaveToString())!;
+        var player = json["Actors"]!.AsArray().First(actor => (string)actor!["Id"]! == Player.Value)!.AsObject();
+        Assert.True(player.Remove("Inventory"));
+
+        Assert.Contains("inventario di 'player' mancante", LoadFromString(json.ToJsonString()).Error);
+    }
+
+    [Fact]
     public void Contents_without_rations_cannot_feed_anyone()
     {
         var files = ContentPack.Default.Files.ToDictionary(f => f.Name, f => f.Text);

@@ -98,7 +98,7 @@ internal sealed class ActorDto
     public PosDto? Position { get; set; }
     public string? MapArea { get; set; }
     public int? Sneak { get; set; }
-    public List<ItemCountDto> Inventory { get; set; } = new();
+    public List<ItemCountDto>? Inventory { get; set; }
     public long Coins { get; set; }
     public long? TorchLitUntil { get; set; }
     public List<RememberedDoorDto> Doors { get; set; } = new();
@@ -117,7 +117,7 @@ internal sealed class StoreDto
     public string Name { get; set; } = "";
     public string Location { get; set; } = "";
     public string? Owner { get; set; }
-    public List<ItemCountDto> Contents { get; set; } = new();
+    public List<ItemCountDto>? Contents { get; set; }
     public PosDto? Position { get; set; }
     public List<PosDto> Access { get; set; } = new();
 }
