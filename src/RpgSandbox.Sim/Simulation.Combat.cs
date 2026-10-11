@@ -34,15 +34,39 @@ internal sealed partial class Simulation
     }
 
     /// <summary>
-    /// Whether <paramref name="who"/> holds <paramref name="other"/> hostile, so an attack from it is no surprise: they
-    /// fought before, it has an open claim on it for a theft, or one is a raider and the other is not (C2; C4 widens it).
+    /// Whether <paramref name="who"/> holds <paramref name="other"/> hostile (C4b: a relation, no longer "raider or
+    /// not"): they fought before; it has an open claim on it for a theft; its faction holds the other hostile (hostile to
+    /// strangers, at war with the other's faction, or wanting the other); or, the other way round, the other's faction
+    /// holds it hostile (one expects trouble from those who are after it).
     /// </summary>
-    private bool HoldsHostile(Actor who, Actor other) =>
-        who.FoughtWith.Contains(other.Id)
-        || who.Claims.Any(c => c.Thief == other.Id && c.Owed > 0)
-        || IsRaider(who) != IsRaider(other);
+    internal bool HoldsHostile(Actor who, Actor other) =>
+        who.Id != other.Id
+        && (who.FoughtWith.Contains(other.Id)
+            || who.Claims.Any(c => c.Thief == other.Id && c.Owed > 0)
+            || FactionHolds(who.Faction, other)
+            || FactionHolds(other.Faction, who));
 
-    private bool IsRaider(Actor a) => a.Faction is { } f && World.Factions[f].Policy is not null;
+    /// <summary>A faction holds someone hostile: it wants them, or they are a stranger to a hostile faction or of an enemy one.</summary>
+    private bool FactionHolds(FactionId? faction, Actor someone)
+    {
+        if (faction is not { } id)
+            return false;
+        var f = World.Factions[id];
+        return f.Wanted.ContainsKey(someone.Id)
+               || (someone.Faction != id && (f.HostileToStrangers || (someone.Faction is { } other && f.Enemies.Contains(other))));
+    }
+
+    /// <summary>
+    /// C4b: an authority goes for a wanted person's capture, not its death: its melee blows knock out, unless the
+    /// person is also an enemy of the faction anyway (a raider).
+    /// </summary>
+    private bool Spares(Actor npc, Actor target)
+    {
+        if (npc.Faction is not { } id || World.Factions[id].Authority != npc.Id || !World.Factions[id].Wanted.ContainsKey(target.Id))
+            return false;
+        var f = World.Factions[id];
+        return target.Faction is not { } other || (!f.Enemies.Contains(other) && !World.Factions[other].HostileToStrangers);
+    }
 
     // ---------------------------------------------------------------- commands
 
@@ -477,6 +501,10 @@ internal sealed partial class Simulation
         var fell = World.RecordFact(k.ToString(), $"{target.Name} {words}.", by is null ? new[] { target.Id } : Participants(target, by));
         if (k == CombatLogKind.Died && by is not null && e is not null)
             WitnessKilling(e, by, target, fell); // C4a: a death blow is a deed of its own
+        // C4b, until there is a prison: an authority that knocks out someone it wants has settled the matter.
+        if (k == CombatLogKind.KnockedOut && by?.Faction is { } faction && World.Factions[faction].Authority == by.Id
+            && World.Factions[faction].Wanted.Remove(target.Id))
+            World.RecordFact("WantedSettled", $"{by.Name} ha preso {target.Name}: per {World.Factions[faction].Name} la questione è chiusa.", by.Id, target.Id);
     }
 
     /// <summary>
@@ -728,7 +756,7 @@ internal sealed partial class Simulation
             if (c.ActionUsed || Usable(target) is not { } attack)
                 return false;
             c.ActionUsed = true;
-            ResolveAttack(e, npc, target, attack, nonLethal: false, CombatLogKind.Attack);
+            ResolveAttack(e, npc, target, attack, nonLethal: attack.Melee && Spares(npc, target), CombatLogKind.Attack);
             npc.LastDecision = new DecisionTrace(World.Now, "Scontro: attacca", $"Attacca {target.Name} con {attack.Name}.", Array.Empty<string>());
             CheckEnd(e);
             return true;

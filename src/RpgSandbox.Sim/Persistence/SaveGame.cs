@@ -139,6 +139,9 @@ internal static class SaveGame
             LastDecision = ToDto(f.LastDecision),
             Authority = f.Authority?.Value,
             AvoidUntil = f.AvoidUntil.Select(x => new AvoidDto { Store = x.Key.Value, Until = x.Value.Seconds }).ToList(),
+            HostileToStrangers = f.HostileToStrangers,
+            Enemies = f.Enemies.Select(x => x.Value).ToList(),
+            Wanted = f.Wanted.Select(x => new WantedDto { Actor = x.Key.Value, Fact = x.Value.Value }).ToList(),
         }).ToList(),
         Actors = w.Actors.Values.Select(a => new ActorDto
         {
@@ -405,6 +408,7 @@ internal static class SaveGame
                 NextEvaluation = f.NextEvaluation is { } next ? new GameTime(next) : null,
                 LastDecision = FromDto(f.LastDecision),
                 Authority = f.Authority is null ? null : new ActorId(f.Authority),
+                HostileToStrangers = f.HostileToStrangers,
             }, "fazione");
             var restored = w.Factions[new FactionId(f.Id)];
             Check(Invariants.Faction(f.Id, restored.DailyUpkeep, restored.HomeStore is not null, restored.UpkeepTimeOfDay, restored.Policy));
@@ -495,6 +499,19 @@ internal static class SaveGame
         foreach (var faction in w.Factions.Values)
             Check(faction.Authority is null || w.Actors.ContainsKey(faction.Authority.Value), $"autorità di '{faction.Id}' sconosciuta");
         RestoreEncounters(w, d);
+        // C4b: wars are kept both ways; the wanted are real people, judged on a recorded deed.
+        foreach (var f in d.Factions)
+        {
+            var faction = w.Factions[new FactionId(f.Id)];
+            foreach (var enemy in f.Enemies ?? throw new InvalidDataException($"nemici di '{f.Id}' mancanti"))
+                Check(!string.IsNullOrEmpty(enemy) && enemy != f.Id && w.Factions.ContainsKey(new FactionId(enemy)) && faction.Enemies.Add(new FactionId(enemy)),
+                    $"nemici di '{f.Id}' non validi");
+            foreach (var wanted in f.Wanted ?? throw new InvalidDataException($"ricercati di '{f.Id}' mancanti"))
+                Check(wanted is not null && w.Actors.ContainsKey(new ActorId(Required(wanted.Actor, "ricercato"))) && wanted.Fact > 0 && wanted.Fact < w.NextFactId
+                      && faction.Wanted.TryAdd(new ActorId(wanted.Actor), new FactId(wanted.Fact)), $"ricercati di '{f.Id}' non validi");
+        }
+        foreach (var faction in w.Factions.Values)
+            Check(faction.Enemies.All(e => w.Factions[e].Enemies.Contains(faction.Id)), $"guerra di '{faction.Id}' non reciproca");
 
         var entries = d.Schedule.Select(e => new Scheduler.Entry(new GameTime(e.Due), e.Sequence, e.Job switch
         {

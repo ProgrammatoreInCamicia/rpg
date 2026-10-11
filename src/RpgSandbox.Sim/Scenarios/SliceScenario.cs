@@ -45,6 +45,7 @@ public static class SliceScenario
             .AddRaidingFaction(Ids.Bandits.Value, "Banditi", homeStoreId: Ids.CampStore.Value,
                 dailyUpkeep: 6, upkeepTimeOfDay: Duration.FromHours(8),
                 foodThreshold: 10, raidAmount: 8, evaluationInterval: Duration.FromHours(3))
+            .AddEnmity(Ids.VillageFaction.Value, Ids.Bandits.Value) // C4b
             .AddStore(Ids.GranaryStore.Value, "Scorte del granaio", Ids.Granary.Value, food: granaryFood, ownerFactionId: Ids.VillageFaction.Value)
             .AddStore(Ids.CampStore.Value, "Scorte del campo", Ids.BanditCamp.Value, food: 14, ownerFactionId: Ids.Bandits.Value)
             .AddActor(Ids.Player.Value, "Protagonista", Ids.Inn.Value, isPlayer: true, food: 10, sheet: Sheets.Paladin())

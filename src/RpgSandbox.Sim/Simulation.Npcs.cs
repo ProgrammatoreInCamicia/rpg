@@ -26,7 +26,9 @@ internal sealed partial class Simulation
         };
 
         UpdateVigil(npc, inputs);
+        UpdateWanted(npc, inputs);
         var plan = RaidStep(npc, inputs)
+                   ?? ConfrontStep(npc, inputs)
                    ?? ConfiscateStep(npc, inputs)
                    ?? ReturnStep(npc, inputs)
                    ?? OrganiseGuard(npc, inputs)
@@ -437,4 +439,54 @@ internal sealed partial class Simulation
         o.Kind == DeedKind.Theft
         || o.Perceived == PerceptionMode.Heard
         || o.Involved.Any(i => World.Actors[i.Id].Faction == faction);
+
+    // ---------------------------------------------------------------- C4b: the wanted
+
+    /// <summary>
+    /// The authority judges the fights it knows of: whoever it knows STARTED an assault on a member of its faction, who
+    /// was not hostile to the faction, is wanted. Who struck back, or killed in a fight it did not start, is not guilty.
+    /// Updates state only.
+    /// </summary>
+    private void UpdateWanted(Actor npc, List<string> inputs)
+    {
+        if (npc.Faction is not { } id || World.Factions[id].Authority != npc.Id)
+            return;
+        var faction = World.Factions[id];
+        foreach (var deed in npc.Knowledge.Where(o => o.Kind == DeedKind.Assault && o.Culprit is not null && o.Victim is not null)
+                     .OrderBy(o => o.LearnedAt).ThenBy(o => o.Id).ToList())
+        {
+            var culprit = World.Actors[deed.Culprit!.Value];
+            var victim = World.Actors[deed.Victim!.Value];
+            if (culprit.Id == npc.Id || victim.Faction != id || FactionHolds(id, victim) || faction.Wanted.ContainsKey(culprit.Id)
+                || (culprit.Faction is { } theirs && (faction.Enemies.Contains(theirs) || World.Factions[theirs].HostileToStrangers))
+                || deed.Fact is not { } fact)
+                continue;
+            faction.Wanted[culprit.Id] = fact;
+            inputs.Add($"Sa che {culprit.Name} ha aggredito {victim.Name}");
+            World.RecordFact("Wanted", $"{npc.Name} considera {culprit.Name} un ricercato: ha aggredito {victim.Name}.", npc.Id);
+        }
+    }
+
+    /// <summary>
+    /// An authority that sees someone its faction wants goes up to them and attacks (a fight by the C2 rules; it tries to
+    /// knock them out, see <see cref="Spares"/>).
+    /// </summary>
+    private Plan? ConfrontStep(Actor npc, List<string> inputs)
+    {
+        if (npc.Faction is not { } id || World.Factions[id].Authority != npc.Id || CurrentPosition(npc) is not { } here)
+            return null;
+        var wanted = World.Factions[id].Wanted.Keys.Select(w => World.Actors[w])
+            .Where(w => w.Conscious && EncounterOf(w) is null && SeesActor(npc, w))
+            .OrderBy(w => here.StepsTo(CurrentPosition(w)!.Value)).ThenBy(w => w.Id.Value, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (wanted is null || ProfileOf(npc).Attacks.FirstOrDefault(a => a.Melee) is not { } attack)
+            return null;
+        inputs.Add($"Vede {wanted.Name}, ricercato");
+        if (CanTalk(npc, wanted))
+            return Do("Affronta il ricercato", $"Ferma {wanted.Name} con la forza.",
+                new AttackCommand { Actor = npc.Id, Target = wanted.Id, Attack = attack.Name, NonLethal = Spares(npc, wanted) });
+        return StepNextTo(npc, wanted) is { } approach
+            ? new Plan("Raggiungi il ricercato", $"Va verso {wanted.Name} per fermarlo.", () => Execute(approach))
+            : null;
+    }
 }

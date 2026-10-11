@@ -126,6 +126,9 @@ public sealed class SimulationSession
                 LastDecision = ToView(f.LastDecision),
                 Authority = f.Authority,
                 AvoidedTargets = Freeze(f.AvoidUntil.Select(a => new AvoidedTargetView { Store = a.Key, Until = a.Value })),
+                HostileToStrangers = f.HostileToStrangers,
+                Enemies = Freeze(f.Enemies),
+                Wanted = Freeze(f.Wanted.Keys),
             })),
             RecentFacts = Freeze(w.RecentFacts.Select(f => new FactView { Id = f.Id, At = f.At, Kind = f.Kind, Description = f.Description })),
         };
@@ -268,6 +271,7 @@ public sealed class SimulationSession
                     : null,
                 Torch = _sim.TorchLit(x),
                 Condition = x.Vitality.Describe(),
+                Hostile = x.Conscious && _sim.HoldsHostile(x, player),
             })),
             VisibleStores = Freeze(w.Stores.Values.Where(s => s.Position is { } sp && map is not null
                 ? w.Locations[s.Location].Area == map.Area && (SeenOnMap(sp) || me is { } m && m.IsAdjacentOrSame(sp))

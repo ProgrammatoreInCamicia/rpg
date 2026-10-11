@@ -137,6 +137,7 @@ public static class MappedVillageScenario
             .AddRaidingFaction(Ids.Bandits.Value, "Banditi", homeStoreId: Ids.CampStore.Value, // T6c-3: as in the slice
                 dailyUpkeep: 6, upkeepTimeOfDay: Duration.FromHours(8),
                 foodThreshold: 10, raidAmount: 8, evaluationInterval: Duration.FromHours(3))
+            .AddEnmity(Ids.VillageFaction.Value, Ids.Bandits.Value) // C4b
             .AddStore(Ids.GranaryStore.Value, "Scorte del granaio", Ids.Granary.Value, food: 40,
                 ownerFactionId: Ids.VillageFaction.Value, at: (Ids.GranaryStoreSquare.X, Ids.GranaryStoreSquare.Y),
                 access: new[] { (Ids.GranaryAccess.X, Ids.GranaryAccess.Y) })

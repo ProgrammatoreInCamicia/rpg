@@ -3568,3 +3568,27 @@ Test: 348/348 (8 nuovi in DeedTests). Mutazioni: ogni colpo come apertura, nient
 spenti: ognuna fa fallire almeno un test. Build Sim e game 0/0, VILLAGE SMOKE OK, SMOKE OK.
 Nota per G12: un rumore sentito dal giocatore compare in Observations (Kind "Assault", Perceived "Heard", nessun
 nome) e nei RecentEvents ("… sente rumori di lotta verso …"). Prossimo per me: C4b (ostilità come rapporto, ricercati).
+
+[CLAUDE — C4b fatta: l'ostilità come rapporto, i ricercati]
+  - Fazioni: HostileToStrangers (AddRaidingFaction lo mette a true: i Banditi ostili a ogni estraneo), Enemies
+    (ScenarioBuilder.AddEnmity, sempre reciproca; villaggio vivo e slice: Villaggio e Banditi in guerra), Wanted.
+  - HoldsHostile non guarda più "razziatore o no": scontro precedente, Claim, la fazione di chi guarda che lo vuole o
+    lo considera nemico/estraneo ostile, e la RECIPROCITÀ (si considera ostile chi ti considera ostile: chi è ricercato
+    si aspetta le guardie). Tutti i test C2 sull'apertura restano verdi.
+  - Giudizio (UpdateWanted, solo stato, nella decisione dell'autorità): ricercato solo l'INIZIATORE riconosciuto di
+    un'aggressione a un membro della fazione che non le era ostile; chi è già nemico (un bandito) non serve metterlo.
+    Chi uccide in uno scontro che non ha cominciato non è colpevole (test: Mugnaio che uccide il Razziatore).
+    Chi vede solo da metà non condanna nessuno, anche se il primo colpo che vede è del giocatore (test rafforzato
+    dopo una mutazione che sopravviveva: "indovinare" il colpevole dal primo colpo visto).
+  - La guardia: NoticeContacts la scuote anche quando VEDE un ricercato (a qualunque distanza, mentre riposa o
+    presidia); regola "Raggiungi il ricercato" / "Affronta il ricercato": va accanto e attacca in mischia per
+    tramortire (Spares: NonLethal salvo che il ricercato sia anche di una fazione nemica o ostile). In scontro la
+    stessa regola vale per i suoi turni.
+  - ADATTAMENTO provvisorio fino alla prigionia: quando l'autorità tramortisce un ricercato la questione si chiude
+    (fatto WantedSettled), altrimenti lo ritramortirebbe ogni volta che si rialza.
+  - VisibleActorView.Hostile ora vero: un NPC sveglio che ti considera ostile. Limite dichiarato: chi ha combattuto
+    contro di te resta ostile (FoughtWith non si dimentica).
+  - FactionView (debug): HostileToStrangers, Enemies, Wanted.
+Test: 354/354 (6 nuovi in WantedTests). Mutazioni: niente colpi per tramortire, niente reciprocità, guardia che non
+nota il ricercato, colpevole indovinato: ognuna fa fallire almeno un test. Build Sim e game 0/0, VILLAGE SMOKE OK,
+SMOKE OK. Per G12: Hostile è pronto. Prossimo per me: C4c (chi entra nello scontro, chi scappa).

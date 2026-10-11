@@ -70,6 +70,9 @@ internal sealed class FactionDto
     public DecisionDto? LastDecision { get; set; }
     public string? Authority { get; set; }
     public List<AvoidDto> AvoidUntil { get; set; } = new();
+    public bool HostileToStrangers { get; set; }
+    public List<string> Enemies { get; set; } = new();
+    public List<WantedDto> Wanted { get; set; } = new();
 }
 
 internal sealed class ActorDto
@@ -455,4 +458,10 @@ internal sealed class CombatRecordDto
     public string? PlayerText { get; set; }
     public bool PlayerSawActor { get; set; }
     public bool PlayerSawTarget { get; set; }
+}
+
+internal sealed class WantedDto
+{
+    public string Actor { get; set; } = "";
+    public long Fact { get; set; }
 }

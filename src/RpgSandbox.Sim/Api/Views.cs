@@ -219,6 +219,11 @@ public sealed record FactionView
 
     /// <summary>Raid targets the faction avoids, and until when.</summary>
     public IReadOnlyList<AvoidedTargetView> AvoidedTargets { get; init; } = Array.Empty<AvoidedTargetView>();
+
+    /// <summary>C4b (debug): hostile to anyone outside it; factions at war with it; people its authority wants.</summary>
+    public bool HostileToStrangers { get; init; }
+    public IReadOnlyList<FactionId> Enemies { get; init; } = Array.Empty<FactionId>();
+    public IReadOnlyList<ActorId> Wanted { get; init; } = Array.Empty<ActorId>();
 }
 
 public sealed record AvoidedTargetView

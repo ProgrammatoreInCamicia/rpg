@@ -61,7 +61,11 @@ internal sealed record MapDefinition(AreaId Area, IReadOnlyList<string> Rows, IR
 }
 internal sealed record FactionDefinition(
     FactionId Id, string Name, StoreId? HomeStore, int DailyUpkeep, Duration UpkeepTimeOfDay, RaidPolicy? Policy,
-    ActorId? Authority);
+    ActorId? Authority, bool HostileToStrangers = false)
+{
+    /// <summary>C4b: factions at war with this one (kept both ways).</summary>
+    public List<FactionId> Enemies { get; } = new();
+}
 
 /// <summary>Builds a <see cref="Scenario"/> in C#. Validates references when <see cref="Build"/> is called.</summary>
 public sealed class ScenarioBuilder
@@ -111,12 +115,29 @@ public sealed class ScenarioBuilder
         return this;
     }
 
+    /// <summary>C4b: two factions at war: each holds the other's members hostile. Both must be added first.</summary>
+    public ScenarioBuilder AddEnmity(string factionA, string factionB)
+    {
+        var a = _factions.FirstOrDefault(f => f.Id.Value == factionA) ?? throw new ArgumentException($"Unknown faction '{factionA}'.");
+        var b = _factions.FirstOrDefault(f => f.Id.Value == factionB) ?? throw new ArgumentException($"Unknown faction '{factionB}'.");
+        if (a == b)
+            throw new ArgumentException("A faction cannot be its own enemy.");
+        if (!a.Enemies.Contains(b.Id))
+        {
+            a.Enemies.Add(b.Id);
+            b.Enemies.Add(a.Id);
+        }
+        return this;
+    }
+
     /// <summary>A faction that raids other factions' stores when its home store falls below a threshold.</summary>
     public ScenarioBuilder AddRaidingFaction(string id, string name, string homeStoreId,
         int dailyUpkeep, Duration upkeepTimeOfDay, int foodThreshold, int raidAmount, Duration evaluationInterval)
     {
         var policy = new RaidPolicy(foodThreshold, raidAmount, evaluationInterval);
-        _factions.Add(new FactionDefinition(new FactionId(id), name, new StoreId(homeStoreId), dailyUpkeep, upkeepTimeOfDay, policy, null));
+        // C4b: raiders are hostile to anyone outside the band.
+        _factions.Add(new FactionDefinition(new FactionId(id), name, new StoreId(homeStoreId), dailyUpkeep, upkeepTimeOfDay, policy, null,
+            HostileToStrangers: true));
         return this;
     }
 

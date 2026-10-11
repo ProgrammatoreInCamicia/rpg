@@ -263,6 +263,15 @@ internal sealed class Faction
 
     /// <summary>Raid targets to avoid until the given time, learned from members who came back.</summary>
     public SortedDictionary<StoreId, GameTime> AvoidUntil { get; } = new();
+
+    /// <summary>C4b: hostile to anyone who is not a member (bandits); otherwise neutral to strangers.</summary>
+    public bool HostileToStrangers { get; init; }
+
+    /// <summary>C4b: factions it is at war with (both ways).</summary>
+    public SortedSet<FactionId> Enemies { get; } = new();
+
+    /// <summary>C4b: people its authority holds guilty of an assault on a member, with the deed it judged them on.</summary>
+    public SortedDictionary<ActorId, FactId> Wanted { get; } = new(Comparer<ActorId>.Create((a, b) => string.CompareOrdinal(a.Value, b.Value)));
 }
 
 internal sealed class RaidAssignment
@@ -549,7 +558,10 @@ internal sealed class WorldState
             {
                 Id = f.Id, Name = f.Name, HomeStore = f.HomeStore, Authority = f.Authority,
                 DailyUpkeep = f.DailyUpkeep, UpkeepTimeOfDay = f.UpkeepTimeOfDay, Policy = f.Policy,
+                HostileToStrangers = f.HostileToStrangers,
             });
+            foreach (var enemy in f.Enemies)
+                world.Factions[f.Id].Enemies.Add(enemy);
         }
         foreach (var a in scenario.Actors)
         {

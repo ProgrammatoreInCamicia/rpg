@@ -212,7 +212,8 @@ internal sealed partial class Simulation
     /// </summary>
     private void NoticeContacts(AreaId area)
     {
-        foreach (var authority in World.Actors.Values.Where(a => a.MapArea == area && a.Claims.Count > 0)
+        foreach (var authority in World.Actors.Values.Where(a => a.MapArea == area && (a.Claims.Count > 0
+                         || (a.Faction is { } f && World.Factions[f].Authority == a.Id && World.Factions[f].Wanted.Count > 0)))
                      .OrderBy(a => a.Id.Value, StringComparer.Ordinal).ToList())
         {
             if (authority.CurrentAction is not (GuardAction or WaitAction { Interruptible: true }))
@@ -221,7 +222,10 @@ internal sealed partial class Simulation
                 .Where(c => c.Owed > 0)
                 .Select(c => World.Actors[c.Thief])
                 .Any(thief => thief.Food > 0 && CanTalk(authority, thief) && SeesActor(authority, thief));
-            if (met)
+            // C4b: an authority that catches sight of someone its faction wants reacts at once, at any distance.
+            var wanted = authority.Faction is { } id && World.Factions[id].Authority == authority.Id
+                && World.Factions[id].Wanted.Keys.Any(w => World.Actors[w] is var who && who.Conscious && EncounterOf(who) is null && SeesActor(authority, who));
+            if (met || wanted)
                 CancelAction(authority);
         }
     }
