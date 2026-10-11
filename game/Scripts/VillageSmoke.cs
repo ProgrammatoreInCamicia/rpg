@@ -237,6 +237,70 @@ public partial class VillageSmoke : Node
 		await DeedJournalPreview();
 		await NightDuel();
 		await DaylightAssault();
+		await CombatActions();
+	}
+
+	/// <summary>G14: the C3a choices are usable in the village HUD, including a saved disengaged turn.</summary>
+	private async Task CombatActions()
+	{
+		var joined = System.IO.Path.Combine(_outputDir, "g13-guard-joined.json");
+		_map.SetPaused(true);
+		_map.LoadGameFromPath(joined);
+		await Frames(2);
+		Require(_map.View.Combat is { IsYourTurn: true, You.ActionAvailable: true },
+			"G14: the loaded fight is not at the player's action");
+		Require(Enum.GetValues<CombatAction>().All(_map.CombatActionEnabledForSmoke),
+			"G14: a valid combat action button is disabled");
+		var normalMove = _map.View.Combat!.You.MovementLeftFeet;
+		_map.PressCombatActionForSmoke(CombatAction.Dash);
+		Require(_map.View.Combat is { } dashed && dashed.You.MovementLeftFeet == normalMove + 30
+			&& !dashed.You.ActionAvailable && dashed.Log.Any(e => e.Kind == CombatLogKind.Dash),
+			"G14: Scatto did not update the real fight and HUD");
+		await Frames(2);
+		Capture("38-g14-dash.png");
+
+		_map.LoadGameFromPath(joined);
+		await Frames(2);
+		var escapeSquare = new GridPos(13, 9);
+		Require(_map.CombatMovePreviewForSmoke(escapeSquare).Provokes.Count > 0,
+			"G14: the retreat does not expose an opportunity attack before disengaging");
+		_map.PressCombatActionForSmoke(CombatAction.Disengage);
+		Require(_map.View.Combat is { You.Disengaged: true, You.ActionAvailable: false },
+			"G14: Disimpegno is missing from the player status");
+		Require(Enum.GetValues<CombatAction>().All(a => !_map.CombatActionEnabledForSmoke(a)),
+			"G14: actions remain enabled after spending the action");
+		Require(_map.CombatMovePreviewForSmoke(escapeSquare).Provokes.Count == 0,
+			"G14: Disimpegno did not remove known opportunity attacks");
+		var midTurn = System.IO.Path.Combine(_outputDir, "g14-disengaged-mid-turn.json");
+		_map.SaveGameToPath(midTurn);
+		_map.LoadGameFromPath(midTurn);
+		Require(_map.View.Combat is { You.Disengaged: true, You.ActionAvailable: false },
+			"G14: reloading mid-turn lost Disimpegno or action use");
+		await Frames(2);
+		Capture("39-g14-disengaged.png");
+		var opportunityAttacks = _map.View.Combat!.Log.Count(e => e.Kind == CombatLogKind.OpportunityAttack);
+		_map.MoveTo(escapeSquare);
+		Require(_map.View.Position == escapeSquare && _map.View.Combat is { } escaped
+			&& escaped.Log.Count(e => e.Kind == CombatLogKind.OpportunityAttack) == opportunityAttacks,
+			"G14: the player's disengaged retreat triggered an opportunity attack");
+		_map.EndCombatTurnForSmoke();
+		for (var i = 0; i < 60 && _map.View.Combat is not { IsYourTurn: true, You.ActionAvailable: true }; i++)
+			await Frames(1);
+		Require(_map.View.Combat is { IsYourTurn: true, You.ActionAvailable: true },
+			"G14: the next player turn did not arrive after the retreat");
+		_map.PressCombatActionForSmoke(CombatAction.Dodge);
+		Require(_map.View.Combat is { You.Dodging: true, You.ActionAvailable: false } dodging
+			&& dodging.Log.Any(e => e.Kind == CombatLogKind.Dodge),
+			"G14: Schivata did not appear in the real fight and HUD");
+		var dodgingSave = System.IO.Path.Combine(_outputDir, "g14-dodging-mid-turn.json");
+		_map.SaveGameToPath(dodgingSave);
+		_map.LoadGameFromPath(dodgingSave);
+		Require(_map.View.Combat is { You.Dodging: true, You.ActionAvailable: false },
+			"G14: reloading mid-turn lost Schivata or action use");
+		await Frames(2);
+		Require(_map.PlayerDodgeMarkVisibleForSmoke,
+			"G14: Schivata is not marked on the player token");
+		Capture("40-g14-dodge.png");
 	}
 
 	/// <summary>G13: the village reacts to an assault through the real client and a saved world.</summary>

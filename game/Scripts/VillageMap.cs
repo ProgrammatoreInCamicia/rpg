@@ -749,6 +749,9 @@ public partial class VillageMap : Node2D
 			token.GetNode<Polygon2D>("Body").Visible = !prone;
 			token.GetNode<Polygon2D>("Head").Visible = !prone;
 			token.GetNode<Polygon2D>("Prone").Visible = prone;
+			token.GetNode<Line2D>("DodgeMark").Visible = !prone && _view.Combat is { } combat
+				&& (figure.Player ? combat.You.Dodging
+					: combat.Combatants.Any(c => c.Id == figure.Id && c.Dodging));
 			var tokenColor = figure.Player ? new Color(0.25f, 0.45f, 0.85f)
 				: figure.Hostile ? new Color(0.84f, 0.25f, 0.22f) : new Color(0.35f, 0.65f, 0.35f);
 			token.GetNode<Polygon2D>("Body").Color = tokenColor;
@@ -1053,6 +1056,15 @@ public partial class VillageMap : Node2D
 			Name = "Prone",
 			Polygon = new[] { new Vector2(-16, -4), new Vector2(-10, -10), new Vector2(15, -5), new Vector2(10, 1) },
 			Color = color,
+			Visible = false,
+		});
+		token.AddChild(new Line2D
+		{
+			Name = "DodgeMark",
+			Points = new[] { new Vector2(0, -40), new Vector2(13, -20), new Vector2(0, 1),
+				new Vector2(-13, -20), new Vector2(0, -40) },
+			Width = 2f,
+			DefaultColor = new Color(0.45f, 0.9f, 1f),
 			Visible = false,
 		});
 		// A torch in the hand, shown while it burns.

@@ -16,6 +16,7 @@ public partial class VillageMap
 	private Label _combatSelf = null!;
 	private Label _combatHint = null!;
 	private Label _combatTarget = null!;
+	private readonly Dictionary<CombatAction, Button> _combatActionButtons = new();
 	private VBoxContainer _combatAttacks = null!;
 	private CheckBox _combatNonLethal = null!;
 	private Button _combatEndTurn = null!;
@@ -64,6 +65,16 @@ public partial class VillageMap
 		box.AddChild(_combatTarget);
 		_combatNonLethal = new CheckBox { Text = "Tramortisci (solo mischia)" };
 		box.AddChild(_combatNonLethal);
+		var actionRow = new HBoxContainer();
+		box.AddChild(actionRow);
+		foreach (var action in Enum.GetValues<CombatAction>())
+		{
+			var choice = action;
+			var button = new Button { Text = CombatActionName(choice), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+			button.Pressed += () => ExecuteCombatAction(choice);
+			actionRow.AddChild(button);
+			_combatActionButtons.Add(choice, button);
+		}
 		_combatAttacks = new VBoxContainer();
 		box.AddChild(_combatAttacks);
 		_combatEndTurn = new Button { Text = "Fine turno" };
@@ -71,7 +82,7 @@ public partial class VillageMap
 		box.AddChild(_combatEndTurn);
 		box.AddChild(new Label { Text = "Registro dello scontro" });
 		_combatLog = new RichTextLabel { BbcodeEnabled = false, ScrollFollowing = true,
-			SizeFlagsVertical = Control.SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 175) };
+			SizeFlagsVertical = Control.SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 135) };
 		box.AddChild(_combatLog);
 
 		_openingPanel = new PanelContainer { OffsetLeft = 900, OffsetRight = 1264, OffsetTop = 100,
@@ -142,6 +153,16 @@ public partial class VillageMap
 	internal void EndCombatTurnForSmoke() => EndCombatTurn();
 
 	internal void AttackCombatTargetForSmoke(TargetView attack) => ExecuteCombatAttack(attack);
+	internal void PressCombatActionForSmoke(CombatAction action)
+	{
+		var button = _combatActionButtons[action];
+		if (button.Disabled) throw new InvalidOperationException($"{action} is disabled in the combat UI");
+		button.EmitSignal(Button.SignalName.Pressed);
+	}
+	internal bool CombatActionEnabledForSmoke(CombatAction action) => !_combatActionButtons[action].Disabled;
+	internal MovePreview CombatMovePreviewForSmoke(GridPos cell) => _sim.PreviewMove(_sim.Player, cell);
+	internal bool PlayerDodgeMarkVisibleForSmoke => _tokens.TryGetValue(_view.Id, out var token)
+		&& token.GetNode<Line2D>("DodgeMark").Visible;
 
 	private void RefreshCombatUi()
 	{
@@ -165,17 +186,26 @@ public partial class VillageMap
 			(o.Current ? "▶ " : "") + o.Name + (o.Total is { } total ? $" {total}" : "")));
 		_combatRoster.Text = combat.Combatants.Count == 0 ? "Nessun altro combattente in vista."
 			: "In vista: " + string.Join(" · ", combat.Combatants.Select(c =>
-				$"{c.Name} ({(c.Side == CombatSide.Ally ? "alleato" : "avversario")}, {c.Condition})"));
+				$"{c.Name} ({(c.Side == CombatSide.Ally ? "alleato" : "avversario")}, {c.Condition}"
+					+ (c.Dodging ? ", in schivata" : "") + ")"));
 		_combatChange.Text = combat.Log.LastOrDefault(e => e.Kind is CombatLogKind.Joined or CombatLogKind.Fled) is { } change
 			? $"Ingresso/fuga: {change.Text}" : "";
 		_combatSelf.Text = $"Tu: {combat.You.HitPoints}/{combat.You.MaxHitPoints} PF · {(combat.You.KnockedOut ? "tramortito" : LifeName(combat.You.State))}"
 			+ $"\nMovimento: {combat.You.MovementLeftFeet} piedi ({combat.You.SquaresLeft} caselle)"
 			+ $" · Azione: {(combat.You.ActionAvailable ? "pronta" : "usata")}"
 			+ $" · Reazione: {(combat.You.ReactionAvailable ? "pronta" : "usata")}"
+			+ (combat.You.Disengaged ? "\nDisimpegnato: il movimento non provoca attacchi di opportunit\u00e0." : "")
+			+ (combat.You.Dodging ? "\nIn schivata: gli attacchi che vedi arrivare hanno svantaggio." : "")
 			+ (combat.You.State == LifeState.Dying
 				? $"\nTiri salvezza contro la morte: {combat.You.DeathSaveSuccesses} successi, {combat.You.DeathSaveFailures} fallimenti" : "");
 		_combatHint.Text = BaseCombatHint(combat);
 		_combatEndTurn.Disabled = !combat.IsYourTurn;
+		foreach (var (action, button) in _combatActionButtons)
+		{
+			var option = combat.Actions.FirstOrDefault(a => a.Action == action);
+			button.Disabled = option?.Valid != true;
+			button.TooltipText = option is { Valid: false } ? option.Why ?? "Azione non disponibile." : CombatActionTip(action);
+		}
 		_combatLog.Text = string.Join("\n", combat.Log.TakeLast(14).Select(e => $"R{e.Round} · {e.Text}"));
 		if (_selectedCombatTarget is { } selected && combat.Combatants.All(c => c.Id != selected))
 			_selectedCombatTarget = null;
@@ -223,6 +253,22 @@ public partial class VillageMap
 		RejectionReason.NoActionLeft => "azione usata",
 		RejectionReason.NotVisible => "non visibile",
 		_ => choice.Why is { Length: <= 22 } why ? why : choice.Reason.ToString(),
+	};
+
+	private static string CombatActionName(CombatAction action) => action switch
+	{
+		CombatAction.Dash => "Scatto",
+		CombatAction.Disengage => "Disimpegno",
+		CombatAction.Dodge => "Schivata",
+		_ => action.ToString(),
+	};
+
+	private static string CombatActionTip(CombatAction action) => action switch
+	{
+		CombatAction.Dash => "Consuma l'azione: aggiunge la Velocit\u00e0 al movimento di questo turno.",
+		CombatAction.Disengage => "Consuma l'azione: muoversi non provoca attacchi di opportunit\u00e0 in questo turno.",
+		CombatAction.Dodge => "Consuma l'azione: chi attacca mentre lo vedi ha svantaggio fino al tuo prossimo turno.",
+		_ => "",
 	};
 
 	private void DrawCombatOverlay()
@@ -323,6 +369,13 @@ public partial class VillageMap
 	{
 		var result = _sim.Execute(new AttackCommand { Actor = _sim.Player, Target = target.Target,
 			Attack = target.Attack, NonLethal = _combatNonLethal.ButtonPressed && IsMeleeAttack(target.Attack) });
+		ShowMessage(result.Message);
+		Refresh();
+	}
+
+	private void ExecuteCombatAction(CombatAction action)
+	{
+		var result = _sim.Execute(new CombatActionCommand { Actor = _sim.Player, Action = action });
 		ShowMessage(result.Message);
 		Refresh();
 	}
