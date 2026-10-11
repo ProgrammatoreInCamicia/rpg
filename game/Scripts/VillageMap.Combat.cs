@@ -11,6 +11,8 @@ public partial class VillageMap
 	private PanelContainer _combatPanel = null!;
 	private Label _combatHeader = null!;
 	private Label _combatOrder = null!;
+	private Label _combatRoster = null!;
+	private Label _combatChange = null!;
 	private Label _combatSelf = null!;
 	private Label _combatHint = null!;
 	private Label _combatTarget = null!;
@@ -48,6 +50,12 @@ public partial class VillageMap
 		box.AddChild(_combatHeader);
 		_combatOrder = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		box.AddChild(_combatOrder);
+		_combatRoster = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		_combatRoster.AddThemeFontSizeOverride("font_size", 12);
+		box.AddChild(_combatRoster);
+		_combatChange = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		_combatChange.AddThemeFontSizeOverride("font_size", 12);
+		box.AddChild(_combatChange);
 		_combatSelf = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		box.AddChild(_combatSelf);
 		_combatHint = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
@@ -155,6 +163,11 @@ public partial class VillageMap
 		_combatHeader.Text = $"Scontro · round {combat.Round}";
 		_combatOrder.Text = "Iniziativa: " + string.Join(" · ", combat.Order.Select(o =>
 			(o.Current ? "▶ " : "") + o.Name + (o.Total is { } total ? $" {total}" : "")));
+		_combatRoster.Text = combat.Combatants.Count == 0 ? "Nessun altro combattente in vista."
+			: "In vista: " + string.Join(" · ", combat.Combatants.Select(c =>
+				$"{c.Name} ({(c.Side == CombatSide.Ally ? "alleato" : "avversario")}, {c.Condition})"));
+		_combatChange.Text = combat.Log.LastOrDefault(e => e.Kind is CombatLogKind.Joined or CombatLogKind.Fled) is { } change
+			? $"Ingresso/fuga: {change.Text}" : "";
 		_combatSelf.Text = $"Tu: {combat.You.HitPoints}/{combat.You.MaxHitPoints} PF · {(combat.You.KnockedOut ? "tramortito" : LifeName(combat.You.State))}"
 			+ $"\nMovimento: {combat.You.MovementLeftFeet} piedi ({combat.You.SquaresLeft} caselle)"
 			+ $" · Azione: {(combat.You.ActionAvailable ? "pronta" : "usata")}"
@@ -325,6 +338,8 @@ public partial class VillageMap
 	{
 		if (_view.Combat is not null || _view.Dead || _view.VisibleActors.All(a => a.Id != person))
 			return;
+		_journalOpen = false;
+		_journalPanel.Visible = false;
 		_openingTarget = person;
 		_openingTargetLabel.Text = $"Attacca {_view.VisibleActors.Single(a => a.Id == person).Name}?";
 		_openingAttack.Clear();

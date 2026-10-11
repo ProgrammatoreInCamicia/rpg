@@ -60,8 +60,14 @@ public partial class VillageMap : Node2D
 	private HBoxContainer _storeRow = null!;
 	private SpinBox _amount = null!;
 	private VBoxContainer _people = null!;
+	private ScrollContainer _peopleScroll = null!;
 	private Label _message = null!;
 	private Label _events = null!;
+	private PanelContainer _eventsPanel = null!;
+	private PanelContainer _journalPanel = null!;
+	private RichTextLabel _journalText = null!;
+	private Button _journalButton = null!;
+	private bool _journalOpen;
 	private PanelContainer _offMapPanel = null!;
 	private Label _offMapLabel = null!;
 	private Button _returnToVillage = null!;
@@ -556,6 +562,7 @@ public partial class VillageMap : Node2D
 		_sim = result.Session!;
 		_peopleKey = "";
 		_lightKey = "";
+		_journalOpen = false;
 		_approaching = null;
 		_attackAfterWalking = null;
 		_exitAfterWalking = null;
@@ -582,6 +589,7 @@ public partial class VillageMap : Node2D
 		_view = _sim.GetPlayerView();
 		if (_view.Combat is not null)
 		{
+			_journalOpen = false;
 			_talkingTo = null;
 			_running = null;
 			_walking = false;
@@ -662,6 +670,8 @@ public partial class VillageMap : Node2D
 
 		RefreshPeople();
 		_people.Visible = _view.Combat is null && !_view.Dead;
+		_peopleScroll.Visible = _people.Visible && _view.PeopleHere.Count > 0;
+		RefreshJournal();
 		RefreshCombatUi();
 		PlaceTokens();
 	}
@@ -671,7 +681,11 @@ public partial class VillageMap : Node2D
 		// The conversation ends by itself when you walk away (or the other does).
 		if (_talkingTo is { } talking && _view.PeopleHere.All(p => p.Id != talking))
 			_talkingTo = null;
-		var key = string.Join("|", _view.PeopleHere.Select(p => $"{p.Id}:{p.Topics.Count}:{p.Doing}")) + "#" + _view.UnseenNearby + "#" + _talkingTo;
+		_peopleScroll.CustomMinimumSize = new Vector2(0, _talkingTo is null ? 56 : 150);
+		_eventsPanel.Visible = _talkingTo is null;
+		var key = string.Join("|", _view.PeopleHere.Select(p =>
+			$"{p.Id}:{p.Doing}:{string.Join(',', p.Topics.Select(t => $"{t.Kind}:{t.Observation}:{t.Summary}"))}"))
+			+ "#" + _view.UnseenNearby + "#" + _talkingTo;
 		if (key == _peopleKey)
 			return;
 		_peopleKey = key;
@@ -693,7 +707,8 @@ public partial class VillageMap : Node2D
 			foreach (var topic in person.Topics)
 			{
 				var id = person.Id;
-				var tell = new Button { Text = $"Racconta: {topic.Summary}", AutowrapMode = TextServer.AutowrapMode.WordSmart };
+				var tell = new Button { Text = $"Racconta {TopicKind(topic)}: {topic.Summary}",
+					AutowrapMode = TextServer.AutowrapMode.WordSmart };
 				tell.Pressed += () => Tell(id, topic);
 				_people.AddChild(tell);
 			}
@@ -708,12 +723,13 @@ public partial class VillageMap : Node2D
 	private void PlaceTokens()
 	{
 		var me = (_view.Id, _view.Position, _view.Move);
-		var figures = new List<(ActorId Id, string Name, string? Doing, string? Condition, bool Player, GridPos? Position, MoveView? Move)>
+		var figures = new List<(ActorId Id, string Name, string? Doing, string? Condition, bool Hostile, bool Player, GridPos? Position, MoveView? Move)>
 		{
-			(me.Id, "Tu", null, _view.Dead ? "morto" : null, true, me.Position, me.Move),
+			(me.Id, "Tu", null, _view.Dead ? "morto" : null, false, true, me.Position, me.Move),
 		};
-		figures.AddRange(_view.VisibleActors.Select(a => (a.Id, a.SeesYou == true ? $"{a.Name} · ti vede" : a.Name,
-			a.Doing, a.Condition, false, a.Position, a.Move)));
+		figures.AddRange(_view.VisibleActors.Select(a => (a.Id,
+			a.SeesYou == true ? $"{a.Name} · ti vede" : a.Name,
+			a.Doing, a.Condition, a.Hostile, false, a.Position, a.Move)));
 
 		var shown = new HashSet<ActorId>();
 		foreach (var figure in figures)
@@ -733,6 +749,10 @@ public partial class VillageMap : Node2D
 			token.GetNode<Polygon2D>("Body").Visible = !prone;
 			token.GetNode<Polygon2D>("Head").Visible = !prone;
 			token.GetNode<Polygon2D>("Prone").Visible = prone;
+			var tokenColor = figure.Player ? new Color(0.25f, 0.45f, 0.85f)
+				: figure.Hostile ? new Color(0.84f, 0.25f, 0.22f) : new Color(0.35f, 0.65f, 0.35f);
+			token.GetNode<Polygon2D>("Body").Color = tokenColor;
+			token.GetNode<Polygon2D>("Prone").Color = tokenColor;
 			if (figure.Condition == "morto")
 				token.Modulate = token.Modulate.Darkened(0.45f);
 			if (figure.Player && _view.Sneaking is not null)
@@ -742,7 +762,10 @@ public partial class VillageMap : Node2D
 			if (token.GetNodeOrNull<Label>("Name") is { } nameLabel)
 			{
 				var condition = figure.Condition is null or "illeso" ? "" : $" · {figure.Condition}";
-				nameLabel.Text = figure.Doing is { Length: > 0 } doing ? $"{figure.Name}{condition}\n{doing}" : figure.Name + condition;
+				var hostility = figure.Hostile ? " · OSTILE" : "";
+				nameLabel.Text = figure.Doing is { Length: > 0 } doing
+					? $"{figure.Name}{hostility}{condition}\n{doing}" : figure.Name + hostility + condition;
+				nameLabel.AddThemeColorOverride("font_color", figure.Hostile ? new Color(1f, 0.63f, 0.59f) : Colors.White);
 			}
 			token.GetNode<Polygon2D>("Flame").Visible = figure.Player
 				? _view.TorchLitUntil is not null
@@ -1122,8 +1145,10 @@ public partial class VillageMap : Node2D
 		_storeRow.AddChild(take);
 		box.AddChild(_storeRow);
 
-		_people = new VBoxContainer();
-		box.AddChild(_people);
+		_peopleScroll = new ScrollContainer { CustomMinimumSize = new Vector2(0, 150), Visible = false };
+		_people = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_peopleScroll.AddChild(_people);
+		box.AddChild(_peopleScroll);
 
 		var saveRow = new HBoxContainer();
 		var save = new Button { Text = "Salva", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
@@ -1133,14 +1158,17 @@ public partial class VillageMap : Node2D
 		load.Pressed += LoadGame;
 		saveRow.AddChild(load);
 		box.AddChild(saveRow);
+		_journalButton = new Button { Text = "Diario" };
+		_journalButton.Pressed += ToggleJournal;
+		box.AddChild(_journalButton);
 
 		_message = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		_message.AddThemeFontSizeOverride("font_size", 13);
 		box.AddChild(_message);
 
-		var eventsPanel = new PanelContainer();
+		_eventsPanel = new PanelContainer();
 		var eventsBox = new VBoxContainer();
-		eventsPanel.AddChild(eventsBox);
+		_eventsPanel.AddChild(eventsBox);
 		var eventsTitle = new Label { Text = "Eventi" };
 		eventsTitle.AddThemeFontSizeOverride("font_size", 16);
 		eventsBox.AddChild(eventsTitle);
@@ -1150,8 +1178,9 @@ public partial class VillageMap : Node2D
 		_events.AddThemeFontSizeOverride("font_size", 12);
 		eventScroll.AddChild(_events);
 		eventsBox.AddChild(eventScroll);
-		box.AddChild(eventsPanel);
+		box.AddChild(_eventsPanel);
 		BuildCombatUi(ui);
+		BuildJournalUi(ui);
 
 		_offMapPanel = new PanelContainer { OffsetLeft = 440, OffsetRight = 840, OffsetTop = 100, OffsetBottom = 245,
 			Visible = false };

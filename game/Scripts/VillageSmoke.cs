@@ -234,7 +234,53 @@ public partial class VillageSmoke : Node
 		await DiscoveredTheft();
 		await DoorMemory();
 		await CombatHudPreview();
+		await DeedJournalPreview();
 		await NightDuel();
+	}
+
+	/// <summary>G12: the journal and conversation render each public C4 observation kind without hidden world data.</summary>
+	private async Task DeedJournalPreview()
+	{
+		_map.SetPaused(true);
+		_map.LoadGameFromPath(System.IO.Path.Combine(_outputDir, "raid-at-granary.json"));
+		await Frames(2);
+		var now = _map.View.Now;
+		var granary = MappedVillageScenario.Ids.Granary;
+		var raider = MappedVillageScenario.Ids.Raider;
+		var farmer = MappedVillageScenario.Ids.Farmer;
+		var player = _map.View.Id;
+		ObservationView Deed(long id, string kind, string perceived) => new()
+		{
+			Id = new ObservationId(id), Origin = new ObservationId(id), Kind = kind, Perceived = perceived,
+			ObservedAt = now, LearnedAt = now, ToldTo = Array.Empty<ActorId>(),
+		};
+		var observations = new[]
+		{
+			Deed(9001, "Theft", "Seen") with { Store = MappedVillageScenario.Ids.GranaryStore,
+				StoreName = "Scorte del granaio", Amount = 4, Culprit = raider, CulpritName = "Razziatore",
+				Location = granary, Square = MappedVillageScenario.Ids.GranaryAccess },
+			Deed(9002, "Assault", "Seen") with { Culprit = player, CulpritName = "Protagonista",
+				Victim = farmer, VictimName = "Contadino", Involved = new[] { player, farmer },
+				InvolvedNames = new[] { "Protagonista", "Contadino" }, Location = granary,
+				Square = MappedVillageScenario.Ids.GranaryAccess },
+			Deed(9003, "Assault", "Heard") with { Square = new GridPos(17, 7) },
+			Deed(9004, "Killing", "Seen") with { Culprit = farmer, CulpritName = "Contadino",
+				Victim = raider, VictimName = "Razziatore", Location = granary,
+				Square = MappedVillageScenario.Ids.GranaryAccess, Source = farmer, SourceName = "Contadino" },
+		};
+		var listener = new PersonView { Id = MappedVillageScenario.Ids.Guard, Name = "Guardia",
+			Topics = observations.Select(o => new TopicView { Kind = "Tell", Observation = o.Id,
+				Summary = $"Fatto {o.Id.Value}" }).ToArray() };
+		_map.PreviewDeedsForSmoke(observations, listener);
+		await Frames(3);
+		var journal = _map.JournalTextForSmoke;
+		Require(journal.Contains("Furto") && journal.Contains("Scontro") && journal.Contains("Rumori di lotta")
+			&& journal.Contains("Uccisione"), "G12: the journal omitted an observation kind");
+		var topics = string.Join("|", _map.TopicLabelsForSmoke);
+		Require(topics.Contains("il furto") && topics.Contains("lo scontro")
+			&& topics.Contains("i rumori di lotta") && topics.Contains("l'uccisione"),
+			"G12: the conversation omitted a deed kind");
+		Capture("31-g12-deeds-preview.png");
 	}
 
 	/// <summary>G11: the real C2 encounter through the village client, including a save in the player's turn.</summary>
@@ -304,7 +350,7 @@ public partial class VillageSmoke : Node
 		_map.SelectOpeningAttackForSmoke(raider.Id);
 		await Frames(2);
 		Capture("25-opening-attack-preview.png");
-		_map.PreviewCombatForSmoke(new CombatView
+		var preview = new CombatView
 		{
 			Round = 1, Turn = player, IsYourTurn = true,
 			Order = new[]
@@ -329,12 +375,31 @@ public partial class VillageSmoke : Node
 				Text = "Il Paladino affronta il Razziatore al granaio." },
 				new CombatLogEntry { Round = 1, Kind = CombatLogKind.Initiative,
 				Text = "Iniziativa: Paladino 16, Razziatore 11." } },
-		});
+		};
+		_map.PreviewCombatForSmoke(preview);
 		await Frames(3);
 		Capture("25-combat-hud-preview.png");
 		_map.SelectCombatantForSmoke(raider.Id);
 		await Frames(2);
 		Capture("26-combat-target-preview.png");
+		var guard = _map.View.VisibleActors.FirstOrDefault(a => a.Id == MappedVillageScenario.Ids.Guard);
+		_map.PreviewCombatForSmoke(preview with
+		{
+			Order = preview.Order.Append(new InitiativeView { Actor = MappedVillageScenario.Ids.Guard,
+				Name = "Guardia", Total = 9, Current = false }).ToArray(),
+			Combatants = preview.Combatants.Append(new CombatantView { Id = MappedVillageScenario.Ids.Guard,
+				Name = "Guardia", Position = guard?.Position ?? new GridPos(10, 3),
+				Side = CombatSide.Ally, Condition = "illeso" }).ToArray(),
+			Log = preview.Log.Concat(new[]
+			{
+				new CombatLogEntry { Round = 1, Kind = CombatLogKind.Joined, Actor = MappedVillageScenario.Ids.Guard,
+					Text = "La Guardia entra nello scontro e agirà dal prossimo round." },
+				new CombatLogEntry { Round = 1, Kind = CombatLogKind.Fled, Actor = raider.Id,
+					Text = "Il Razziatore cerca di fuggire." },
+			}).ToArray(),
+		});
+		await Frames(2);
+		Capture("32-g12-multiple-combatants-preview.png");
 	}
 
 	/// <summary>G9: frame an unknown farmhouse door, then the player's stale memory after it opens unseen.</summary>

@@ -44,6 +44,8 @@ Nel gioco: clic su una casella per camminare, clic sul segnale «Strada per il b
 
 Per attaccare fuori dallo scontro, clic destro su una persona visibile, scegli l'attacco e conferma. Durante lo scontro, passa il mouse sulle caselle verdi per vedere percorso e attacchi di opportunità noti, poi clicca per muoverti. Clicca su un avversario per scegliere l'attacco; «Tramortisci» vale solo per la mischia. «Fine turno» fa agire gli altri combattenti.
 
+Il pulsante «Diario» mostra i fatti che il personaggio ha visto, sentito o appreso: furti, scontri e uccisioni. «Parla con» distingue questi fatti nei racconti disponibili. Un personaggio che ti considera ostile è segnato in rosso e con la scritta «OSTILE»; il colore indica il suo atteggiamento, non il motivo.
+
 Le porte sono mostrate secondo ciò che il personaggio sa: aspetto pieno se le vede adesso, attenuato se ne ricorda uno stato passato, contorno neutro se non le ha mai viste. Il clic diretto per aprire o chiudere usa solo lo stato visto adesso; camminare attraverso una porta segue le normali regole di movimento.
 
 La scena principale usa il villaggio ampliato: Locanda, granaio con accesso sul lato ovest, casa del contadino e strada verso il bosco. La vecchia mappa piccola rimane disponibile come scenario di regressione per i test T6a/T6b. La casella di uscita verso il campo dei banditi si trova all'estremità est della strada.
