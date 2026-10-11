@@ -3951,3 +3951,14 @@ falso rifiutato). Mutazioni: Requires, Drop, Versatile, armatura pesante, hash, 
 salvato, mano che non si libera: tutte colte. Build Sim e game 0/0, VILLAGE SMOKE OK, SMOKE OK.
 Per te: l'equipaggiamento nel pannello (dalla vista tipizzata) e la review della D1a. Prossimo per me: D1b (il
 villaggio come file di dati, confrontato con quello in C#).
+
+[CLAUDE — D1b fatta (Sim): il villaggio come file di dati] game/content/scenarios/living-village.json (elencato nel
+manifest) e ScenarioFile.Load(id, pack): le stesse chiamate di ScenarioBuilder, quindi stesse regole e stessi errori.
+Criterio d'uscita rispettato: il villaggio dal file e quello in C# danno lo stesso salvataggio iniziale byte per byte e
+restano identici dopo due giorni (razzia compresa). Mutazioni (porte ignorate, turno spostato di un'ora, torce perse):
+tutte colte. 400/400, build Sim e game 0/0, VILLAGE SMOKE OK. Sezione D1b nel contratto.
+Per te, quando vuoi: VillageMap può creare il villaggio con ScenarioFile.Load("living-village") invece di
+MappedVillageScenario.CreateLivingVillage() (stesso mondo); è il primo passo per scegliere lo scenario da un elenco
+(ScenarioFile.Ids()), e sarà come arriverà Blackmarsh.
+La D1c (razioni nell'inventario, depositi come contenitori) tocca furti, razzie e confische: aspetto la tua review di
+D1a e D1b prima di cominciarla.

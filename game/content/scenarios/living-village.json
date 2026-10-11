@@ -1,0 +1,79 @@
+{
+  "source": "Original to this project: the test bench village (not part of the first sandbox).",
+  "scenario": {
+    "id": "living-village",
+    "areas": [
+      { "id": "village", "name": "Villaggio" },
+      { "id": "forest", "name": "Bosco" }
+    ],
+    "locations": [
+      { "id": "inn", "name": "Locanda", "area": "village" },
+      { "id": "granary", "name": "Granaio", "area": "village" },
+      { "id": "farmer_house", "name": "Casa del contadino", "area": "village" },
+      { "id": "forest_road", "name": "Strada per il bosco", "area": "village" },
+      { "id": "bandit_camp", "name": "Campo dei banditi", "area": "forest" }
+    ],
+    "routes": [
+      { "from": "forest_road", "to": "bandit_camp", "minutes": 30 }
+    ],
+    "maps": [
+      {
+        "area": "village",
+        "rows": [
+          "########################",
+          "#IIIIII#...............#",
+          "#IIIIII#...............#",
+          "#IIIIII................#",
+          "#IIIIII#.....GGGGGGGG..#",
+          "########.....GGGGGGGG..#",
+          "#............GGGGGGGG..#",
+          "#............GGGGGGGG..#",
+          "#............GGGGGGGG..#",
+          "#......................#",
+          "#......................#",
+          "#########..............#",
+          "#HHHHHHH#.............EE",
+          "#HHHHHHH...............#",
+          "#HHHHHHH#..............#",
+          "#########..............#",
+          "########################"
+        ],
+        "zones": { "I": "inn", "G": "granary", "H": "farmer_house", "E": "forest_road" },
+        "exits": [ { "location": "forest_road", "at": [23, 12] } ],
+        "posts": [
+          { "location": "inn", "kind": "Rest", "at": [5, 2] },
+          { "location": "farmer_house", "kind": "Home", "at": [3, 13] },
+          { "location": "granary", "kind": "Work", "at": [18, 7] },
+          { "location": "granary", "kind": "Guard", "at": [15, 5] }
+        ],
+        "lights": [
+          { "at": [3, 2], "bright": 15, "dim": 30 },
+          { "at": [4, 13], "bright": 10, "dim": 15 }
+        ],
+        "doors": [
+          { "at": [7, 3], "open": true },
+          { "at": [8, 13], "open": false }
+        ]
+      }
+    ],
+    "factions": [
+      { "id": "village", "name": "Villaggio", "homeStore": "granary_store", "authority": "guard" },
+      { "id": "bandits", "name": "Banditi", "homeStore": "camp_store", "dailyUpkeep": 6, "upkeepAt": "08:00",
+        "raids": { "threshold": 10, "amount": 8, "everyHours": 3 } }
+    ],
+    "enmities": [ ["village", "bandits"] ],
+    "stores": [
+      { "id": "granary_store", "name": "Scorte del granaio", "location": "granary", "food": 40, "owner": "village",
+        "at": [17, 5], "access": [[16, 5]] },
+      { "id": "camp_store", "name": "Scorte del campo", "location": "bandit_camp", "food": 14, "owner": "bandits" }
+    ],
+    "actors": [
+      { "id": "player", "name": "Protagonista", "location": "inn", "player": true, "food": 10, "build": "paladin",
+        "at": [2, 2], "torches": 3 },
+      { "id": "guard", "name": "Guardia", "location": "inn", "faction": "village", "build": "village-guard", "at": [5, 2] },
+      { "id": "farmer", "name": "Contadino", "location": "farmer_house", "faction": "village", "build": "farmer",
+        "work": { "location": "granary", "from": "13:00", "to": "18:00" }, "at": [3, 13] },
+      { "id": "raider", "name": "Razziatore", "location": "bandit_camp", "faction": "bandits", "build": "raider" }
+    ]
+  }
+}

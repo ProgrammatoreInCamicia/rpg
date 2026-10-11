@@ -1,0 +1,56 @@
+using System.Text.Json.Nodes;
+using RpgSandbox.Sim.Api;
+using RpgSandbox.Sim.Rules;
+using RpgSandbox.Sim.Scenarios;
+using static RpgSandbox.Sim.Tests.TestHelpers;
+
+namespace RpgSandbox.Sim.Tests;
+
+/// <summary>D1b: a scenario as a data file, the same world as its C# twin.</summary>
+public class ScenarioFileTests
+{
+    [Fact]
+    public void The_living_village_from_its_file_is_the_same_world_as_the_one_built_in_code()
+    {
+        var fromFile = SimulationSession.Create(ScenarioFile.Load("living-village"));
+        var fromCode = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
+
+        Assert.Equal(fromCode.SaveToString(), fromFile.SaveToString());
+
+        // And they live the same two days, raid included.
+        fromFile.AdvanceTo(At(3, 0));
+        fromCode.AdvanceTo(At(3, 0));
+        Assert.Equal(fromCode.SaveToString(), fromFile.SaveToString());
+    }
+
+    [Fact]
+    public void The_default_pack_offers_its_scenarios()
+    {
+        Assert.Contains("living-village", ScenarioFile.Ids());
+        Assert.Throws<InvalidDataException>(() => ScenarioFile.Load("nowhere"));
+    }
+
+    [Fact]
+    public void A_scenario_file_breaking_the_rules_is_refused_like_one_built_in_code()
+    {
+        var files = ContentPack.Default.Files.ToDictionary(f => f.Name, f => f.Text);
+        var json = JsonNode.Parse(files["scenarios/living-village.json"])!;
+        json["scenario"]!["actors"]![1]!["build"] = "dragon"; // the guard made of nothing
+        files["scenarios/living-village.json"] = json.ToJsonString();
+
+        var error = Assert.ThrowsAny<Exception>(() => ScenarioFile.Load("living-village", ContentPack.Load(files)));
+        Assert.Contains("dragon", error.Message);
+    }
+
+    [Fact]
+    public void A_time_of_day_must_be_hours_and_minutes()
+    {
+        var files = ContentPack.Default.Files.ToDictionary(f => f.Name, f => f.Text);
+        var json = JsonNode.Parse(files["scenarios/living-village.json"])!;
+        json["scenario"]!["actors"]![2]!["work"]!["from"] = "one o'clock";
+        files["scenarios/living-village.json"] = json.ToJsonString();
+
+        var error = Assert.Throws<InvalidDataException>(() => ScenarioFile.Load("living-village", ContentPack.Load(files)));
+        Assert.Contains("HH:MM", error.Message);
+    }
+}

@@ -6,6 +6,7 @@
     "srd/classes.json",
     "srd/creatures.json",
     "original/creatures.json",
-    "original/characters.json"
+    "original/characters.json",
+    "scenarios/living-village.json"
   ]
 }

@@ -452,3 +452,9 @@ Contratto completo in chat.txt ("CONTRATTO C4" e le note successive). In sintesi
 - **Vista**: `PlayerView.Equipment` e `ActorView.Equipment` (slot tipizzati), `ItemStackView.Equipped`.
 - **Salvataggi** (schema 18): contengono l'intero pacchetto usato (id, versione, hash e testi); al caricamento le regole usano solo quello, mai i file installati; se i testi non corrispondono all'hash il salvataggio è rifiutato.
 - **Debito noto**: la torcia è ancora riconosciuta dal suo id (`torch`) nel motore; diventerà una proprietà dell'oggetto (luce) quando servirà un'altra fonte di luce portatile.
+
+## D1b — Scenari come dati
+
+- Uno scenario può essere un file del pacchetto di contenuti (`game/content/scenarios/*.json`, elencato nel manifest): aree, luoghi, percorsi, mappe (righe, zone, uscite, posti, luci, porte), fazioni (con razzie e inimicizie), depositi e persone (definizione, casella, lavoro con orari "HH:MM", torce, oggetti e monete). Caselle come `[x, y]`.
+- `ScenarioFile.Load(id, pack)` lo traduce nelle stesse chiamate di `ScenarioBuilder`, quindi uno scenario in file e uno in C# rispettano le stesse regole e danno gli stessi errori; `ScenarioFile.Ids(pack)` elenca gli scenari di un pacchetto.
+- Il villaggio vivo esiste in entrambe le forme (`scenarios/living-village.json` e `MappedVillageScenario.CreateLivingVillage()`): danno lo stesso salvataggio iniziale, byte per byte, e vivono gli stessi due giorni. Il client può passare alla versione in file quando vuole; quella in C# resta per i test.

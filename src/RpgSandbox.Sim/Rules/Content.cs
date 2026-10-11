@@ -85,6 +85,9 @@ public sealed class ContentPack
     public required IReadOnlyDictionary<string, CreatureDefinition> Creatures { get; init; }
     public required IReadOnlyDictionary<string, CharacterDefinition> Characters { get; init; }
 
+    /// <summary>D1b: scenarios (worlds to play), by id, as read from their files; see Scenarios.ScenarioFile.</summary>
+    internal IReadOnlyDictionary<string, JsonElement> Scenarios { get; init; } = new Dictionary<string, JsonElement>();
+
     public ItemDefinition? Item(string id) => Items.TryGetValue(id, out var item) ? item : null;
 
     public Weapon Weapon(string id) => Item(id)?.Weapon ?? throw new KeyNotFoundException($"nessuna arma '{id}'");
@@ -156,13 +159,17 @@ public sealed class ContentPack
             if (root.TryGetProperty("characters", out var ch))
                 foreach (var e in ch.EnumerateArray())
                     Add(characters, ReadCharacter(e, name, items, classes), name);
+        var scenarios = new Dictionary<string, JsonElement>();
+        foreach (var (name, root) in documents)
+            if (root.TryGetProperty("scenario", out var sc) && !scenarios.TryAdd(Text(sc, "id", name), sc))
+                throw new InvalidDataException($"contenuti: scenario ripetuto ({name})");
         foreach (var dup in creatures.Keys.Intersect(characters.Keys))
             throw new InvalidDataException($"contenuti: '{dup}' è sia una creatura sia un personaggio");
 
         return new ContentPack
         {
             Id = id, Version = version, Hash = HashOf(ordered), Files = ordered,
-            Items = items, Classes = classes, Creatures = creatures, Characters = characters,
+            Items = items, Classes = classes, Creatures = creatures, Characters = characters, Scenarios = scenarios,
         };
     }
 
