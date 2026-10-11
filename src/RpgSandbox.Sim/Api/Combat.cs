@@ -108,6 +108,10 @@ public sealed record AttackOptionView
     /// <summary>For a ranged attack: normal and long range in feet.</summary>
     public int? NormalRange { get; init; }
     public int? LongRange { get; init; }
+
+    /// <summary>C3b: the item the attack needs (a javelin, a bolt), if any, and how many the player has left.</summary>
+    public ItemId? Uses { get; init; }
+    public int? Remaining { get; init; }
 }
 
 public sealed record InitiativeView

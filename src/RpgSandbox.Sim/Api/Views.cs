@@ -43,6 +43,10 @@ public sealed record ActorView
     public required string Name { get; init; }
     public required bool IsPlayer { get; init; }
 
+    /// <summary>C3b (debug): carried items and coins in copper pieces.</summary>
+    public IReadOnlyList<ItemStackView> Inventory { get; init; } = Array.Empty<ItemStackView>();
+    public long Coins { get; init; }
+
     /// <summary>Where the actor is. Null while travelling: a traveller is at neither end of the route.</summary>
     public LocationId? Location { get; init; }
 

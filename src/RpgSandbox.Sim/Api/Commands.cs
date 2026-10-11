@@ -121,6 +121,11 @@ public enum RejectionReason
     TooFar,
     UnknownAttack,
     NotHostile,
+
+    // C3b: items
+    NoAmmo,
+    NothingThere,
+    NotCarried,
 }
 
 public sealed record CommandResult

@@ -94,6 +94,13 @@ public sealed record PlayerView
 
     /// <summary>C2: the attacks of the player's combat profile, in the profile's order.</summary>
     public IReadOnlyList<AttackOptionView> Attacks { get; init; } = Array.Empty<AttackOptionView>();
+
+    /// <summary>C3b: what the player carries (torches included), and its coins in copper pieces.</summary>
+    public IReadOnlyList<ItemStackView> Inventory { get; init; } = Array.Empty<ItemStackView>();
+    public long Coins { get; init; }
+
+    /// <summary>C3b: items lying on the squares of the player's map that it sees (in sight with light, or next to it).</summary>
+    public IReadOnlyList<GroundItemView> GroundItems { get; init; } = Array.Empty<GroundItemView>();
 }
 
 /// <summary>Another actor as seen from outside: where it is and what it is visibly doing. No intentions, no knowledge.</summary>

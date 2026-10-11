@@ -55,6 +55,7 @@ internal sealed partial class Simulation
         TorchCommand torch => UseTorch(torch),
         AttackCommand attack => Attack(attack),
         EndTurnCommand or CombatActionCommand => CommandResult.Rejected(RejectionReason.NotInCombat, "Non stai combattendo."),
+        PickUpCommand or DropCommand => CommandResult.Rejected(RejectionReason.UnknownCommand, "Raccogliere e lasciare oggetti arriva con la C3b."),
         _ => CommandResult.Rejected(RejectionReason.UnknownCommand, $"Comando non supportato: {command.GetType().Name}."),
     };
 

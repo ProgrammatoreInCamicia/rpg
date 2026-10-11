@@ -50,3 +50,10 @@ public readonly record struct ObservationId(long Value) : IComparable<Observatio
     public int CompareTo(ObservationId other) => Value.CompareTo(other.Value);
     public override string ToString() => Value.ToString();
 }
+
+/// <summary>C3b: a kind of item in the catalog (a torch, a javelin...); quantities count how many.</summary>
+public readonly record struct ItemId(string Value) : IComparable<ItemId>
+{
+    public int CompareTo(ItemId other) => string.CompareOrdinal(Value, other.Value);
+    public override string ToString() => Value;
+}
