@@ -98,6 +98,12 @@ public sealed record PlayerView
     /// <summary>C2: the player is dead. The world may go on; the client offers to load a game.</summary>
     public bool Dead { get; init; }
 
+    /// <summary>
+    /// The player lies unconscious (dying, stable or knocked out). Outside a fight the client lets the hours pass with
+    /// <see cref="SimulationSession.AdvanceWhileUnconscious"/> instead of waiting them at the exploration pace.
+    /// </summary>
+    public bool Unconscious { get; init; }
+
     /// <summary>C2: the attacks of the player's combat profile, in the profile's order.</summary>
     public IReadOnlyList<AttackOptionView> Attacks { get; init; } = Array.Empty<AttackOptionView>();
 

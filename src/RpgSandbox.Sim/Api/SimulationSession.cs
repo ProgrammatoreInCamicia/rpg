@@ -71,6 +71,39 @@ public sealed class SimulationSession
     }
 
     /// <summary>
+    /// Lets the world go on while the player lies unconscious outside a fight, with no one at its side who could tend it:
+    /// its Death Saving Throws, then the hours until it comes to (SRD: Stable, 1 Hit Point after 1d4 hours; knocked out,
+    /// awake after 1 hour). Others keep acting meanwhile. Stops as soon as the player is conscious
+    /// (<see cref="AdvanceOutcome.Completed"/>) or dead (<see cref="AdvanceOutcome.Completed"/>, with
+    /// <see cref="PlayerView.Dead"/>), a fight reaches its turn (<see cref="AdvanceOutcome.YourTurn"/>), or after
+    /// <paramref name="maxWait"/>. <see cref="AdvanceOutcome.NotPending"/> if the player is not lying unconscious.
+    /// ADAPTATION: the game has no companions yet; when it does, a companion able to help will stop this instead.
+    /// </summary>
+    public AdvanceResult AdvanceWhileUnconscious(Duration maxWait)
+    {
+        var limit = _sim.TargetAfter(maxWait);
+        var player = World.Actors[World.Player];
+        if (!LyingUnconscious(player))
+            return new AdvanceResult { Outcome = AdvanceOutcome.NotPending, Now = World.Now };
+        while (LyingUnconscious(player))
+        {
+            // Each Downed action ends at its deadline and, if the player is still out, the next one begins.
+            var ended = _sim.ProcessUntil(limit, stopAfter: player.CurrentAction!.Id);
+            if (_sim.PlayerTurnPending)
+                return new AdvanceResult { Outcome = AdvanceOutcome.YourTurn, Now = World.Now };
+            if (ended is null)
+            {
+                World.Now = limit;
+                return new AdvanceResult { Outcome = AdvanceOutcome.TimeLimitReached, Now = World.Now };
+            }
+        }
+        return new AdvanceResult { Outcome = AdvanceOutcome.Completed, Now = World.Now };
+    }
+
+    private bool LyingUnconscious(Actor player) =>
+        player.CurrentAction is DownedAction && _sim.EncounterOf(player) is null;
+
+    /// <summary>
     /// C2: what a <see cref="MoveCommand"/> of <paramref name="actor"/> to <paramref name="to"/> would do in its fight
     /// (path, cost, opportunity attacks it would provoke), computed like the command but without touching the world.
     /// </summary>
@@ -302,6 +335,7 @@ public sealed class SimulationSession
                 .Select(f => new FactView { Id = f.Id, At = f.At, Kind = f.Kind, Description = f.PlayerDescription ?? f.Description })),
             Combat = _sim.CombatViewOf(player),
             Dead = player.Vitality.State == Rules.LifeState.Dead,
+            Unconscious = player.Vitality.Unconscious,
             Attacks = Freeze(Simulation.ProfileOf(player).Attacks.Select(a => new AttackOptionView
             {
                 Name = a.Name, Melee = a.Melee, ReachFeet = a.ReachFeet, NormalRange = a.Range?.Normal, LongRange = a.Range?.Long,

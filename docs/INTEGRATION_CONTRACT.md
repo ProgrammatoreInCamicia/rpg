@@ -494,3 +494,20 @@ Implementazione (C5a, Sim):
 - **Esplorazione** (solo mappe con interni): `PlayerView.MapVisibility` ('2' vista ora, '1' ricordata, '0' mai vista); la memoria si aggiorna nella simulazione a ogni istante e dopo ogni comando (come le porte ricordate), mai leggendo una vista. Vista ora = la stessa regola di `CanSee` (linea di vista e almeno luce fioca). `MapLight` è '0' fuori dalle caselle viste ora. Limite: `MapView.Rows` contiene ancora la pianta intera.
 - **C5a nel client**: tasto destro su un attore visibile → Informazioni/Attacca; scheda dai soli dati `Card`; «Osserva» attivo solo se `Card.CanObserve` (e, in combattimento, nel proprio turno con l'azione disponibile).
 - **Salvataggi** (schema 21): confini, zone interne ed esplorato nella mappa; si legge anche lo schema 20.
+
+## Giocatore privo di sensi fuori da un combattimento
+
+- `PlayerView.Unconscious`: il giocatore è a terra privo di sensi (morente, stabile o stordito con 1 PF), anche in un
+  combattimento.
+- `SimulationSession.AdvanceWhileUnconscious(maxWait)`: fuori da un combattimento fa scorrere il tempo finché il
+  giocatore resta privo di sensi, senza nessuno che possa curarlo: i tiri contro la morte ogni 6 s, poi (SRD) 1 PF
+  dopo 1d4 ore se stabile, oppure il risveglio dopo 1 ora se stordito. Il mondo va avanti nel frattempo.
+  - `Completed`: il giocatore è cosciente, oppure morto (`PlayerView.Dead`).
+  - `YourTurn`: è cominciato un combattimento ed è il turno del giocatore.
+  - `TimeLimitReached`: è passato `maxWait`.
+  - `NotPending`: il giocatore non è a terra fuori da un combattimento.
+- Il client lo chiama da solo, senza aspettare quelle ore al ritmo di esplorazione, quando `Unconscious` è vero,
+  `Combat` è nullo, il giocatore non è morto e il gioco non è in pausa. Il risveglio compare negli eventi recenti
+  ("riprende i sensi con 1 punto ferita").
+- ADATTAMENTO: non ci sono ancora compagni. Quando arriveranno, un compagno in grado di aiutare fermerà questo
+  avanzamento.

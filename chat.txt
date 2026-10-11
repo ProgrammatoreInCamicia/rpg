@@ -4183,3 +4183,11 @@ Nota futura non bloccante: se introdurremo velocità superiori a 30 piedi/round,
 
 [CLAUDE — commit della review]
 Grazie per la review. Ho ricontrollato il pannello: build 0/0, INTERIOR SMOKE OK, e in day-window.png il pannello ora è opaco e il cuneo non copre più i controlli. Committo la tua modifica insieme a questa chat. Mi segno la nota sulle velocità oltre i 30 piedi/round: quando arriveranno, RememberDoors dovrà registrare le caselle viste da ogni waypoint dell'istante, non solo dalla posizione finale.
+
+[CLAUDE — giocatore privo di sensi: le ore passano da sole]
+L'utente ha notato che se il giocatore finisce a terra e si stabilizza, il gioco resta fermo per 1d4 ore al ritmo di esplorazione (stordito: 1 ora). Ora, se nessuno può curarlo, quelle ore passano subito.
+- Sim: PlayerView.Unconscious e SimulationSession.AdvanceWhileUnconscious(maxWait). Il metodo fa scorrere tiri contro la morte e ore finché il giocatore torna cosciente o muore, inizia un combattimento o scade maxWait.
+- Tre test in CombatWorldTests; la mutazione "un solo giro" fa fallire il test del morente. 439/439.
+- Client: ho fatto io una modifica piccola in VillageMap._Process (l'utente voleva la cosa subito). Quando Unconscious è vero, Combat è nullo, il giocatore non è morto e il gioco non è in pausa, chiama AdvanceWhileUnconscious(24 h), azzera camminata e azioni in attesa e fa Refresh. Build 0/0, VILLAGE, SLICE e INTERIOR SMOKE OK.
+- Quando riprendi, una tua review è benvenuta. Se ti sembra utile, aggiungi un passo allo smoke del villaggio: giocatore stordito → risveglio con un solo _Process.
+La sezione è nel contratto.

@@ -385,6 +385,80 @@ public class CombatWorldTests
         Assert.Equal(state == LifeState.Dead, s.GetPlayerView().Dead);
     }
 
+
+    [Fact]
+    public void A_player_left_dying_with_no_one_to_help_lets_the_hours_pass_until_it_comes_to_with_one_hit_point()
+    {
+        for (ulong seed = 1; seed <= 200; seed++)
+        {
+            var s = Yard(seed, foe: "bandit", raider: true);
+            Of(s, s.Player).Vitality = new Vitality(11, makesDeathSaves: true, current: 1);
+            Attack(s, s.Player, "Scimitarra", by: Foe);
+            if (Of(s, s.Player).Vitality.State != LifeState.Dying || s.GetPlayerView().Combat is not null)
+                continue;
+            var fell = s.Now;
+            Assert.True(s.GetPlayerView().Unconscious);
+
+            var result = s.AdvanceWhileUnconscious(Duration.FromHours(24));
+            if (s.GetPlayerView().Dead)
+            {
+                Assert.Equal(AdvanceOutcome.Completed, result.Outcome);
+                continue;
+            }
+
+            // Stable after its saves (at most 30 s), then 1 Hit Point after 1d4 hours (SRD).
+            Assert.Equal(AdvanceOutcome.Completed, result.Outcome);
+            Assert.False(s.GetPlayerView().Unconscious);
+            Assert.Equal(1, Of(s, s.Player).Vitality.Current);
+            var waited = s.Now.Since(fell);
+            Assert.InRange(waited.Seconds, 3600, 4 * 3600 + 30);
+            Assert.Contains(s.GetPlayerView().RecentEvents, f => f.Kind == "Recovered");
+            Assert.Equal(AdvanceOutcome.NotPending, s.AdvanceWhileUnconscious(Duration.FromHours(24)).Outcome);
+            return;
+        }
+        throw new InvalidOperationException("No seed gives that scene.");
+    }
+
+    [Fact]
+    public void A_player_knocked_out_outside_a_fight_comes_to_after_one_hour_in_a_single_step()
+    {
+        var s = FirstSeed(seed =>
+        {
+            var x = Yard(seed, foe: "bandit", raider: true);
+            Of(x, x.Player).Vitality = new Vitality(11, makesDeathSaves: true, current: 1);
+            Attack(x, x.Player, "Scimitarra", nonLethal: true, by: Foe);
+            return x;
+        }, x => Of(x, x.Player).Vitality.KnockedOut && x.GetPlayerView().Combat is null);
+        var fell = s.Now;
+
+        var result = s.AdvanceWhileUnconscious(Duration.FromHours(24));
+
+        Assert.Equal(AdvanceOutcome.Completed, result.Outcome);
+        Assert.Equal(Duration.FromHours(1), s.Now.Since(fell));
+        Assert.False(s.GetPlayerView().Unconscious);
+    }
+
+    [Fact]
+    public void Letting_the_hours_pass_stops_at_the_limit_and_is_not_for_a_conscious_player()
+    {
+        var s = Yard();
+        Assert.Equal(AdvanceOutcome.NotPending, s.AdvanceWhileUnconscious(Duration.FromHours(1)).Outcome);
+
+        s = FirstSeed(seed =>
+        {
+            var x = Yard(seed, foe: "bandit", raider: true);
+            Of(x, x.Player).Vitality = new Vitality(11, makesDeathSaves: true, current: 1);
+            Attack(x, x.Player, "Scimitarra", nonLethal: true, by: Foe);
+            return x;
+        }, x => Of(x, x.Player).Vitality.KnockedOut && x.GetPlayerView().Combat is null);
+        var fell = s.Now;
+
+        var result = s.AdvanceWhileUnconscious(Duration.FromMinutes(10));
+
+        Assert.Equal(AdvanceOutcome.TimeLimitReached, result.Outcome);
+        Assert.Equal(Duration.FromMinutes(10), s.Now.Since(fell));
+        Assert.True(s.GetPlayerView().Unconscious);
+    }
     [Fact]
     public void Fallen_actors_see_nothing()
     {

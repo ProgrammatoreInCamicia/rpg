@@ -127,7 +127,19 @@ public partial class VillageMap : Node2D
 
 		// The world goes on whether the player moves or not (real time with pause, as in BG1/BG2): the exploration pace
 		// while walking or standing, a fast-forward during fixed-length activities. Only the pause stops the clock.
-		if (!_paused && _view.Combat is null && !_view.Dead)
+		if (!_paused && _view.Combat is null && !_view.Dead && _view.Unconscious)
+		{
+			// No one is there to tend the player: the hours it lies senseless pass at once, the world going on meanwhile.
+			_sim.AdvanceWhileUnconscious(Duration.FromHours(24));
+			_running = null;
+			_walking = false;
+			_approaching = null;
+			_exitAfterWalking = null;
+			_attackAfterWalking = null;
+			_pending = 0;
+			Refresh();
+		}
+		else if (!_paused && _view.Combat is null && !_view.Dead)
 		{
 			_pending += delta * (_running is not null && !_walking ? _speed : _pace);
 			var whole = (long)_pending;
