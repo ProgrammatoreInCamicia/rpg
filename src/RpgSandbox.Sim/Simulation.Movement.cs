@@ -39,12 +39,95 @@ internal sealed partial class Simulation
         if (actor.CurrentAction is MoveAction or WaitAction { Interruptible: true })
             CancelAction(actor);
 
+        return SetOff(actor, map, from, null, path, null, command.Stealthy);
+    }
+
+    /// <summary>
+    /// P1 (free movement prototype): walks to an exact point, outside a fight, along the shortest way for its body
+    /// (<see cref="SpotPlanner"/>). Hostile creatures block the way; nobody can be stood on at the end.
+    /// </summary>
+    private CommandResult StartMoveToSpot(MoveToSpotCommand command)
+    {
+        var (rejected, way) = PlanSpotWalk(command.Actor, command.To);
+        if (rejected is not null)
+            return rejected;
+        var actor = World.Actors[command.Actor];
+        var from = CurrentSpot(actor)!.Value;
+        if (actor.CurrentAction is MoveAction or WaitAction { Interruptible: true })
+            CancelAction(actor);
+        return SetOff(actor, MapOf(actor)!, CurrentPosition(actor)!.Value, from, null, way, command.Stealthy);
+    }
+
+    /// <summary>P1: what a <see cref="MoveToSpotCommand"/> would do, by the same code, without touching the world.</summary>
+    internal SpotMovePreview PreviewMoveToSpot(ActorId actor, Spot to, bool stealthy)
+    {
+        var (rejected, way) = PlanSpotWalk(actor, to);
+        if (rejected is not null)
+            return new SpotMovePreview { Valid = false, Reason = rejected.Rejection, Message = rejected.Message };
+        var speed = stealthy ? Math.Max(1, World.Actors[actor].Sheet.Speed * 2 / 3) : World.Actors[actor].Sheet.Speed;
+        return new SpotMovePreview
+        {
+            Valid = true, Way = way!.Vertices, Feet = Math.Ceiling(way.Length / Spot.PerFoot * 10 - 1e-9) / 10,
+            Seconds = way.Checkpoints(speed)[^1].Seconds,
+        };
+    }
+
+    /// <summary>P1: the way to <paramref name="to"/>, or why there is none.</summary>
+    private (CommandResult? Rejected, SpotPath? Way) PlanSpotWalk(ActorId actorId, Spot to)
+    {
+        if (!World.Actors.TryGetValue(actorId, out var actor))
+            return (CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {actorId}."), null);
+        if (!actor.Conscious)
+            return (CommandResult.Rejected(RejectionReason.ActorBusy, $"{actor.Name} non può muoversi."), null);
+        if (EncounterOf(actor) is not null)
+            return (CommandResult.Rejected(RejectionReason.InCombat, $"{actor.Name} sta combattendo."), null);
+        if (actor.CurrentAction is not null and not MoveAction and not WaitAction { Interruptible: true })
+            return (CommandResult.Rejected(RejectionReason.ActorBusy, $"{actor.Name} è già impegnato."), null);
+        if (CurrentSpot(actor) is not { } from || MapOf(actor) is not { } map)
+            return (CommandResult.Rejected(RejectionReason.NoMap, "Qui non c'è una mappa su cui camminare."), null);
+        if (from == to)
+            return (CommandResult.Rejected(RejectionReason.AlreadyThere, $"{actor.Name} è già lì."), null);
+        var planner = PlannerFor(actor, map);
+        if (!planner.Fits(to))
+            return (CommandResult.Rejected(RejectionReason.NoRoom, "Lì non c'è spazio per stare in piedi."), null);
+        return planner.Find(from, to) is { } way
+            ? (null, way)
+            : (CommandResult.Rejected(RejectionReason.Unreachable, "Non si può raggiungere quel punto."), null);
+    }
+
+    /// <summary>
+    /// P1: the way an actor's body may take on its map. Conscious creatures hostile to it, or that it holds hostile, block
+    /// it; every other creature standing (or about to stop) on the map is somewhere it cannot stop.
+    /// </summary>
+    private SpotPlanner PlannerFor(Actor actor, GridMap map)
+    {
+        var others = World.Actors.Values
+            .Where(o => o.Id != actor.Id && o.MapArea == map.Area && o.Vitality.State != LifeState.Dead && CurrentSpot(o) is not null)
+            .ToList();
+        var blockers = others.Where(o => o.Conscious && (HoldsHostile(o, actor) || HoldsHostile(actor, o))).Select(o => CurrentSpot(o)!.Value);
+        var standing = others.Select(o => CurrentSpot(o)!.Value)
+            .Concat(others.Select(o => o.CurrentAction as MoveAction).OfType<MoveAction>().Select(FinalSpot));
+        return new SpotPlanner(map, blockers, standing);
+    }
+
+    /// <summary>P1: where an actor stands right now, exactly: mid-walk, the last checkpoint reached.</summary>
+    internal Spot? CurrentSpot(Actor actor) =>
+        actor.CurrentAction is MoveAction move ? move.SpotAt(World.Now) ?? Spot.CenterOf(move.PositionAt(World.Now)) : actor.Spot;
+
+    private static Spot FinalSpot(MoveAction move) => move.Spots?[^1] ?? Spot.CenterOf(move.Path[^1]);
+
+    /// <summary>
+    /// Sets a walk going, from square to square (<paramref name="path"/>) or, P1, along a free way (<paramref name="way"/>,
+    /// checked at the points <see cref="SpotPath.Checkpoints"/> gives).
+    /// </summary>
+    private CommandResult SetOff(Actor actor, GridMap map, GridPos from, Spot? fromSpot, IReadOnlyList<GridPos>? path, SpotPath? way, bool stealthy)
+    {
         // Sneaking: SRD Slow pace and one Stealth check for as long as the actor keeps sneaking (no reroll per walk).
         // Hiding anew takes being out of everyone's sight (SRD Hide): watched, the actor only goes slowly.
-        var speed = command.Stealthy ? Math.Max(1, actor.Sheet.Speed * 2 / 3) : actor.Sheet.Speed;
+        var speed = stealthy ? Math.Max(1, actor.Sheet.Speed * 2 / 3) : actor.Sheet.Speed;
         D20Roll? stealth = null;
         var watchedBy = new List<string>();
-        if (!command.Stealthy)
+        if (!stealthy)
             actor.Sneak = null;
         else if (actor.Sneak is null && (watchedBy = WhoSeesOnMap(actor).Select(id => World.Actors[id].Name).Order(StringComparer.Ordinal).ToList()).Count == 0)
         {
@@ -53,30 +136,35 @@ internal sealed partial class Simulation
             World.RecordFact("Roll", $"{actor.Name} si muove di soppiatto, Furtività: {stealth.Describe()}.", actor.Id);
         }
 
+        var checkpoints = way?.Checkpoints(speed);
+        var steps = path ?? checkpoints!.Select(c => c.Cell).ToList();
         var move = new MoveAction
         {
             Id = World.AllocateActionId(),
             Actor = actor.Id,
             StartedAt = World.Now,
-            CompletesAt = World.Now.Plus(Duration.FromSeconds(MoveAction.SecondsFor(path.Count, speed))),
+            CompletesAt = World.Now.Plus(Duration.FromSeconds(checkpoints is null ? MoveAction.SecondsFor(steps.Count, speed) : checkpoints[^1].Seconds)),
             From = from,
-            Path = path,
+            Path = steps,
             Speed = speed,
-            Stealthy = command.Stealthy,
-            Description = command.Stealthy ? "Si muove di soppiatto" : "Cammina",
+            Stealthy = stealthy,
+            FromSpot = fromSpot,
+            Spots = checkpoints?.Select(c => c.At).ToList(),
+            Seconds = checkpoints?.Select(c => c.Seconds).ToList(),
+            Description = stealthy ? "Si muove di soppiatto" : "Cammina",
         };
         Begin(actor, move);
 
         // T6c-1: a waypoint on every square of the way (the arrival is the completion), where contacts are evaluated and
         // the door ahead, if closed, is opened (free, SRD). A door next to the start is opened at once.
-        if (map.ClosedDoorBetween(from, path[0]) is { } firstDoor)
+        if (map.ClosedDoorBetween(from, steps[0]) is { } firstDoor)
             OpenDoorOnTheWay(actor, map, firstDoor);
-        for (var step = 1; step < path.Count; step++)
-            World.Scheduler.Schedule(move.StartedAt.Plus(Duration.FromSeconds(MoveAction.SecondsFor(step, move.Speed))), new MoveWaypoint(move.Id, step));
+        for (var step = 1; step < steps.Count; step++)
+            World.Scheduler.Schedule(move.StartedAt.Plus(Duration.FromSeconds(move.SecondsTo(step))), new MoveWaypoint(move.Id, step));
         var how = stealth is not null ? $" Furtività: {stealth.Describe()}."
             : watchedBy.Count > 0 ? $" Ti vede {string.Join(", ", watchedBy)}: vai piano, ma non puoi nasconderti." : "";
         return CommandResult.Started(move.Id, move.CompletesAt,
-            command.Stealthy ? $"{actor.Name} avanza di soppiatto.{how}" : $"{actor.Name} si incammina.");
+            stealthy ? $"{actor.Name} avanza di soppiatto.{how}" : $"{actor.Name} si incammina.");
     }
 
     private CommandResult Stop(StopCommand command)
@@ -97,17 +185,20 @@ internal sealed partial class Simulation
     /// Moves an actor's recorded square (and zone), nothing else. Contacts are evaluated by <see cref="EvaluateContacts"/>
     /// once every position of the instant is known, so they never depend on the order walkers were processed in.
     /// </summary>
-    private void Place(Actor actor, GridPos square)
+    private void Place(Actor actor, GridPos square, Spot? spot = null)
     {
         _moved.TryAdd(actor.Id, (actor, actor.Location)); // the zone at the start of the instant, kept on later moves
-        actor.Position = square;
+        if (spot is { } exact)
+            actor.PlaceAt(exact); // P1: a free walk's checkpoint, in that square
+        else
+            actor.Position = square;
         actor.Location = World.Maps[actor.MapArea!.Value].ZoneAt(square);
     }
 
     /// <summary>Places an actor and evaluates the contacts at once (moves outside the per-instant phases, e.g. a stop).</summary>
-    private void Reach(Actor actor, GridPos square)
+    private void Reach(Actor actor, GridPos square, Spot? spot = null)
     {
-        Place(actor, square);
+        Place(actor, square, spot);
         EvaluateContacts();
     }
 
@@ -145,7 +236,7 @@ internal sealed partial class Simulation
         var actor = World.Actors.Values.FirstOrDefault(a => a.CurrentAction?.Id == waypoint.Action);
         if (actor?.CurrentAction is not MoveAction move)
             return;
-        Place(actor, move.Path[waypoint.Step - 1]);
+        Place(actor, move.Path[waypoint.Step - 1], move.Spots?[waypoint.Step - 1]);
         var map = World.Maps[actor.MapArea!.Value];
         if (map.ClosedDoorBetween(move.Path[waypoint.Step - 1], move.Path[waypoint.Step]) is { } nextDoor)
             OpenDoorOnTheWay(actor, map, nextDoor);
@@ -192,8 +283,7 @@ internal sealed partial class Simulation
     /// <summary>The square a walker steps into next, or null once it has arrived.</summary>
     private GridPos? NextSquare(MoveAction move)
     {
-        var elapsed = World.Now.Seconds - move.StartedAt.Seconds;
-        var reached = (int)Math.Min(move.Path.Count, elapsed * move.Speed / 30);
+        var reached = move.StepsAt(World.Now);
         return reached < move.Path.Count ? move.Path[reached] : null;
     }
 

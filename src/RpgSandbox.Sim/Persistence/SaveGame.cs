@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 22;
+    public const int SchemaVersion = 23;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -39,7 +39,7 @@ internal static class SaveGame
         }
         if (dto is null)
             throw new SaveGameException("Il salvataggio è vuoto.");
-        if (dto.Version is not (20 or 21 or SchemaVersion))
+        if (dto.Version is not (20 or 21 or 22 or SchemaVersion))
             throw new SaveGameException($"Versione del salvataggio non supportata: {dto.Version} (attese da 20 a {SchemaVersion}).");
 
         // Validation is explicit: every rule below raises InvalidDataException with a readable reason.
@@ -174,6 +174,7 @@ internal static class SaveGame
             SettledThefts = a.SettledThefts.Select(t => t.Value).ToList(),
             Cargo = a.Cargo.Select(c => new CargoDto { Store = c.Store.Value, Amount = c.Amount }).ToList(),
             Position = a.Position is { } p ? new PosDto { X = p.X, Y = p.Y } : null,
+            Spot = a.ExactSpot is { } exact ? new PosDto { X = exact.X, Y = exact.Y } : null,
             MapArea = a.MapArea?.Value,
             Sneak = a.Sneak,
             Inventory = a.Inventory.Select(i => new ItemCountDto { Item = i.Key.Value, Count = i.Value }).ToList(),
@@ -342,7 +343,12 @@ internal static class SaveGame
             GuardAction ga => new GuardActionDto { Store = ga.Store.Value },
             ConfiscateAction ca => new ConfiscateActionDto { Target = ca.Target.Value, Store = ca.Store.Value },
             DownedAction => new DownedActionDto(),
-            MoveAction mv => new MoveActionDto { From = new PosDto { X = mv.From.X, Y = mv.From.Y }, Path = mv.Path.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(), Speed = mv.Speed, Stealthy = mv.Stealthy },
+            MoveAction mv => new MoveActionDto
+            {
+                From = new PosDto { X = mv.From.X, Y = mv.From.Y }, Path = mv.Path.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(), Speed = mv.Speed, Stealthy = mv.Stealthy,
+                FromSpot = mv.FromSpot is { } fs ? new PosDto { X = fs.X, Y = fs.Y } : null,
+                Spots = mv.Spots?.Select(s => new PosDto { X = s.X, Y = s.Y }).ToList(), Seconds = mv.Seconds?.ToList(),
+            },
             _ => throw new InvalidOperationException($"Unknown action {action.GetType().Name}"),
         };
         if (dto is null)
@@ -517,6 +523,12 @@ internal static class SaveGame
             };
             foreach (var foe in a.FoughtWith ?? throw new InvalidDataException($"avversari di '{a.Id}' mancanti"))
                 Check(actor.FoughtWith.Add(new ActorId(Required(foe, "avversario"))), $"avversario ripetuto per '{a.Id}'");
+            // P1: an exact point, inside the actor's own square (schema 23).
+            if (a.Spot is { } exact)
+            {
+                Check(d.Version >= 23 && actor.Position is { } square && new Spot(exact.X, exact.Y).Cell == square, $"punto esatto di '{a.Id}' fuori dalla sua casella");
+                actor.PlaceAt(new Spot(exact.X, exact.Y));
+            }
             // C5b: before schema 22 a character had the points of its definition's level, and nobody had defeated anyone.
             Check(d.Version < 22 || a.Experience is not null && a.Defeated is not null, $"esperienza di '{a.Id}' mancante");
             actor.Experience = a.Experience
@@ -664,14 +676,14 @@ internal static class SaveGame
             var waypoint = (MoveWaypoint)entry.Job;
             var walk = w.Actors.Values.Select(x => x.CurrentAction).OfType<MoveAction>().FirstOrDefault(m => m.Id == waypoint.Action);
             Check(walk is not null && waypoint.Step >= 1 && waypoint.Step < walk.Path.Count
-                  && entry.Due == walk.StartedAt.Plus(Duration.FromSeconds(MoveAction.SecondsFor(waypoint.Step, walk.Speed))),
+                  && entry.Due == walk.StartedAt.Plus(Duration.FromSeconds(walk.SecondsTo(waypoint.Step))),
                 "tappa di un movimento non valida");
         }
         // T6c-1: and every walk has exactly its future waypoints, one per square still ahead (those due after now).
         foreach (var walk in w.Actors.Values.Select(x => x.CurrentAction).OfType<MoveAction>())
         {
             var expected = Enumerable.Range(1, Math.Max(0, walk.Path.Count - 1))
-                .Where(step => walk.StartedAt.Plus(Duration.FromSeconds(MoveAction.SecondsFor(step, walk.Speed))) > w.Now);
+                .Where(step => walk.StartedAt.Plus(Duration.FromSeconds(walk.SecondsTo(step))) > w.Now);
             var scheduled = entries.Select(e => e.Job).OfType<MoveWaypoint>().Where(m => m.Action == walk.Id).Select(m => m.Step).OrderBy(s => s);
             Check(scheduled.SequenceEqual(expected), $"tappe del cammino di '{walk.Actor}' mancanti o ripetute");
         }
@@ -771,12 +783,19 @@ internal static class SaveGame
             if (a.CurrentAction is MoveAction mv)
             {
                 var grid = w.Maps[a.MapArea!.Value];
-                Check(mv.Speed > 0 && mv.Path.Count > 0 && mv.CompletesAt == mv.StartedAt.Plus(Duration.FromSeconds(MoveAction.SecondsFor(mv.Path.Count, mv.Speed))),
+                var free = mv.Spots is not null;
+                // P1: a free walk has its start, a point and a second for every step, in order, each point in its square.
+                Check(free == (mv.FromSpot is not null) && free == (mv.Seconds is not null)
+                      && (!free || mv.Spots!.Count == mv.Path.Count && mv.Seconds!.Count == mv.Path.Count && mv.FromSpot!.Value.Cell == mv.From
+                          && mv.Spots.Zip(mv.Path).All(x => x.First.Cell == x.Second)
+                          && mv.Seconds.Zip(mv.Seconds.Skip(1)).All(x => x.First <= x.Second) && mv.Seconds[0] >= 0),
+                    $"cammino libero di '{a.Id}' incoerente");
+                Check(mv.Speed > 0 && mv.Path.Count > 0 && mv.CompletesAt == mv.StartedAt.Plus(Duration.FromSeconds(mv.SecondsTo(mv.Path.Count))),
                     $"movimento di '{a.Id}' incoerente");
                 var previous = mv.From;
                 foreach (var step in mv.Path)
                 {
-                    Check(previous.StepsTo(step) == 1 && grid.IsWalkable(step), $"percorso di '{a.Id}' non continuo o bloccato");
+                    Check((free ? previous.StepsTo(step) <= 1 : previous.StepsTo(step) == 1) && grid.IsWalkable(step), $"percorso di '{a.Id}' non continuo o bloccato");
                     previous = step;
                 }
                 Check(pos == mv.From || mv.Path.Contains(pos), $"'{a.Id}' non è sul proprio percorso");
@@ -844,6 +863,9 @@ internal static class SaveGame
             {
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
                 From = new GridPos(mv.From.X, mv.From.Y), Path = mv.Path.Select(p => new GridPos(p.X, p.Y)).ToArray(), Speed = mv.Speed, Stealthy = mv.Stealthy,
+                FromSpot = mv.FromSpot is { } fs ? new Spot(fs.X, fs.Y) : null,
+                Spots = mv.Spots?.Select(s => s is null ? throw new InvalidDataException("percorso non valido") : new Spot(s.X, s.Y)).ToArray(),
+                Seconds = mv.Seconds?.ToArray(),
             },
             ConfiscateActionDto ca => new ConfiscateAction
             {

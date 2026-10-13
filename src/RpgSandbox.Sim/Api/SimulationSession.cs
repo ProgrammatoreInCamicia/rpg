@@ -109,6 +109,9 @@ public sealed class SimulationSession
     /// </summary>
     public MovePreview PreviewMove(ActorId actor, GridPos to) => _sim.PreviewMove(actor, to);
 
+    /// <summary>P1: what a <see cref="MoveToSpotCommand"/> of <paramref name="actor"/> to <paramref name="to"/> would do (way, feet, seconds).</summary>
+    public SpotMovePreview PreviewMoveToSpot(ActorId actor, Spot to, bool stealthy = false) => _sim.PreviewMoveToSpot(actor, to, stealthy);
+
     /// <summary>Writes a complete, self-contained snapshot of the game. Call between steps, never during one.</summary>
     public void Save(Stream stream)
     {
@@ -270,6 +273,7 @@ public sealed class SimulationSession
             Location = player.Location,
             Food = player.Food,
             Position = PositionOf(player, w),
+            Spot = SpotOf(player, w),
             Move = MoveOf(player),
             Map = w.Maps.TryGetValue(area, out var areaMap) ? MapOf(areaMap, w) : null,
             MapLight = map is null ? null : Freeze(Enumerable.Range(0, map.Height).Select(y =>
@@ -313,6 +317,7 @@ public sealed class SimulationSession
                     : null,
                 Doing = map is not null || (player.Location is { } here && x.Location == here) ? OutwardDoing(x, w) : null,
                 Position = PositionOf(x, w),
+                Spot = SpotOf(x, w),
                 Move = MoveOf(x),
                 SeesYou = map is not null && me is { } mine && PositionOf(x, w) is { } theirs
                     ? Simulation.Sees(map, x, theirs, player, mine, _sim.LightOn(map, mine))
@@ -385,8 +390,15 @@ public sealed class SimulationSession
 
     private static GridPos? PositionOf(Actor a, WorldState w) => a.CurrentAction is MoveAction m ? m.PositionAt(w.Now) : a.Position;
 
+    private static Spot? SpotOf(Actor a, WorldState w) =>
+        a.CurrentAction is MoveAction m ? m.SpotAt(w.Now) ?? Spot.CenterOf(m.PositionAt(w.Now)) : a.Spot;
+
     private static MoveView? MoveOf(Actor a) => a.CurrentAction is MoveAction m
-        ? new MoveView { From = m.From, Path = Freeze(m.Path), DepartedAt = m.StartedAt, Speed = m.Speed, Stealthy = m.Stealthy }
+        ? new MoveView
+        {
+            From = m.From, Path = Freeze(m.Path), DepartedAt = m.StartedAt, Speed = m.Speed, Stealthy = m.Stealthy,
+            FromSpot = m.FromSpot, Spots = m.Spots is null ? null : Freeze(m.Spots), Seconds = m.Seconds is null ? null : Freeze(m.Seconds),
+        }
         : null;
 
     private static MapView MapOf(GridMap map, WorldState w)

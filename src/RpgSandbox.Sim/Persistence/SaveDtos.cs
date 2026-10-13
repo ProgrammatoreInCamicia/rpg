@@ -114,6 +114,9 @@ internal sealed class ActorDto
     /// <summary>C5b (schema 22): Experience Points, and (the player only) the creatures it was rewarded for defeating.</summary>
     public long? Experience { get; set; }
     public List<string>? Defeated { get; set; }
+
+    /// <summary>P1 (schema 23): the exact point where it stands, when not the centre of its square.</summary>
+    public PosDto? Spot { get; set; }
 }
 
 internal sealed class StoreDto
@@ -342,6 +345,11 @@ internal sealed class MoveActionDto : ActionDto
     public List<PosDto> Path { get; set; } = new();
     public int Speed { get; set; }
     public bool Stealthy { get; set; }
+
+    /// <summary>P1 (schema 23): a free walk's start, the exact point of each step and the second each is reached.</summary>
+    public PosDto? FromSpot { get; set; }
+    public List<PosDto>? Spots { get; set; }
+    public List<long>? Seconds { get; set; }
 }
 
 internal sealed class MapEdgeDto

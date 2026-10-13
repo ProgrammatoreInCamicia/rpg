@@ -309,6 +309,11 @@ public sealed record MoveView
 
     /// <summary>Moving at the Slow pace, sneaking (an outward gesture: anyone who sees the walker sees it creep).</summary>
     public bool Stealthy { get; init; }
+
+    /// <summary>P1, a free walk only: its start, the exact point of each step of <see cref="Path"/> and the second (after <see cref="DepartedAt"/>) each is reached. The client moves the figure between these points only.</summary>
+    public Spot? FromSpot { get; init; }
+    public IReadOnlyList<Spot>? Spots { get; init; }
+    public IReadOnlyList<long>? Seconds { get; init; }
 }
 
 /// <summary>An area's walkable map, as given to the scenario: one character per 5-ft square.</summary>

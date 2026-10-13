@@ -543,3 +543,50 @@ Regole SRD 5.2.1: Level Advancement, Experience Points by Challenge Rating, Gain
     sconfitta.
   - Rifiutati: uno schema 22 senza questi campi; XP a una creatura; `Defeated` su chi non è il giocatore o con
     creature mai affrontate.
+
+## P1a: movimento libero, prova fuori dal combattimento
+
+Prova separata. Il movimento a caselle (`MoveCommand`) e le mappe esistenti non cambiano.
+
+- `Spot(X, Y)`: un punto esatto della mappa, in pollici dall'angolo in alto a sinistra. Una casella è 60 pollici
+  (5 piedi), 12 pollici sono un piede.
+  - `Spot.Cell`: la casella del punto.
+  - `Spot.CenterOf(casella)`: il centro di una casella.
+- Il corpo di una creatura Media è un disco con raggio di 18 pollici (`SpotPlanner.BodyRadius`, 3 piedi di
+  diametro dentro i suoi 5 piedi). Così passa con margine da una porta o un corridoio di una casella.
+- `MoveToSpotCommand { Actor, To: Spot, Stealthy }`: cammina fino al punto lungo la via più corta per il corpo.
+  - Aggira caselle bloccate, depositi, muri sottili, finestre, il bordo della mappa e le creature ostili coscienti.
+  - Attraversa le porte, aperte o chiuse: le apre passando, come oggi.
+  - Si passa attraverso chi non è ostile (SRD), ma ci si ferma a non meno di 36 pollici da chiunque.
+  - Rifiuti:
+    - `NoRoom` (nuovo): lì il corpo non ci sta;
+    - `Unreachable`: non c'è una via;
+    - `AlreadyThere`;
+    - `InCombat`: in combattimento il comando non vale ancora (arriva con P1b).
+  - Furtivo: passo lento come `MoveCommand`; in questa prova non cerca il buio.
+- Costo geometrico: una diagonale costa la sua lunghezza (circa 7,1 piedi per casella). La via any-angle non è mai più
+  lunga del percorso a caselle con diagonali pesate √2, quando quel percorso è praticabile dallo stesso corpo.
+- Checkpoint (`SpotPath.Checkpoints`):
+  - ogni casella in cui si entra, ogni punto di svolta e ogni 5 piedi;
+  - ciascuno con il suo punto esatto (arrotondato al pollice, dentro la sua casella) e il secondo intero in cui lo si
+    raggiunge (per eccesso, a Velocità/6 piedi al secondo);
+  - porte e contatti vengono valutati lì, come per i passi a caselle;
+  - quantizzazione dichiarata: il tempo resta a secondi; nello stesso secondo l'ordine è quello lungo il percorso.
+- `SimulationSession.PreviewMoveToSpot(actor, spot, stealthy)` → `SpotMovePreview`. Stesso codice del comando, nessun
+  effetto.
+  - `Valid`, `Reason`, `Message`.
+  - `Way`: i punti di svolta, dalla posizione attuale all'arrivo.
+  - `Feet`: lunghezza in piedi, arrotondata per eccesso al decimo.
+  - `Seconds`: la durata.
+- Viste:
+  - `PlayerView.Spot` e `VisibleActorView.Spot`: il punto esatto, a metà cammino l'ultimo checkpoint raggiunto.
+    `Position` resta la casella di quel punto.
+  - `MoveView`: per un cammino libero anche `FromSpot`, `Spots` (uno per elemento di `Path`, che può ripetere una
+    casella) e `Seconds` (dopo `DepartedAt`). Sono null per un cammino a caselle.
+  - Il client muove la figura solo tra questi punti.
+  - Fermarsi (`StopCommand`) lascia il personaggio sul punto raggiunto. Un passo a caselle lo riporta al centro di una
+    casella.
+- Salvataggio, schema 23:
+  - `Spot` dell'attore, se non è al centro, e dentro la sua casella;
+  - `FromSpot`, `Spots` e `Seconds` di un cammino libero, coerenti con `Path` e con la sua fine;
+  - gli schemi da 20 a 22 si caricano ancora, con tutti al centro della propria casella.

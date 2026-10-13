@@ -24,6 +24,9 @@ public sealed record PlayerView
 
     /// <summary>The player's square and walk in progress on a mapped area.</summary>
     public GridPos? Position { get; init; }
+
+    /// <summary>P1: the exact point it stands at (mid-walk: the last checkpoint reached); the centre of <see cref="Position"/> unless a free walk left it elsewhere.</summary>
+    public Spot? Spot { get; init; }
     public MoveView? Move { get; init; }
 
     /// <summary>The map of the player's area, if it has one (common knowledge, like the place names).</summary>
@@ -133,6 +136,9 @@ public sealed record VisibleActorView
     public FactionId? Faction { get; init; }
     public LocationId? Location { get; init; }
     public GridPos? Position { get; init; }
+
+    /// <summary>P1: the exact point it stands at (mid-walk: the last checkpoint reached); the centre of <see cref="Position"/> unless a free walk left it elsewhere.</summary>
+    public Spot? Spot { get; init; }
     public MoveView? Move { get; init; }
     public TravelView? Travel { get; init; }
     /// <summary>

@@ -13,7 +13,7 @@ internal sealed partial class Simulation
         RememberDoors(); // a command may open a door or move the player's view (T6c-5)
         // Anything louder than a whisper ends sneaking (SRD Hide): talking, depositing, waiting... Taking food quietly,
         // stopping, a door or a torch do not (a lit torch gives you away by its light anyway); a normal walk ends it in StartMove.
-        if (result.Success && command is not (MoveCommand or StopCommand or TakeFoodCommand or DoorCommand or TorchCommand or PickUpCommand or DropCommand
+        if (result.Success && command is not (MoveCommand or MoveToSpotCommand or StopCommand or TakeFoodCommand or DoorCommand or TorchCommand or PickUpCommand or DropCommand
                 or ObserveCommand)
             && World.Actors.TryGetValue(command.Actor, out var actor))
             actor.Sneak = null;
@@ -54,6 +54,7 @@ internal sealed partial class Simulation
         WaitCommand wait => StartWait(wait.Actor, wait.Duration, interruptible: false, description: null),
         ReportCommand report => StartReport(report),
         MoveCommand move => StartMove(move),
+        MoveToSpotCommand spot => StartMoveToSpot(spot),
         StopCommand stop => Stop(stop),
         DoorCommand door => UseDoor(door),
         TorchCommand torch => UseTorch(torch),
@@ -263,7 +264,7 @@ internal sealed partial class Simulation
                 CompleteConfiscate(actor, confiscate);
                 break;
             case MoveAction move:
-                Place(actor, move.Path[^1]); // contacts follow once the instant's positions are all known
+                Place(actor, move.Path[^1], move.Spots?[^1]); // contacts follow once the instant's positions are all known
                 break;
             case DownedAction:
                 CompleteDowned(actor);
@@ -570,6 +571,6 @@ internal sealed partial class Simulation
         actor.CurrentAction = null;
         // A walker stops on the last square it reached.
         if (action is MoveAction move)
-            Reach(actor, move.PositionAt(World.Now));
+            Reach(actor, move.PositionAt(World.Now), move.SpotAt(World.Now));
     }
 }

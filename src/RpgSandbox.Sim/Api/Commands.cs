@@ -130,6 +130,10 @@ public enum RejectionReason
     // D1a: equipment
     NoWeapon,
     Equipped,
+
+    // P1: free movement
+    /// <summary>No room there for the walker's body: a wall, a closed space or someone standing too close.</summary>
+    NoRoom,
 }
 
 public sealed record CommandResult
@@ -173,4 +177,18 @@ public sealed record AdvanceResult
 {
     public required AdvanceOutcome Outcome { get; init; }
     public required GameTime Now { get; init; }
+}
+
+/// <summary>
+/// P1 (free movement prototype): walk to an exact point of the map, not a square, along the shortest way around walls,
+/// closed spaces and hostile creatures (doors on the way are opened, as with <see cref="MoveCommand"/>). Outside a fight
+/// only, for now. Rejected as <see cref="RejectionReason.NoRoom"/> if the walker's body does not fit there, as
+/// <see cref="RejectionReason.Unreachable"/> if there is no way.
+/// </summary>
+public sealed record MoveToSpotCommand : Command
+{
+    public required Spot To { get; init; }
+
+    /// <summary>Sneak, as with <see cref="MoveCommand.Stealthy"/> (Slow pace; this prototype does not seek the dark).</summary>
+    public bool Stealthy { get; init; }
 }

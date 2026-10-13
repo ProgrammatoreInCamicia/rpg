@@ -47,7 +47,33 @@ internal sealed class Actor
     public LocationId? Location { get; set; }
 
     /// <summary>Square on the area map (mapped areas only). While moving: the last square reached at a recorded instant.</summary>
-    public GridPos? Position { get; set; }
+    public GridPos? Position
+    {
+        get => _position;
+        set
+        {
+            _position = value;
+            ExactSpot = null; // placed on a square: at its centre
+        }
+    }
+
+    private GridPos? _position;
+
+    /// <summary>
+    /// P1: the exact point where the actor stands, when a free walk left it off its square's centre; null otherwise.
+    /// Always inside <see cref="Position"/>. Set with <see cref="PlaceAt"/>; setting <see cref="Position"/> clears it.
+    /// </summary>
+    public Spot? ExactSpot { get; private set; }
+
+    /// <summary>P1: where the actor stands on its map: its exact point, or the centre of its square.</summary>
+    public Spot? Spot => ExactSpot ?? (_position is { } p ? Api.Spot.CenterOf(p) : null);
+
+    /// <summary>P1: stands at <paramref name="spot"/>, in the square it lies in.</summary>
+    public void PlaceAt(Spot spot)
+    {
+        _position = spot.Cell;
+        ExactSpot = spot == Api.Spot.CenterOf(spot.Cell) ? null : spot;
+    }
 
     /// <summary>The mapped area the actor is on (also on open ground, outside any place). Null off the maps.</summary>
     public AreaId? MapArea { get; set; }
@@ -471,16 +497,33 @@ internal sealed class MoveAction : PendingAction
     /// <summary>Walking at the SRD Slow pace, trying not to be seen.</summary>
     public bool Stealthy { get; init; }
 
+    /// <summary>
+    /// P1, a free walk: where it set off from, the exact point of each checkpoint (one per entry of <see cref="Path"/>,
+    /// which then holds the square of each, a square may repeat) and the second after the start each is reached. Null
+    /// for a walk from square to square.
+    /// </summary>
+    public Spot? FromSpot { get; init; }
+    public IReadOnlyList<Spot>? Spots { get; init; }
+    public IReadOnlyList<long>? Seconds { get; init; }
+
     /// <summary>Seconds needed to walk <paramref name="steps"/> squares at <paramref name="speed"/> (rounded up).</summary>
     public static long SecondsFor(int steps, int speed) => (steps * 30L + speed - 1) / speed;
 
-    /// <summary>Where the walker is at <paramref name="t"/>: the last square fully reached.</summary>
-    public GridPos PositionAt(GameTime t)
+    /// <summary>Seconds after the start at which the walker has made <paramref name="steps"/> steps (checkpoints).</summary>
+    public long SecondsTo(int steps) => steps == 0 ? 0 : Seconds is { } s ? s[steps - 1] : SecondsFor(steps, Speed);
+
+    /// <summary>Steps fully made at <paramref name="t"/>.</summary>
+    public int StepsAt(GameTime t)
     {
         var elapsed = Math.Max(0, t.Seconds - StartedAt.Seconds);
-        var steps = (int)Math.Min(Path.Count, elapsed * Speed / 30);
-        return steps == 0 ? From : Path[steps - 1];
+        return Seconds is { } s ? s.Count(x => x <= elapsed) : (int)Math.Min(Path.Count, elapsed * Speed / 30);
     }
+
+    /// <summary>Where the walker is at <paramref name="t"/>: the last square fully reached.</summary>
+    public GridPos PositionAt(GameTime t) => StepsAt(t) is var steps && steps == 0 ? From : Path[steps - 1];
+
+    /// <summary>P1: on a free walk, the exact point reached at <paramref name="t"/>; null on a walk from square to square.</summary>
+    public Spot? SpotAt(GameTime t) => Spots is null ? null : StepsAt(t) is var steps && steps == 0 ? FromSpot : Spots[steps - 1];
 }
 
 internal sealed class WaitAction : PendingAction
