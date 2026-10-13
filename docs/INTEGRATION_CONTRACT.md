@@ -592,3 +592,40 @@ Prova separata. Il movimento a caselle (`MoveCommand`) e le mappe esistenti non 
   - `Spot` dell'attore, se non è al centro, e dentro la sua casella;
   - `FromSpot`, `Spots` e `Seconds` di un cammino libero, coerenti con `Path` e con la sua fine;
   - gli schemi da 20 a 22 si caricano ancora, con tutti al centro della propria casella.
+
+## P1b: movimento libero in combattimento
+
+- `MoveToSpotCommand` vale anche nel proprio turno di combattimento: lo spostamento avviene subito, dentro il turno,
+  senza un cammino nel tempo.
+  - Rifiuti: `InCombat` se furtivo; `NotYourTurn`; `NoMovementLeft`; `AlreadyThere`; `NoRoom`; `Unreachable`;
+    `TooFar` ("servono 11,2 piedi, te ne restano 8,6").
+- Via: la stessa di P1a, con due differenze.
+  - Le porte chiuse sono muri: aprirle è un'interazione, come sulle caselle.
+  - Aggira le creature che chi si muove percepisce. Si attraversa un alleato; nessuna altra creatura cosciente si
+    attraversa; non ci si ferma su nessuno.
+  - ADATTAMENTO: una creatura incapacitata si attraversa senza il terreno difficile che sarebbe sulle caselle.
+- Costo: la lunghezza della via in pollici, arrotondata per eccesso, sul movimento del turno. Il movimento speso è in
+  pollici (`Combatant.MovedInches`); i movimenti a caselle spendono 60 pollici per casella. `CombatSelfView` ha anche
+  `MovementLeftInches`; `MovementLeftFeet` resta, arrotondato per difetto.
+- Esecuzione pollice per pollice contro le creature davvero presenti:
+  - una creatura cosciente non alleata che chi si muove non percepiva lo ferma prima di toccarla;
+  - uscire dalla portata di un nemico provoca il suo attacco di opportunità nell'ultimo punto ancora in portata, con
+    le regole di sempre (lo vede, ha la Reazione, Disimpegno lo evita);
+  - chi cade resta lì;
+  - chi finirebbe su qualcuno che non vedeva torna indietro lungo la via. I pollici fatti in avanti restano spesi,
+    come sulle caselle.
+- Portata in mischia (`InReach`): in portata se lo sono le caselle, come prima, **oppure** se i corpi distano al
+  massimo la portata da bordo a bordo (per 5 piedi: 96 pollici tra i centri) senza nulla di solido in mezzo.
+  - Niente di solido: caselle bloccate, muri sottili, finestre, porte chiuse; toccare uno spigolo blocca.
+  - ADATTAMENTO finché i PNG si muovono a caselle: la regola delle caselle resta, così un PNG accanto alla casella del
+    giocatore lo raggiunge ovunque stia dentro di essa.
+  - Ai centri delle caselle le due regole coincidono per 5 piedi di portata.
+  - Gittate a distanza, svantaggio da mischia e colpo critico automatico restano a caselle.
+- `PreviewMoveToSpot` in combattimento:
+  - `Valid` (falso anche per `TooFar`, con la via comunque in `Way`), `Feet`, `FeetLeft` (prima della mossa),
+    `Seconds` = 0;
+  - `Provokes`: chi farebbe un attacco di opportunità, tra le minacce che il giocatore conosce, con il punto (`At`) e
+    i piedi percorsi (`AfterFeet`).
+- I PNG si muovono ancora a caselle.
+- Salvataggio, schema 24: `MovedInches` di ogni combattente, obbligatorio. Gli schemi precedenti lo ricavano da
+  `MovedFeet` × 12.

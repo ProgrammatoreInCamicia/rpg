@@ -218,14 +218,18 @@ public class FreeMovementTests
     }
 
     [Fact]
-    public void A_free_walk_is_for_outside_fights_only_for_now()
+    public void In_a_fight_a_free_move_is_no_walk_in_time_and_nobody_sneaks()
     {
         var s = House();
         Of(s, Farmer).Position = new GridPos(8, 4);
         Assert.True(s.Execute(new AttackCommand { Actor = s.Player, Target = Farmer, Attack = "Spada lunga" }).Success);
         Assert.NotNull(s.GetPlayerView().Combat);
 
-        Assert.Equal(RejectionReason.InCombat, Walk(s, new Spot(650, 470), finish: false).Rejection);
-        Assert.False(s.PreviewMoveToSpot(s.Player, new Spot(650, 470)).Valid);
+        // P1b: a move within the turn (FreeCombatTests), never a timed walk; sneaking is not for fights.
+        var sneak = s.Execute(new MoveToSpotCommand { Actor = s.Player, To = new Spot(650, 470), Stealthy = true });
+        Assert.Equal(RejectionReason.InCombat, sneak.Rejection);
+        Assert.False(s.PreviewMoveToSpot(s.Player, new Spot(650, 470), stealthy: true).Valid);
+        Walk(s, new Spot(650, 470), finish: false);
+        Assert.Null(s.GetPlayerView().Move);
     }
 }

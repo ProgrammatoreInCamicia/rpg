@@ -61,6 +61,15 @@ internal sealed partial class Simulation
     /// <summary>P1: what a <see cref="MoveToSpotCommand"/> would do, by the same code, without touching the world.</summary>
     internal SpotMovePreview PreviewMoveToSpot(ActorId actor, Spot to, bool stealthy)
     {
+        if (World.Actors.TryGetValue(actor, out var mover) && mover.Conscious && EncounterOf(mover) is { } fight)
+            return stealthy
+                ? new SpotMovePreview { Valid = false, Reason = RejectionReason.InCombat, Message = "Durante uno scontro non puoi muoverti di soppiatto." }
+                : PreviewFreeCombatMove(fight, mover, to);
+        return PreviewOutsideFights(actor, to, stealthy);
+    }
+
+    private SpotMovePreview PreviewOutsideFights(ActorId actor, Spot to, bool stealthy)
+    {
         var (rejected, way) = PlanSpotWalk(actor, to);
         if (rejected is not null)
             return new SpotMovePreview { Valid = false, Reason = rejected.Rejection, Message = rejected.Message };

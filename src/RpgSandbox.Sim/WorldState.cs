@@ -580,7 +580,8 @@ internal sealed class Combatant
     public required int Side { get; init; }
     public required int Initiative { get; init; }
     public required int InitiativeBonus { get; init; }
-    public int MovedFeet { get; set; }
+    /// <summary>P1b: movement spent this turn, in inches (a free move is not a whole number of feet).</summary>
+    public int MovedInches { get; set; }
     public bool ActionUsed { get; set; }
     public bool ReactionUsed { get; set; }
 

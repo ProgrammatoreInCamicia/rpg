@@ -32,6 +32,7 @@ internal sealed partial class Simulation
                 return command switch
                 {
                     MoveCommand move => CombatMove(fight, actor, move),
+                    MoveToSpotCommand spot => CombatMoveToSpot(fight, actor, spot),
                     AttackCommand attack => Attack(attack),
                     EndTurnCommand end => EndTurn(end),
                     CombatActionCommand act => TakeAction(fight, actor, act),

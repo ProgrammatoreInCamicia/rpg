@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 23;
+    public const int SchemaVersion = 24;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -39,7 +39,7 @@ internal static class SaveGame
         }
         if (dto is null)
             throw new SaveGameException("Il salvataggio è vuoto.");
-        if (dto.Version is not (20 or 21 or 22 or SchemaVersion))
+        if (dto.Version is not (>= 20 and <= SchemaVersion))
             throw new SaveGameException($"Versione del salvataggio non supportata: {dto.Version} (attese da 20 a {SchemaVersion}).");
 
         // Validation is explicit: every rule below raises InvalidDataException with a readable reason.
@@ -922,7 +922,7 @@ internal static class SaveGame
         Combatants = e.Order.Select(c => new CombatantDto
         {
             Actor = c.Actor.Value, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus,
-            MovedFeet = c.MovedFeet, ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
+            MovedFeet = c.MovedInches / Spot.PerFoot, MovedInches = c.MovedInches, ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
             LastSeenEnemy = ToDto(c.LastSeenEnemy), JoinedInRound = c.JoinedInRound, Fleeing = c.Fleeing,
             Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted,
         }).ToList(),
@@ -961,13 +961,15 @@ internal static class SaveGame
                 Check(w.Actors.TryGetValue(id, out var actor), $"combattente sconosciuto '{id}'");
                 Check(actor!.MapArea == area && actor.Position is { } pos && map!.IsWalkable(pos) && actor.CurrentAction is null,
                     $"combattente '{id}' fuori dalla mappa dello scontro o impegnato in altro");
-                Check(c.Side is 0 or 1 && c.Dashes is 0 or 1 && c.MovedFeet >= 0 && c.MovedFeet <= Simulation.ProfileOf(actor).Speed * (1 + c.Dashes),
+                Check(d.Version < 24 || c.MovedInches is not null, $"movimento del combattente '{id}' mancante");
+                var moved = c.MovedInches ?? c.MovedFeet * Spot.PerFoot;
+                Check(c.Side is 0 or 1 && c.Dashes is 0 or 1 && moved >= 0 && moved <= Simulation.ProfileOf(actor).Speed * Spot.PerFoot * (1 + c.Dashes),
                     $"combattente '{id}' non valido");
                 Check(e.Order.All(o => o.Actor != id) && w.Encounters.Values.All(o => o.Order.All(x => x.Actor != id)),
                     $"'{id}' è in più di uno scontro");
                 e.Order.Add(new Combatant
                 {
-                    Actor = id, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus, MovedFeet = c.MovedFeet,
+                    Actor = id, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus, MovedInches = moved,
                     ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
                     LastSeenEnemy = c.LastSeenEnemy is { } seen ? new GridPos(seen.X, seen.Y) : null,
                     JoinedInRound = c.JoinedInRound is { } joined && joined >= 1 && joined <= dto.Round ? joined

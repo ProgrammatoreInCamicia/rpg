@@ -41,6 +41,23 @@ public sealed record SpotMovePreview
     /// <summary>Its length in feet, rounded up to a tenth (a diagonal is as long as it is: about 7.1 feet a square).</summary>
     public double Feet { get; init; }
 
-    /// <summary>Seconds the walk takes at the walker's pace.</summary>
+    /// <summary>Seconds the walk takes at the walker's pace (0 in a fight: moves happen within the turn).</summary>
     public long Seconds { get; init; }
+
+    /// <summary>P1b, in a fight: the movement left this turn, in feet (to the inch), before this move.</summary>
+    public double FeetLeft { get; init; }
+
+    /// <summary>P1b, in a fight: the Opportunity Attacks the move would provoke, by threats the player knows of.</summary>
+    public IReadOnlyList<SpotProvocationView> Provokes { get; init; } = Array.Empty<SpotProvocationView>();
+}
+
+/// <summary>P1b: an Opportunity Attack a free move would provoke, and where: the last point of the way still in reach.</summary>
+public sealed record SpotProvocationView
+{
+    public required ActorId By { get; init; }
+    public required string Name { get; init; }
+    public required Spot At { get; init; }
+
+    /// <summary>Feet walked along the way when it comes.</summary>
+    public required double AfterFeet { get; init; }
 }

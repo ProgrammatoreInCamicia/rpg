@@ -214,15 +214,15 @@ internal sealed partial class Simulation
         var player = World.Actors[World.Player];
         var provokes = new List<ProvocationView>();
         var used = e.Order.Where(c => c.ReactionUsed).Select(c => c.Actor).ToHashSet();
-        var from = CurrentPosition(actor)!.Value;
+        var from = StandingOf(actor);
         for (var i = 0; i < plan.Path.Count; i++)
         {
-            foreach (var foe in Threats(e, actor, from, plan.Path[i]).Where(f => !used.Contains(f.Id) && SeesActor(player, f)))
+            foreach (var foe in Threats(e, actor, from, Centre(plan.Path[i])).Where(f => !used.Contains(f.Id) && SeesActor(player, f)))
             {
                 used.Add(foe.Id);
                 provokes.Add(new ProvocationView { Step = i, By = foe.Id, Name = foe.Name });
             }
-            from = plan.Path[i];
+            from = Centre(plan.Path[i]);
         }
         return new MovePreview
         {
@@ -263,7 +263,7 @@ internal sealed partial class Simulation
     /// <summary>The start of a turn: movement and Reaction back, a Death Saving Throw if dying, the opening attack due.</summary>
     private bool BeginTurn(Encounter e, Combatant c, Actor actor)
     {
-        c.MovedFeet = 0;
+        c.MovedInches = 0;
         c.ReactionUsed = false; // SRD: a Reaction comes back at the start of one's own turn
         c.Dashes = 0;
         c.Disengaged = false;
@@ -451,7 +451,7 @@ internal sealed partial class Simulation
         bool disadvantage = false, longRange = false;
         if (attack.Melee)
         {
-            if (!InReach(map, at, attack, there))
+            if (!InReach(map, StandingOf(attacker), attack, StandingOf(target)))
                 return new(RejectionReason.TooFar, $"{target.Name} è fuori portata: avvicinati.");
         }
         else
@@ -483,6 +483,21 @@ internal sealed partial class Simulation
         return steps >= 1 && steps * FeetPerSquare <= attack.ReachFeet && map.HasLineOfSight(from, square)
                && (steps > 1 || OpenDiagonal(map, from, square));
     }
+
+    /// <summary>
+    /// P1b: a melee attack reaches between two creatures standing at exact points: by their squares, as above, or by
+    /// the bodies themselves, no more than the reach apart (edge to edge) with nothing solid in between. ADAPTATION, while
+    /// NPCs still walk from square to square: the squares' rule is kept, so an NPC next to the player's square reaches it
+    /// wherever the player stands in it; at the centres of their squares both rules agree for a 5-foot reach.
+    /// </summary>
+    internal static bool InReach(GridMap map, (GridPos Cell, Spot At) from, AttackProfile attack, (GridPos Cell, Spot At) to) =>
+        InReach(map, from.Cell, attack, to.Cell)
+        || from.At.DistanceTo(to.At) - 2 * SpotPlanner.BodyRadius <= attack.ReachFeet * Spot.PerFoot && SpotPlanner.LineClear(map, from.At, to.At);
+
+    /// <summary>P1b: where an actor stands now, as its square and its exact point.</summary>
+    private (GridPos Cell, Spot At) StandingOf(Actor actor) => (CurrentPosition(actor)!.Value, CurrentSpot(actor)!.Value);
+
+    private static (GridPos Cell, Spot At) Centre(GridPos square) => (square, Spot.CenterOf(square));
 
     /// <summary>Rolls the attack and applies the damage. Returns the line for the dice log.</summary>
     private string ResolveAttack(Encounter e, Actor attacker, Actor target, AttackProfile attack, bool nonLethal, CombatLogKind kind)
@@ -554,8 +569,12 @@ internal sealed partial class Simulation
 
     private sealed record CombatPlan(IReadOnlyList<GridPos> Path, IReadOnlyList<int> Cost, int Feet);
 
-    private int MovementLeft(Encounter e, Actor actor) =>
-        ProfileOf(actor).Speed * (1 + CombatantOf(e, actor.Id).Dashes) - CombatantOf(e, actor.Id).MovedFeet; // C3a: Dash adds Speed
+    /// <summary>Whole feet of movement left this turn (P1b: rounded down from the inches left).</summary>
+    private int MovementLeft(Encounter e, Actor actor) => (int)Math.Floor(MovementLeftInches(e, actor) / (double)Spot.PerFoot);
+
+    /// <summary>P1b: inches of movement left this turn.</summary>
+    private int MovementLeftInches(Encounter e, Actor actor) =>
+        ProfileOf(actor).Speed * Spot.PerFoot * (1 + CombatantOf(e, actor.Id).Dashes) - CombatantOf(e, actor.Id).MovedInches; // C3a: Dash adds Speed
 
     /// <summary>
     /// The creatures a mover takes into account when planning: those it sees, allies included (there is no memory of
@@ -683,7 +702,7 @@ internal sealed partial class Simulation
     }
 
     /// <summary>Enemies whose reach <paramref name="mover"/> leaves stepping from <paramref name="from"/> to <paramref name="to"/>, seeing it, with a Reaction to spend.</summary>
-    private IEnumerable<Actor> Threats(Encounter e, Actor mover, GridPos from, GridPos to)
+    private IEnumerable<Actor> Threats(Encounter e, Actor mover, (GridPos Cell, Spot At) from, (GridPos Cell, Spot At) to)
     {
         if (CombatantOf(e, mover.Id).Disengaged)
             yield break; // C3a: Disengage
@@ -692,14 +711,15 @@ internal sealed partial class Simulation
         {
             var foe = World.Actors[c.Actor];
             if (foe.Id == mover.Id || Allies(e, foe, mover) || !foe.Conscious || c.ReactionUsed
-                || MeleeAttack(foe) is not { } attack || CurrentPosition(foe) is not { } at)
+                || MeleeAttack(foe) is not { } attack || CurrentPosition(foe) is null)
                 continue;
-            if (InReach(map, at, attack, from) && !InReach(map, at, attack, to) && Sees(map, foe, at, mover, from, LightOn(map, from)))
+            var at = StandingOf(foe);
+            if (InReach(map, at, attack, from) && !InReach(map, at, attack, to) && Sees(map, foe, at.Cell, mover, from.Cell, LightOn(map, from.Cell)))
                 yield return foe;
         }
     }
 
-    private static AttackProfile? MeleeAttack(Actor actor) => ProfileOf(actor).Attacks.FirstOrDefault(a => a.Melee);
+    internal static AttackProfile? MeleeAttack(Actor actor) => ProfileOf(actor).Attacks.FirstOrDefault(a => a.Melee);
 
     /// <summary>
     /// Walks a planned path square by square, against the creatures really there: one the mover did not perceive stops
@@ -716,7 +736,7 @@ internal sealed partial class Simulation
         actor.Sneak = null;
         var start = CurrentPosition(actor)!.Value;
         var walked = new List<GridPos>();
-        var from = start;
+        var from = StandingOf(actor);
         string? stopped = null;
         foreach (var square in plan.Path)
         {
@@ -726,12 +746,12 @@ internal sealed partial class Simulation
                 stopped = "qualcuno gli sbarra la strada";
                 break;
             }
-            if (me.MovedFeet + feet > budget)
+            if (me.MovedInches + feet * Spot.PerFoot > budget * Spot.PerFoot)
             {
                 stopped = "il passo costa più del previsto";
                 break;
             }
-            foreach (var foe in Threats(e, actor, from, square).ToList())
+            foreach (var foe in Threats(e, actor, from, Centre(square)).ToList())
             {
                 CombatantOf(e, foe.Id).ReactionUsed = true;
                 ResolveAttack(e, foe, actor, MeleeAttack(foe)!, nonLethal: false, CombatLogKind.OpportunityAttack);
@@ -743,10 +763,10 @@ internal sealed partial class Simulation
                 stopped = "è caduto";
                 break;
             }
-            me.MovedFeet += feet;
+            me.MovedInches += feet * Spot.PerFoot;
             Place(actor, square);
             walked.Add(square);
-            from = square;
+            from = Centre(square);
         }
         // Nobody ends a move on another creature: step back to the last free square walked. ADAPTATION: the steps back
         // cost nothing more (the feet of the steps forward stay spent). The log's path is every square really entered,
@@ -911,7 +931,7 @@ internal sealed partial class Simulation
                 HitPoints = player.Vitality.Current, MaxHitPoints = player.Vitality.Maximum, State = player.Vitality.State,
                 KnockedOut = player.Vitality.KnockedOut, DeathSaveSuccesses = player.Vitality.DeathSaveSuccesses,
                 DeathSaveFailures = player.Vitality.DeathSaveFailures,
-                MovementLeftFeet = Math.Max(0, MovementLeft(e, player)), SquaresLeft = Math.Max(0, MovementLeft(e, player)) / FeetPerSquare,
+                MovementLeftFeet = Math.Max(0, MovementLeft(e, player)), MovementLeftInches = Math.Max(0, MovementLeftInches(e, player)), SquaresLeft = Math.Max(0, MovementLeft(e, player)) / FeetPerSquare,
                 ActionAvailable = !me.ActionUsed, ReactionAvailable = !me.ReactionUsed, Disengaged = me.Disengaged, Dodging = me.Dodging,
             },
             Combatants = e.Order.Select(c => World.Actors[c.Actor]).Where(x => x.Id != player.Id && SeesActor(player, x))

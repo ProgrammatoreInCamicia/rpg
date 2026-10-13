@@ -33,14 +33,16 @@ internal sealed class SpotPlanner
 
     /// <param name="blockers">Bodies one cannot pass through (hostile creatures).</param>
     /// <param name="standing">Every other body: one cannot stop on them.</param>
-    public SpotPlanner(GridMap map, IEnumerable<Spot> blockers, IEnumerable<Spot> standing)
+    /// <param name="closedDoorsBlock">In a fight a closed door is a wall (opening it is an interaction); outside, the walker opens it.</param>
+    public SpotPlanner(GridMap map, IEnumerable<Spot> blockers, IEnumerable<Spot> standing, bool closedDoorsBlock = false)
     {
         _width = map.Width * Spot.PerSquare;
         _height = map.Height * Spot.PerSquare;
         _blockers = blockers.ToList();
         _standing = standing.ToList();
 
-        bool Blocked(int x, int y) => !map.InBounds(new GridPos(x, y)) || !map.IsWalkable(new GridPos(x, y));
+        bool Blocked(int x, int y) => !map.InBounds(new GridPos(x, y)) || !map.IsWalkable(new GridPos(x, y))
+            || closedDoorsBlock && map.IsClosedDoor(new GridPos(x, y)) && !map.IsEdgeDoor(new GridPos(x, y));
         for (var y = 0; y < map.Height; y++)
         for (var x = 0; x < map.Width; x++)
         {
@@ -65,7 +67,7 @@ internal sealed class SpotPlanner
             if (count == 1 || count == 2 && nw == se)
                 cornerPoints.Add((cy * Spot.PerSquare, cx * Spot.PerSquare));
         }
-        foreach (var edge in map.Edges.Where(e => e.Kind != MapEdgeKind.Door))
+        foreach (var edge in map.Edges.Where(e => e.Kind != MapEdgeKind.Door || closedDoorsBlock && map.IsClosedDoor(e.DoorAt!.Value)))
         {
             var (a, b) = Border(edge.A, edge.B);
             _walls.Add((a, b));
@@ -160,6 +162,32 @@ internal sealed class SpotPlanner
             way.Add(nodes[at]);
         way.Reverse();
         return new SpotPath(way, g[1]);
+    }
+
+    /// <summary>
+    /// P1b: nothing solid stands on the straight line between two points: no square one cannot stand in, no thin wall or
+    /// window, no closed door (a blow does not pass where a body does not; a window stops a blade). Touching a corner
+    /// counts as blocked, as two squares meeting at a corner do not let one reach across.
+    /// </summary>
+    public static bool LineClear(GridMap map, Spot a, Spot b)
+    {
+        foreach (var edge in map.Edges.Where(e => e.Kind != MapEdgeKind.Door || map.IsClosedDoor(e.DoorAt!.Value)))
+        {
+            var (p, q) = Border(edge.A, edge.B);
+            if (Intersect(a, b, p, q))
+                return false;
+        }
+        int x0 = Math.Min(a.Cell.X, b.Cell.X) - 1, x1 = Math.Max(a.Cell.X, b.Cell.X) + 1;
+        int y0 = Math.Min(a.Cell.Y, b.Cell.Y) - 1, y1 = Math.Max(a.Cell.Y, b.Cell.Y) + 1;
+        for (var y = y0; y <= y1; y++)
+        for (var x = x0; x <= x1; x++)
+        {
+            var cell = new GridPos(x, y);
+            var solid = !map.InBounds(cell) || !map.IsWalkable(cell) || map.IsClosedDoor(cell) && !map.IsEdgeDoor(cell);
+            if (solid && SegmentBox(a, b, (x * Spot.PerSquare, y * Spot.PerSquare, (x + 1) * Spot.PerSquare, (y + 1) * Spot.PerSquare)) == 0)
+                return false;
+        }
+        return true;
     }
 
     /// <summary>A body can go straight from <paramref name="a"/> to <paramref name="b"/>.</summary>

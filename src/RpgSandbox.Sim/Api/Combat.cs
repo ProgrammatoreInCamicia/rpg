@@ -135,6 +135,9 @@ public sealed record CombatSelfView
     public required int DeathSaveSuccesses { get; init; }
     public required int DeathSaveFailures { get; init; }
     public required int MovementLeftFeet { get; init; }
+
+    /// <summary>P1b: the movement left to the inch (a free move spends fractions of a foot).</summary>
+    public int MovementLeftInches { get; init; }
     public required int SquaresLeft { get; init; }
     public required bool ActionAvailable { get; init; }
 

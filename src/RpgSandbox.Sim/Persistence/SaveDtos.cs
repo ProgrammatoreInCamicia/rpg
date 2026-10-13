@@ -456,6 +456,9 @@ internal sealed class CombatantDto
     public int Initiative { get; set; }
     public int InitiativeBonus { get; set; }
     public int MovedFeet { get; set; }
+
+    /// <summary>P1b (schema 24): movement spent in inches; before, whole feet in MovedFeet.</summary>
+    public int? MovedInches { get; set; }
     public bool ActionUsed { get; set; }
     public bool ReactionUsed { get; set; }
     public bool OpeningSpent { get; set; }
