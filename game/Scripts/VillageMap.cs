@@ -81,6 +81,7 @@ public partial class VillageMap : Node2D
 	private LocationId? _exitAfterWalking;
 	private ActorId? _talkingTo;
 	private bool _walking;
+	private bool _freeMovementPrototype;
 	private double _speed = 1;
 
 	/// <summary>
@@ -97,6 +98,7 @@ public partial class VillageMap : Node2D
 	public override void _Ready()
 	{
 		var interior = InteriorPrototype || OS.GetCmdlineUserArgs().Contains("--interior-prototype");
+		_freeMovementPrototype = interior;
 		_sim = SimulationSession.Create(interior ? InteriorPrototypeScenario.Create() : ScenarioFile.Load("living-village"));
 		if (interior)
 			_sim.Advance(Duration.FromHours(13)); // the playable scene opens in daylight; the smoke also checks night
@@ -118,6 +120,7 @@ public partial class VillageMap : Node2D
 	{
 		Pan(delta);
 		UpdateHover();
+		UpdateSpotPreview();
 		if (_view.Combat?.NextRoundAt is { } nextRound && !_view.Dead)
 		{
 			// NPC turns are already resolved by EndTurn. This closes the six-second round and starts the next
@@ -239,6 +242,8 @@ public partial class VillageMap : Node2D
 				}
 				else if (GroundItemAt(ScreenToCell(point)) is { } item)
 					PickUp(item);
+				else if (_freeMovementPrototype)
+					MoveToSpot(ScreenToSpot(point));
 				else
 					MoveTo(ScreenToCell(point));
 				break;
@@ -268,6 +273,8 @@ public partial class VillageMap : Node2D
 	/// <summary>World position of a visible figure's body (used by the smoke runner to click on it).</summary>
 	internal Vector2? BodyPointOf(ActorId id) =>
 		_tokens.TryGetValue(id, out var token) && token.Visible ? token.Position + new Vector2(0, -18) : null;
+	internal Vector2? FootPointOf(ActorId id) =>
+		_tokens.TryGetValue(id, out var token) && token.Visible ? token.Position : null;
 
 	/// <summary>Walk to a square. A walk in progress is replaced (the core stops it on the square reached).</summary>
 	public void MoveTo(GridPos cell) => Order($"vai in {cell}", walk: true, () =>
@@ -278,6 +285,17 @@ public partial class VillageMap : Node2D
 			return;
 		}
 		if (Walk(new MoveCommand { Actor = _sim.Player, To = cell, Stealthy = _sneak }))
+		{
+			_attackAfterWalking = null;
+			_exitAfterWalking = null;
+			_approaching = null;
+		}
+	});
+
+	/// <summary>Walk to the exact floor point in the isolated interior prototype.</summary>
+	internal void MoveToSpot(Spot spot) => Order($"vai a {spot}", walk: true, () =>
+	{
+		if (Walk(new MoveToSpotCommand { Actor = _sim.Player, To = spot, Stealthy = _sneak }))
 		{
 			_attackAfterWalking = null;
 			_exitAfterWalking = null;
@@ -443,12 +461,15 @@ public partial class VillageMap : Node2D
 			Order("cambia andatura", walk: true, () =>
 			{
 				var approaching = _approaching;
-				if (Walk(new MoveCommand { Actor = _sim.Player, To = move.Path[^1], Stealthy = on }))
+				var resumed = move.Spots is { } spots
+					? Walk(new MoveToSpotCommand { Actor = _sim.Player, To = spots[^1], Stealthy = on })
+					: Walk(new MoveCommand { Actor = _sim.Player, To = move.Path[^1], Stealthy = on });
+				if (resumed)
 					_approaching = approaching;
 			});
 	}
 
-	private bool Walk(MoveCommand command)
+	private bool Walk(Command command)
 	{
 		if (_running is not null && !_walking)
 			return false; // busy with a fixed-length activity
@@ -460,7 +481,8 @@ public partial class VillageMap : Node2D
 		}
 		_running = result.Action;
 		_walking = true;
-		_target.Position = CellToScreen(_sim.GetPlayerView().Move!.Path[^1]);
+		var move = _sim.GetPlayerView().Move!;
+		_target.Position = move.Spots is { } spots ? SpotToScreen(spots[^1]) : CellToScreen(move.Path[^1]);
 		_target.Visible = true;
 		Refresh();
 		return true;
@@ -614,6 +636,7 @@ public partial class VillageMap : Node2D
 	private void Refresh()
 	{
 		_view = _sim.GetPlayerView();
+		_spotPreviewAt = null; // doors, light and newly explored squares can change a route within one second
 		if (_view.Combat is not null)
 		{
 			_journalOpen = false;
@@ -760,14 +783,14 @@ public partial class VillageMap : Node2D
 
 	private void PlaceTokens()
 	{
-		var me = (_view.Id, _view.Position, _view.Move);
-		var figures = new List<(ActorId Id, string Name, string? Doing, string? Condition, bool Hostile, bool Player, GridPos? Position, MoveView? Move)>
+		var me = (_view.Id, _view.Position, _view.Spot, _view.Move);
+		var figures = new List<(ActorId Id, string Name, string? Doing, string? Condition, bool Hostile, bool Player, GridPos? Position, Spot? Spot, MoveView? Move)>
 		{
-			(me.Id, "Tu", null, _view.Dead ? "morto" : null, false, true, me.Position, me.Move),
+			(me.Id, "Tu", null, _view.Dead ? "morto" : null, false, true, me.Position, me.Spot, me.Move),
 		};
 		figures.AddRange(_view.VisibleActors.Select(a => (a.Id,
 			a.SeesYou == true ? $"{a.Name} · ti vede" : a.Name,
-			a.Doing, a.Condition, a.Hostile, false, a.Position, a.Move)));
+			a.Doing, a.Condition, a.Hostile, false, a.Position, a.Spot, a.Move)));
 
 		var shown = new HashSet<ActorId>();
 		foreach (var figure in figures)
@@ -781,7 +804,7 @@ public partial class VillageMap : Node2D
 				_sorted.AddChild(token);
 			}
 			var previousPosition = token.Position;
-			token.Position = SmoothPosition(figure.Position.Value, figure.Move);
+			token.Position = SmoothPosition(figure.Position.Value, figure.Spot, figure.Move);
 			token.Modulate = Shade(ScreenToCell(token.Position));
 			var prone = figure.Condition is "morto" or "tramortito"
 				|| figure.Condition?.StartsWith("a terra", StringComparison.Ordinal) == true;
@@ -838,11 +861,44 @@ public partial class VillageMap : Node2D
 	/// Presentation only: between two squares of the core's path, slide by the fraction of a second already played.
 	/// The square itself always comes from the core.
 	/// </summary>
-	private Vector2 SmoothPosition(GridPos square, MoveView? move)
+	private Vector2 SmoothPosition(GridPos square, Spot? spot, MoveView? move)
 	{
 		if (move is null)
-			return CellToScreen(square);
+			return spot is { } exact ? SpotToScreen(exact) : CellToScreen(square);
 		var elapsed = _view.Now.Since(move.DepartedAt).Seconds + _pending;
+		if (move is { FromSpot: { } origin, Spots: { } spots, Seconds: { } seconds })
+		{
+			// Several checkpoints may share one Sim second. Follow all their validated legs during
+			// that second, in path order, instead of drawing a shortcut through a wall.
+			var spotReached = 0;
+			while (spotReached < seconds.Count && seconds[spotReached] <= elapsed)
+				spotReached++;
+			if (spotReached == spots.Count)
+				return SpotToScreen(spots[^1]);
+			var spotStart = spotReached == 0 ? 0 : seconds[spotReached - 1];
+			var spotEnd = seconds[spotReached];
+			var last = spotReached == 0 ? origin : spots[spotReached - 1];
+			var groupEnd = spotReached;
+			while (groupEnd + 1 < spots.Count && seconds[groupEnd + 1] == spotEnd)
+				groupEnd++;
+			var length = 0.0;
+			var previous = last;
+			for (var i = spotReached; i <= groupEnd; i++)
+			{
+				length += previous.DistanceTo(spots[i]);
+				previous = spots[i];
+			}
+			var distance = length * Math.Clamp((elapsed - spotStart) / Math.Max(1, spotEnd - spotStart), 0, 1);
+			previous = last;
+			for (var i = spotReached; i <= groupEnd; i++)
+			{
+				var leg = previous.DistanceTo(spots[i]);
+				if (distance <= leg || i == groupEnd)
+					return SpotToScreen(previous).Lerp(SpotToScreen(spots[i]), leg == 0 ? 1 : (float)(distance / leg));
+				distance -= leg;
+				previous = spots[i];
+			}
+		}
 		// The Sim reaches step i at ceil(i*30/Speed) whole game seconds. Interpolate between those
 		// actual deadlines, including speeds where a square takes more than one second.
 		double AtStep(int step) => Math.Ceiling(step * 30.0 / move.Speed);
@@ -936,6 +992,18 @@ public partial class VillageMap : Node2D
 	// ---------------------------------------------------------------- iso grid
 
 	private static Vector2 CellToScreen(GridPos c) => new((c.X - c.Y) * TileW / 2f, (c.X + c.Y) * TileH / 2f);
+
+	private static Vector2 SpotToScreen(Spot s) => new(
+		((s.X - s.Y) / (float)Spot.PerSquare) * TileW / 2f,
+		((s.X + s.Y) / (float)Spot.PerSquare - 1f) * TileH / 2f);
+
+	private static Spot ScreenToSpot(Vector2 p)
+	{
+		var a = p.X / (TileW / 2f);
+		var b = p.Y / (TileH / 2f);
+		return new Spot((int)Math.Round(((a + b) / 2f + 0.5f) * Spot.PerSquare),
+			(int)Math.Round(((b - a) / 2f + 0.5f) * Spot.PerSquare));
+	}
 
 	// Keep the compact interior in the viewport area beside the fixed left HUD.
 	private Vector2 CameraTarget(Vector2 worldPoint) => _view.MapVisibility is not null
@@ -1083,6 +1151,7 @@ public partial class VillageMap : Node2D
 		AddChild(_hover);
 		_target = new Polygon2D { Polygon = Diamond(0.6f), Color = new Color(0.3f, 0.6f, 1f, 0.6f), ZIndex = -5, Visible = false };
 		AddChild(_target);
+		BuildSpotOverlay();
 
 		var zoom = _view.MapVisibility is null ? 1.2f : 1.08f;
 		_camera = new Camera2D { Position = CameraTarget(CellToScreen(_view.Position ?? new GridPos(0, 0))), Zoom = new Vector2(zoom, zoom) };

@@ -36,6 +36,18 @@ public partial class InteriorSmoke : Node
 			Require(_map.View.Doors.Single(d => d.At == InteriorPrototypeScenario.Door).Open == true,
 				"walking through the edge door did not open it");
 			Capture("day-inside.png");
+			var exact = new Spot(396, 276); // six inches off the centre of the room's (6,4) square
+			Require(VillageMap.SpotAtScreenForSmoke(VillageMap.ScreenPointOf(exact)) == exact,
+				"the isometric spot projection did not round-trip");
+			_map.SetPaused(false);
+			_map.ClickSpotForSmoke(exact);
+			await UntilIdle();
+			Require(_map.View.Spot == exact, "free movement did not end at the chosen floor point");
+			Require(_map.FootPointOf(_map.View.Id) is { } foot
+				&& foot.DistanceTo(VillageMap.ScreenPointOf(exact)) < 1f,
+				"the displayed figure did not end at its Sim spot");
+			_map.SetPaused(true);
+			Capture("day-free-spot.png");
 			_map.SetPaused(false);
 			_map.ClickDoor(InteriorPrototypeScenario.Door);
 			await Frames(2);
