@@ -554,7 +554,9 @@ Prova separata. Il movimento a caselle (`MoveCommand`) e le mappe esistenti non 
   - `Spot.CenterOf(casella)`: il centro di una casella.
 - Il corpo di una creatura Media è un disco con raggio di 18 pollici (`SpotPlanner.BodyRadius`, 3 piedi di
   diametro dentro i suoi 5 piedi). Così passa con margine da una porta o un corridoio di una casella.
-- `MoveToSpotCommand { Actor, To: Spot, Stealthy }`: cammina fino al punto lungo la via più corta per il corpo.
+- `MoveToSpotCommand { Actor, To: Spot, Stealthy }`: cammina fino al punto lungo una via breve per il corpo: la più
+  corta passando per punti fissi poco fuori dagli angoli, non sempre la più corta in assoluto attorno a ogni angolo
+  (qualche pollice in più per svolta; review di Codex).
   - Aggira caselle bloccate, depositi, muri sottili, finestre, il bordo della mappa e le creature ostili coscienti.
   - Attraversa le porte, aperte o chiuse: le apre passando, come oggi.
   - Si passa attraverso chi non è ostile (SRD), ma ci si ferma a non meno di 36 pollici da chiunque.

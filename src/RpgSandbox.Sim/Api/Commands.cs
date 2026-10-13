@@ -180,7 +180,7 @@ public sealed record AdvanceResult
 }
 
 /// <summary>
-/// P1 (free movement prototype): walk to an exact point of the map, not a square, along the shortest way around walls,
+/// P1 (free movement prototype): walk to an exact point of the map, not a square, along a short way around walls,
 /// closed spaces and hostile creatures (doors on the way are opened, as with <see cref="MoveCommand"/>). Outside a fight
 /// only, for now. Rejected as <see cref="RejectionReason.NoRoom"/> if the walker's body does not fit there, as
 /// <see cref="RejectionReason.Unreachable"/> if there is no way.

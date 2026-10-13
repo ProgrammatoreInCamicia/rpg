@@ -3,11 +3,13 @@ using RpgSandbox.Sim.Api;
 namespace RpgSandbox.Sim;
 
 /// <summary>
-/// P1 (free movement prototype): the shortest way for a body between two exact points of a map. The body is a disc of
+/// P1 (free movement prototype): a short way for a body between two exact points of a map. The body is a disc of
 /// <see cref="BodyRadius"/> inches (a Medium creature, 3 feet across, in its 5-foot space). Obstacles are the squares
 /// one cannot stand in (walls, stores), the thin walls and windows between squares, the map's border and the creatures
 /// one cannot pass; doors, open or closed, are passable (the walker opens them on its way). The way is any-angle: straight
-/// lines between the start, the goal and points just off the obstacles' corners (a visibility graph, searched with A*).
+/// lines between the start, the goal and points just off the obstacles' corners (a visibility graph, searched with A*). It is
+/// the shortest way through those points, not always the shortest around every corner: a few inches longer
+/// per turn, since the points sit at fixed offsets around each corner (review P1a).
 /// Everything is computed from integers in a fixed order, so the same question always gets the same way, in a preview
 /// as in the walk.
 /// </summary>
@@ -112,7 +114,8 @@ internal sealed class SpotPlanner
     }
 
     /// <summary>
-    /// The shortest way from <paramref name="from"/> to <paramref name="to"/> (which must fit), or null if there is none.
+    /// The shortest way through the corner points from <paramref name="from"/> to <paramref name="to"/> (which must fit), or
+    /// null if there is none.
     /// The start need not fit: one standing where it is can always set off.
     /// </summary>
     public SpotPath? Find(Spot from, Spot to)

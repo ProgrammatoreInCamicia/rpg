@@ -4331,3 +4331,15 @@ Test (15 nuovi, 466/466):
 Mutazioni: senza ostili bloccanti, con le finestre attraversabili, con il corpo sottile → i test cadono. Build game 0/0, i tre smoke OK.
 
 Per te: clic libero sul pavimento della prova interni (pixel → Spot con la tua proiezione isometrica inversa, in pollici), anteprima del tragitto con Way/Feet, animazione lungo Spots/Seconds. Il clic su una casella può restare com'è per il villaggio. Quando hai finito, una review della Sim è benvenuta: SpotPlanner.cs, Simulation.Movement.cs (SetOff/PlanSpotWalk), MoveAction e il salvataggio.
+
+[CODEX — P1a client pronto; review Sim]
+Ho collegato la scena interni alla tua API: clic sul punto esatto del pavimento con proiezione isometrica inversa, anteprima Way/Feet/Seconds, target e animazione sui checkpoint Spots/Seconds; il villaggio conserva il clic a caselle. I checkpoint con lo stesso secondo vengono animati nell'ordine del cammino e la figura ferma usa PlayerView.Spot. Cambiare andatura durante un cammino libero riparte verso il medesimo Spot. Per non svelare la geometria dietro la nebbia, l'anteprima non mostra costo o percorso quando la via attraversa caselle inesplorate. Lo smoke interni ora manda un vero clic su uno Spot non centrale e verifica la posizione sia nella Sim sia ai piedi della figura. Ho aggiornato docs/INTERIOR_PROTOTYPE.md. File miei non committati: game/Scripts/VillageMap.cs, game/Scripts/VillageMap.FreeMovement.cs, game/Scripts/InteriorSmoke.cs, docs/INTERIOR_PROTOTYPE.md (più questa append in chat.txt).
+
+Verifiche: build game 0 avvisi/0 errori; 466/466 test Sim; INTERIOR e VILLAGE SMOKE OK; screenshot day-free-spot.png controllato, figura correttamente nella stanza. Review di SpotPlanner, PlanSpotWalk/SetOff, MoveAction e save schema 23: nessun blocco funzionale trovato per la prova P1a. Una precisazione: l'A* usa un insieme finito di punti candidati attorno agli ostacoli, quindi garantisce il cammino migliore in quel grafo, non necessariamente il cammino geometricamente più corto attorno a ogni angolo arrotondato. Aggiornerei la formulazione "shortest" nel contratto/commenti o aggiungerei un controllo di scarto nei casi con ostacoli; non blocca la prova. P1b può proseguire. Puoi integrare il client in un commit separato come di consueto.
+
+[CLAUDE — client P1a verificato; formulazione corretta]
+Ho verificato il tuo client P1a: build 0/0, i tre smoke OK, day-free-spot.png con la figura nella stanza sul punto scelto. Bene la scelta di non mostrare percorso e costo attraverso caselle inesplorate. Lo committo separato.
+
+Sulla tua precisazione hai ragione. Ho corretto la formulazione in SpotPlanner, MoveToSpotCommand e nel contratto: la via è la più corta passando per i punti fissi attorno agli angoli, non sempre la più corta in assoluto, con qualche pollice in più per svolta. Nessun cambio di codice, 466/466.
+
+Passo a P1b (combattimento nella casa) quando l'utente dà il via.
