@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 21;
+    public const int SchemaVersion = 22;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -39,8 +39,8 @@ internal static class SaveGame
         }
         if (dto is null)
             throw new SaveGameException("Il salvataggio è vuoto.");
-        if (dto.Version is not (20 or SchemaVersion))
-            throw new SaveGameException($"Versione del salvataggio non supportata: {dto.Version} (attese 20 o {SchemaVersion}).");
+        if (dto.Version is not (20 or 21 or SchemaVersion))
+            throw new SaveGameException($"Versione del salvataggio non supportata: {dto.Version} (attese da 20 a {SchemaVersion}).");
 
         // Validation is explicit: every rule below raises InvalidDataException with a readable reason.
         // Any other exception is a programming error and is deliberately not disguised as a bad save.
@@ -189,6 +189,8 @@ internal static class SaveGame
             Equipment = new EquipmentDto { Armor = a.Equipment.Armor, Shield = a.Equipment.Shield, MainHand = a.Equipment.MainHand },
             Vitality = ToDto(a.Vitality.Snapshot()),
             FoughtWith = a.FoughtWith.Select(f => f.Value).ToList(),
+            Experience = a.Experience,
+            Defeated = a.Defeated.Select(x => x.Value).ToList(),
             Lore = a.Lore.IsEmpty ? null : new LoreDto
             {
                 Creatures = a.Lore.Creatures.Select(c => new CreatureLoreDto
@@ -515,6 +517,14 @@ internal static class SaveGame
             };
             foreach (var foe in a.FoughtWith ?? throw new InvalidDataException($"avversari di '{a.Id}' mancanti"))
                 Check(actor.FoughtWith.Add(new ActorId(Required(foe, "avversario"))), $"avversario ripetuto per '{a.Id}'");
+            // C5b: before schema 22 a character had the points of its definition's level, and nobody had defeated anyone.
+            Check(d.Version < 22 || a.Experience is not null && a.Defeated is not null, $"esperienza di '{a.Id}' mancante");
+            actor.Experience = a.Experience
+                ?? (content.Characters.TryGetValue(actor.Build, out var character) ? Builds.ExperienceFor(character.Level) : 0);
+            Check(actor.Experience >= 0 && (content.Characters.ContainsKey(actor.Build) || actor.Experience == 0)
+                  && (a.IsPlayer || a.Defeated is not { Count: > 0 }), $"esperienza di '{a.Id}' non valida");
+            foreach (var foe in a.Defeated ?? new())
+                Check(actor.Defeated.Add(new ActorId(Required(foe, "creatura sconfitta"))), $"creatura sconfitta ripetuta per '{a.Id}'");
             if (a.Lore is { } lore) // C5a: the player's only
             {
                 Check(a.IsPlayer && lore.Creatures is not null && lore.Kinds is not null, $"conoscenze di '{a.Id}' non valide");
@@ -977,6 +987,7 @@ internal static class SaveGame
         foreach (var actor in w.Actors.Values)
         {
             Check(actor.FoughtWith.All(w.Actors.ContainsKey) && !actor.FoughtWith.Contains(actor.Id), $"avversari di '{actor.Id}' non validi");
+            Check(actor.Defeated.All(actor.FoughtWith.Contains), $"creature sconfitte da '{actor.Id}' mai affrontate");
             Check(actor.Lore.Creatures.Keys.All(w.Actors.ContainsKey) && !actor.Lore.Creatures.ContainsKey(actor.Id), $"conoscenze di '{actor.Id}' su creature sconosciute");
             var fighting = w.Encounters.Values.Any(e => e.Order.Any(c => c.Actor == actor.Id));
             var lying = actor.CurrentAction is DownedAction;

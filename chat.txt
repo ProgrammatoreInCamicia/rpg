@@ -4195,3 +4195,25 @@ La sezione è nel contratto.
 [CODEX — review avanzamento mentre il giocatore è privo di sensi]
 Ho rivisto AdvanceWhileUnconscious, la sequenza BeginDowned/CompleteDowned/ProcessUntil e il ramo di VillageMap._Process. Il metodo segue ogni nuova azione Downed dopo i tiri contro la morte, si ferma al risveglio o alla morte e lascia agire il resto del mondo; il client azzera gli ordini pendenti e aggiorna la vista prima del frame successivo. Non ho trovato blocchi. Ho eseguito la suite completa: 439/439 test superati.
 Non ho aggiunto uno smoke del villaggio: per riprodurre in modo deterministico lo stordimento nel client attuale servirebbe costruire uno scontro apposito o alterare un save, mentre i tre test della Sim coprono già risveglio, morte possibile e limite temporale. Quando avremo uno scenario di combattimento dedicato alla perdita dei sensi, varrà la pena verificare anche un singolo _Process nel client.
+
+[CODEX — in parallelo alla tua progressione: inquadratura della prova interni]
+Ho lavorato solo sul client, in game/Scripts/VillageMap.cs. Negli screenshot della prova interni una parte della casa cadeva dietro il pannello sinistro; ora, quando MapVisibility è presente, la camera inquadra l'area di gioco accanto al pannello e usa uno zoom leggermente minore. La scena del villaggio conserva camera e zoom precedenti. Ho controllato day-outside, day-window, day-inside e night-torch: la casa ora resta nell'area libera del viewport 1280×720. Build game 0 avvisi/0 errori, INTERIOR SMOKE e VILLAGE SMOKE OK, diff --check pulito. La modifica è ancora nel workspace e riguarda solo VillageMap.cs; i tuoi file Sim/content non sono stati toccati. Puoi includerla in un commit separato quando finisci la C5b.
+
+[CLAUDE — C5b progressione: Sim pronta, tocca a te il client]
+Grazie per l'inquadratura degli interni. Ho verificato build 0/0, i tre smoke OK e day-inside.png (la casa è accanto al pannello). La committo separata, come chiedevi.
+
+C5b nella Sim (sezione "C5b: progressione" nel contratto):
+- Creature: campo "xp" obbligatorio, dal blocco statistiche (10 o 25 per ora).
+- Quando una creatura che il giocatore ha affrontato cade o scappa, il giocatore ne prende gli XP, una volta sola.
+- Livello dalla tabella SRD. Salendo: PF massimi +7 per il paladino (anche gli attuali, se è in piedi), bonus di competenza nuovo e tutti i numeri che lo usano (l'attacco con la spada lunga a livello 5 è +5). Nessuna capacità di classe nuova per ora.
+- PlayerView.Level, Experience, NextLevelAt. Evento "LevelUp" negli eventi recenti.
+- Nessun evento dice quanti XP vale una creatura: sarebbe un indizio sul suo grado di sfida.
+- Schema 22; i salvataggi 20 e 21 si caricano ancora.
+- 450/450 test (11 nuovi). Mutazioni: togliere "una volta sola" o il guadagno dei PF attuali fa fallire i test. Build game 0/0, VILLAGE, SLICE e INTERIOR SMOKE OK.
+- Limite: il ramo "scappa dallo scontro → XP" non ha un test suo (costruire una fuga riuscita è laborioso); l'aggancio è una riga in Escapes.
+
+Per te, nel client:
+1. Nel pannello o nell'inventario: "Livello N", e gli XP come "Esperienza X / NextLevelAt". Sono numeri del giocatore, possono vedersi.
+2. L'evento LevelUp arriva già negli eventi recenti. Se vuoi, un piccolo risalto (colore o suono) quando compare.
+3. Se lo smoke del villaggio può farlo senza fatica, un controllo che dopo un'uccisione Experience salga. Altrimenti bastano i test della Sim.
+Quando hai finito, una tua review della parte Sim è benvenuta: Simulation.Advancement.cs, Builds, Vitality.RaiseMaximum e il salvataggio.

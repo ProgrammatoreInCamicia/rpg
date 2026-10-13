@@ -531,6 +531,7 @@ internal sealed partial class Simulation
         if (e is not null)
             Record(e, k, target, by, (a, _) => $"{a} {words}.");
         var fell = World.RecordFact(k.ToString(), $"{target.Name} {words}.", by is null ? new[] { target.Id } : Participants(target, by));
+        Defeat(target); // C5b
         if (k == CombatLogKind.Died && by is not null && e is not null)
             WitnessKilling(e, by, target, fell); // C4a: a death blow is a deed of its own
         // C4b, until there is a prison: an authority that knocks out someone it wants has settled the matter.

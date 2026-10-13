@@ -144,6 +144,15 @@ internal sealed class Actor
     /// <summary>C2: everyone this actor has fought against: it holds them hostile from then on.</summary>
     public SortedSet<ActorId> FoughtWith { get; } = new(Comparer<ActorId>.Create((a, b) => string.CompareOrdinal(a.Value, b.Value)));
 
+    /// <summary>
+    /// C5b: its Experience Points; a character's level follows from them (SRD Character Advancement, see WorldState.LevelOf).
+    /// A character starts with the points of the level its definition gives; a creature has none.
+    /// </summary>
+    public long Experience { get; set; }
+
+    /// <summary>C5b, the player only: the creatures it has already been rewarded for defeating (each one counts once).</summary>
+    public SortedSet<ActorId> Defeated { get; } = new(Comparer<ActorId>.Create((a, b) => string.CompareOrdinal(a.Value, b.Value)));
+
     /// <summary>C5a, the player only: what it has learned of the creatures it met and of their kinds.</summary>
     public Lore Lore { get; } = new();
 
@@ -619,10 +628,14 @@ internal sealed class WorldState
     /// <summary>D1a: recomputes an actor's profile (and sheet, unless its own) from its build and equipment.</summary>
     public void Refresh(Actor actor)
     {
-        actor.Profile = Builds.Profile(Content, actor.Build, actor.Equipment);
+        actor.Profile = Builds.Profile(Content, actor.Build, actor.Equipment, LevelOf(actor));
         if (!actor.SheetOverride)
-            actor.Sheet = Builds.Sheet(Content, actor.Build, actor.Equipment);
+            actor.Sheet = Builds.Sheet(Content, actor.Build, actor.Equipment, LevelOf(actor));
     }
+
+    /// <summary>C5b: a character's level, from its Experience Points; null for a creature (it has a stat block, not levels).</summary>
+    public int? LevelOf(Actor actor) =>
+        Content.Characters.ContainsKey(actor.Build) ? Builds.LevelFor(actor.Experience) : null;
 
     /// <summary>The only randomness of the simulation; its state is part of the save.</summary>
     public SplitMix64 Rng { get; set; } = new(0);
@@ -671,6 +684,7 @@ internal sealed class WorldState
                 MapArea = a.At is null ? null : world.Locations[a.Location].Area,
                 Build = a.Build, SheetOverride = a.Sheet is not null,
                 Coins = a.Coins ?? Builds.Coins(world.Content, a.Build),
+                Experience = world.Content.Characters.TryGetValue(a.Build, out var character) ? Builds.ExperienceFor(character.Level) : 0,
             });
             foreach (var (item, count) in a.Items ?? Builds.Kit(world.Content, a.Build)) // the kit unless the scenario says otherwise
                 world.Actors[a.Id].Give(item, count);

@@ -10,6 +10,28 @@ public static class Builds
     /// <summary>SRD Character Advancement: +2 at levels 1–4, +3 at 5–8, and so on.</summary>
     public static int ProficiencyBonus(int level) => 2 + (level - 1) / 4;
 
+    /// <summary>C5b, SRD Character Advancement: the Experience Points a character needs to reach each level (index 1–20).</summary>
+    private static readonly int[] Thresholds =
+        { 0, 0, 300, 900, 2_700, 6_500, 14_000, 23_000, 34_000, 48_000, 64_000, 85_000, 100_000, 120_000, 140_000, 165_000,
+          195_000, 225_000, 265_000, 305_000, 355_000 };
+
+    public const int MaxLevel = 20;
+
+    /// <summary>The Experience Points needed to reach <paramref name="level"/> (1–20).</summary>
+    public static int ExperienceFor(int level) => level is >= 1 and <= MaxLevel
+        ? Thresholds[level] : throw new ArgumentOutOfRangeException(nameof(level));
+
+    /// <summary>The level an Experience Point total reaches (SRD: when it equals or exceeds the threshold).</summary>
+    public static int LevelFor(long experience) =>
+        Enumerable.Range(1, MaxLevel).Last(l => experience >= Thresholds[l]);
+
+    /// <summary>
+    /// SRD Gaining a Level: the Hit Points a character of <paramref name="cls"/> with that Constitution modifier gains per
+    /// level, by the Fixed Hit Points by Class table (half the Hit Die + 1, plus Constitution; at least 1).
+    /// </summary>
+    public static int HitPointsPerLevel(ClassDefinition cls, int constitutionModifier) =>
+        Math.Max(1, cls.HitDie / 2 + 1 + constitutionModifier);
+
     /// <summary>What it starts wearing and wielding: a character's declared equipment; a creature's armor, shield and first weapon.</summary>
     public static Equipment InitialEquipment(ContentPack pack, string build)
     {
@@ -35,7 +57,8 @@ public static class Builds
     public static long Coins(ContentPack pack, string build) =>
         pack.Characters.TryGetValue(build, out var character) ? character.Coins : Creature(pack, build).Coins;
 
-    public static CharacterSheet Sheet(ContentPack pack, string build, Equipment equipment)
+    /// <summary>A character's sheet at <paramref name="level"/> (C5b; its definition's level if null). A creature has no level.</summary>
+    public static CharacterSheet Sheet(ContentPack pack, string build, Equipment equipment, int? level = null)
     {
         if (!pack.Characters.TryGetValue(build, out var c))
         {
@@ -55,14 +78,14 @@ public static class Builds
         var speed = 30 - (armor is not null && c.Abilities.Strength < armor.Strength ? 10 : 0);
         return Scores(c.Abilities) with
         {
-            Title = c.Title, ProficiencyBonus = ProficiencyBonus(c.Level), SkillProficiencies = c.Skills,
+            Title = c.Title, ProficiencyBonus = ProficiencyBonus(level ?? c.Level), SkillProficiencies = c.Skills,
             ArmorClass = ac, Speed = speed, StealthDisadvantage = armor?.StealthDisadvantage ?? false,
         };
     }
 
-    public static CombatProfile Profile(ContentPack pack, string build, Equipment equipment)
+    public static CombatProfile Profile(ContentPack pack, string build, Equipment equipment, int? level = null)
     {
-        var sheet = Sheet(pack, build, equipment);
+        var sheet = Sheet(pack, build, equipment, level);
         if (!pack.Characters.TryGetValue(build, out var c))
         {
             var creature = Creature(pack, build);
@@ -76,7 +99,7 @@ public static class Builds
         var cls = pack.Classes[c.Class];
         var con = Abilities.Modifier(c.Abilities.Constitution);
         // SRD Hit Points: the full Hit Die at level 1, then the fixed average (half the die + 1) per level; Constitution each time.
-        var hitPoints = cls.HitDie + con + (c.Level - 1) * Math.Max(1, cls.HitDie / 2 + 1 + con);
+        var hitPoints = cls.HitDie + con + ((level ?? c.Level) - 1) * HitPointsPerLevel(cls, con);
         var attacks = new List<AttackProfile>();
         if (equipment.MainHand is { } hand && pack.Items[hand].Weapon is { } weapon)
         {

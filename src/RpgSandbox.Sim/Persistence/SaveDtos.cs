@@ -110,6 +110,10 @@ internal sealed class ActorDto
     public VitalityDto? Vitality { get; set; }
     public List<string> FoughtWith { get; set; } = new();
     public LoreDto? Lore { get; set; }
+
+    /// <summary>C5b (schema 22): Experience Points, and (the player only) the creatures it was rewarded for defeating.</summary>
+    public long? Experience { get; set; }
+    public List<string>? Defeated { get; set; }
 }
 
 internal sealed class StoreDto

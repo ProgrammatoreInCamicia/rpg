@@ -336,6 +336,9 @@ public sealed class SimulationSession
             Combat = _sim.CombatViewOf(player),
             Dead = player.Vitality.State == Rules.LifeState.Dead,
             Unconscious = player.Vitality.Unconscious,
+            Level = w.LevelOf(player),
+            Experience = player.Experience,
+            NextLevelAt = w.LevelOf(player) is { } lv && lv < Rules.Builds.MaxLevel ? Rules.Builds.ExperienceFor(lv + 1) : null,
             Attacks = Freeze(Simulation.ProfileOf(player).Attacks.Select(a => new AttackOptionView
             {
                 Name = a.Name, Melee = a.Melee, ReachFeet = a.ReachFeet, NormalRange = a.Range?.Normal, LongRange = a.Range?.Long,

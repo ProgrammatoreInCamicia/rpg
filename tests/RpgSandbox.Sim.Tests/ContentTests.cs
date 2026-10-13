@@ -44,6 +44,8 @@ public class ContentTests
     [InlineData("unknown item", "oggetto sconosciuto 'sword-of-nothing'")]
     [InlineData("duplicate", "'bandit' ripetuto")]
     [InlineData("dice", "dadi non validi")]
+    [InlineData("no xp", "'xp'")]
+    [InlineData("negative xp", "punti esperienza non validi")]
     public void A_broken_pack_is_refused_with_a_readable_reason(string breakage, string reason)
     {
         var files = breakage switch
@@ -53,6 +55,8 @@ public class ContentTests
             "stray" => DefaultFiles().Append(new("extra/notes.json", "{}")).ToDictionary(f => f.Key, f => f.Value),
             "unknown item" => Edited("srd/creatures.json", j => j["creatures"]![0]!["gear"]!.AsArray().Add("sword-of-nothing")),
             "duplicate" => Edited("original/creatures.json", j => j["creatures"]![0]!["id"] = "bandit"),
+            "no xp" => Edited("srd/creatures.json", j => j["creatures"]![0]!.AsObject().Remove("xp")),
+            "negative xp" => Edited("original/creatures.json", j => j["creatures"]![0]!["xp"] = -1),
             _ => Edited("srd/items.json", j => j["items"]![0]!["weapon"]!["damage"] = "1x4"),
         };
 

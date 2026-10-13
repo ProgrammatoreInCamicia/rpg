@@ -192,6 +192,7 @@ internal sealed partial class Simulation
             e.Order.Remove(c);
             Record(e, CombatLogKind.Fled, runner, null, (a, _) => $"{a} è scappato: è fuori dallo scontro.");
             World.RecordFact("Escaped", $"{runner.Name} è scappato dallo scontro.", runner.Id);
+            Defeat(runner); // C5b: driven off
         }
         if (e.Order.Select(c => c.Side).Distinct().Count() < 2)
         {

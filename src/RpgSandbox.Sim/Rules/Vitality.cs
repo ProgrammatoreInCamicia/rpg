@@ -56,7 +56,7 @@ public sealed class Vitality
         State = Current > 0 ? LifeState.Alive : makesDeathSaves ? LifeState.Dying : LifeState.Dead;
     }
 
-    public int Maximum { get; }
+    public int Maximum { get; private set; }
     public int Current { get; private set; }
     public bool MakesDeathSaves { get; }
     public LifeState State { get; private set; }
@@ -177,6 +177,19 @@ public sealed class Vitality
         }
         KnockedOut = false;
         return Current - before;
+    }
+
+    /// <summary>
+    /// C5b, SRD Gaining a Level: the Hit Point maximum grows by <paramref name="amount"/>. ADAPTATION: a creature standing
+    /// (Hit Points above 0) gains as many current Hit Points; one at 0, or dead, gains none.
+    /// </summary>
+    public void RaiseMaximum(int amount)
+    {
+        if (amount < 0)
+            throw new ArgumentOutOfRangeException(nameof(amount));
+        Maximum += amount;
+        if (Current > 0)
+            Current += amount;
     }
 
     private DamageOutcome Die()

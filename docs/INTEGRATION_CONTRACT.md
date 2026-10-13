@@ -511,3 +511,32 @@ Implementazione (C5a, Sim):
   ("riprende i sensi con 1 punto ferita").
 - ADATTAMENTO: non ci sono ancora compagni. Quando arriveranno, un compagno in grado di aiutare fermerà questo
   avanzamento.
+
+## C5b: progressione (esperienza e livelli)
+
+Regole SRD 5.2.1: Level Advancement, Experience Points by Challenge Rating, Gaining a Level.
+
+- Contenuti: ogni creatura ha `"xp"`, obbligatorio e ≥ 0: i punti esperienza del suo blocco statistiche (Popolano e
+  Contadino 10; Bandito, Guardia, Razziatore e Guardia del villaggio 25).
+- Chi sconfigge: quando una creatura che il giocatore ha affrontato cade (morente, tramortita o morta) o scappa dallo
+  scontro, il giocatore guadagna i suoi XP una volta sola (`Actor.Defeated`).
+  - ADATTAMENTO: non c'è ancora un gruppo, quindi il giocatore li prende tutti, chiunque abbia dato l'ultimo colpo.
+  - Una creatura scappata conta come sconfitta; se torna non conta di nuovo.
+  - Un personaggio pregenerato non vale ancora XP.
+- Livello: segue gli XP secondo la tabella Character Advancement (`Builds.ExperienceFor`, `Builds.LevelFor`). Un
+  personaggio parte con gli XP del livello della sua definizione; il paladino di livello 1 parte da 0.
+- Salire di livello: avviene subito.
+  - PF massimi: + PF fissi per classe (Paladino 6 + Cos = 7).
+  - PF attuali: +7 anche quelli, se il personaggio è sopra 0 (ADATTAMENTO).
+  - Bonus di competenza del nuovo livello, con tutti i numeri che lo usano.
+  - Nessuna capacità di classe nuova per ora (ADATTAMENTO).
+  - Evento `LevelUp` per il giocatore: "… raggiunge il livello N: …".
+  - Nessun evento dice quanti XP ha dato una creatura: sarebbe un indizio sul suo grado di sfida.
+- `PlayerView.Level` (null se il giocatore è una creatura), `PlayerView.Experience`, `PlayerView.NextLevelAt` (gli XP del
+  livello successivo; null al 20). La scheda (`Sheet`) e i PF massimi sono già quelli del livello.
+- Salvataggio, schema 22:
+  - Ogni attore ha `Experience` e `Defeated`.
+  - Uno schema 20 o 21 si carica: i personaggi hanno gli XP del livello della loro definizione e nessuna creatura
+    sconfitta.
+  - Rifiutati: uno schema 22 senza questi campi; XP a una creatura; `Defeated` su chi non è il giocatore o con
+    creature mai affrontate.

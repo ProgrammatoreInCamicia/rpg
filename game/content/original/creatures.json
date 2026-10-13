@@ -1,7 +1,7 @@
 {
   "source": "Original to this project (ADAPTATION of the SRD 5.2.1 stat blocks Bandit, Guard and Commoner, CC BY 4.0): the test bench village's people, with their own abilities and skills; attacks recomputed from those abilities by the SRD rules.",
   "creatures": [
-    { "id": "raider", "name": "Razziatore", "kind": "human",
+    { "id": "raider", "name": "Razziatore", "kind": "human", "xp": 25,
       "tells": [
         { "dc": 10, "text": "Si muove leggero, sulle punte: è abituato a colpire e sparire." },
         { "dc": 15, "text": "Mentre ti parla tiene d'occhio le vie di fuga, non te." }
@@ -14,7 +14,7 @@
         { "name": "Balestra leggera", "bonus": 4, "damage": "1d8", "damageBonus": 2, "type": "Piercing", "range": [80, 320],
           "requires": "light-crossbow", "item": "bolt", "fate": "Spent" }
       ] },
-    { "id": "village-guard", "name": "Guardia del villaggio", "kind": "human",
+    { "id": "village-guard", "name": "Guardia del villaggio", "kind": "human", "xp": 25,
       "tells": [
         { "dc": 10, "text": "Tiene la lancia come chi l'ha usata davvero." },
         { "dc": 14, "text": "Sotto la cotta, le spalle di chi ha fatto molti turni di guardia: non si stanca facilmente." }
@@ -27,7 +27,7 @@
         { "name": "Lancia (lanciata)", "bonus": 3, "damage": "1d6", "damageBonus": 1, "type": "Piercing", "range": [20, 60],
           "item": "spear", "fate": "Thrown" }
       ] },
-    { "id": "farmer", "name": "Contadino", "kind": "human",
+    { "id": "farmer", "name": "Contadino", "kind": "human", "xp": 10,
       "tells": [
         { "dc": 8, "text": "Impugna il bastone come un attrezzo, non come un'arma." },
         { "dc": 12, "text": "Ha le mani dure del lavoro nei campi, ma non ha mai combattuto davvero." }

@@ -29,6 +29,9 @@ public sealed record CreatureDefinition
     public required int InitiativeBonus { get; init; }
     public bool Flees { get; init; }
 
+    /// <summary>C5b: the Experience Points it is worth when defeated (SRD: by its Challenge Rating, as its stat block says).</summary>
+    public required int Experience { get; init; }
+
     /// <summary>C5a: its kind (a <see cref="KindDefinition"/> id) and what a careful look (Insight) can tell of it.</summary>
     public required string Kind { get; init; }
     public IReadOnlyList<Tell> Tells { get; init; } = Array.Empty<Tell>();
@@ -296,11 +299,12 @@ public sealed class ContentPack
             ProficiencyBonus = Int(e, "proficiency", where), Skills = Array(e, "skills", where).Select(x => EnumOf<Skill>(x, where)).ToArray(),
             ArmorClass = Int(e, "armorClass", where), HitPoints = Int(e, "hitPoints", where), Speed = Int(e, "speed", where),
             InitiativeBonus = Int(e, "initiative", where), Flees = e.TryGetProperty("flees", out var f) && f.GetBoolean(),
+            Experience = Int(e, "xp", where),
             Gear = gear, Items = carried, Coins = e.TryGetProperty("coins", out var c) ? c.GetInt64() : 0, Attacks = attacks,
             Kind = Text(e, "kind", where), Tells = TellsOf(e, where),
         };
-        if (creature.HitPoints < 1 || creature.ArmorClass < 1 || creature.Speed < 0 || attacks.Length == 0)
-            throw new InvalidDataException($"contenuti: {where}: punti ferita, CA, velocità o attacchi non validi");
+        if (creature.HitPoints < 1 || creature.ArmorClass < 1 || creature.Speed < 0 || attacks.Length == 0 || creature.Experience < 0)
+            throw new InvalidDataException($"contenuti: {where}: punti ferita, CA, velocità, attacchi o punti esperienza non validi");
         foreach (var needed in attacks.Select(a => a.Requires).OfType<string>().Concat(attacks.Select(a => a.Item).OfType<string>()))
             if (!gear.Contains(needed) && carried.All(i => i.Item != needed))
                 throw new InvalidDataException($"contenuti: {where}: un attacco usa '{needed}', che la creatura non porta");

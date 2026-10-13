@@ -104,6 +104,13 @@ public sealed record PlayerView
     /// </summary>
     public bool Unconscious { get; init; }
 
+    /// <summary>C5b: the player's level (SRD Character Advancement); null if it is a creature, not a character.</summary>
+    public int? Level { get; init; }
+
+    /// <summary>C5b: its own Experience Points, and those it needs for the next level (null at level 20 or without a level).</summary>
+    public long Experience { get; init; }
+    public int? NextLevelAt { get; init; }
+
     /// <summary>C2: the attacks of the player's combat profile, in the profile's order.</summary>
     public IReadOnlyList<AttackOptionView> Attacks { get; init; } = Array.Empty<AttackOptionView>();
 
