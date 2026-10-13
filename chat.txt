@@ -4456,3 +4456,50 @@ Ti devo delle scuse. Il messaggio "verifica autonoma client" e i due arrivati me
    - (a) PNG sugli Spot: una sola regola spaziale per tutti, con costo, collisioni e attacchi di opportunità condivisi.
    - (b) Attacchi a distanza su posizioni reali, con una linea di tiro dritta. Le finestre fermano il proiettile? La mia proposta: sì per la mischia, che già oggi lo prevede; per il tiro serve una regola, e la propongo nel contratto.
    - Il contratto P2 lo scrivo io, qui in chat, PRIMA di toccare il codice, dopo che abbiamo deciso P1c. I tuoi test di accettazione li prendo come base.
+
+[CLAUDE — contratto P1c: orologio fine (decisione dell'utente), prima del codice]
+L'utente sceglie la tua strada: un orologio unico a tick, precisione vera, niente arresto "al prossimo checkpoint". Decide anche sulle finestre: da una finestra aperta si può attaccare (vale per P2, sotto).
+
+Tempo
+- `GameTime` e `Duration` contano tick: 60 al secondo (`GameTime.TicksPerSecond`).
+  - Nuovi: `Ticks`, `GameTime.FromTicks`, `Duration.FromTicks`.
+  - `new GameTime(s)`, `new Duration(s)`, `FromSeconds`, `FromMinutes`, `FromHours` e `FromDays` restano in secondi, come oggi.
+  - `Seconds` resta, come secondi interi arrotondati per difetto: orari, `Day`, `Hour`, `Minute` e `Second` non cambiano significato.
+  - Equality e ordine sono sui tick.
+- Scheduler, scadenze, `Advance` e `AdvanceUntilCompleted` lavorano a tick. Tutte le durate di regola (round di 6 s, azioni, viaggi, fazioni, torce, svenimento) restano multipli esatti di secondi; cambia solo che un comando dato a metà secondo parte da quel tick.
+- Ordine degli eventi nello stesso tick: invariato (posizioni, poi completamenti, poi fazioni e round).
+
+Movimento
+- Velocità 30: 1 pollice per tick.
+- Ogni cammino ha una traiettoria autorevole: per un cammino libero i vertici della via; per uno a caselle il punto di partenza esatto, poi i centri delle caselle.
+- Posizione esatta a ogni tick: il punto lungo la traiettoria a distanza tick × velocità/30 pollici, arrotondato al pollice. `MoveAction.SpotAt(t)` e `PlayerView.Spot` la danno al tick corrente, non più all'ultimo checkpoint.
+- Checkpoint: per i contatti, le porte e le caselle restano quelli di P1a (casella in cui si entra, svolta, ogni 5 piedi). Il tempo di ciascuno è il tick in cui lo si raggiunge (per eccesso), non più il secondo. Per un cammino a caselle, il tick di ogni casella è ceil(passi × 1800 / Velocità); a 30 sono 60 tick a casella, come oggi.
+- Stop o nuovo ordine: la Sim arriva prima al tick corrente, elaborando quello che vi scade, poi ferma il camminatore sul punto esatto della traiettoria a quel tick.
+  - La casella è quella del punto.
+  - I contatti si valutano lì.
+  - Un nuovo ordine parte da quel punto. Niente arretramenti.
+- Combattimento: invariato. Le mosse avvengono dentro il turno, senza tempo; il turno del giocatore congela il tempo.
+- `MoveView`: `Seconds` diventa `Ticks` (tick dopo `DepartedAt` per ogni checkpoint). Aggiungo `Vertices` (la traiettoria) e `Speed`, così puoi disegnare la posizione al tick esatto con la stessa formula, oppure chiedere `Spot` alla vista.
+  - Rinomino, perché tenere un campo `Seconds` che contiene tick sarebbe un tranello.
+  - Anche `SpotMovePreview.Seconds` diventa `Ticks`.
+
+Client
+- Accumula il delta reale e avanza la Sim di tick interi (`Duration.FromTicks`) invece che di secondi.
+- La figura sta dove dice la Sim al tick corrente: niente più interpolazione propria fra due secondi.
+- Al ritmo 6× sono 360 tick per secondo reale: la Sim li elabora per scadenze, non tick per tick, quindi il costo non dipende dai tick.
+
+Salvataggio, schema 25
+- Ogni tempo e durata in tick.
+- Gli schemi da 20 a 24 si leggono con i secondi × 60.
+
+Test (i tuoi cinque, più due)
+1. Stop a metà secondo fra due checkpoint: nessun arretramento; la posizione è al pollice previsto.
+2. Un nuovo ordine nello stesso tick parte da lì.
+3. Avanzare in un blocco o in tanti blocchi di tick dà lo stesso stato e gli stessi fatti, anche quando un checkpoint coincide con una porta o un contatto.
+4. Save/load a metà secondo, poi Stop: risultato identico.
+5. Il turno di combattimento continua a congelare il tempo.
+6. Le durate di regola restano esatte: round, viaggio, torcia, svenimento.
+7. Un cammino a caselle a velocità 20 (furtivo) dura 1,5 s per casella, non più 2 s (prima si arrotondava al secondo): lo dichiaro come cambio voluto.
+
+Lavoro solo nella Sim e nei test. Per il client: la sezione "Client" sopra e i nomi rinominati (MoveView.Ticks, SpotMovePreview.Ticks). Il villaggio compilerà solo dopo il tuo adattamento, oppure lo adatto io in modo minimo se preferisci: dimmelo.
+Poi, prima di P2, il contratto P2 in chat. Le finestre: il tiro passa da una finestra aperta (decisione dell'utente). Propongo che il bersaglio dietro la finestra abbia mezza copertura (SRD Cover: +2 alla CA), così resta realistico.
