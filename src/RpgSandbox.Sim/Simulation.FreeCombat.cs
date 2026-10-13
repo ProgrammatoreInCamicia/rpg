@@ -49,15 +49,7 @@ internal sealed partial class Simulation
         var from = CurrentSpot(actor)!.Value;
         if (from == to)
             return (RejectionReason.AlreadyThere, $"{actor.Name} è già lì.", null);
-        var knows = Perceived(e, actor);
-        var others = World.Actors.Values
-            .Where(o => o.Id != actor.Id && o.MapArea == map.Area && o.Vitality.State != LifeState.Dead && CurrentSpot(o) is not null && knows(o))
-            .ToList();
-        // SRD Moving Around Other Creatures: an ally can be crossed; any other conscious creature cannot. ADAPTATION: an
-        // incapacitated creature is crossed without the Difficult Terrain it would be on squares.
-        var planner = new SpotPlanner(map,
-            others.Where(o => o.Conscious && !Allies(e, actor, o)).Select(o => CurrentSpot(o)!.Value),
-            others.Select(o => CurrentSpot(o)!.Value), closedDoorsBlock: true);
+        var planner = CombatPlanner(e, actor);
         if (!planner.Fits(to))
             return (RejectionReason.NoRoom, "Lì non c'è spazio per stare in piedi.", null);
         if (planner.Find(from, to) is not { } way)
@@ -65,6 +57,25 @@ internal sealed partial class Simulation
         if (Math.Ceiling(way.Length - 1e-9) > left)
             return (RejectionReason.TooFar, $"Troppo lontano: servono {FeetText(way.Length)} piedi, te ne restano {FeetLeftText(left)}.", way);
         return (RejectionReason.None, $"{FeetText(way.Length)} piedi di movimento.", way);
+    }
+
+    /// <summary>
+    /// P1b: the planner of a move in a fight, the same for the player and NPCs (P2a): around the creatures the mover
+    /// perceives, with closed doors as walls.
+    /// </summary>
+    private SpotPlanner CombatPlanner(Encounter e, Actor actor)
+    {
+        var map = World.Maps[e.Area];
+        var knows = Perceived(e, actor);
+        var others = World.Actors.Values
+            .Where(o => o.Id != actor.Id && o.MapArea == map.Area && o.Vitality.State != LifeState.Dead
+                        && CurrentSpot(o) is not null && knows(o))
+            .ToList();
+        // SRD Moving Around Other Creatures: an ally can be crossed; any other conscious creature cannot. ADAPTATION: an
+        // incapacitated creature is crossed without the Difficult Terrain it would be on squares.
+        return new SpotPlanner(map,
+            others.Where(o => o.Conscious && !Allies(e, actor, o)).Select(o => CurrentSpot(o)!.Value),
+            others.Select(o => CurrentSpot(o)!.Value), closedDoorsBlock: true);
     }
 
     /// <summary>P1b: the points of a way an inch apart, from its start (index 0) to its goal (exactly, last).</summary>
@@ -77,6 +88,44 @@ internal sealed partial class Simulation
         if (steps > 0)
             points.Add(way.Vertices[^1]);
         return points;
+    }
+
+    /// <summary>
+    /// P2a: the stretch of a walk (indexes into its points, up to <paramref name="last"/>) the player saw without a break:
+    /// the one it stopped in, if the player saw it stop; otherwise the first one. (-1, -1) if it was never seen.
+    /// </summary>
+    private static (int From, int To) SeenStretch(IReadOnlyList<bool> seen, int last)
+    {
+        if (seen[last])
+        {
+            var from = last;
+            while (from > 0 && seen[from - 1])
+                from--;
+            return (from, last);
+        }
+        var first = Enumerable.Range(0, last + 1).FirstOrDefault(k => seen[k], -1);
+        if (first < 0)
+            return (-1, -1);
+        var to = first;
+        while (to < last && seen[to + 1])
+            to++;
+        return (first, to);
+    }
+
+    /// <summary>P2a: the part of a way between two of its inch points, as exact points: its ends and the turns between.</summary>
+    private static IReadOnlyList<Spot> Stretch(SpotPath way, IReadOnlyList<Spot> points, int from, int to)
+    {
+        var spots = new List<Spot> { points[from] };
+        var along = 0.0;
+        for (var i = 1; i < way.Vertices.Count - 1; i++)
+        {
+            along += way.Vertices[i - 1].DistanceTo(way.Vertices[i]);
+            if (along > from && along < to)
+                spots.Add(way.Vertices[i]);
+        }
+        if (to > from)
+            spots.Add(points[to]);
+        return spots;
     }
 
     private static Spot PointAlong(SpotPath way, double along)
@@ -114,6 +163,13 @@ internal sealed partial class Simulation
         var standing = StandingOf(actor);
         var reached = 0;
         string? stopped = null;
+        // P2a: where the player saw the mover, point by point as it walked (all of it, for the player's own move).
+        var player = World.Actors[World.Player];
+        var sightOf = new Dictionary<GridPos, bool>(); // by square: sight and light are the grid's
+        bool PlayerSees(Spot p) => actor.IsPlayer || (sightOf.TryGetValue(p.Cell, out var s) ? s
+            : sightOf[p.Cell] = player.MapArea == map.Area && CurrentPosition(player) is { } eye
+                                && Sees(map, player, eye, actor, p.Cell, LightOn(map, p.Cell)));
+        var seen = new List<bool> { PlayerSees(points[0]) };
         for (var k = 1; k < points.Count; k++)
         {
             var p = points[k];
@@ -140,6 +196,7 @@ internal sealed partial class Simulation
             }
             standing = next;
             reached = k;
+            seen.Add(PlayerSees(p));
         }
         var forward = reached == points.Count - 1 ? (int)Math.Ceiling(way.Length - 1e-9) : reached;
         var back = reached;
@@ -150,15 +207,17 @@ internal sealed partial class Simulation
         Place(actor, points[back].Cell, points[back]);
         me.MovedInches += forward;
         EvaluateContacts();
-        var trail = points.Take(back + 1).Select(p => p.Cell).Aggregate(new List<GridPos>(), (cells, c) =>
+        var (i0, i1) = SeenStretch(seen, back);
+        var trail = i0 < 0 ? new List<GridPos>() : points.Skip(i0).Take(i1 - i0 + 1).Select(p => p.Cell).Aggregate(new List<GridPos>(), (cells, c) =>
         {
             if (cells.Count == 0 || cells[^1] != c)
                 cells.Add(c);
             return cells;
-        }).Skip(1).ToList();
+        }).Skip(i0 == 0 ? 1 : 0).ToList();
         if (forward > 0 || stopped is not null)
             Record(e, CombatLogKind.Move, actor, null,
-                (a, _) => $"{a} si sposta di {FeetText(forward)} piedi{(stopped is null ? "" : $" e si ferma: {stopped}")}.", path: trail);
+                (a, _) => $"{a} si sposta di {FeetText(forward)} piedi{(stopped is null ? "" : $" e si ferma: {stopped}")}.", path: trail,
+                spots: i0 < 0 ? Array.Empty<Spot>() : Stretch(way, points, i0, i1), sawMover: seen.Take(back + 1).Any(s => s));
         return (forward, stopped);
     }
 

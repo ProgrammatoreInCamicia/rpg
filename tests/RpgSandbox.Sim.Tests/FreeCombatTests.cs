@@ -165,8 +165,9 @@ public class FreeCombatTests
 
             s.Execute(new EndTurnCommand { Actor = s.Player });
 
-            var foe = s.GetWorldView().Actor(Foe).Position!.Value;
-            Assert.NotEqual(new GridPos(2, 2), foe);
+            // P2a: it stands on a point, not a centre: the bodies are within its 5-foot reach, edge to edge.
+            var foe = Of(s, Foe).Spot!.Value;
+            Assert.True(foe.DistanceTo(new Spot(62, 62)) - 36 <= 60, $"{foe}");
             Assert.Contains(s.Engine.World.Encounters.Values.Single().Log.Skip(before), l => l.Kind == CombatLogKind.Attack && l.Actor == Foe);
             return;
         }

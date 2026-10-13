@@ -726,6 +726,7 @@ internal sealed partial class Simulation
         var everyone = CreaturesOn(map, actor, _ => true);
         actor.Sneak = null;
         var start = CurrentPosition(actor)!.Value;
+        var startAt = CurrentSpot(actor)!.Value;
         var walked = new List<GridPos>();
         var from = StandingOf(actor);
         string? stopped = null;
@@ -777,7 +778,8 @@ internal sealed partial class Simulation
             : stopped;
         if (trail.Count > 0 || why is not null)
             Record(e, CombatLogKind.Move, actor, null,
-                (a, _) => $"{a} si sposta di {walked.Count} caselle{(why is null ? "" : $" e si ferma: {why}")}.", path: trail);
+                (a, _) => $"{a} si sposta di {walked.Count} caselle{(why is null ? "" : $" e si ferma: {why}")}.", path: trail,
+                spots: trail.Select(Spot.CenterOf).Prepend(startAt).ToList()); // only the player walks on squares in a fight (P2a)
         return (walked.Count, why);
     }
 
@@ -793,7 +795,7 @@ internal sealed partial class Simulation
         if (FleeTurn(e, c, npc))
             return; // C4c: a commoner badly hurt runs instead of fighting
         Actor? Target() => EnemiesOf(e, npc).Where(f => f.Conscious && SeesActor(npc, f))
-            .OrderBy(f => CurrentPosition(npc)!.Value.StepsTo(CurrentPosition(f)!.Value)).ThenBy(f => f.Id.Value, StringComparer.Ordinal)
+            .OrderBy(f => CurrentSpot(npc)!.Value.DistanceTo(CurrentSpot(f)!.Value)).ThenBy(f => f.Id.Value, StringComparer.Ordinal)
             .FirstOrDefault();
 
         AttackProfile? Usable(Actor target) =>
@@ -814,50 +816,39 @@ internal sealed partial class Simulation
         var target = Target();
         if (target is not null)
         {
-            c.LastSeenEnemy = CurrentPosition(target);
+            c.LastSeenAt = CurrentSpot(target);
             if (TryAttack(target) || !World.Encounters.ContainsKey(e.Id))
                 return;
         }
-        var aim = target is not null ? CurrentPosition(target) : c.LastSeenEnemy;
-        if (aim is not { } spot || spot == CurrentPosition(npc))
+        // P2a: on exact points, by the same planning and walk as the player's free moves.
+        var aim = target is not null ? CurrentSpot(target) : c.LastSeenAt;
+        if (aim is not { } spot || spot == CurrentSpot(npc))
         {
             npc.LastDecision = new DecisionTrace(World.Now, "Scontro: aspetta", "Nessun avversario in vista.", Array.Empty<string>());
             return;
         }
-        var occupied = OccupantsOf(World.Maps[e.Area], npc, Perceived(e, npc)).Contains(spot);
-        // P1b: next to a target standing off its square's centre, only a square from which the blow reaches it will do.
-        Func<GridPos, bool>? reaches = target is not null && MeleeAttack(npc) is { } melee
-            ? p => InReach(World.Maps[e.Area], Centre(p), melee, StandingOf(target))
-            : null;
-        var way = (occupied && reaches is not null ? PlanCombatMove(e, npc, spot, stopNextTo: true, reaches) : null)
-                  ?? PlanCombatMove(e, npc, spot, stopNextTo: occupied);
+        if (PlanNpcApproach(e, npc, target, spot) is not var (way, limit))
+        {
+            if (target is null || MeleeAttack(npc) is not { } m || !InReach(World.Maps[e.Area], StandingOf(npc), m, StandingOf(target)))
+                npc.LastDecision = new DecisionTrace(World.Now, "Scontro: aspetta", "Nessuna via verso l'avversario.", Array.Empty<string>());
+            return;
+        }
         // C3a: out of reach this turn, and nothing better to do with the action: Dash to close in.
-        if (way is not null && way.Feet > MovementLeft(e, npc) && !c.ActionUsed)
+        if (Math.Min(limit, way.Length) > MovementLeftInches(e, npc) && !c.ActionUsed)
             Act(e, npc, CombatAction.Dash);
-        if (way is { } plan && Truncate(e, npc, plan) is { } step)
+        if (NpcStep(e, npc, way, limit) is { } step)
         {
             npc.LastDecision = new DecisionTrace(World.Now, "Scontro: si avvicina",
                 target is not null ? $"Va verso {target.Name}." : "Va dove ha visto l'avversario l'ultima volta.", Array.Empty<string>());
-            WalkInCombat(e, npc, step);
+            WalkFreeInCombat(e, npc, step);
             if (CheckEnd(e) || !npc.Conscious)
                 return;
         }
         if (Target() is { } now)
         {
-            c.LastSeenEnemy = CurrentPosition(now);
+            c.LastSeenAt = CurrentSpot(now);
             TryAttack(now);
         }
-    }
-
-    /// <summary>The longest part of a plan the NPC can walk this turn, ending on a free square (null if not even one step).</summary>
-    private CombatPlan? Truncate(Encounter e, Actor npc, CombatPlan plan)
-    {
-        var left = MovementLeft(e, npc);
-        var occupants = OccupantsOf(World.Maps[e.Area], npc, Perceived(e, npc));
-        for (var n = plan.Path.Count; n > 0; n--)
-            if (plan.Cost[n - 1] <= left && !occupants.Contains(plan.Path[n - 1]))
-                return new CombatPlan(plan.Path.Take(n).ToArray(), plan.Cost.Take(n).ToArray(), plan.Cost[n - 1]);
-        return null;
     }
 
     // ---------------------------------------------------------------- the log, as the player perceives it
@@ -870,12 +861,12 @@ internal sealed partial class Simulation
     private void Record(Encounter e, CombatLogKind kind, Actor? actor, Actor? target, Func<string, string, string> text,
         D20Roll? roll = null, string? attack = null, int? armorClass = null, bool? hit = null, bool critical = false,
         int? damage = null, IReadOnlyList<GridPos>? path = null, IReadOnlyList<int>? d20 = null, int? kept = null,
-        Func<string, string, string>? playerText = null)
+        Func<string, string, string>? playerText = null, IReadOnlyList<Spot>? spots = null, bool? sawMover = null)
     {
         var player = World.Actors[World.Player];
         bool Seen(Actor? x) => x is not null && (x.IsPlayer || SeesActor(player, x));
         var inFight = e.Order.Any(c => c.Actor == player.Id);
-        var sawActor = Seen(actor);
+        var sawActor = sawMover ?? Seen(actor); // P2a: for a move, seen anywhere along it
         var sawTarget = Seen(target);
         var perceived = sawActor || sawTarget
                         || (inFight && kind is CombatLogKind.Started or CombatLogKind.TurnStarted or CombatLogKind.Initiative or CombatLogKind.Ended
@@ -885,7 +876,7 @@ internal sealed partial class Simulation
             Round = e.Round, Kind = kind, Actor = actor?.Id, Target = target?.Id, Attack = attack,
             D20 = d20 ?? (roll is null ? Array.Empty<int>() : roll.Second is { } second ? new[] { roll.First, second } : new[] { roll.First }),
             Kept = kept ?? roll?.Kept, Bonus = roll?.Bonus, Total = roll?.Total, ArmorClass = armorClass, Hit = hit, Critical = critical,
-            Damage = damage, Path = path?.ToArray() ?? Array.Empty<GridPos>(),
+            Damage = damage, Path = path?.ToArray() ?? Array.Empty<GridPos>(), Spots = spots?.ToArray() ?? Array.Empty<Spot>(),
             Text = text(actor?.Name ?? "", target?.Name ?? ""),
             PlayerText = perceived ? (playerText ?? text)(sawActor ? actor?.Name ?? "" : "Qualcuno", sawTarget ? target?.Name ?? "" : "qualcuno") : null,
             PlayerSawActor = sawActor, PlayerSawTarget = sawTarget,
@@ -964,7 +955,7 @@ internal sealed partial class Simulation
                 Attack = r.Attack, D20 = r.Actor == player.Id ? r.D20 : Array.Empty<int>(), Kept = r.Actor == player.Id ? r.Kept : null,
                 Bonus = r.Actor == player.Id ? r.Bonus : null, Total = r.Actor == player.Id ? r.Total : null, ArmorClass = null, Hit = r.Hit,
                 Critical = r.Critical, Damage = r.Actor == player.Id || r.Target == player.Id ? r.Damage : null,
-                Path = r.PlayerSawActor ? r.Path : Array.Empty<GridPos>(), Text = r.PlayerText!,
+                Path = r.PlayerSawActor ? r.Path : Array.Empty<GridPos>(), Spots = r.PlayerSawActor ? r.Spots : Array.Empty<Spot>(), Text = r.PlayerText!,
             }).ToArray(),
         };
     }

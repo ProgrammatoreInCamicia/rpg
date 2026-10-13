@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 25;
+    public const int SchemaVersion = 26;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -954,7 +954,7 @@ internal static class SaveGame
         {
             Actor = c.Actor.Value, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus,
             MovedFeet = c.MovedInches / Spot.PerFoot, MovedInches = c.MovedInches, ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
-            LastSeenEnemy = ToDto(c.LastSeenEnemy), JoinedInRound = c.JoinedInRound, Fleeing = c.Fleeing,
+            LastSeenAt = c.LastSeenAt is { } at ? new PosDto { X = at.X, Y = at.Y } : null, JoinedInRound = c.JoinedInRound, Fleeing = c.Fleeing,
             Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted,
         }).ToList(),
         Log = e.Log.Select(r => new CombatRecordDto
@@ -962,6 +962,7 @@ internal static class SaveGame
             Round = r.Round, Kind = r.Kind.ToString(), Actor = r.Actor?.Value, Target = r.Target?.Value, Attack = r.Attack,
             D20 = r.D20.ToList(), Kept = r.Kept, Bonus = r.Bonus, Total = r.Total, ArmorClass = r.ArmorClass, Hit = r.Hit,
             Critical = r.Critical, Damage = r.Damage, Path = r.Path.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
+            Spots = r.Spots.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
             Text = r.Text, PlayerText = r.PlayerText, PlayerSawActor = r.PlayerSawActor, PlayerSawTarget = r.PlayerSawTarget,
         }).ToList(),
     };
@@ -1002,7 +1003,8 @@ internal static class SaveGame
                 {
                     Actor = id, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus, MovedInches = moved,
                     ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
-                    LastSeenEnemy = c.LastSeenEnemy is { } seen ? new GridPos(seen.X, seen.Y) : null,
+                    LastSeenAt = d.Version >= 26 ? (c.LastSeenAt is { } at ? new Spot(at.X, at.Y) : null)
+                        : c.LastSeenEnemy is { } seen ? Spot.CenterOf(new GridPos(seen.X, seen.Y)) : null,
                     JoinedInRound = c.JoinedInRound is { } joined && joined >= 1 && joined <= dto.Round ? joined
                         : c.JoinedInRound is null ? null : throw new InvalidDataException($"ingresso nello scontro di '{id}' non valido"),
                     Fleeing = c.Fleeing, Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted,
@@ -1025,7 +1027,8 @@ internal static class SaveGame
             foreach (var r in dto.Log!)
             {
                 Check(r is not null && Enum.TryParse<CombatLogKind>(r.Kind, out var kind) && Enum.IsDefined(kind) && r.Text is not null
-                      && r.D20 is not null && r.Path is not null && r.Path.All(p => p is not null), $"registro dello scontro {dto.Id} non valido");
+                      && r.D20 is not null && r.Path is not null && r.Path.All(p => p is not null) && (r.Spots ?? new()).All(p => p is not null)
+                      && (d.Version < 26 || r.Spots is not null), $"registro dello scontro {dto.Id} non valido");
                 Check((r!.Actor is null || w.Actors.ContainsKey(new ActorId(r.Actor))) && (r.Target is null || w.Actors.ContainsKey(new ActorId(r.Target))),
                     $"registro dello scontro {dto.Id} con attori sconosciuti");
                 e.Log.Add(new CombatRecord
@@ -1033,7 +1036,8 @@ internal static class SaveGame
                     Round = r.Round, Kind = Enum.Parse<CombatLogKind>(r.Kind), Actor = r.Actor is null ? null : new ActorId(r.Actor),
                     Target = r.Target is null ? null : new ActorId(r.Target), Attack = r.Attack, D20 = r.D20!.ToArray(), Kept = r.Kept,
                     Bonus = r.Bonus, Total = r.Total, ArmorClass = r.ArmorClass, Hit = r.Hit, Critical = r.Critical, Damage = r.Damage,
-                    Path = r.Path!.Select(p => new GridPos(p!.X, p.Y)).ToArray(), Text = r.Text!, PlayerText = r.PlayerText,
+                    Path = r.Path!.Select(p => new GridPos(p!.X, p.Y)).ToArray(),
+                    Spots = (r.Spots ?? new()).Select(p => new Spot(p!.X, p.Y)).ToArray(), Text = r.Text!, PlayerText = r.PlayerText,
                     PlayerSawActor = r.PlayerSawActor, PlayerSawTarget = r.PlayerSawTarget,
                 });
             }

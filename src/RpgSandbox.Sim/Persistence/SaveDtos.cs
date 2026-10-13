@@ -467,7 +467,11 @@ internal sealed class CombatantDto
     public bool ActionUsed { get; set; }
     public bool ReactionUsed { get; set; }
     public bool OpeningSpent { get; set; }
+    /// <summary>Before schema 26: the square where it last saw an enemy.</summary>
     public PosDto? LastSeenEnemy { get; set; }
+
+    /// <summary>P2a (schema 26): the exact point, in inches.</summary>
+    public PosDto? LastSeenAt { get; set; }
     public int? JoinedInRound { get; set; }
     public bool Fleeing { get; set; }
     public int Dashes { get; set; }
@@ -500,6 +504,9 @@ internal sealed class CombatRecordDto
     public bool Critical { get; set; }
     public int? Damage { get; set; }
     public List<PosDto> Path { get; set; } = new();
+
+    /// <summary>P2a (schema 26): the points of a move as the player saw them, in inches.</summary>
+    public List<PosDto>? Spots { get; set; }
     public string Text { get; set; } = "";
     public string? PlayerText { get; set; }
     public bool PlayerSawActor { get; set; }

@@ -165,6 +165,51 @@ internal sealed class SpotPlanner
     }
 
     /// <summary>
+    /// P2a: the goal of <paramref name="goals"/> (all must fit) with the shortest way from <paramref name="from"/>, and
+    /// that way; ties go to the goal listed first. Null if none can be reached. One search for all of them.
+    /// </summary>
+    public (int Goal, SpotPath Way)? FindNearest(Spot from, IReadOnlyList<Spot> goals)
+    {
+        if (goals.Count == 0)
+            return null;
+        var nodes = new List<Spot> { from };
+        nodes.AddRange(goals);
+        nodes.AddRange(_corners.Where(c => c != from && !goals.Contains(c)));
+        var g = Enumerable.Repeat(double.PositiveInfinity, nodes.Count).ToArray();
+        var previous = Enumerable.Repeat(-1, nodes.Count).ToArray();
+        var closed = new bool[nodes.Count];
+        var open = new PriorityQueue<int, (double Cost, int Node)>();
+        g[0] = 0;
+        open.Enqueue(0, (0, 0));
+        while (open.TryDequeue(out var u, out _))
+        {
+            if (closed[u])
+                continue;
+            closed[u] = true;
+            if (u >= 1 && u <= goals.Count)
+            {
+                var way = new List<Spot>();
+                for (var at = u; at >= 0; at = previous[at])
+                    way.Add(nodes[at]);
+                way.Reverse();
+                return (u - 1, new SpotPath(way, g[u]));
+            }
+            for (var v = 1; v < nodes.Count; v++)
+            {
+                if (closed[v])
+                    continue;
+                var cost = g[u] + nodes[u].DistanceTo(nodes[v]);
+                if (cost >= g[v] || !Clear(nodes[u], nodes[v]))
+                    continue;
+                g[v] = cost;
+                previous[v] = u;
+                open.Enqueue(v, (cost, v));
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
     /// P1b: nothing solid stands on the straight line between two points: no square one cannot stand in, no thin wall or
     /// window, no closed door (a blow does not pass where a body does not; a window stops a blade). Touching a corner
     /// counts as blocked, as two squares meeting at a corner do not let one reach across.

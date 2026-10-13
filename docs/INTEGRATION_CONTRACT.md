@@ -669,3 +669,27 @@ Decisione dell'utente: precisione vera. Un solo orologio della Sim, a tick.
     cui erano stati programmati.
   - un istante di un vecchio schema troppo grande per i tick è un salvataggio incoerente ("istante fuori intervallo"),
     non un errore del programma.
+
+## P2a: i PNG in combattimento su punti esatti
+
+- Nel suo turno un PNG si muove con lo stesso codice della `MoveToSpotCommand` del giocatore in combattimento: stesso
+  pianificatore (creature che percepisce come ostacolo, alleati attraversabili, porte chiuse come muri), costo in
+  pollici dal movimento del turno, stessa camminata pollice per pollice (attacchi di opportunità all'ultimo punto in
+  portata, stop davanti a chi non vedeva). Fuggendo cammina allo stesso modo verso il centro della casella scelta.
+- Bersaglio: il nemico visibile più vicino per distanza fra i centri in pollici; a parità, per id.
+- Mischia: punti su un anello attorno al bersaglio, 16 direzioni (da est, in senso orario), centri a
+  36 + portata × 12 − 6 pollici. Valgono quelli dove il corpo sta e da cui `InReach` è vero; si sceglie la via più
+  corta, a parità la prima direzione. Se il colpo arriva già da dove sta, non si muove.
+- Ripiego (nessun punto dell'anello raggiungibile, PNG senza mischia, nessun bersaglio visibile): la via verso il punto
+  del bersaglio (o l'ultimo punto in cui l'ha visto, `Combatant.LastSeenAt`) intorno ai soli muri. Si percorre solo fino
+  a prima del primo punto in cui toccherebbe un corpo che non può attraversare. È un'euristica: un punto in portata
+  fra due direzioni dell'anello può sfuggire. Nessun colpo inventato: attacca solo se `CheckAttack` è valido.
+- Troppo lontano per questo turno: Scatto se l'azione è libera, poi cammina fin dove il movimento basta, troncato al
+  pollice, fermandosi dove il corpo sta.
+- `CombatLogEntry.Spots`: per le mosse, la via come punti esatti (partenza, svolte, arrivo), da animare.
+  - La mossa del giocatore: per intero.
+  - Quella di un altro: solo quello che il giocatore ha visto. È l'ultimo tratto visto senza interruzioni fino a dove
+    si è fermato; se non l'ha visto fermarsi, il primo tratto visto; vuoto se non l'ha mai visto.
+  - `Path` (caselle) è filtrato allo stesso modo. Chi è visto in un punto qualsiasi della mossa ha l'`Actor` nella voce.
+- Salvataggio, schema 26: `LastSeenAt` (punto esatto) e gli `Spots` del registro. Dagli schemi precedenti
+  `LastSeenEnemy` (casella) diventa il suo centro e le mosse vecchie non hanno `Spots`.

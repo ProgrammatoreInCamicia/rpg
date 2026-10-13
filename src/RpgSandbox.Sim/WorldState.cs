@@ -636,8 +636,8 @@ internal sealed class Combatant
     /// <summary>The opening attack was resolved at once: the attacker's first turn has no action left.</summary>
     public bool OpeningSpent { get; set; }
 
-    /// <summary>Where this combatant last saw an enemy (NPCs go there when they lose sight of it).</summary>
-    public GridPos? LastSeenEnemy { get; set; }
+    /// <summary>Where this combatant last saw an enemy, to the inch (P2a; NPCs go there when they lose sight of it).</summary>
+    public Spot? LastSeenAt { get; set; }
 
     /// <summary>C4c: the round it joined the fight in; it acts from the next one.</summary>
     public int? JoinedInRound { get; init; }
@@ -672,7 +672,11 @@ internal sealed class CombatRecord
     public bool? Hit { get; init; }
     public bool Critical { get; init; }
     public int? Damage { get; init; }
+    /// <summary>For a move, the squares walked as the player saw them (see <see cref="Spots"/>).</summary>
     public IReadOnlyList<GridPos> Path { get; init; } = Array.Empty<GridPos>();
+
+    /// <summary>P2a: for a move, the points walked as the player saw them (all of them for the player's own).</summary>
+    public IReadOnlyList<Spot> Spots { get; init; } = Array.Empty<Spot>();
     public required string Text { get; init; }
 
     /// <summary>As the player perceived it, or null if it perceived nothing.</summary>

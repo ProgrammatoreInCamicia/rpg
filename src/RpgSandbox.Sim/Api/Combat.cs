@@ -249,8 +249,18 @@ public sealed record CombatLogEntry
     /// <summary>Damage dealt (never the Hit Points left).</summary>
     public int? Damage { get; init; }
 
-    /// <summary>For Move: the squares actually walked, in order (it may stop short, for an opportunity attack).</summary>
+    /// <summary>
+    /// For Move: the squares actually walked, in order (it may stop short, for an opportunity attack); for another's
+    /// move only those the player saw it on (see <see cref="Spots"/>).
+    /// </summary>
     public IReadOnlyList<GridPos> Path { get; init; } = Array.Empty<GridPos>();
+
+    /// <summary>
+    /// P2a: for Move, the way walked as exact points (start, turning points, end), to animate. The player's own move
+    /// in full; another's only as far as the player saw it: the last stretch seen without a break up to where it stopped,
+    /// or, if the player did not see it stop, the first stretch seen; empty if it was never seen.
+    /// </summary>
+    public IReadOnlyList<Spot> Spots { get; init; } = Array.Empty<Spot>();
 
     /// <summary>Ready-made text for the UI.</summary>
     public required string Text { get; init; }

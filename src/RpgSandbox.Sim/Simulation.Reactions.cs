@@ -161,7 +161,7 @@ internal sealed partial class Simulation
         int Distance(GridPos sq) => enemies.Count == 0 ? int.MaxValue : enemies.Min(x => CurrentPosition(x)!.Value.StepsTo(sq));
         // C3a: with an enemy next to it, Disengage (no opportunity attacks); otherwise Dash (twice as far).
         if (!c.ActionUsed)
-            Act(e, npc, enemies.Any(x => CurrentPosition(x)!.Value.StepsTo(from) == 1 && OpenDiagonal(map, CurrentPosition(x)!.Value, from))
+            Act(e, npc, enemies.Any(x => MeleeAttack(x) is { } m && InReach(map, StandingOf(x), m, StandingOf(npc))) // P2a: by the bodies
                 ? CombatAction.Disengage : CombatAction.Dash);
         var best = CombatReach(e, npc, map, from, from, knows, MovementLeft(e, npc))
             .Where(r => !occupied.Contains(r.Key))
@@ -170,9 +170,11 @@ internal sealed partial class Simulation
             .OrderByDescending(x => Unseen(x.Square)).ThenByDescending(x => Distance(x.Square)).ThenBy(x => x.Feet)
             .ThenBy(x => x.Square.Y).ThenBy(x => x.Square.X)
             .First();
-        if (best.Square != from && PlanCombatMove(e, npc, best.Square, stopNextTo: false) is { } plan)
+        // P2a: walked freely to the centre of that square, as far as the movement goes.
+        if (best.Square != from && PlanFreeCombatMove(e, npc, Spot.CenterOf(best.Square)) is { Way: { } way }
+            && NpcStep(e, npc, way, int.MaxValue) is { } step)
         {
-            WalkInCombat(e, npc, plan);
+            WalkFreeInCombat(e, npc, step);
             CheckEnd(e);
         }
         return true;
