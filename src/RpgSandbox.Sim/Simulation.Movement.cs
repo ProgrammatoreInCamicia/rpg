@@ -21,10 +21,18 @@ internal sealed partial class Simulation
         // A walk replaces a walk in progress or an interruptible routine wait (an NPC idling); anything else is busy.
         if (actor.CurrentAction is not null and not MoveAction and not WaitAction { Interruptible: true })
             return CommandResult.Rejected(RejectionReason.ActorBusy, $"{actor.Name} è già impegnato.");
-        if (CurrentPosition(actor) is not { } from || MapOf(actor) is not { } map)
+        // Review P1c: a walker half-way is already on the square of its exact point at this tick; the new way sets off
+        // from there, not from the last centre it reached.
+        if (CurrentSpot(actor) is not { } here || MapOf(actor) is not { } map)
             return CommandResult.Rejected(RejectionReason.NoMap, $"Qui non c'è una mappa su cui camminare.");
+        var from = here.Cell;
         if (from == command.To)
-            return CommandResult.Rejected(RejectionReason.AlreadyThere, $"{actor.Name} è già lì.");
+        {
+            // Off the centre of its own square, an actor goes back to the centre, as a free walk there.
+            if (here == Spot.CenterOf(from) || command.StopNextTo)
+                return CommandResult.Rejected(RejectionReason.AlreadyThere, $"{actor.Name} è già lì.");
+            return StartMoveToSpot(new MoveToSpotCommand { Actor = actor.Id, To = Spot.CenterOf(from), Stealthy = command.Stealthy });
+        }
         if (map.FindPath(from, command.To, command.Stealthy ? square => SneakCost(map, square) : null) is not { } path)
             return CommandResult.Rejected(RejectionReason.Unreachable, "Non si può raggiungere quel punto.");
         if (command.StopNextTo)

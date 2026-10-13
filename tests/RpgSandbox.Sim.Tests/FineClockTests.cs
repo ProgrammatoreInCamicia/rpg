@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using RpgSandbox.Sim.Api;
 using RpgSandbox.Sim.Scenarios;
 using static RpgSandbox.Sim.Tests.TestHelpers;
@@ -142,5 +143,59 @@ public class FineClockTests
         // A torch lit now burns its hour to the tick.
         Assert.True(s.Execute(new TorchCommand { Actor = s.Player, Lit = true }).Success);
         Assert.Equal(Duration.FromHours(1), s.GetPlayerView().TorchLitUntil!.Value.Since(s.Now));
+    }
+
+    [Fact]
+    public void A_new_order_on_squares_half_way_sets_off_from_the_square_of_the_point_reached_without_a_stop()
+    {
+        // Review P1c: after 30 ticks from (9,4) towards (11,4) the walker is at (600,270), already in (10,4), while the
+        // last centre it reached is still (9,4). The new way must start from (10,4).
+        var s = House();
+        s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(11, 4) });
+        s.Advance(Ticks(30));
+        var here = s.GetPlayerView().Spot!.Value;
+        Assert.Equal(new Spot(600, 270), here);
+
+        var order = s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(10, 6) });
+        Assert.True(order.Success);
+
+        var move = s.GetPlayerView().Move!;
+        Assert.Equal(here, move.FromSpot);
+        Assert.Equal(new GridPos(10, 4), move.From);
+        Assert.Equal(new[] { new GridPos(10, 5), new GridPos(10, 6) }, move.Path);
+        Assert.Equal(here, s.GetPlayerView().Spot);
+        var reloaded = s.SaveAndReload();
+        Assert.Equal(s.SaveToString(), reloaded.SaveToString());
+        s.AdvanceUntilCompleted(order.Action!.Value, Duration.FromMinutes(1));
+        Assert.Equal(Spot.CenterOf(new GridPos(10, 6)), s.GetPlayerView().Spot);
+    }
+
+    [Fact]
+    public void A_move_on_squares_to_its_own_square_from_off_its_centre_goes_back_to_the_centre()
+    {
+        var s = House();
+        s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(11, 4) });
+        s.Advance(Ticks(75));
+        s.Execute(new StopCommand { Actor = s.Player });
+        Assert.Equal(new Spot(645, 270), s.GetPlayerView().Spot);
+
+        Assert.True(s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(10, 4) }).Success);
+        s.Advance(Ticks(15));
+        Assert.Equal(Spot.CenterOf(new GridPos(10, 4)), s.GetPlayerView().Spot);
+        Assert.Null(s.GetPlayerView().Move);
+        Assert.Equal(RejectionReason.AlreadyThere, s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(10, 4) }).Rejection);
+    }
+
+    [Fact]
+    public void An_old_save_with_a_time_too_large_for_ticks_is_refused_as_a_bad_save()
+    {
+        var data = JsonNode.Parse(House().SaveToString())!;
+        AsSchema(data, 24);
+        data["Now"] = long.MaxValue;
+
+        var result = LoadFromString(data.ToJsonString());
+
+        Assert.False(result.Success);
+        Assert.Contains("fuori intervallo", result.Error);
     }
 }

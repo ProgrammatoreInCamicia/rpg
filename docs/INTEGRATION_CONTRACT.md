@@ -655,6 +655,10 @@ Decisione dell'utente: precisione vera. Un solo orologio della Sim, a tick.
   - Al ritmo furtivo (Velocità 20) una casella dura 1,5 s esatti, non più 2 s: cambio voluto.
 - Stop o nuovo ordine: il camminatore si ferma nel punto esatto in cui è a quel tick, nella casella di quel punto, e i
   contatti si valutano lì. Un nuovo ordine parte da lì. Niente arretramenti.
+  - Un `MoveCommand` a metà passo pianifica dalla casella del punto esatto (`FromSpot.Cell == From`), non dall'ultimo
+    centro raggiunto.
+  - `MoveCommand` verso la propria casella da fuori centro torna al centro (come `MoveToSpotCommand` al centro);
+    `AlreadyThere` solo se è già al centro, o con `StopNextTo`.
 - Il combattimento è invariato: il turno del giocatore congela il tempo.
 - Rinominati:
   - `MoveView.Seconds` → `MoveView.Ticks`. `MoveView` ha anche `Vertices` (la via di un cammino libero).
@@ -663,3 +667,5 @@ Decisione dell'utente: precisione vera. Un solo orologio della Sim, a tick.
   - ogni istante e durata in tick (anche fatti, scheduler e azioni), una via libera con `Vertices`;
   - gli schemi da 20 a 24 si leggono in secondi × 60; i loro cammini a caselle mantengono gli istanti al secondo con
     cui erano stati programmati.
+  - un istante di un vecchio schema troppo grande per i tick è un salvataggio incoerente ("istante fuori intervallo"),
+    non un errore del programma.

@@ -59,8 +59,12 @@ internal static class SaveGame
     /// <summary>P1c: ticks per unit of the times in the save being read (schema 25: 1; before: a second).</summary>
     [ThreadStatic] private static long _scale;
 
-    private static GameTime Time(long v) => GameTime.FromTicks(checked(v * _scale));
-    private static Duration Span(long v) => Duration.FromTicks(checked(v * _scale));
+    private static GameTime Time(long v) => GameTime.FromTicks(Scaled(v));
+    private static Duration Span(long v) => Duration.FromTicks(Scaled(v));
+
+    /// <summary>Review P1c: a time in an old save too large to count in ticks is a bad save, not a crash.</summary>
+    private static long Scaled(long v) => v > long.MaxValue / _scale || v < long.MinValue / _scale
+        ? throw new InvalidDataException($"istante fuori intervallo: {v}") : v * _scale;
 
     /// <summary>Structural checks: no missing collections, no null entries, no empty identifiers.</summary>
     private static void ValidateShape(SaveDto d)
@@ -905,7 +909,7 @@ internal static class SaveGame
         var fromSpot = mv.FromSpot is { } fs ? new Spot(fs.X, fs.Y) : (Spot?)null;
         var spots = mv.Spots?.Select(SpotOf).ToArray();
         IReadOnlyList<long>? ticks = _scale == 1 ? mv.Ticks?.ToArray()
-            : spots is not null ? mv.Seconds?.Select(s => checked(s * _scale)).ToArray()
+            : spots is not null ? mv.Seconds?.Select(Scaled).ToArray()
             : Enumerable.Range(1, path.Length).Select(i => checked((i * 30L + mv.Speed - 1) / Math.Max(1, mv.Speed) * _scale)).ToArray();
         var vertices = _scale == 1 ? mv.Vertices?.Select(SpotOf).ToArray()
             : spots is not null && fromSpot is { } start ? new[] { start }.Concat(spots).ToArray() : null;
