@@ -824,7 +824,7 @@ public partial class VillageMap : Node2D
 			occupiedCaptions.Add(caption);
 		}
 		if (_tokens.TryGetValue(_view.Id, out var mine))
-			_camera.Position = _camera.Position.Lerp(_smokeFocus is { } focus ? CellToScreen(focus) : mine.Position, 0.15f);
+			_camera.Position = _camera.Position.Lerp(CameraTarget(_smokeFocus is { } focus ? CellToScreen(focus) : mine.Position), 0.15f);
 	}
 
 	/// <summary>
@@ -930,6 +930,10 @@ public partial class VillageMap : Node2D
 
 	private static Vector2 CellToScreen(GridPos c) => new((c.X - c.Y) * TileW / 2f, (c.X + c.Y) * TileH / 2f);
 
+	// Keep the compact interior in the viewport area beside the fixed left HUD.
+	private Vector2 CameraTarget(Vector2 worldPoint) => _view.MapVisibility is not null
+		? worldPoint + new Vector2(-200f, 0f) : worldPoint;
+
 	/// <summary>World position of a square (used by the smoke runner to click on it).</summary>
 	internal static Vector2 ScreenPointOf(GridPos c) => CellToScreen(c);
 
@@ -938,7 +942,7 @@ public partial class VillageMap : Node2D
 	{
 		_smokeFocus = cell;
 		if (cell is { } at)
-			_camera.Position = CellToScreen(at);
+			_camera.Position = CameraTarget(CellToScreen(at));
 	}
 
 	private static GridPos ScreenToCell(Vector2 p)
@@ -1073,7 +1077,8 @@ public partial class VillageMap : Node2D
 		_target = new Polygon2D { Polygon = Diamond(0.6f), Color = new Color(0.3f, 0.6f, 1f, 0.6f), ZIndex = -5, Visible = false };
 		AddChild(_target);
 
-		_camera = new Camera2D { Position = CellToScreen(_view.Position ?? new GridPos(0, 0)), Zoom = new Vector2(1.2f, 1.2f) };
+		var zoom = _view.MapVisibility is null ? 1.2f : 1.08f;
+		_camera = new Camera2D { Position = CameraTarget(CellToScreen(_view.Position ?? new GridPos(0, 0))), Zoom = new Vector2(zoom, zoom) };
 		AddChild(_camera);
 		_camera.MakeCurrent();
 	}
