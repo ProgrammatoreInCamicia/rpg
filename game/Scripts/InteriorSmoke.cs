@@ -23,6 +23,8 @@ public partial class InteriorSmoke : Node
 			_map.AdvanceForSmoke(new GameTime(13 * 3600));
 			await Frames(3);
 			Capture("day-outside.png");
+			Require(!_map.PreviewSpotForSmoke(Spot.CenterOf(new GridPos(4, 4))).Visible,
+				"an unexplored room showed a free-walk preview");
 			_map.SetPaused(false);
 			_map.MoveTo(InteriorPrototypeScenario.WindowOutside);
 			await UntilIdle();
@@ -47,6 +49,9 @@ public partial class InteriorSmoke : Node
 				&& foot.DistanceTo(VillageMap.ScreenPointOf(exact)) < 1f,
 				"the displayed figure did not end at its Sim spot");
 			_map.SetPaused(true);
+			var preview = _map.PreviewSpotForSmoke(new Spot(402, 276));
+			Require(preview.Visible && preview.RoutePoints >= 2 && preview.Hint.Contains("piedi"),
+				"the free walk route and cost are not visible over explored floor");
 			Capture("day-free-spot.png");
 			_map.SetPaused(false);
 			_map.ClickDoor(InteriorPrototypeScenario.Door);
@@ -67,6 +72,27 @@ public partial class InteriorSmoke : Node
 			Require(_map.EventText.Contains("Intuizione:"), "Observe did not reach the player's event log");
 			await Frames(2);
 			Capture("creature-card.png");
+			_map.SetPaused(false);
+			_map.MoveToSpot(Spot.CenterOf(new GridPos(5, 4)));
+			await UntilIdle();
+			Require(_map.FarmerAttacksForSmoke() && _map.View.Combat is { IsYourTurn: true },
+				"the interior fight did not reach the player's turn");
+			var risky = _map.PreviewSpotForSmoke(Spot.CenterOf(new GridPos(7, 5)));
+			Require(risky.Visible && risky.ThreatMarkers > 0 && risky.Hint.Contains("reazione"),
+				$"an opportunity attack is not marked on the free combat route: {risky}");
+			var combatGoal = new Spot(340, 278);
+			var before = _map.View.Combat!.You.MovementLeftInches;
+			var combatPreview = _map.PreviewSpotForSmoke(combatGoal);
+			Require(combatPreview.Visible && combatPreview.RoutePoints >= 2 && combatPreview.Hint.Contains("/"),
+				"the fight does not preview the free route and remaining movement");
+			_map.ClickSpotForSmoke(combatGoal);
+			Require(_map.View.Spot == combatGoal && _map.View.Combat!.You.MovementLeftInches < before,
+				"the fight click did not spend movement to the precise point");
+			await Seconds(0.4);
+			Require(_map.FootPointOf(_map.View.Id) is { } combatFoot
+				&& combatFoot.DistanceTo(VillageMap.ScreenPointOf(combatGoal)) < 1f,
+				"the fight figure did not finish its visual path at the Sim point");
+			Capture("combat-free-spot.png");
 			GD.Print("INTERIOR SMOKE OK");
 			GetTree().Quit(0);
 		}
@@ -86,6 +112,13 @@ public partial class InteriorSmoke : Node
 	{
 		for (var i = 0; i < count; i++)
 			await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+	}
+
+	private async Task Seconds(double seconds)
+	{
+		var until = Time.GetTicksMsec() + (ulong)(seconds * 1000);
+		while (Time.GetTicksMsec() < until)
+			await Frames(1);
 	}
 
 	private async Task UntilIdle()

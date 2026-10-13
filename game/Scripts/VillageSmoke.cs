@@ -113,7 +113,8 @@ public partial class VillageSmoke : Node
 		var stoppedAt = _map.View.Position;
 		var stoppedTime = _map.View.Now;
 		await Seconds(1.5);
-		Require(!_map.IsBusy && _map.View.Position == stoppedAt, "The position moved after stopping");
+		Require(!_map.IsBusy && _map.View.Position == stoppedAt,
+			$"The position moved after stopping: before={stoppedAt}, after={_map.View.Position}, busy={_map.IsBusy}, time={_map.View.Now.Seconds}, stoppedAtTime={stoppedTime.Seconds}");
 		Require(_map.View.Now > stoppedTime, "The world should go on after stopping");
 		_map.LoadGameFromPath(walkingSave);
 		Require(_map.IsWalking && _map.View.Now == savedAt && _map.View.Position == savedSquare,

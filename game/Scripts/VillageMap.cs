@@ -637,10 +637,14 @@ public partial class VillageMap : Node2D
 	{
 		_view = _sim.GetPlayerView();
 		_spotPreviewAt = null; // doors, light and newly explored squares can change a route within one second
+		if (_view.Combat is null)
+			_combatVisualWay = null;
 		if (_view.Combat is not null)
 		{
 			_journalOpen = false;
 			_talkingTo = null;
+			_creaturePanel.Visible = false;
+			_personMenu.Visible = false;
 			_running = null;
 			_walking = false;
 			_approaching = null;
@@ -804,7 +808,8 @@ public partial class VillageMap : Node2D
 				_sorted.AddChild(token);
 			}
 			var previousPosition = token.Position;
-			token.Position = SmoothPosition(figure.Position.Value, figure.Spot, figure.Move);
+			token.Position = figure.Player && _view.Combat is not null && CombatVisualPosition() is { } visual
+				? visual : SmoothPosition(figure.Position.Value, figure.Spot, figure.Move);
 			token.Modulate = Shade(ScreenToCell(token.Position));
 			var prone = figure.Condition is "morto" or "tramortito"
 				|| figure.Condition?.StartsWith("a terra", StringComparison.Ordinal) == true;
@@ -1007,7 +1012,7 @@ public partial class VillageMap : Node2D
 
 	// Keep the compact interior in the viewport area beside the fixed left HUD.
 	private Vector2 CameraTarget(Vector2 worldPoint) => _view.MapVisibility is not null
-		? worldPoint + new Vector2(-200f, 0f) : worldPoint;
+		? worldPoint + new Vector2(_view.Combat is null ? -200f : -25f, 0f) : worldPoint;
 
 	/// <summary>World position of a square (used by the smoke runner to click on it).</summary>
 	internal static Vector2 ScreenPointOf(GridPos c) => CellToScreen(c);

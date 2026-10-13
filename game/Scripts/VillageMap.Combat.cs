@@ -1,6 +1,7 @@
 using Godot;
 using RpgSandbox.Sim.Api;
 using RpgSandbox.Sim.Rules;
+using RpgSandbox.Sim.Scenarios;
 
 namespace RpgSandbox.Game;
 
@@ -151,6 +152,14 @@ public partial class VillageMap
 	}
 
 	internal void EndCombatTurnForSmoke() => EndCombatTurn();
+	internal bool FarmerAttacksForSmoke()
+	{
+		var result = _sim.Execute(new AttackCommand { Actor = MappedVillageScenario.Ids.Farmer,
+			Target = _sim.Player, Attack = "Bastone" });
+		ShowMessage(result.Message);
+		Refresh();
+		return result.Success;
+	}
 
 	internal void AttackCombatTargetForSmoke(TargetView attack) => ExecuteCombatAttack(attack);
 	internal void PressCombatActionForSmoke(CombatAction action)
@@ -193,7 +202,9 @@ public partial class VillageMap
 		_combatChange.Text = combat.Log.LastOrDefault(e => e.Kind is CombatLogKind.Joined or CombatLogKind.Fled) is { } change
 			? $"Ingresso/fuga: {change.Text}" : "";
 		_combatSelf.Text = $"Tu: {combat.You.HitPoints}/{combat.You.MaxHitPoints} PF · {(combat.You.KnockedOut ? "tramortito" : LifeName(combat.You.State))}"
-			+ $"\nMovimento: {combat.You.MovementLeftFeet} piedi ({combat.You.SquaresLeft} caselle)"
+			+ (_freeMovementPrototype
+				? $"\nMovimento: {Math.Floor(combat.You.MovementLeftInches / (double)Spot.PerFoot * 10) / 10:0.0} piedi"
+				: $"\nMovimento: {combat.You.MovementLeftFeet} piedi ({combat.You.SquaresLeft} caselle)")
 			+ $" · Azione: {(combat.You.ActionAvailable ? "pronta" : "usata")}"
 			+ $" · Reazione: {(combat.You.ReactionAvailable ? "pronta" : "usata")}"
 			+ (combat.You.Disengaged ? "\nDisimpegnato: il movimento non provoca attacchi di opportunit\u00e0." : "")
@@ -279,7 +290,7 @@ public partial class VillageMap
 	private void DrawCombatOverlay()
 	{
 		ClearCombatOverlay();
-		if (_view.Combat is not { } combat)
+		if (_freeMovementPrototype || _view.Combat is not { } combat)
 			return;
 		foreach (var square in combat.Reachable.Where(s => s.At != _view.Position))
 			_combatOverlay.AddChild(new Polygon2D { Polygon = Diamond(0.72f), Position = CellToScreen(square.At),
@@ -305,7 +316,7 @@ public partial class VillageMap
 
 	private void UpdateCombatHover()
 	{
-		if (_view.Combat is not { IsYourTurn: true } combat || _view.Position is null)
+		if (_freeMovementPrototype || _view.Combat is not { IsYourTurn: true } combat || _view.Position is null)
 			return;
 		var cell = ScreenToCell(GetGlobalMousePosition());
 		if (_hoveredCombatCell == cell)
@@ -322,12 +333,14 @@ public partial class VillageMap
 		DrawCombatOverlay();
 	}
 
-	private static string BaseCombatHint(CombatView combat)
+	private string BaseCombatHint(CombatView combat)
 	{
 		var pending = combat.PendingOpeningAttack is { } opening
 			? $"\nAttacco iniziale in attesa: {opening.Attack}." : "";
 		return (combat.IsYourTurn
-			? "Passa il mouse su una casella verde per vedere il percorso; clicca per muoverti."
+			? _freeMovementPrototype
+				? "Passa il mouse sul pavimento per vedere il percorso; clicca per muoverti."
+				: "Passa il mouse su una casella verde per vedere il percorso; clicca per muoverti."
 			: "Attendi il tuo turno.") + pending;
 	}
 
@@ -355,7 +368,10 @@ public partial class VillageMap
 			PickUp(item);
 			return true;
 		}
-		MoveTo(ScreenToCell(point));
+		if (_freeMovementPrototype)
+			ExecuteCombatSpotMove(ScreenToSpot(point));
+		else
+			MoveTo(ScreenToCell(point));
 		return true;
 	}
 
@@ -375,8 +391,20 @@ public partial class VillageMap
 		Refresh();
 	}
 
+	private void ExecuteCombatSpotMove(Spot spot)
+	{
+		var from = _view.Spot;
+		var preview = from is null ? null : _sim.PreviewMoveToSpot(_sim.Player, spot);
+		var result = _sim.Execute(new MoveToSpotCommand { Actor = _sim.Player, To = spot });
+		if (result.Success && preview is { Way.Count: > 1 } && _sim.GetPlayerView() is { Spot: { } reached, Dead: false })
+			StartCombatSpotVisual(preview, reached);
+		ShowMessage(result.Message);
+		Refresh();
+	}
+
 	private void ExecuteCombatAttack(TargetView target)
 	{
+		_combatVisualWay = null;
 		var result = _sim.Execute(new AttackCommand { Actor = _sim.Player, Target = target.Target,
 			Attack = target.Attack, NonLethal = _combatNonLethal.ButtonPressed && IsMeleeAttack(target.Attack) });
 		ShowMessage(result.Message);
@@ -385,6 +413,7 @@ public partial class VillageMap
 
 	private void ExecuteCombatAction(CombatAction action)
 	{
+		_combatVisualWay = null;
 		var result = _sim.Execute(new CombatActionCommand { Actor = _sim.Player, Action = action });
 		ShowMessage(result.Message);
 		Refresh();
@@ -392,6 +421,7 @@ public partial class VillageMap
 
 	private void EndCombatTurn()
 	{
+		_combatVisualWay = null;
 		var result = _sim.Execute(new EndTurnCommand { Actor = _sim.Player });
 		ShowMessage(result.Message);
 		Refresh();
