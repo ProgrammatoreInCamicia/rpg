@@ -77,7 +77,7 @@ internal sealed partial class Simulation
         return new SpotMovePreview
         {
             Valid = true, Way = way!.Vertices, Feet = Math.Ceiling(way.Length / Spot.PerFoot * 10 - 1e-9) / 10,
-            Seconds = way.Checkpoints(speed)[^1].Seconds,
+            Ticks = way.Checkpoints(speed)[^1].Ticks,
         };
     }
 
@@ -119,9 +119,9 @@ internal sealed partial class Simulation
         return new SpotPlanner(map, blockers, standing);
     }
 
-    /// <summary>P1: where an actor stands right now, exactly: mid-walk, the last checkpoint reached.</summary>
+    /// <summary>P1: where an actor stands right now, exactly: mid-walk, its point on its way at this tick (P1c).</summary>
     internal Spot? CurrentSpot(Actor actor) =>
-        actor.CurrentAction is MoveAction move ? move.SpotAt(World.Now) ?? Spot.CenterOf(move.PositionAt(World.Now)) : actor.Spot;
+        actor.CurrentAction is MoveAction move ? move.SpotAt(World.Now) : actor.Spot;
 
     private static Spot FinalSpot(MoveAction move) => move.Spots?[^1] ?? Spot.CenterOf(move.Path[^1]);
 
@@ -152,14 +152,15 @@ internal sealed partial class Simulation
             Id = World.AllocateActionId(),
             Actor = actor.Id,
             StartedAt = World.Now,
-            CompletesAt = World.Now.Plus(Duration.FromSeconds(checkpoints is null ? MoveAction.SecondsFor(steps.Count, speed) : checkpoints[^1].Seconds)),
+            CompletesAt = World.Now.Plus(Duration.FromTicks(checkpoints is null ? MoveAction.TicksFor(steps.Count, speed) : checkpoints[^1].Ticks)),
             From = from,
             Path = steps,
             Speed = speed,
             Stealthy = stealthy,
-            FromSpot = fromSpot,
+            FromSpot = fromSpot ?? CurrentSpot(actor),
+            Vertices = way?.Vertices,
             Spots = checkpoints?.Select(c => c.At).ToList(),
-            Seconds = checkpoints?.Select(c => c.Seconds).ToList(),
+            Ticks = checkpoints?.Select(c => c.Ticks).ToList(),
             Description = stealthy ? "Si muove di soppiatto" : "Cammina",
         };
         Begin(actor, move);
@@ -169,7 +170,7 @@ internal sealed partial class Simulation
         if (map.ClosedDoorBetween(from, steps[0]) is { } firstDoor)
             OpenDoorOnTheWay(actor, map, firstDoor);
         for (var step = 1; step < steps.Count; step++)
-            World.Scheduler.Schedule(move.StartedAt.Plus(Duration.FromSeconds(move.SecondsTo(step))), new MoveWaypoint(move.Id, step));
+            World.Scheduler.Schedule(move.StartedAt.Plus(Duration.FromTicks(move.TicksTo(step))), new MoveWaypoint(move.Id, step));
         var how = stealth is not null ? $" Furtività: {stealth.Describe()}."
             : watchedBy.Count > 0 ? $" Ti vede {string.Join(", ", watchedBy)}: vai piano, ma non puoi nasconderti." : "";
         return CommandResult.Started(move.Id, move.CompletesAt,

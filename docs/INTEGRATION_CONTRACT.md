@@ -632,3 +632,34 @@ Prova separata. Il movimento a caselle (`MoveCommand`) e le mappe esistenti non 
 - I PNG si muovono ancora a caselle.
 - Salvataggio, schema 24: `MovedInches` di ogni combattente, obbligatorio. Gli schemi precedenti lo ricavano da
   `MovedFeet` × 12.
+
+## P1c: orologio fine
+
+Decisione dell'utente: precisione vera. Un solo orologio della Sim, a tick.
+
+- `GameTime` e `Duration` contano tick, 60 al secondo (`GameTime.TicksPerSecond`).
+  - `Ticks`, `GameTime.FromTicks`, `Duration.FromTicks`.
+  - `new GameTime(s)`, `new Duration(s)` e `FromSeconds`/`Minutes`/`Hours`/`Days` restano in secondi.
+  - `Seconds` sono i secondi interi per difetto: `Day`, `Hour`, `Minute` e `Second` non cambiano. Uguaglianza e ordine
+    sono sui tick.
+- Scheduler, `Advance` e `AdvanceUntilCompleted` lavorano a tick. Le durate di regola (round, viaggi, attese delle
+  routine, torce, svenimento) restano secondi esatti, contati dal tick in cui cominciano.
+- Cammini:
+  - **a caselle:** la casella i si raggiunge al tick ceil(i × 1800 / Velocità), cioè 60 tick a casella a Velocità 30.
+    Fra due centri la posizione è interpolata in proporzione ai tick del passo, anche in diagonale: la diagonale dura un
+    passo pur essendo lunga circa 85 pollici.
+  - **liberi:** si percorrono Velocità/30 pollici a tick lungo la via (`Vertices`). I checkpoint di P1a si raggiungono
+    al loro tick, per eccesso.
+  - `MoveAction.SpotAt(t)`, `PlayerView.Spot` e `VisibleActorView.Spot` danno il punto esatto al tick corrente,
+    arrotondato al pollice.
+  - Al ritmo furtivo (Velocità 20) una casella dura 1,5 s esatti, non più 2 s: cambio voluto.
+- Stop o nuovo ordine: il camminatore si ferma nel punto esatto in cui è a quel tick, nella casella di quel punto, e i
+  contatti si valutano lì. Un nuovo ordine parte da lì. Niente arretramenti.
+- Il combattimento è invariato: il turno del giocatore congela il tempo.
+- Rinominati:
+  - `MoveView.Seconds` → `MoveView.Ticks`. `MoveView` ha anche `Vertices` (la via di un cammino libero).
+  - `SpotMovePreview.Seconds` → `SpotMovePreview.Ticks`.
+- Salvataggio, schema 25:
+  - ogni istante e durata in tick (anche fatti, scheduler e azioni), una via libera con `Vertices`;
+  - gli schemi da 20 a 24 si leggono in secondi × 60; i loro cammini a caselle mantengono gli istanti al secondo con
+    cui erano stati programmati.

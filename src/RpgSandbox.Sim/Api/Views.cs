@@ -310,10 +310,16 @@ public sealed record MoveView
     /// <summary>Moving at the Slow pace, sneaking (an outward gesture: anyone who sees the walker sees it creep).</summary>
     public bool Stealthy { get; init; }
 
-    /// <summary>P1, a free walk only: its start, the exact point of each step of <see cref="Path"/> and the second (after <see cref="DepartedAt"/>) each is reached. The client moves the figure between these points only.</summary>
+    /// <summary>
+    /// P1: the exact point it set off from. A free walk also has its way (<see cref="Vertices"/>, start and goal
+    /// included), the exact point of each step of <see cref="Path"/> (<see cref="Spots"/>) and the tick after
+    /// <see cref="DepartedAt"/> each is reached (<see cref="Ticks"/>, P1c); null for a walk from square to square. The figure
+    /// stands where <c>Spot</c> says at the current tick; a free walk covers Speed/30 inches a tick along its way.
+    /// </summary>
     public Spot? FromSpot { get; init; }
     public IReadOnlyList<Spot>? Spots { get; init; }
-    public IReadOnlyList<long>? Seconds { get; init; }
+    public IReadOnlyList<Spot>? Vertices { get; init; }
+    public IReadOnlyList<long>? Ticks { get; init; }
 }
 
 /// <summary>An area's walkable map, as given to the scenario: one character per 5-ft square.</summary>

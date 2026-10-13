@@ -391,13 +391,14 @@ public sealed class SimulationSession
     private static GridPos? PositionOf(Actor a, WorldState w) => a.CurrentAction is MoveAction m ? m.PositionAt(w.Now) : a.Position;
 
     private static Spot? SpotOf(Actor a, WorldState w) =>
-        a.CurrentAction is MoveAction m ? m.SpotAt(w.Now) ?? Spot.CenterOf(m.PositionAt(w.Now)) : a.Spot;
+        a.CurrentAction is MoveAction m ? m.SpotAt(w.Now) : a.Spot;
 
     private static MoveView? MoveOf(Actor a) => a.CurrentAction is MoveAction m
         ? new MoveView
         {
             From = m.From, Path = Freeze(m.Path), DepartedAt = m.StartedAt, Speed = m.Speed, Stealthy = m.Stealthy,
-            FromSpot = m.FromSpot, Spots = m.Spots is null ? null : Freeze(m.Spots), Seconds = m.Seconds is null ? null : Freeze(m.Seconds),
+            FromSpot = m.FromSpot, Spots = m.Spots is null ? null : Freeze(m.Spots), Ticks = m.Ticks is null ? null : Freeze(m.Ticks),
+            Vertices = m.Vertices is null ? null : Freeze(m.Vertices),
         }
         : null;
 

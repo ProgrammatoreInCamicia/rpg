@@ -349,7 +349,12 @@ internal sealed class MoveActionDto : ActionDto
     /// <summary>P1 (schema 23): a free walk's start, the exact point of each step and the second each is reached.</summary>
     public PosDto? FromSpot { get; set; }
     public List<PosDto>? Spots { get; set; }
+    /// <summary>Schemas 23–24: the seconds of each step (schema 25: <see cref="Ticks"/>).</summary>
     public List<long>? Seconds { get; set; }
+
+    /// <summary>P1c (schema 25): the tick of each step of a free walk, and its way.</summary>
+    public List<long>? Ticks { get; set; }
+    public List<PosDto>? Vertices { get; set; }
 }
 
 internal sealed class MapEdgeDto

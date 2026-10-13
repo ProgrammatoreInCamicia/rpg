@@ -263,12 +263,12 @@ internal sealed record SpotPath(IReadOnlyList<Spot> Vertices, double Length)
 {
     /// <summary>
     /// The points where a walk at <paramref name="speed"/> (feet per 6-second round) is checked: every square entered,
-    /// every turning point, and every 5 feet in between; each with the square it is in and the second it is reached
+    /// every turning point, and every 5 feet in between; each with the square it is in and the tick it is reached
     /// (rounded up). The exact point of a checkpoint is rounded to the inch and kept inside its square.
     /// </summary>
-    public IReadOnlyList<(Spot At, GridPos Cell, long Seconds)> Checkpoints(int speed)
+    public IReadOnlyList<(Spot At, GridPos Cell, long Ticks)> Checkpoints(int speed)
     {
-        var inchesPerSecond = 2.0 * speed; // Speed feet per 6 seconds, 12 inches a foot
+        var inchesPerTick = speed / 30.0; // Speed feet per 6 seconds, 12 inches a foot, 60 ticks a second (P1c)
         var marks = new List<(double Along, double X, double Y, double CellX, double CellY)>();
         var walked = 0.0;
         for (var i = 1; i < Vertices.Count; i++)
@@ -299,21 +299,21 @@ internal sealed record SpotPath(IReadOnlyList<Spot> Vertices, double Length)
             }
             walked += length;
         }
-        var points = new List<(Spot At, GridPos Cell, long Seconds)>();
+        var points = new List<(Spot At, GridPos Cell, long Ticks)>();
         foreach (var (along, x, y, cx, cy) in marks)
         {
             var cell = new GridPos((int)Math.Floor(cx / Spot.PerSquare), (int)Math.Floor(cy / Spot.PerSquare));
             var at = new Spot(
                 Math.Clamp((int)Math.Round(x, MidpointRounding.AwayFromZero), cell.X * Spot.PerSquare, cell.X * Spot.PerSquare + Spot.PerSquare - 1),
                 Math.Clamp((int)Math.Round(y, MidpointRounding.AwayFromZero), cell.Y * Spot.PerSquare, cell.Y * Spot.PerSquare + Spot.PerSquare - 1));
-            var seconds = (long)Math.Ceiling(along / inchesPerSecond - 1e-9);
+            var ticks = (long)Math.Ceiling(along / inchesPerTick - 1e-9);
             if (points.Count == 0 || points[^1].At != at || points[^1].Cell != cell)
-                points.Add((at, cell, seconds));
+                points.Add((at, cell, ticks));
         }
         // The walk ends exactly on the goal, in its own square.
         var goal = Vertices[^1];
         if (points.Count > 0)
-            points[^1] = (goal, goal.Cell, points[^1].Seconds);
+            points[^1] = (goal, goal.Cell, points[^1].Ticks);
         return points;
     }
 }

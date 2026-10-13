@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 24;
+    public const int SchemaVersion = 25;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -47,6 +47,7 @@ internal static class SaveGame
         try
         {
             ValidateShape(dto);
+            _scale = dto.Version >= 25 ? 1 : GameTime.TicksPerSecond; // P1c: before schema 25, times were in seconds
             return FromDto(dto);
         }
         catch (InvalidDataException e)
@@ -54,6 +55,12 @@ internal static class SaveGame
             throw new SaveGameException($"Il salvataggio contiene dati incoerenti: {e.Message}", e);
         }
     }
+
+    /// <summary>P1c: ticks per unit of the times in the save being read (schema 25: 1; before: a second).</summary>
+    [ThreadStatic] private static long _scale;
+
+    private static GameTime Time(long v) => GameTime.FromTicks(checked(v * _scale));
+    private static Duration Span(long v) => Duration.FromTicks(checked(v * _scale));
 
     /// <summary>Structural checks: no missing collections, no null entries, no empty identifiers.</summary>
     private static void ValidateShape(SaveDto d)
@@ -119,7 +126,7 @@ internal static class SaveGame
             Id = w.Content.Id, Version = w.Content.Version, Hash = w.Content.Hash,
             Files = w.Content.Files.Select(f => new ContentFileDto { Name = f.Name, Text = f.Text }).ToList(),
         },
-        Now = w.Now.Seconds,
+        Now = w.Now.Ticks,
         Player = w.Player.Value,
         NextActionId = w.NextActionId,
         NextFactId = w.NextFactId,
@@ -129,21 +136,21 @@ internal static class SaveGame
         RngState = w.Rng.State,
         Areas = w.Areas.Values.Select(a => new AreaDto { Id = a.Id.Value, Name = a.Name }).ToList(),
         Locations = w.Locations.Values.Select(l => new LocationDto { Id = l.Id.Value, Name = l.Name, Area = l.Area.Value, Lit = l.Lit }).ToList(),
-        Routes = w.Routes.Select(r => new RouteDto { From = r.Key.From.Value, To = r.Key.To.Value, Seconds = r.Value.Seconds }).ToList(),
+        Routes = w.Routes.Select(r => new RouteDto { From = r.Key.From.Value, To = r.Key.To.Value, Seconds = r.Value.Ticks }).ToList(),
         Factions = w.Factions.Values.Select(f => new FactionDto
         {
             Id = f.Id.Value,
             Name = f.Name,
             HomeStore = f.HomeStore?.Value,
             DailyUpkeep = f.DailyUpkeep,
-            UpkeepTimeOfDay = f.UpkeepTimeOfDay.Seconds,
+            UpkeepTimeOfDay = f.UpkeepTimeOfDay.Ticks,
             Policy = f.Policy is { } p
-                ? new RaidPolicyDto { FoodThreshold = p.FoodThreshold, RaidAmount = p.RaidAmount, EvaluationInterval = p.EvaluationInterval.Seconds }
+                ? new RaidPolicyDto { FoodThreshold = p.FoodThreshold, RaidAmount = p.RaidAmount, EvaluationInterval = p.EvaluationInterval.Ticks }
                 : null,
-            NextEvaluation = f.NextEvaluation?.Seconds,
+            NextEvaluation = f.NextEvaluation?.Ticks,
             LastDecision = ToDto(f.LastDecision),
             Authority = f.Authority?.Value,
-            AvoidUntil = f.AvoidUntil.Select(x => new AvoidDto { Store = x.Key.Value, Until = x.Value.Seconds }).ToList(),
+            AvoidUntil = f.AvoidUntil.Select(x => new AvoidDto { Store = x.Key.Value, Until = x.Value.Ticks }).ToList(),
             HostileToStrangers = f.HostileToStrangers,
             Enemies = f.Enemies.Select(x => x.Value).ToList(),
             Wanted = f.Wanted.Select(x => new WantedDto { Actor = x.Key.Value, Fact = x.Value.Value }).ToList(),
@@ -160,15 +167,15 @@ internal static class SaveGame
                 ? new RaidAssignmentDto
                 {
                     Faction = r.Faction.Value, Target = r.Target.Value, Home = r.Home.Value, Amount = r.Amount,
-                    AssignedAt = r.AssignedAt.Seconds, TakeAttempted = r.TakeAttempted, Aborted = r.Aborted,
+                    AssignedAt = r.AssignedAt.Ticks, TakeAttempted = r.TakeAttempted, Aborted = r.Aborted,
                 }
                 : null,
             LastDecision = ToDto(a.LastDecision),
             Home = a.Home?.Value,
-            Shift = a.Shift is { } sh ? new WorkShiftDto { Location = sh.Location.Value, Start = sh.Start.Seconds, End = sh.End.Seconds } : null,
-            ArrivedAt = a.ArrivedAt.Seconds,
-            GuardDuty = a.GuardDuty is { } g ? new GuardDutyDto { Store = g.Store.Value, Since = g.Since.Seconds, Until = g.Until.Seconds } : null,
-            Vigil = a.Vigil is { } v ? new VigilDto { Store = v.Store.Value, Until = v.Until.Seconds } : null,
+            Shift = a.Shift is { } sh ? new WorkShiftDto { Location = sh.Location.Value, Start = sh.Start.Ticks, End = sh.End.Ticks } : null,
+            ArrivedAt = a.ArrivedAt.Ticks,
+            GuardDuty = a.GuardDuty is { } g ? new GuardDutyDto { Store = g.Store.Value, Since = g.Since.Ticks, Until = g.Until.Ticks } : null,
+            Vigil = a.Vigil is { } v ? new VigilDto { Store = v.Store.Value, Until = v.Until.Ticks } : null,
             Sheet = ToDto(a.Sheet),
             Claims = a.Claims.Select(c => new ClaimDto { Thief = c.Thief.Value, Store = c.Store.Value, Theft = c.Theft.Value, Owed = c.Owed }).ToList(),
             SettledThefts = a.SettledThefts.Select(t => t.Value).ToList(),
@@ -179,10 +186,10 @@ internal static class SaveGame
             Sneak = a.Sneak,
             Inventory = a.Inventory.Select(i => new ItemCountDto { Item = i.Key.Value, Count = i.Value }).ToList(),
             Coins = a.Coins,
-            TorchLitUntil = a.TorchLitUntil?.Seconds,
+            TorchLitUntil = a.TorchLitUntil?.Ticks,
             Doors = a.DoorMemory.Select(d => new RememberedDoorDto
             {
-                Area = d.Key.Area.Value, X = d.Key.At.X, Y = d.Key.At.Y, Open = d.Value.Open, SeenAt = d.Value.SeenAt.Seconds,
+                Area = d.Key.Area.Value, X = d.Key.At.X, Y = d.Key.At.Y, Open = d.Value.Open, SeenAt = d.Value.SeenAt.Ticks,
             }).ToList(),
             Knowledge = a.Knowledge.Select(ToDto).ToList(),
             ActedOn = a.ActedOn.Select(o => o.Value).ToList(),
@@ -216,7 +223,7 @@ internal static class SaveGame
         }).ToList(),
         Schedule = w.Scheduler.Entries.Select(e => new ScheduledDto
         {
-            Due = e.Due.Seconds,
+            Due = e.Due.Ticks,
             Sequence = e.Sequence,
             Job = e.Job switch
             {
@@ -232,7 +239,7 @@ internal static class SaveGame
             Faction = e.Job switch { FactionUpkeep u => u.Faction.Value, EvaluateFaction v => v.Faction.Value, _ => null },
             Encounter = (e.Job as CombatRound)?.Encounter,
         }).ToList(),
-        Facts = w.RecentFacts.Select(f => new FactDto { Id = f.Id.Value, At = f.At.Seconds, Kind = f.Kind, Description = f.Description, PlayerDescription = f.PlayerDescription, Participants = f.Participants.Select(p => p.Value).ToList() }).ToList(),
+        Facts = w.RecentFacts.Select(f => new FactDto { Id = f.Id.Value, At = f.At.Ticks, Kind = f.Kind, Description = f.Description, PlayerDescription = f.PlayerDescription, Participants = f.Participants.Select(p => p.Value).ToList() }).ToList(),
         Maps = w.Maps.Values.Select(m => new MapDto
         {
             Area = m.Area.Value, Rows = m.Rows.ToList(), Zones = m.Zones.ToDictionary(z => z.Key.ToString(), z => z.Value.Value),
@@ -256,10 +263,10 @@ internal static class SaveGame
         foreach (var change in dto.SourceLightLog ?? throw new InvalidDataException("luce del furto mancante"))
         {
             if (change is null || !Enum.IsDefined(typeof(Light), change.Light)
-                || (previous is { } p && new GameTime(change.At) <= p) || new GameTime(change.At) < take.StartedAt)
+                || (previous is { } p && Time(change.At) <= p) || Time(change.At) < take.StartedAt)
                 throw new InvalidDataException("luce del furto non valida");
-            take.SourceLightLog.Add((new GameTime(change.At), (Light)change.Light));
-            previous = new GameTime(change.At);
+            take.SourceLightLog.Add((Time(change.At), (Light)change.Light));
+            previous = Time(change.At);
         }
         foreach (var sight in dto.Sight ?? throw new InvalidDataException("vista del furto mancante"))
         {
@@ -270,8 +277,8 @@ internal static class SaveGame
             for (var i = 0; i < sight.Spans.Count; i++)
             {
                 var span = sight.Spans[i] ?? throw new InvalidDataException("vista del furto non valida");
-                var from = new GameTime(span.From);
-                GameTime? to = span.To is { } t ? new GameTime(t) : null;
+                var from = Time(span.From);
+                GameTime? to = span.To is { } t ? Time(t) : null;
                 // Spans follow one another without overlapping; only the last can still be open.
                 if (end is null || from < end || (to is { } closed && closed < from) || (to is null && i != sight.Spans.Count - 1))
                     throw new InvalidDataException("vista del furto non valida");
@@ -312,13 +319,13 @@ internal static class SaveGame
         Location = o.Location?.Value, Square = ToDto(o.Square), Amount = o.Amount,
         Culprit = o.Culprit?.Value, CulpritName = o.CulpritName, Victim = o.Victim?.Value, VictimName = o.VictimName,
         Involved = o.Involved.Select(i => new InvolvedDto { Actor = i.Id.Value, Name = i.Name }).ToList(), Encounter = o.Encounter,
-        ObservedAt = o.ObservedAt.Seconds, LearnedAt = o.LearnedAt.Seconds, Source = o.Source?.Value, Fact = o.Fact?.Value,
+        ObservedAt = o.ObservedAt.Ticks, LearnedAt = o.LearnedAt.Ticks, Source = o.Source?.Value, Fact = o.Fact?.Value,
         Perceived = o.Perceived.ToString(), ToldTo = o.ToldTo.Select(t => t.Value).ToList(),
     };
 
     private static DecisionDto? ToDto(DecisionTrace? t) => t is null
         ? null
-        : new DecisionDto { At = t.At.Seconds, Rule = t.Rule, Reason = t.Reason, Inputs = t.Inputs.ToList() };
+        : new DecisionDto { At = t.At.Ticks, Rule = t.Rule, Reason = t.Reason, Inputs = t.Inputs.ToList() };
 
     private static ActionDto? ToDto(PendingAction? action)
     {
@@ -331,11 +338,11 @@ internal static class SaveGame
             {
                 Store = k.Store.Value, Amount = k.Amount, StealthTotal = k.StealthTotal,
                 SeenAtStart = k.SeenAtStart.Select(a => a.Value).OrderBy(a => a, StringComparer.Ordinal).ToList(),
-                SourceLightLog = k.SourceLightLog.Select(c => new LightChangeDto { At = c.At.Seconds, Light = (int)c.Light }).ToList(),
+                SourceLightLog = k.SourceLightLog.Select(c => new LightChangeDto { At = c.At.Ticks, Light = (int)c.Light }).ToList(),
                 Sight = k.Sight.Select(s => new SightDto
                 {
                     Actor = s.Key.Value,
-                    Spans = s.Value.Select(p => new SpanDto { From = p.From.Seconds, To = p.To?.Seconds }).ToList(),
+                    Spans = s.Value.Select(p => new SpanDto { From = p.From.Ticks, To = p.To?.Ticks }).ToList(),
                 }).ToList(),
             },
             WaitAction wa => new WaitActionDto { Interruptible = wa.Interruptible },
@@ -347,15 +354,16 @@ internal static class SaveGame
             {
                 From = new PosDto { X = mv.From.X, Y = mv.From.Y }, Path = mv.Path.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(), Speed = mv.Speed, Stealthy = mv.Stealthy,
                 FromSpot = mv.FromSpot is { } fs ? new PosDto { X = fs.X, Y = fs.Y } : null,
-                Spots = mv.Spots?.Select(s => new PosDto { X = s.X, Y = s.Y }).ToList(), Seconds = mv.Seconds?.ToList(),
+                Spots = mv.Spots?.Select(s => new PosDto { X = s.X, Y = s.Y }).ToList(), Ticks = mv.Ticks?.ToList(),
+                Vertices = mv.Vertices?.Select(s => new PosDto { X = s.X, Y = s.Y }).ToList(),
             },
             _ => throw new InvalidOperationException($"Unknown action {action.GetType().Name}"),
         };
         if (dto is null)
             return null;
         dto.Id = action!.Id.Value;
-        dto.StartedAt = action.StartedAt.Seconds;
-        dto.CompletesAt = action.CompletesAt.Seconds;
+        dto.StartedAt = action.StartedAt.Ticks;
+        dto.CompletesAt = action.CompletesAt.Ticks;
         dto.Description = action.Description;
         return dto;
     }
@@ -365,7 +373,7 @@ internal static class SaveGame
     private static WorldState FromDto(SaveDto d)
     {
         var content = RestoreContent(d.Content);
-        var w = new WorldState { Player = new ActorId(Required(d.Player, "player")), Now = new GameTime(d.Now), Content = content };
+        var w = new WorldState { Player = new ActorId(Required(d.Player, "player")), Now = Time(d.Now), Content = content };
         w.NextActionId = d.NextActionId;
         w.NextFactId = d.NextFactId;
         w.NextObservationId = d.NextObservationId;
@@ -384,7 +392,7 @@ internal static class SaveGame
             Check(w.Locations.ContainsKey(new LocationId(r.From)) && w.Locations.ContainsKey(new LocationId(r.To)),
                 $"percorso '{r.From}'-'{r.To}' con luogo sconosciuto");
             Check(r.Seconds > 0, "percorso di durata non positiva");
-            AddUnique(w.Routes, (new LocationId(r.From), new LocationId(r.To)), new Duration(r.Seconds), "percorso");
+            AddUnique(w.Routes, (new LocationId(r.From), new LocationId(r.To)), Span(r.Seconds), "percorso");
         }
         foreach (var s in d.Stores)
         {
@@ -464,9 +472,9 @@ internal static class SaveGame
                 Name = f.Name,
                 HomeStore = f.HomeStore is null ? null : new StoreId(f.HomeStore),
                 DailyUpkeep = f.DailyUpkeep,
-                UpkeepTimeOfDay = new Duration(f.UpkeepTimeOfDay),
-                Policy = f.Policy is { } p ? new RaidPolicy(p.FoodThreshold, p.RaidAmount, new Duration(p.EvaluationInterval)) : null,
-                NextEvaluation = f.NextEvaluation is { } next ? new GameTime(next) : null,
+                UpkeepTimeOfDay = Span(f.UpkeepTimeOfDay),
+                Policy = f.Policy is { } p ? new RaidPolicy(p.FoodThreshold, p.RaidAmount, Span(p.EvaluationInterval)) : null,
+                NextEvaluation = f.NextEvaluation is { } next ? Time(next) : null,
                 LastDecision = FromDto(f.LastDecision),
                 Authority = f.Authority is null ? null : new ActorId(f.Authority),
                 HostileToStrangers = f.HostileToStrangers,
@@ -478,7 +486,7 @@ internal static class SaveGame
             foreach (var avoid in f.AvoidUntil)
             {
                 Check(w.Stores.ContainsKey(new StoreId(avoid.Store)), $"fazione '{f.Id}' evita un deposito sconosciuto");
-                AddUnique(w.Factions[new FactionId(f.Id)].AvoidUntil, new StoreId(avoid.Store), new GameTime(avoid.Until), "bersaglio evitato");
+                AddUnique(w.Factions[new FactionId(f.Id)].AvoidUntil, new StoreId(avoid.Store), Time(avoid.Until), "bersaglio evitato");
             }
         }
         foreach (var store in w.Stores.Values)
@@ -501,21 +509,21 @@ internal static class SaveGame
                     ? new RaidAssignment
                     {
                         Faction = new FactionId(r.Faction), Target = new StoreId(r.Target), Home = new StoreId(r.Home),
-                        Amount = r.Amount, AssignedAt = new GameTime(r.AssignedAt), TakeAttempted = r.TakeAttempted, Aborted = r.Aborted,
+                        Amount = r.Amount, AssignedAt = Time(r.AssignedAt), TakeAttempted = r.TakeAttempted, Aborted = r.Aborted,
                     }
                     : null,
                 Home = a.Home is null ? null : new LocationId(a.Home),
-                Shift = a.Shift is { } sh ? new WorkShift(new LocationId(sh.Location), new Duration(sh.Start), new Duration(sh.End)) : null,
-                ArrivedAt = new GameTime(a.ArrivedAt),
+                Shift = a.Shift is { } sh ? new WorkShift(new LocationId(sh.Location), Span(sh.Start), Span(sh.End)) : null,
+                ArrivedAt = Time(a.ArrivedAt),
                 GuardDuty = a.GuardDuty is { } g
-                    ? new GuardDuty { Store = new StoreId(g.Store), Since = new GameTime(g.Since), Until = new GameTime(g.Until) }
+                    ? new GuardDuty { Store = new StoreId(g.Store), Since = Time(g.Since), Until = Time(g.Until) }
                     : null,
-                Vigil = a.Vigil is { } v ? new Vigil { Store = new StoreId(v.Store), Until = new GameTime(v.Until) } : null,
+                Vigil = a.Vigil is { } v ? new Vigil { Store = new StoreId(v.Store), Until = Time(v.Until) } : null,
                 Position = a.Position is { } ap ? new GridPos(ap.X, ap.Y) : null,
                 MapArea = a.MapArea is null ? null : new AreaId(a.MapArea),
                 Sneak = a.Sneak,
                 Coins = a.Coins,
-                TorchLitUntil = a.TorchLitUntil is { } lit ? new GameTime(lit) : null,
+                TorchLitUntil = a.TorchLitUntil is { } lit ? Time(lit) : null,
                 Sheet = FromDto(a.Sheet!), // replaced by the derived one unless it is the actor's own (see below)
                 Build = content.IsBuild(a.Build ?? "") ? a.Build! : throw new InvalidDataException($"attore '{a.Id}' fatto di un contenuto sconosciuto '{a.Build}'"),
                 SheetOverride = a.SheetOverride,
@@ -578,7 +586,7 @@ internal static class SaveGame
             {
                 Check(door is not null && w.Maps.TryGetValue(new AreaId(door.Area), out var doorMap) && doorMap.IsDoor(new GridPos(door.X, door.Y))
                       && door.SeenAt <= d.Now && a.IsPlayer, $"porta ricordata da '{a.Id}' non valida");
-                Check(actor.DoorMemory.TryAdd(new DoorKey(new AreaId(door!.Area), new GridPos(door.X, door.Y)), new RememberedDoor(door.Open, new GameTime(door.SeenAt))),
+                Check(actor.DoorMemory.TryAdd(new DoorKey(new AreaId(door!.Area), new GridPos(door.X, door.Y)), new RememberedDoor(door.Open, Time(door.SeenAt))),
                     $"porta ricordata due volte da '{a.Id}'");
             }
             foreach (var item in a.Inventory ?? throw new InvalidDataException($"inventario di '{a.Id}' mancante"))
@@ -628,7 +636,7 @@ internal static class SaveGame
         foreach (var faction in w.Factions.Values)
             Check(faction.Enemies.All(e => w.Factions[e].Enemies.Contains(faction.Id)), $"guerra di '{faction.Id}' non reciproca");
 
-        var entries = d.Schedule.Select(e => new Scheduler.Entry(new GameTime(e.Due), e.Sequence, e.Job switch
+        var entries = d.Schedule.Select(e => new Scheduler.Entry(Time(e.Due), e.Sequence, e.Job switch
         {
             "CompleteAction" => (ScheduledJob)new CompleteAction(new ActionId(e.Action ?? throw new InvalidDataException("azione mancante"))),
             "MoveWaypoint" => new MoveWaypoint(new ActionId(e.Action ?? throw new InvalidDataException("azione mancante")), e.Step ?? throw new InvalidDataException("passo mancante")),
@@ -676,14 +684,14 @@ internal static class SaveGame
             var waypoint = (MoveWaypoint)entry.Job;
             var walk = w.Actors.Values.Select(x => x.CurrentAction).OfType<MoveAction>().FirstOrDefault(m => m.Id == waypoint.Action);
             Check(walk is not null && waypoint.Step >= 1 && waypoint.Step < walk.Path.Count
-                  && entry.Due == walk.StartedAt.Plus(Duration.FromSeconds(walk.SecondsTo(waypoint.Step))),
+                  && entry.Due == walk.StartedAt.Plus(Duration.FromTicks(walk.TicksTo(waypoint.Step))),
                 "tappa di un movimento non valida");
         }
         // T6c-1: and every walk has exactly its future waypoints, one per square still ahead (those due after now).
         foreach (var walk in w.Actors.Values.Select(x => x.CurrentAction).OfType<MoveAction>())
         {
             var expected = Enumerable.Range(1, Math.Max(0, walk.Path.Count - 1))
-                .Where(step => walk.StartedAt.Plus(Duration.FromSeconds(walk.SecondsTo(step))) > w.Now);
+                .Where(step => walk.StartedAt.Plus(Duration.FromTicks(walk.TicksTo(step))) > w.Now);
             var scheduled = entries.Select(e => e.Job).OfType<MoveWaypoint>().Where(m => m.Action == walk.Id).Select(m => m.Step).OrderBy(s => s);
             Check(scheduled.SequenceEqual(expected), $"tappe del cammino di '{walk.Actor}' mancanti o ripetute");
         }
@@ -705,7 +713,7 @@ internal static class SaveGame
             "scadenza di un'azione che non è in corso");
 
         foreach (var f in d.Facts)
-            w.RecentFacts.AddLast(new Fact { Id = new FactId(f.Id), At = new GameTime(f.At), Kind = f.Kind, Description = f.Description, PlayerDescription = f.PlayerDescription, Participants = f.Participants.Select(p => new ActorId(p)).ToArray() });
+            w.RecentFacts.AddLast(new Fact { Id = new FactId(f.Id), At = Time(f.At), Kind = f.Kind, Description = f.Description, PlayerDescription = f.PlayerDescription, Participants = f.Participants.Select(p => new ActorId(p)).ToArray() });
         Check(w.RecentFacts.All(f => f.Id.Value < w.NextFactId), "contatore dei fatti incoerente");
 
         return w;
@@ -784,13 +792,15 @@ internal static class SaveGame
             {
                 var grid = w.Maps[a.MapArea!.Value];
                 var free = mv.Spots is not null;
-                // P1: a free walk has its start, a point and a second for every step, in order, each point in its square.
-                Check(free == (mv.FromSpot is not null) && free == (mv.Seconds is not null)
-                      && (!free || mv.Spots!.Count == mv.Path.Count && mv.Seconds!.Count == mv.Path.Count && mv.FromSpot!.Value.Cell == mv.From
-                          && mv.Spots.Zip(mv.Path).All(x => x.First.Cell == x.Second)
-                          && mv.Seconds.Zip(mv.Seconds.Skip(1)).All(x => x.First <= x.Second) && mv.Seconds[0] >= 0),
+                // P1: a free walk has its start, its way, a point and a tick for every step, in order, each point in its square; a
+                // walk from square to square starts in its first square (P1c: from an exact point; an old save may lack it).
+                Check(free == (mv.Vertices is not null) && (!free || mv.Ticks is not null && mv.FromSpot is not null)
+                      && (mv.FromSpot is not { } start || start.Cell == mv.From)
+                      && (mv.Ticks is null || mv.Ticks.Count == mv.Path.Count && mv.Ticks.Zip(mv.Ticks.Skip(1)).All(x => x.First <= x.Second) && mv.Ticks[0] >= 0)
+                      && (!free || mv.Spots!.Count == mv.Path.Count && mv.Vertices!.Count >= 2 && mv.Vertices[0] == mv.FromSpot
+                          && mv.Vertices[^1] == mv.Spots[^1] && mv.Spots.Zip(mv.Path).All(x => x.First.Cell == x.Second)),
                     $"cammino libero di '{a.Id}' incoerente");
-                Check(mv.Speed > 0 && mv.Path.Count > 0 && mv.CompletesAt == mv.StartedAt.Plus(Duration.FromSeconds(mv.SecondsTo(mv.Path.Count))),
+                Check(mv.Speed > 0 && mv.Path.Count > 0 && mv.CompletesAt == mv.StartedAt.Plus(Duration.FromTicks(mv.TicksTo(mv.Path.Count))),
                     $"movimento di '{a.Id}' incoerente");
                 var previous = mv.From;
                 foreach (var step in mv.Path)
@@ -830,8 +840,8 @@ internal static class SaveGame
         if (dto is null)
             return null;
         var id = new ActionId(dto.Id);
-        var started = new GameTime(dto.StartedAt);
-        var completes = new GameTime(dto.CompletesAt);
+        var started = Time(dto.StartedAt);
+        var completes = Time(dto.CompletesAt);
         Check(completes > started, "azione di durata non positiva");
         var description = Required(dto.Description, "descrizione dell'azione");
         return dto switch
@@ -859,14 +869,7 @@ internal static class SaveGame
                 Recipient = new ActorId(rep.Recipient), Observation = new ObservationId(rep.Observation),
             },
             MoveActionDto mv when mv.From is null || mv.Path is null || mv.Path.Any(p => p is null) => throw new InvalidDataException("percorso non valido"),
-            MoveActionDto mv => new MoveAction
-            {
-                Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
-                From = new GridPos(mv.From.X, mv.From.Y), Path = mv.Path.Select(p => new GridPos(p.X, p.Y)).ToArray(), Speed = mv.Speed, Stealthy = mv.Stealthy,
-                FromSpot = mv.FromSpot is { } fs ? new Spot(fs.X, fs.Y) : null,
-                Spots = mv.Spots?.Select(s => s is null ? throw new InvalidDataException("percorso non valido") : new Spot(s.X, s.Y)).ToArray(),
-                Seconds = mv.Seconds?.ToArray(),
-            },
+            MoveActionDto mv => ReadMove(mv, id, actor, started, completes, description),
             ConfiscateActionDto ca => new ConfiscateAction
             {
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
@@ -889,6 +892,30 @@ internal static class SaveGame
 
     // ---------------------------------------------------------------- C2: fights
 
+
+    /// <summary>
+    /// A walk as saved. P1c: before schema 25 its steps were reached at whole seconds: a walk from square to square keeps
+    /// those instants (as ticks), and a free walk's way is rebuilt through its start and checkpoints.
+    /// </summary>
+    private static MoveAction ReadMove(MoveActionDto mv, ActionId id, ActorId actor, GameTime started, GameTime completes, string description)
+    {
+        Spot SpotOf(PosDto? p) => p is null ? throw new InvalidDataException("percorso non valido") : new Spot(p.X, p.Y);
+        var from = new GridPos(mv.From.X, mv.From.Y);
+        var path = mv.Path.Select(p => new GridPos(p.X, p.Y)).ToArray();
+        var fromSpot = mv.FromSpot is { } fs ? new Spot(fs.X, fs.Y) : (Spot?)null;
+        var spots = mv.Spots?.Select(SpotOf).ToArray();
+        IReadOnlyList<long>? ticks = _scale == 1 ? mv.Ticks?.ToArray()
+            : spots is not null ? mv.Seconds?.Select(s => checked(s * _scale)).ToArray()
+            : Enumerable.Range(1, path.Length).Select(i => checked((i * 30L + mv.Speed - 1) / Math.Max(1, mv.Speed) * _scale)).ToArray();
+        var vertices = _scale == 1 ? mv.Vertices?.Select(SpotOf).ToArray()
+            : spots is not null && fromSpot is { } start ? new[] { start }.Concat(spots).ToArray() : null;
+        return new MoveAction
+        {
+            Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
+            From = from, Path = path, Speed = mv.Speed, Stealthy = mv.Stealthy,
+            FromSpot = fromSpot, Spots = spots, Ticks = ticks, Vertices = vertices,
+        };
+    }
     private static VitalityDto ToDto(VitalitySnapshot v) => new()
     {
         Maximum = v.Maximum, MakesDeathSaves = v.MakesDeathSaves, Current = v.Current, State = v.State.ToString(),
@@ -914,7 +941,7 @@ internal static class SaveGame
 
     private static EncounterDto ToDto(Encounter e) => new()
     {
-        Id = e.Id, Area = e.Area.Value, Round = e.Round, Turn = e.Turn, RoundStart = e.RoundStart.Seconds,
+        Id = e.Id, Area = e.Area.Value, Round = e.Round, Turn = e.Turn, RoundStart = e.RoundStart.Ticks,
         RoundClosed = e.RoundClosed, AttackedThisRound = e.AttackedThisRound,
         Opening = e.Opening is { } o
             ? new OpeningDto { Attacker = o.Attacker.Value, Target = o.Target.Value, Attack = o.Attack, NonLethal = o.NonLethal }
@@ -951,7 +978,7 @@ internal static class SaveGame
             Check(dto.Id > 0 && dto.Id < w.NextEncounterId, "contatore degli scontri incoerente");
             var e = new Encounter
             {
-                Id = dto.Id, Area = area, Round = dto.Round, Turn = dto.Turn, RoundStart = new GameTime(dto.RoundStart),
+                Id = dto.Id, Area = area, Round = dto.Round, Turn = dto.Turn, RoundStart = Time(dto.RoundStart),
                 RoundClosed = dto.RoundClosed, AttackedThisRound = dto.AttackedThisRound,
             };
             foreach (var c in dto.Combatants!)
@@ -1045,8 +1072,8 @@ internal static class SaveGame
             Victim = o.Victim is null ? null : new ActorId(o.Victim),
             VictimName = o.VictimName,
             Encounter = o.Encounter,
-            ObservedAt = new GameTime(o.ObservedAt),
-            LearnedAt = new GameTime(o.LearnedAt),
+            ObservedAt = Time(o.ObservedAt),
+            LearnedAt = Time(o.LearnedAt),
             Source = o.Source is null ? null : new ActorId(o.Source),
             Fact = o.Fact is { } fact ? new FactId(fact) : null,
             Perceived = Enum.TryParse<PerceptionMode>(o.Perceived, out var mode) && Enum.IsDefined(mode) ? mode : throw new InvalidDataException($"modo di percezione sconosciuto '{o.Perceived}'"),
@@ -1060,7 +1087,7 @@ internal static class SaveGame
     }
 
     private static DecisionTrace? FromDto(DecisionDto? d) =>
-        d is null ? null : new DecisionTrace(new GameTime(d.At), d.Rule, d.Reason, d.Inputs.ToArray());
+        d is null ? null : new DecisionTrace(Time(d.At), d.Rule, d.Reason, d.Inputs.ToArray());
 
     private static FactionId ExistingFaction(WorldState w, string? id)
     {

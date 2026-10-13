@@ -195,9 +195,10 @@ public class MapLifeTests
     }
 
     [Fact]
-    public void Passing_through_a_place_and_back_within_one_second_is_no_arrival()
+    public void Passing_through_a_place_and_back_is_judged_tick_by_tick()
     {
-        // A fast walker (Speed 120: four squares a second) crosses B and is back in A within the same second.
+        // A fast walker (Speed 120: four squares a second) crosses B and is back in A. On the fine clock (P1c) each square
+        // is entered at its own tick (15, 30, 45, 60): back in A at tick 45 is an arrival, as it was not within one instant.
         var swift = Sheets.Raider() with { Speed = 120 };
         var s = SimulationSession.Create(new ScenarioBuilder()
             .AddArea("a", "A")
@@ -210,10 +211,12 @@ public class MapLifeTests
 
         var dash = s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(4, 0) });
         Assert.Equal(1, dash.CompletesAt!.Value.Since(s.Now).Seconds);
+        var set = s.Now;
         s.AdvanceUntilCompleted(dash.Action!.Value, Duration.FromMinutes(1));
 
         Assert.Equal(new LocationId("la"), s.GetPlayerView().Location);
-        Assert.Equal(arrivedBefore, s.Engine.World.Actors[s.Player].ArrivedAt); // never "arrived" in A again
+        Assert.NotEqual(arrivedBefore, s.Engine.World.Actors[s.Player].ArrivedAt);
+        Assert.Equal(set.Plus(Duration.FromTicks(45)), s.Engine.World.Actors[s.Player].ArrivedAt);
     }
 
     [Theory]

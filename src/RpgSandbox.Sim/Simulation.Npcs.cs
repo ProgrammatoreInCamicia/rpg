@@ -379,7 +379,7 @@ internal sealed partial class Simulation
     private Plan Rest(string rule, string reason, Actor npc, string description, GameTime? boundary)
     {
         var length = Tuning.IdleRestDuration;
-        if (boundary is { } b && b > World.Now && b.Since(World.Now).Seconds < length.Seconds)
+        if (boundary is { } b && b > World.Now && b.Since(World.Now).Ticks < length.Ticks)
             length = b.Since(World.Now);
         return new Plan(rule, reason, () => StartWait(npc.Id, length, interruptible: true, description: description));
     }

@@ -70,7 +70,7 @@ public class FreeCombatTests
         Assert.Equal(30 * 12 - inches, s.GetPlayerView().Combat!.You.MovementLeftInches);
         Assert.Equal(11.2, preview.Feet);
         Assert.Equal(30, preview.FeetLeft);
-        Assert.Equal(0, preview.Seconds); // within the turn
+        Assert.Equal(0, preview.Ticks); // within the turn
 
         // What is left is not enough to go back and beyond.
         var far = Move(s, In(7, 7));
@@ -172,6 +172,19 @@ public class FreeCombatTests
         }
         throw new InvalidOperationException("No seed gives that scene.");
     }
+
+    [Fact]
+    public void The_players_turn_still_freezes_the_fine_clock()
+    {
+        var s = Fighting();
+        var now = s.Now;
+
+        s.Advance(Duration.FromTicks(30));
+        s.Advance(Duration.FromSeconds(2));
+
+        Assert.Equal(now, s.Now);
+        Assert.True(s.GetPlayerView().Combat!.IsYourTurn);
+    }
     [Fact]
     public void The_inches_spent_survive_a_save_and_an_older_save_counts_whole_feet()
     {
@@ -185,7 +198,7 @@ public class FreeCombatTests
         var me = data["Encounters"]![0]!["Combatants"]!.AsArray().Single(c => (string)c!["Actor"]! == "player")!;
         me.AsObject().Remove("MovedInches");
         Assert.Contains("movimento del combattente", LoadFromString(data.ToJsonString()).Error);
-        data["Version"] = 23;
+        AsSchema(data, 23);
         me["MovedFeet"] = 10;
         var old = LoadFromString(data.ToJsonString());
         Assert.True(old.Success, old.Error);

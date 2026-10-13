@@ -42,8 +42,8 @@ public class FreeMovementTests
         Assert.True(walk.Success, walk.Message);
         Assert.Equal(to, s.GetPlayerView().Spot);
         Assert.Equal(new GridPos(10, 7), s.GetPlayerView().Position);
-        var length = new Spot(570, 270).DistanceTo(to); // 215.4 inches, at 60 inches a second (Speed 30)
-        Assert.Equal((long)Math.Ceiling(length / 60), s.Now.Since(start).Seconds);
+        var length = new Spot(570, 270).DistanceTo(to); // 215.4 inches, at an inch a tick (Speed 30, P1c)
+        Assert.Equal((long)Math.Ceiling(length), s.Now.Since(start).Ticks);
     }
 
     [Fact]
@@ -137,8 +137,8 @@ public class FreeMovementTests
 
         Assert.Equal(preview.Way[0], move.FromSpot);
         Assert.Equal(to, move.Spots![^1]);
-        Assert.Equal(preview.Seconds, walk.CompletesAt!.Value.Since(a.Now).Seconds);
-        Assert.Equal(preview.Seconds, move.Seconds![^1]);
+        Assert.Equal(preview.Ticks, walk.CompletesAt!.Value.Since(a.Now).Ticks);
+        Assert.Equal(preview.Ticks, move.Ticks![^1]);
         // Every step enters the next square or stays in the same one: the senses follow it square by square.
         var cells = new[] { move.From }.Concat(move.Path).ToList();
         Assert.All(cells.Zip(cells.Skip(1)), x => Assert.True(x.First.StepsTo(x.Second) <= 1));
@@ -213,7 +213,7 @@ public class FreeMovementTests
         Walk(s, new Spot(700, 500), finish: false);
         data = JsonNode.Parse(s.SaveToString())!;
         var action = data["Actors"]!.AsArray().Single(a => (bool)a!["IsPlayer"]!)!["Action"]!;
-        action["Seconds"]!.AsArray().RemoveAt(0);
+        action["Ticks"]!.AsArray().RemoveAt(0);
         Assert.Contains("cammino libero", LoadFromString(data.ToJsonString()).Error);
     }
 

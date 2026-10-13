@@ -481,14 +481,16 @@ internal sealed class GuardAction : PendingAction
 
 /// <summary>
 /// Walking a path on an area map at <see cref="Speed"/> feet per 6-second round, i.e. Speed/5 squares per round
-/// (SRD grid rules). Square i is reached at second ceil(i·30/Speed): exact for any multiple of 5 feet.
+/// (SRD grid rules). P1c: on the fine clock, square i of a walk from square to square is reached at tick
+/// ceil(i·1800/Speed) (60 ticks a square at Speed 30); a free walk covers Speed/30 inches a tick along its way. At every
+/// tick the walker is at an exact point of its trajectory (<see cref="SpotAt"/>), which is where a stop leaves it.
 /// </summary>
 internal sealed class MoveAction : PendingAction
 {
     public override string Kind => "Move";
     public required GridPos From { get; init; }
 
-    /// <summary>Squares after <see cref="From"/>, ending at the destination.</summary>
+    /// <summary>Squares after <see cref="From"/>, ending at the destination (a free walk: the square of each checkpoint).</summary>
     public required IReadOnlyList<GridPos> Path { get; init; }
 
     /// <summary>Feet per round of 6 seconds.</summary>
@@ -497,33 +499,79 @@ internal sealed class MoveAction : PendingAction
     /// <summary>Walking at the SRD Slow pace, trying not to be seen.</summary>
     public bool Stealthy { get; init; }
 
-    /// <summary>
-    /// P1, a free walk: where it set off from, the exact point of each checkpoint (one per entry of <see cref="Path"/>,
-    /// which then holds the square of each, a square may repeat) and the second after the start each is reached. Null
-    /// for a walk from square to square.
-    /// </summary>
+    /// <summary>P1: the exact point it set off from (null in an old save: the centre of <see cref="From"/>).</summary>
     public Spot? FromSpot { get; init; }
+
+    /// <summary>
+    /// P1, a free walk: the turning points of its way (start and goal included), the exact point of each checkpoint (one
+    /// per entry of <see cref="Path"/>, a square may repeat) and the tick after the start each is reached. All null for a
+    /// walk from square to square.
+    /// </summary>
+    public IReadOnlyList<Spot>? Vertices { get; init; }
     public IReadOnlyList<Spot>? Spots { get; init; }
-    public IReadOnlyList<long>? Seconds { get; init; }
+    public IReadOnlyList<long>? Ticks { get; init; }
 
-    /// <summary>Seconds needed to walk <paramref name="steps"/> squares at <paramref name="speed"/> (rounded up).</summary>
-    public static long SecondsFor(int steps, int speed) => (steps * 30L + speed - 1) / speed;
+    /// <summary>P1c: ticks needed to walk <paramref name="steps"/> squares at <paramref name="speed"/> (rounded up).</summary>
+    public static long TicksFor(int steps, int speed) =>
+        (steps * 30L * GameTime.TicksPerSecond + speed - 1) / speed;
 
-    /// <summary>Seconds after the start at which the walker has made <paramref name="steps"/> steps (checkpoints).</summary>
-    public long SecondsTo(int steps) => steps == 0 ? 0 : Seconds is { } s ? s[steps - 1] : SecondsFor(steps, Speed);
+    /// <summary>Ticks after the start at which the walker has made <paramref name="steps"/> steps (checkpoints).</summary>
+    public long TicksTo(int steps) => steps == 0 ? 0 : Ticks is { } t ? t[steps - 1] : TicksFor(steps, Speed);
+
+    private long Elapsed(GameTime t) => Math.Max(0, t.Ticks - StartedAt.Ticks);
 
     /// <summary>Steps fully made at <paramref name="t"/>.</summary>
     public int StepsAt(GameTime t)
     {
-        var elapsed = Math.Max(0, t.Seconds - StartedAt.Seconds);
-        return Seconds is { } s ? s.Count(x => x <= elapsed) : (int)Math.Min(Path.Count, elapsed * Speed / 30);
+        var elapsed = Elapsed(t);
+        if (Ticks is { } ticks)
+            return ticks.Count(x => x <= elapsed);
+        var steps = 0;
+        while (steps < Path.Count && TicksFor(steps + 1, Speed) <= elapsed)
+            steps++;
+        return steps;
     }
 
     /// <summary>Where the walker is at <paramref name="t"/>: the last square fully reached.</summary>
     public GridPos PositionAt(GameTime t) => StepsAt(t) is var steps && steps == 0 ? From : Path[steps - 1];
 
-    /// <summary>P1: on a free walk, the exact point reached at <paramref name="t"/>; null on a walk from square to square.</summary>
-    public Spot? SpotAt(GameTime t) => Spots is null ? null : StepsAt(t) is var steps && steps == 0 ? FromSpot : Spots[steps - 1];
+    private Spot Start => FromSpot ?? Spot.CenterOf(From);
+
+    /// <summary>
+    /// P1c: the exact point of the walker at <paramref name="t"/>, to the inch. A free walk: as far along its way as
+    /// Speed/30 inches a tick take it. A walk from square to square: between the centres of the squares, in step with
+    /// the ticks each is reached at.
+    /// </summary>
+    public Spot SpotAt(GameTime t)
+    {
+        var elapsed = Elapsed(t);
+        if (Vertices is { } way)
+            return Along(way, elapsed * (double)Speed / 30);
+        var steps = StepsAt(t);
+        if (steps >= Path.Count)
+            return Spot.CenterOf(Path[^1]);
+        var from = steps == 0 ? Start : Spot.CenterOf(Path[steps - 1]);
+        var to = Spot.CenterOf(Path[steps]);
+        long t0 = TicksTo(steps), t1 = TicksTo(steps + 1);
+        var f = t1 == t0 ? 1 : (elapsed - t0) / (double)(t1 - t0);
+        return Lerp(from, to, f);
+    }
+
+    /// <summary>The point <paramref name="along"/> inches along a polyline (its end beyond it), rounded to the inch.</summary>
+    internal static Spot Along(IReadOnlyList<Spot> way, double along)
+    {
+        for (var i = 1; i < way.Count; i++)
+        {
+            var length = way[i - 1].DistanceTo(way[i]);
+            if (along < length)
+                return Lerp(way[i - 1], way[i], length == 0 ? 1 : along / length);
+            along -= length;
+        }
+        return way[^1];
+    }
+
+    private static Spot Lerp(Spot a, Spot b, double f) =>
+        new((int)Math.Round(a.X + (b.X - a.X) * f, MidpointRounding.AwayFromZero), (int)Math.Round(a.Y + (b.Y - a.Y) * f, MidpointRounding.AwayFromZero));
 }
 
 internal sealed class WaitAction : PendingAction

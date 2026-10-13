@@ -181,7 +181,7 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {actorId}.");
         if (actor.CurrentAction is not null)
             return CommandResult.Rejected(RejectionReason.ActorBusy, $"{actor.Name} è già impegnato.");
-        if (duration.Seconds <= 0 || duration.Seconds > long.MaxValue - World.Now.Seconds)
+        if (duration.Ticks <= 0 || duration.Ticks > long.MaxValue - World.Now.Ticks)
             return CommandResult.Rejected(RejectionReason.InvalidDuration, "La durata dell'attesa deve essere positiva.");
 
         var wait = new WaitAction

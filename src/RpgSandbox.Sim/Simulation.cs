@@ -31,9 +31,9 @@ internal sealed partial class Simulation
 
     public GameTime TargetAfter(Duration duration)
     {
-        if (duration.Seconds < 0)
+        if (duration.Ticks < 0)
             throw new ArgumentOutOfRangeException(nameof(duration), duration, "Time cannot go backwards.");
-        if (duration.Seconds > long.MaxValue - World.Now.Seconds)
+        if (duration.Ticks > long.MaxValue - World.Now.Ticks)
             throw new ArgumentOutOfRangeException(nameof(duration), duration, "Time overflow.");
         return World.Now.Plus(duration);
     }

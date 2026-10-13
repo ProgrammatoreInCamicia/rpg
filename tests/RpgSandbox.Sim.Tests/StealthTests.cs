@@ -280,7 +280,7 @@ public class StealthTests
 
         Assert.Contains("non puoi nasconderti", sneak.Message);
         Assert.Null(s.GetPlayerView().Sneaking);
-        Assert.Equal(5, sneak.CompletesAt!.Value.Since(s.Now).Seconds); // 3 squares at the slow pace: 4.5 s, rounded up
+        Assert.Equal(270, sneak.CompletesAt!.Value.Since(s.Now).Ticks); // 3 squares at the slow pace: 4.5 s exactly (P1c)
         Assert.DoesNotContain(s.GetWorldView().RecentFacts, f => f.Kind == "Roll"); // no Stealth check at all
     }
 

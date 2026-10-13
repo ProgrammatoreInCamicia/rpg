@@ -113,7 +113,7 @@ public class InteriorPrototypeTests
     public void A_schema_20_village_save_without_interior_fields_still_loads()
     {
         var data = JsonNode.Parse(SimulationSession.Create(MappedVillageScenario.CreateLivingVillage()).SaveToString())!;
-        data["Version"] = 20;
+        AsSchema(data, 20);
         foreach (var map in data["Maps"]!.AsArray())
         {
             map!.AsObject().Remove("Edges");

@@ -174,7 +174,7 @@ public class AdvancementTests
         Assert.False(missing.Success);
         Assert.Contains("esperienza", missing.Error);
 
-        data["Version"] = 21;
+        AsSchema(data, 21);
         var old = LoadFromString(data.ToJsonString());
         Assert.True(old.Success, old.Error);
         Assert.Equal((1, 0L), (old.Session!.GetPlayerView().Level, old.Session.GetPlayerView().Experience));
