@@ -50,6 +50,7 @@ public partial class VillageMap : Node2D
 	private Label _clock = null!;
 	private Label _status = null!;
 	private Label _food = null!;
+	private Label _levelExperience = null!;
 	private Button _stop = null!;
 	private Button _pause = null!;
 	private CheckButton _sneakToggle = null!;
@@ -260,6 +261,7 @@ public partial class VillageMap : Node2D
 	internal bool IsWalking => _walking;
 	internal string LastMessage => _message.Text;
 	internal string EventText => _events.Text;
+	internal string LevelExperienceTextForSmoke => _levelExperience.Text;
 	internal ActorId? TalkingTo => _talkingTo;
 	internal bool OffMapPanelVisible => _offMapPanel.Visible;
 
@@ -646,6 +648,11 @@ public partial class VillageMap : Node2D
 			+ (_walking ? $"Cammini… ({where})" : _view.Travel is not null ? "Sei in viaggio."
 				: onMap ? $"Sei qui: {where}. Clicca dove vuoi andare." : $"Sei qui: {where}.");
 		_food.Text = $"Razioni con te: {_view.Food}";
+		_levelExperience.Visible = _view.Level is not null;
+		if (_view.Level is { } level)
+			_levelExperience.Text = _view.NextLevelAt is { } next
+				? $"Livello {level} · Esperienza {_view.Experience} / {next}"
+				: $"Livello {level} · Esperienza {_view.Experience} (massimo)";
 		var eventsText = _view.RecentEvents.Count == 0 ? "Nessun evento recente."
 			: string.Join("\n\n", _view.RecentEvents.Reverse().Select(e =>
 				$"G{e.At.Day + 1} {e.At.Hour:00}:{e.At.Minute:00} · {e.Description}"));
@@ -1200,6 +1207,8 @@ public partial class VillageMap : Node2D
 		box.AddChild(_status);
 		_food = new Label();
 		box.AddChild(_food);
+		_levelExperience = new Label();
+		box.AddChild(_levelExperience);
 
 		_pause = new Button { Text = "Pausa (Spazio)", ToggleMode = true };
 		_pause.Toggled += SetPaused;

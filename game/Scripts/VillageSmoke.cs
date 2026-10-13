@@ -42,6 +42,9 @@ public partial class VillageSmoke : Node
 		Require(DirAccess.MakeDirRecursiveAbsolute(_outputDir) == Error.Ok, "Cannot create screenshot directory");
 		await Frames(10);
 		Require(_map.View.Position == MappedVillageScenario.Ids.PlayerStart, "Player does not start at the inn");
+		Require(_map.View.Level == 1 && _map.View.Experience == 0 && _map.View.NextLevelAt == 300
+			&& _map.LevelExperienceTextForSmoke.Contains("Livello 1 · Esperienza 0 / 300"),
+			"C5b: the player level and experience are not shown from the typed view");
 		Require(_map.HasFigureSpriteForSmoke(MappedVillageScenario.Ids.Player)
 			&& _map.HasFigureSpriteForSmoke(MappedVillageScenario.Ids.Guard),
 			"G15: directional character sprite did not load in the village");
@@ -652,6 +655,9 @@ public partial class VillageSmoke : Node
 		Require(highestRound >= 2 && _map.View.Now > beforeLoad.Now,
 			"G11: the client did not advance time between combat rounds");
 		Require(woundedCaptured, "G11: no screenshot of a wounded raider");
+		Require(_map.View.Experience == beforeLoad.Experience + 25
+			&& _map.LevelExperienceTextForSmoke.Contains("Esperienza 25 / 300"),
+			"C5b: defeating the raider did not update the experience shown in the HUD");
 		Capture("30-duel-end.png");
 	}
 
