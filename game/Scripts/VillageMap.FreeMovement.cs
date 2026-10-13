@@ -59,12 +59,12 @@ public partial class VillageMap
 			_spotOverlay.Visible = false;
 			return;
 		}
-		if (_spotPreviewAt != at || _spotPreviewFrom != _view.Spot || _spotPreviewTime != _view.Now.Seconds
+		if (_spotPreviewAt != at || _spotPreviewFrom != _view.Spot || _spotPreviewTime != _view.Now.Ticks
 			|| _spotPreviewSneak != _sneak)
 		{
 			_spotPreviewAt = at;
 			_spotPreviewFrom = _view.Spot;
-			_spotPreviewTime = _view.Now.Seconds;
+			_spotPreviewTime = _view.Now.Ticks;
 			_spotPreviewSneak = _sneak;
 			var preview = _sim.PreviewMoveToSpot(_sim.Player, at, _view.Combat is null && _sneak);
 			// Do not let the route or its cost disclose walls behind unexplored squares.
@@ -80,7 +80,7 @@ public partial class VillageMap
 				? $"{preview.Feet:0.0} / {Math.Floor(preview.FeetLeft * 10 + 1e-9) / 10:0.0} piedi"
 					+ (affordable ? "" : " · troppo lontano")
 					+ (preview.Provokes.Count == 0 ? "" : $" · reazione: {string.Join(", ", preview.Provokes.Select(p => p.Name))}")
-				: known ? $"{preview.Feet:0.0} piedi · {preview.Seconds} s"
+				: known ? $"{preview.Feet:0.0} piedi · {preview.Ticks / (double)GameTime.TicksPerSecond:0.0} s"
 				: preview.Way.Count > 1 ? "Percorso ancora inesplorato"
 				: preview.Message;
 			foreach (var child in _spotThreatMarkers.GetChildren())

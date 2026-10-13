@@ -92,7 +92,7 @@ public partial class VillageMap : Node2D
 	private bool _paused;
 	private readonly List<(string Label, bool Walk, Action Run)> _queue = new(); // orders given while paused
 	private readonly Dictionary<double, Button> _paceButtons = new();
-	private double _pending;
+	private double _pendingTicks;
 	private string _peopleKey = "";
 
 	public override void _Ready()
@@ -125,7 +125,7 @@ public partial class VillageMap : Node2D
 		{
 			// NPC turns are already resolved by EndTurn. This closes the six-second round and starts the next
 			// player turn; Advance deliberately stops at that turn instead of consuming any later world time.
-			_sim.Advance(Duration.FromSeconds(Math.Max(0, nextRound.Since(_view.Now).Seconds)));
+			_sim.Advance(Duration.FromTicks(Math.Max(0, nextRound.Since(_view.Now).Ticks)));
 			Refresh();
 		}
 
@@ -140,26 +140,26 @@ public partial class VillageMap : Node2D
 			_approaching = null;
 			_exitAfterWalking = null;
 			_attackAfterWalking = null;
-			_pending = 0;
+			_pendingTicks = 0;
 			Refresh();
 		}
 		else if (!_paused && _view.Combat is null && !_view.Dead)
 		{
-			_pending += delta * (_running is not null && !_walking ? _speed : _pace);
-			var whole = (long)_pending;
-			if (whole > 0)
+			_pendingTicks += delta * (_running is not null && !_walking ? _speed : _pace) * GameTime.TicksPerSecond;
+			var ticks = (long)_pendingTicks;
+			if (ticks > 0)
 			{
-				_pending -= whole;
+				_pendingTicks -= ticks;
 				ActorId? arrived = null;
 				LocationId? exitReached = null;
 				if (_running is { } action)
 				{
-					var result = _sim.AdvanceUntilCompleted(action, Duration.FromSeconds(whole));
+					var result = _sim.AdvanceUntilCompleted(action, Duration.FromTicks(ticks));
 					if (result.Outcome != AdvanceOutcome.TimeLimitReached)
 					{
 						_running = null;
 						_walking = false;
-						_pending = 0;
+						_pendingTicks = 0;
 						if (result.Outcome == AdvanceOutcome.Completed)
 						{
 							arrived = _approaching;
@@ -170,7 +170,7 @@ public partial class VillageMap : Node2D
 					}
 				}
 				else
-					_sim.Advance(Duration.FromSeconds(whole));
+					_sim.Advance(Duration.FromTicks(ticks));
 				Refresh();
 				if (arrived is { } who)
 					OpenTalk(who);
@@ -529,7 +529,7 @@ public partial class VillageMap : Node2D
 		_approaching = null;
 		_attackAfterWalking = null;
 		_exitAfterWalking = null;
-		_pending = 0;
+		_pendingTicks = 0;
 		_target.Visible = false;
 		ShowMessage(result.Message);
 		Refresh();
@@ -624,7 +624,7 @@ public partial class VillageMap : Node2D
 		_running = view.Action?.Id;
 		_walking = view.Move is not null;
 		_speed = Math.Max(1, (view.Action?.CompletesAt.Since(view.Action.StartedAt).Seconds ?? 1) / MaxActivityRealSeconds);
-		_pending = 0;
+		_pendingTicks = 0;
 		Refresh();
 		ShowMessage("Partita caricata.");
 	}
@@ -809,7 +809,7 @@ public partial class VillageMap : Node2D
 			}
 			var previousPosition = token.Position;
 			token.Position = figure.Player && _view.Combat is not null && CombatVisualPosition() is { } visual
-				? visual : SmoothPosition(figure.Position.Value, figure.Spot, figure.Move);
+				? visual : AuthoritativePosition(figure.Position.Value, figure.Spot);
 			token.Modulate = Shade(ScreenToCell(token.Position));
 			var prone = figure.Condition is "morto" or "tramortito"
 				|| figure.Condition?.StartsWith("a terra", StringComparison.Ordinal) == true;
@@ -863,61 +863,10 @@ public partial class VillageMap : Node2D
 	}
 
 	/// <summary>
-	/// Presentation only: between two squares of the core's path, slide by the fraction of a second already played.
-	/// The square itself always comes from the core.
+	/// The Sim supplies the point at the current tick, including between movement checkpoints.
 	/// </summary>
-	private Vector2 SmoothPosition(GridPos square, Spot? spot, MoveView? move)
-	{
-		if (move is null)
-			return spot is { } exact ? SpotToScreen(exact) : CellToScreen(square);
-		var elapsed = _view.Now.Since(move.DepartedAt).Seconds + _pending;
-		if (move is { FromSpot: { } origin, Spots: { } spots, Seconds: { } seconds })
-		{
-			// Several checkpoints may share one Sim second. Follow all their validated legs during
-			// that second, in path order, instead of drawing a shortcut through a wall.
-			var spotReached = 0;
-			while (spotReached < seconds.Count && seconds[spotReached] <= elapsed)
-				spotReached++;
-			if (spotReached == spots.Count)
-				return SpotToScreen(spots[^1]);
-			var spotStart = spotReached == 0 ? 0 : seconds[spotReached - 1];
-			var spotEnd = seconds[spotReached];
-			var last = spotReached == 0 ? origin : spots[spotReached - 1];
-			var groupEnd = spotReached;
-			while (groupEnd + 1 < spots.Count && seconds[groupEnd + 1] == spotEnd)
-				groupEnd++;
-			var length = 0.0;
-			var previous = last;
-			for (var i = spotReached; i <= groupEnd; i++)
-			{
-				length += previous.DistanceTo(spots[i]);
-				previous = spots[i];
-			}
-			var distance = length * Math.Clamp((elapsed - spotStart) / Math.Max(1, spotEnd - spotStart), 0, 1);
-			previous = last;
-			for (var i = spotReached; i <= groupEnd; i++)
-			{
-				var leg = previous.DistanceTo(spots[i]);
-				if (distance <= leg || i == groupEnd)
-					return SpotToScreen(previous).Lerp(SpotToScreen(spots[i]), leg == 0 ? 1 : (float)(distance / leg));
-				distance -= leg;
-				previous = spots[i];
-			}
-		}
-		// The Sim reaches step i at ceil(i*30/Speed) whole game seconds. Interpolate between those
-		// actual deadlines, including speeds where a square takes more than one second.
-		double AtStep(int step) => Math.Ceiling(step * 30.0 / move.Speed);
-		var reached = 0;
-		while (reached < move.Path.Count && AtStep(reached + 1) <= elapsed)
-			reached++;
-		if (reached >= move.Path.Count)
-			return CellToScreen(move.Path[^1]);
-		var from = reached == 0 ? move.From : move.Path[reached - 1];
-		var to = move.Path[reached];
-		var start = AtStep(reached);
-		var end = AtStep(reached + 1);
-		return CellToScreen(from).Lerp(CellToScreen(to), (float)((elapsed - start) / (end - start)));
-	}
+	private Vector2 AuthoritativePosition(GridPos square, Spot? spot) =>
+		spot is { } exact ? SpotToScreen(exact) : CellToScreen(square);
 
 	/// <summary>
 	/// Presentation of the core's light levels (<see cref="PlayerView.MapLight"/>): each square is shaded by its own

@@ -53,6 +53,36 @@ public partial class InteriorSmoke : Node
 			Require(preview.Visible && preview.RoutePoints >= 2 && preview.Hint.Contains("piedi"),
 				"the free walk route and cost are not visible over explored floor");
 			Capture("day-free-spot.png");
+			// Drive half a game second while paused so Stop is checked between two authoritative checkpoints.
+			var midGoal = Spot.CenterOf(new GridPos(7, 4));
+			var startedAt = _map.View.Now;
+			_map.SetPaused(false);
+			_map.MoveToSpot(midGoal);
+			_map.SetPaused(true);
+			_map.AdvanceForSmoke(startedAt.Plus(Duration.FromTicks(30)));
+			var midSpot = _map.View.Spot;
+			Require(midSpot is { } && midSpot != exact && midSpot != midGoal && _map.IsWalking,
+				"the walker did not reach an intermediate Spot after 30 ticks");
+			Require(_map.FootPointOf(_map.View.Id) is { } midFoot
+				&& midFoot.DistanceTo(VillageMap.ScreenPointOf(midSpot.GetValueOrDefault())) < 1f,
+				"the figure did not match the Sim Spot between checkpoints");
+			var midSave = System.IO.Path.Combine(_directory, "mid-tick-walk.json");
+			_map.SaveGameToPath(midSave);
+			_map.SetPaused(false);
+			_map.Stop();
+			_map.SetPaused(true);
+			Require(!_map.IsWalking && _map.View.Spot == midSpot,
+				"Stop moved the walker away from the visible mid-tick Spot");
+			_map.LoadGameFromPath(midSave);
+			Require(_map.IsWalking && _map.View.Spot == midSpot && _map.View.Now == startedAt.Plus(Duration.FromTicks(30)),
+				$"the mid-tick save did not restore the same walk and Spot: {_map.LastMessage}; walking={_map.IsWalking}, spot={_map.View.Spot}, expected={midSpot}, now={_map.View.Now.Ticks}, expectedNow={startedAt.Ticks + 30}");
+			_map.SetPaused(false);
+			_map.Stop();
+			Require(_map.View.Spot == midSpot, "Stop after reloading changed the mid-tick Spot");
+			_map.MoveToSpot(exact);
+			Require(_map.IsWalking && _map.View.Spot == midSpot,
+				"a new order did not start from the stopped mid-tick Spot");
+			await UntilIdle();
 			_map.SetPaused(false);
 			_map.ClickDoor(InteriorPrototypeScenario.Door);
 			await Frames(2);
