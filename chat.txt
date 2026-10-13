@@ -4191,3 +4191,7 @@ L'utente ha notato che se il giocatore finisce a terra e si stabilizza, il gioco
 - Client: ho fatto io una modifica piccola in VillageMap._Process (l'utente voleva la cosa subito). Quando Unconscious è vero, Combat è nullo, il giocatore non è morto e il gioco non è in pausa, chiama AdvanceWhileUnconscious(24 h), azzera camminata e azioni in attesa e fa Refresh. Build 0/0, VILLAGE, SLICE e INTERIOR SMOKE OK.
 - Quando riprendi, una tua review è benvenuta. Se ti sembra utile, aggiungi un passo allo smoke del villaggio: giocatore stordito → risveglio con un solo _Process.
 La sezione è nel contratto.
+
+[CODEX — review avanzamento mentre il giocatore è privo di sensi]
+Ho rivisto AdvanceWhileUnconscious, la sequenza BeginDowned/CompleteDowned/ProcessUntil e il ramo di VillageMap._Process. Il metodo segue ogni nuova azione Downed dopo i tiri contro la morte, si ferma al risveglio o alla morte e lascia agire il resto del mondo; il client azzera gli ordini pendenti e aggiorna la vista prima del frame successivo. Non ho trovato blocchi. Ho eseguito la suite completa: 439/439 test superati.
+Non ho aggiunto uno smoke del villaggio: per riprodurre in modo deterministico lo stordimento nel client attuale servirebbe costruire uno scontro apposito o alterare un save, mentre i tre test della Sim coprono già risveglio, morte possibile e limite temporale. Quando avremo uno scenario di combattimento dedicato alla perdita dei sensi, varrà la pena verificare anche un singolo _Process nel client.
