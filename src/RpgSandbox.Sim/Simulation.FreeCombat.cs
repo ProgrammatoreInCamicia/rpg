@@ -31,7 +31,13 @@ internal sealed partial class Simulation
         };
     }
 
-    private static string FeetText(double inches) => (Math.Ceiling(inches / Spot.PerFoot * 10 - 1e-9) / 10).ToString("0.#", System.Globalization.CultureInfo.GetCultureInfo("it-IT"));
+    /// <summary>Feet to the tenth, rounded up: what a move needs.</summary>
+    private static string FeetText(double inches) => Tenths(Math.Ceiling(inches / Spot.PerFoot * 10 - 1e-9));
+
+    /// <summary>Feet to the tenth, rounded down: what is left (review P1b: 225 inches are 18.7 feet left, not 18.8).</summary>
+    private static string FeetLeftText(double inches) => Tenths(Math.Floor(inches / Spot.PerFoot * 10 + 1e-9));
+
+    private static string Tenths(double tenths) => (tenths / 10).ToString("0.#", System.Globalization.CultureInfo.GetCultureInfo("it-IT"));
 
     /// <summary>P1b: the way to <paramref name="to"/> this turn, or why there is none. Nothing is touched.</summary>
     private (RejectionReason Reason, string Message, SpotPath? Way) PlanFreeCombatMove(Encounter e, Actor actor, Spot to)
@@ -57,7 +63,7 @@ internal sealed partial class Simulation
         if (planner.Find(from, to) is not { } way)
             return (RejectionReason.Unreachable, "Non si può raggiungere quel punto.", null);
         if (Math.Ceiling(way.Length - 1e-9) > left)
-            return (RejectionReason.TooFar, $"Troppo lontano: servono {FeetText(way.Length)} piedi, te ne restano {FeetText(left)}.", way);
+            return (RejectionReason.TooFar, $"Troppo lontano: servono {FeetText(way.Length)} piedi, te ne restano {FeetLeftText(left)}.", way);
         return (RejectionReason.None, $"{FeetText(way.Length)} piedi di movimento.", way);
     }
 

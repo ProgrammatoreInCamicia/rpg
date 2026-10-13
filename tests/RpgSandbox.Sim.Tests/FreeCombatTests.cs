@@ -16,7 +16,7 @@ public class FreeCombatTests
     /// A 12×8 yard at noon: the player (Paladin, Speed 30) at (2,3), a bandit raider at (3,3); a thin wall with a closed
     /// door runs down x = 8|9 (the door between (8,3) and (9,3)).
     /// </summary>
-    private static SimulationSession Arena(ulong seed)
+    private static SimulationSession Arena(ulong seed, string foe = "bandit")
     {
         var b = new ScenarioBuilder().WithSeed(seed)
             .AddArea("a", "Cortile").AddArea("woods", "Bosco")
@@ -26,7 +26,7 @@ public class FreeCombatTests
             .AddRaidingFaction("bandits", "Banditi", "campstore", dailyUpkeep: 1, upkeepTimeOfDay: Duration.FromHours(8),
                 foodThreshold: 0, raidAmount: 1, evaluationInterval: Duration.FromHours(24))
             .AddActor("player", "Paladino", "yard", isPlayer: true, at: (2, 3))
-            .AddActor("foe", "Bandito", "yard", factionId: "bandits", combat: "bandit", at: (3, 3));
+            .AddActor("foe", "Bandito", "yard", factionId: "bandits", combat: foe, at: (3, 3));
         for (var y = 0; y < 8; y++)
             b.AddEdge("a", (8, y), (9, y), y == 3 ? MapEdgeKind.Door : MapEdgeKind.Wall, y == 3 ? (8, 3) : null);
         var s = SimulationSession.Create(b.Build());
@@ -75,7 +75,7 @@ public class FreeCombatTests
         // What is left is not enough to go back and beyond.
         var far = Move(s, In(7, 7));
         Assert.Equal(RejectionReason.TooFar, far.Rejection);
-        Assert.Contains("te ne restano 18,8", far.Message);
+        Assert.Contains("te ne restano 18,7", far.Message); // 225 inches: rounded down
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public class FreeCombatTests
     }
 
     [Fact]
-    public void Reach_counts_the_bodies_as_well_as_the_squares()
+    public void Reach_is_how_far_apart_the_bodies_are_not_which_squares_they_are_in()
     {
         var s = Fighting();
         var map = s.Engine.World.Maps[new AreaId("a")];
@@ -136,12 +136,42 @@ public class FreeCombatTests
         // Two squares apart, but the bodies 5 feet apart edge to edge (96 inches between centres): in reach.
         Assert.True(Simulation.InReach(map, At(In(2, 3, 54, 30)), sword, At(In(4, 3))));
         Assert.False(Simulation.InReach(map, At(In(2, 3, 53, 30)), sword, At(In(4, 3))));
-        // Next squares, wherever one stands in its own: in reach (NPCs still think in squares).
-        Assert.True(Simulation.InReach(map, At(In(2, 2, 0, 0)), sword, At(In(3, 3))));
+        // Next squares, but from the far corner of one's own: 127 inches between centres, 7.6 feet edge to edge: out of reach.
+        Assert.False(Simulation.InReach(map, At(In(2, 2, 0, 0)), sword, At(In(3, 3))));
+        // At the centres of next squares, diagonals included, as on squares.
+        Assert.True(Simulation.InReach(map, At(In(2, 2)), sword, At(In(3, 3))));
+        Assert.True(Simulation.InReach(map, At(In(2, 3)), sword, At(In(3, 3))));
         // Never through a wall: the bodies close but the thin wall between (8,y) and (9,y).
         Assert.False(Simulation.InReach(map, At(In(8, 5, 55, 30)), sword, At(In(9, 5, 5, 30))));
     }
 
+
+    [Fact]
+    public void An_npc_closing_in_on_a_player_off_its_squares_centre_stops_where_its_blow_reaches()
+    {
+        for (ulong seed = 1; seed <= 300; seed++)
+        {
+            // A raider with nothing but a club starts it; the player gets its turn whole.
+            var s = Arena(seed, foe: "commoner");
+            s.Execute(new AttackCommand { Actor = Foe, Target = s.Player, Attack = "Bastone" });
+            if (s.GetPlayerView().Combat is not { IsYourTurn: true } c || c.You.MovementLeftInches != 30 * 12 || !Of(s, s.Player).Conscious)
+                continue;
+            // To the corner of (1,1) nearest the wall: from the diagonal square (2,2), the nearest to the raider, the
+            // bodies would be 7.3 feet apart; from (2,1), (1,2) or (0,0) they are within 5.
+            Assert.True(Move(s, new Spot(62, 62)).Success);
+            if (!Of(s, s.Player).Conscious)
+                continue;
+            var before = s.Engine.World.Encounters.Values.Single().Log.Count;
+
+            s.Execute(new EndTurnCommand { Actor = s.Player });
+
+            var foe = s.GetWorldView().Actor(Foe).Position!.Value;
+            Assert.NotEqual(new GridPos(2, 2), foe);
+            Assert.Contains(s.Engine.World.Encounters.Values.Single().Log.Skip(before), l => l.Kind == CombatLogKind.Attack && l.Actor == Foe);
+            return;
+        }
+        throw new InvalidOperationException("No seed gives that scene.");
+    }
     [Fact]
     public void The_inches_spent_survive_a_save_and_an_older_save_counts_whole_feet()
     {

@@ -614,13 +614,16 @@ Prova separata. Il movimento a caselle (`MoveCommand`) e le mappe esistenti non 
   - chi cade resta lì;
   - chi finirebbe su qualcuno che non vedeva torna indietro lungo la via. I pollici fatti in avanti restano spesi,
     come sulle caselle.
-- Portata in mischia (`InReach`): in portata se lo sono le caselle, come prima, **oppure** se i corpi distano al
-  massimo la portata da bordo a bordo (per 5 piedi: 96 pollici tra i centri) senza nulla di solido in mezzo.
+- Portata in mischia (`InReach`): in portata solo se i corpi distano al massimo la portata da bordo a bordo (per
+  5 piedi: 96 pollici tra i centri), senza nulla di solido in mezzo.
   - Niente di solido: caselle bloccate, muri sottili, finestre, porte chiuse; toccare uno spigolo blocca.
-  - ADATTAMENTO finché i PNG si muovono a caselle: la regola delle caselle resta, così un PNG accanto alla casella del
-    giocatore lo raggiunge ovunque stia dentro di essa.
-  - Ai centri delle caselle le due regole coincidono per 5 piedi di portata.
-  - Gittate a distanza, svantaggio da mischia e colpo critico automatico restano a caselle.
+  - Ai centri delle caselle è la regola delle caselle per 5 piedi: caselle vicine, diagonali comprese; due caselle,
+    fuori portata.
+  - Review di Codex: niente più "le caselle vicine bastano", che faceva valere cinque un corpo a sette piedi e mezzo.
+  - Un PNG che si avvicina a un bersaglio fermo fuori centro sceglie una casella dal cui centro il colpo arriva.
+    Da qualsiasi punto, una delle otto caselle attorno va bene, se è libera.
+  - Gittate a distanza, svantaggio da mischia e colpo critico automatico restano a caselle: da migrare.
+- `TooFar`: il costo è arrotondato per eccesso al decimo di piede, il residuo per difetto (225 pollici = 18,7 piedi).
 - `PreviewMoveToSpot` in combattimento:
   - `Valid` (falso anche per `TooFar`, con la via comunque in `Way`), `Feet`, `FeetLeft` (prima della mossa),
     `Seconds` = 0;

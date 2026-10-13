@@ -476,23 +476,14 @@ internal sealed partial class Simulation
             AutoCritical: target.Vitality.Unconscious && feet <= FeetPerSquare);
     }
 
-    /// <summary>A melee attack from <paramref name="from"/> reaches <paramref name="square"/> (no squeezing past a corner).</summary>
-    private static bool InReach(GridMap map, GridPos from, AttackProfile attack, GridPos square)
-    {
-        var steps = from.StepsTo(square);
-        return steps >= 1 && steps * FeetPerSquare <= attack.ReachFeet && map.HasLineOfSight(from, square)
-               && (steps > 1 || OpenDiagonal(map, from, square));
-    }
-
     /// <summary>
-    /// P1b: a melee attack reaches between two creatures standing at exact points: by their squares, as above, or by
-    /// the bodies themselves, no more than the reach apart (edge to edge) with nothing solid in between. ADAPTATION, while
-    /// NPCs still walk from square to square: the squares' rule is kept, so an NPC next to the player's square reaches it
-    /// wherever the player stands in it; at the centres of their squares both rules agree for a 5-foot reach.
+    /// P1b: a melee attack reaches between two creatures when their bodies are no more than the reach apart, edge to
+    /// edge, with nothing solid in between (review P1b: never by the squares alone, or a body seven feet away would be
+    /// within five). At the centres of their squares this is the grid rule for a 5-foot reach: next squares, diagonals
+    /// included, unless a wall or a corner is in the way; two squares apart is out of reach.
     /// </summary>
     internal static bool InReach(GridMap map, (GridPos Cell, Spot At) from, AttackProfile attack, (GridPos Cell, Spot At) to) =>
-        InReach(map, from.Cell, attack, to.Cell)
-        || from.At.DistanceTo(to.At) - 2 * SpotPlanner.BodyRadius <= attack.ReachFeet * Spot.PerFoot && SpotPlanner.LineClear(map, from.At, to.At);
+        from.At.DistanceTo(to.At) - 2 * SpotPlanner.BodyRadius <= attack.ReachFeet * Spot.PerFoot && SpotPlanner.LineClear(map, from.At, to.At);
 
     /// <summary>P1b: where an actor stands now, as its square and its exact point.</summary>
     private (GridPos Cell, Spot At) StandingOf(Actor actor) => (CurrentPosition(actor)!.Value, CurrentSpot(actor)!.Value);
@@ -588,20 +579,20 @@ internal sealed partial class Simulation
     /// SRD rules, around the creatures the mover perceives: 5 feet a square, diagonals included, no cutting corners;
     /// closed doors block (opening them is C3); an ally's space can be crossed, an incapacitated creature's space is
     /// Difficult Terrain, any other creature blocks; nobody ends on another creature. Null when there is no way. The
-    /// movement left is not checked here.
+    /// movement left is not checked here. P1b: <paramref name="endOk"/>, if given, also judges the squares one may stop on.
     /// </summary>
-    private CombatPlan? PlanCombatMove(Encounter e, Actor mover, GridPos to, bool stopNextTo)
+    private CombatPlan? PlanCombatMove(Encounter e, Actor mover, GridPos to, bool stopNextTo, Func<GridPos, bool>? endOk = null)
     {
         var map = World.Maps[e.Area];
         var from = CurrentPosition(mover)!.Value;
         var here = new CombatPlan(Array.Empty<GridPos>(), Array.Empty<int>(), 0);
-        if (stopNextTo ? from.StepsTo(to) == 1 && OpenDiagonal(map, from, to) : from == to)
+        if (stopNextTo ? from.StepsTo(to) == 1 && OpenDiagonal(map, from, to) && (endOk?.Invoke(from) ?? true) : from == to)
             return here; // already there
         var knows = Perceived(e, mover);
         var occupants = OccupantsOf(map, mover, knows);
         var reach = CombatReach(e, mover, map, from, to, knows);
         var ends = stopNextTo
-            ? reach.Keys.Where(p => p.StepsTo(to) == 1 && OpenDiagonal(map, p, to))
+            ? reach.Keys.Where(p => p.StepsTo(to) == 1 && OpenDiagonal(map, p, to) && (endOk?.Invoke(p) ?? true))
             : reach.Keys.Where(p => p == to);
         var goal = ends.Where(p => !occupants.Contains(p))
             .OrderBy(p => reach[p].Feet).ThenBy(p => reach[p].Drift).ThenBy(p => p.Y).ThenBy(p => p.X)
@@ -834,7 +825,12 @@ internal sealed partial class Simulation
             return;
         }
         var occupied = OccupantsOf(World.Maps[e.Area], npc, Perceived(e, npc)).Contains(spot);
-        var way = PlanCombatMove(e, npc, spot, stopNextTo: occupied);
+        // P1b: next to a target standing off its square's centre, only a square from which the blow reaches it will do.
+        Func<GridPos, bool>? reaches = target is not null && MeleeAttack(npc) is { } melee
+            ? p => InReach(World.Maps[e.Area], Centre(p), melee, StandingOf(target))
+            : null;
+        var way = (occupied && reaches is not null ? PlanCombatMove(e, npc, spot, stopNextTo: true, reaches) : null)
+                  ?? PlanCombatMove(e, npc, spot, stopNextTo: occupied);
         // C3a: out of reach this turn, and nothing better to do with the action: Dash to close in.
         if (way is not null && way.Feet > MovementLeft(e, npc) && !c.ActionUsed)
             Act(e, npc, CombatAction.Dash);
