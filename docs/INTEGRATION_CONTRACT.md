@@ -518,9 +518,12 @@ Regole SRD 5.2.1: Level Advancement, Experience Points by Challenge Rating, Gain
 
 - Contenuti: ogni creatura ha `"xp"`, obbligatorio e ≥ 0: i punti esperienza del suo blocco statistiche (Popolano e
   Contadino 10; Bandito, Guardia, Razziatore e Guardia del villaggio 25).
-- Chi sconfigge: quando una creatura che il giocatore ha affrontato cade (morente, tramortita o morta) o scappa dallo
-  scontro, il giocatore guadagna i suoi XP una volta sola (`Actor.Defeated`).
-  - ADATTAMENTO: non c'è ancora un gruppo, quindi il giocatore li prende tutti, chiunque abbia dato l'ultimo colpo.
+- Chi sconfigge: quando una creatura cade (morente, tramortita o morta) o scappa dallo scontro, il giocatore guadagna
+  i suoi XP una volta sola (`Actor.Defeated`), se ha preso parte alla sconfitta: o ha dato il colpo lui, o è nello
+  stesso scontro, dalla parte opposta. Averla affrontata in passato non basta: se una guardia uccide lontano da lui un
+  razziatore con cui aveva combattuto ieri, il giocatore non guadagna nulla (review di Codex).
+  - ADATTAMENTO: non c'è ancora un gruppo, quindi il giocatore prende tutti gli XP di uno scontro a cui partecipa,
+    chiunque abbia dato l'ultimo colpo.
   - Una creatura scappata conta come sconfitta; se torna non conta di nuovo.
   - Un personaggio pregenerato non vale ancora XP.
 - Livello: segue gli XP secondo la tabella Character Advancement (`Builds.ExperienceFor`, `Builds.LevelFor`). Un

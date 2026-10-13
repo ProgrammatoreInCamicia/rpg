@@ -13,7 +13,7 @@ public class AdvancementTests
     private const string Sword = "Spada lunga";
 
     /// <summary>A yard at noon: the player, a level 1 Paladin (11 HP, Con +1), next to a foe of the given build.</summary>
-    private static SimulationSession Yard(ulong seed = 1, string foe = "guard")
+    private static SimulationSession Yard(ulong seed = 1, string foe = "guard", Action<ScenarioBuilder>? more = null)
     {
         var b = new ScenarioBuilder().WithSeed(seed)
             .AddArea("a", "Villaggio")
@@ -21,6 +21,7 @@ public class AdvancementTests
             .AddMap("a", Enumerable.Repeat("YYYYYYYYYY", 6).ToArray(), new Dictionary<char, string> { ['Y'] = "yard" })
             .AddActor("player", "Paladino", "yard", isPlayer: true, at: (2, 2))
             .AddActor("foe", "Avversario", "yard", combat: foe, at: (3, 2));
+        more?.Invoke(b);
         var s = SimulationSession.Create(b.Build());
         s.AdvanceTo(At(1, 12));
         return s;
@@ -90,6 +91,28 @@ public class AdvancementTests
         Assert.Equal(new[] { Foe }, Of(s, s.Player).Defeated);
     }
 
+
+    [Fact]
+    public void A_foe_the_player_fought_once_and_someone_else_kills_far_from_it_gives_the_player_nothing()
+    {
+        // Review C5b: the player and the foe fought before and parted; later a guard fights the foe without the player.
+        var watchman = new ActorId("watchman");
+        for (ulong seed = 1; seed <= 300; seed++)
+        {
+            var s = Yard(seed, more: b => b.AddActor("watchman", "Guardia", "yard", combat: "guard", at: (4, 2)));
+            Of(s, s.Player).FoughtWith.Add(Foe);
+            Of(s, Foe).FoughtWith.Add(s.Player);
+            Of(s, Foe).Vitality = new Vitality(11, makesDeathSaves: false, current: 1);
+            s.Execute(new AttackCommand { Actor = watchman, Target = Foe, Attack = "Lancia" });
+            if (Of(s, Foe).Conscious)
+                continue;
+            Assert.DoesNotContain(s.Engine.World.Encounters.Values, e => e.Order.Any(c => c.Actor == s.Player));
+            Assert.Equal(0, s.GetPlayerView().Experience);
+            Assert.Empty(Of(s, s.Player).Defeated);
+            return;
+        }
+        throw new InvalidOperationException("No seed gives that scene.");
+    }
     [Fact]
     public void Reaching_300_points_makes_the_paladin_level_2_with_its_fixed_hit_points()
     {

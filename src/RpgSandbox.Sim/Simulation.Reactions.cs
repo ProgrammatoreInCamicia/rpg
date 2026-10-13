@@ -189,10 +189,10 @@ internal sealed partial class Simulation
             var runner = World.Actors[c.Actor];
             if (!runner.Conscious || EnemiesOf(e, runner).Any(x => x.Conscious && SeesActor(x, runner)))
                 continue;
+            Defeat(e, runner, null); // C5b: driven off (judged while it is still in the fight)
             e.Order.Remove(c);
             Record(e, CombatLogKind.Fled, runner, null, (a, _) => $"{a} è scappato: è fuori dallo scontro.");
             World.RecordFact("Escaped", $"{runner.Name} è scappato dallo scontro.", runner.Id);
-            Defeat(runner); // C5b: driven off
         }
         if (e.Order.Select(c => c.Side).Distinct().Count() < 2)
         {

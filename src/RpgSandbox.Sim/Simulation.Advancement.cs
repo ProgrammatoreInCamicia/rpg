@@ -7,14 +7,19 @@ internal sealed partial class Simulation
 {
     /// <summary>
     /// A creature fell (dying, knocked out or dead) or ran out of a fight. SRD: XP is awarded for defeating a monster in
-    /// combat or otherwise neutralizing it, so the player gains its XP, once, if it had fought it. ADAPTATION: there is
-    /// no party yet, so the player gets it all, whoever struck the last blow; a creature that escaped counts as defeated
-    /// (it does not count again if it comes back); a pregenerated character is worth nothing yet.
+    /// combat or otherwise neutralizing it, so the player gains its XP, once, if it took part in defeating it: it struck
+    /// the blow itself, or it is in the fight <paramref name="fight"/>, against that creature. Having fought it once
+    /// before is not enough (review C5b: a guard killing a raider far from the player gives the player nothing).
+    /// ADAPTATION: there is no party yet, so the player gets it all; a creature that escaped counts as defeated (it does
+    /// not count again if it comes back); a pregenerated character is worth nothing yet.
     /// </summary>
-    private void Defeat(Actor creature)
+    private void Defeat(Encounter? fight, Actor creature, Actor? by)
     {
         var player = World.Actors[World.Player];
-        if (creature.IsPlayer || !player.FoughtWith.Contains(creature.Id) || !player.Defeated.Add(creature.Id))
+        var tookPart = by == player
+            || fight is not null && fight.Order.Any(c => c.Actor == player.Id) && fight.Order.Any(c => c.Actor == creature.Id)
+               && !Allies(fight, player, creature);
+        if (creature.IsPlayer || !tookPart || !player.FoughtWith.Contains(creature.Id) || !player.Defeated.Add(creature.Id))
             return;
         if (World.Content.Creatures.TryGetValue(creature.Build, out var stats) && stats.Experience > 0)
             GainExperience(player, stats.Experience);
