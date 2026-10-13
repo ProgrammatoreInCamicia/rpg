@@ -70,7 +70,7 @@ internal sealed partial class Simulation
                 .Where(exit => Reachable(map, from, exit.Value))
                 .SelectMany(exit => JourneyTargets(place).Select(t => (Exit: exit, Target: t, Cost: PathCost(exit.Key, t))))
                 .Where(c => c.Cost is not null)
-                .OrderBy(c => c.Cost!.Value.Seconds).ThenBy(c => c.Exit.Key.Value, StringComparer.Ordinal)
+                .OrderBy(c => c.Cost!.Value.Ticks).ThenBy(c => c.Exit.Key.Value, StringComparer.Ordinal)
                 .ThenBy(c => c.Target.Value, StringComparer.Ordinal)
                 .Select(c => ((KeyValuePair<LocationId, GridPos> Exit, LocationId Target)?)(c.Exit, c.Target))
                 .FirstOrDefault();
@@ -88,7 +88,7 @@ internal sealed partial class Simulation
         var aim = JourneyTargets(place)
             .Select(t => (Target: t, Cost: PathCost(here, t)))
             .Where(c => c.Cost is not null)
-            .OrderBy(c => c.Cost!.Value.Seconds).ThenBy(c => c.Target.Value, StringComparer.Ordinal)
+            .OrderBy(c => c.Cost!.Value.Ticks).ThenBy(c => c.Target.Value, StringComparer.Ordinal)
             .Select(c => (LocationId?)c.Target)
             .FirstOrDefault();
         return aim is { } goal && NextHop(here, goal) is { } next ? new TravelCommand { Actor = npc.Id, Destination = next } : null;
@@ -114,7 +114,7 @@ internal sealed partial class Simulation
         return JourneyTargets(to)
             .Select(t => t == from ? Duration.Zero : PathCost(from, t))
             .Where(c => c is not null)
-            .OrderBy(c => c!.Value.Seconds)
+            .OrderBy(c => c!.Value.Ticks)
             .FirstOrDefault();
     }
 

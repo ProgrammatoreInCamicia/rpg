@@ -270,7 +270,7 @@ public sealed class ScenarioBuilder
             Require(locationIds.Contains(route.A) && locationIds.Contains(route.B),
                 $"Route '{route.A}'-'{route.B}' references an unknown location.");
             Require(route.A != route.B, $"Route from '{route.A}' to itself.");
-            Require(route.TravelTime.Seconds > 0, $"Route '{route.A}'-'{route.B}' must take positive time.");
+            Require(route.TravelTime.Ticks > 0, $"Route '{route.A}'-'{route.B}' must take positive time.");
             var key = route.A.CompareTo(route.B) < 0 ? (route.A, route.B) : (route.B, route.A);
             Require(routePairs.Add(key), $"Duplicate route '{route.A}'-'{route.B}'.");
         }

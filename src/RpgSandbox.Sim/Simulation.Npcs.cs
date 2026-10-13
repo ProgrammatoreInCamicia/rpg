@@ -416,7 +416,7 @@ internal sealed partial class Simulation
         foreach (var ((a, b), time) in World.Routes)
         {
             if (a != from) continue;
-            frontier.Add((time.Seconds, b, b));
+            frontier.Add((time.Ticks, b, b));
         }
 
         while (frontier.Count > 0)
@@ -427,11 +427,11 @@ internal sealed partial class Simulation
                 continue;
             best[location] = (cost, firstHop);
             if (location == to)
-                return (new Duration(cost), firstHop);
+                return (Duration.FromTicks(cost), firstHop);
             foreach (var ((a, b), time) in World.Routes)
             {
                 if (a == location && !best.ContainsKey(b))
-                    frontier.Add((cost + time.Seconds, b, firstHop));
+                    frontier.Add((cost + time.Ticks, b, firstHop));
             }
         }
         return null;

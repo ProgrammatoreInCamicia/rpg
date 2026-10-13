@@ -37,7 +37,7 @@ internal static class Invariants
             return null;
         if (!hasHomeStore)
             return $"la fazione '{id}' fa razzie ma non ha un deposito";
-        if (policy.EvaluationInterval.Seconds <= 0)
+        if (policy.EvaluationInterval.Ticks <= 0)
             return $"l'intervallo di valutazione della fazione '{id}' deve essere positivo";
         if (policy.RaidAmount <= 0)
             return $"la quantità di una razzia della fazione '{id}' deve essere positiva";

@@ -57,7 +57,7 @@ internal sealed partial class Simulation
             .Where(s => s.Owner != faction.Id && s.Food > 0 && !avoided.Contains(s.Id))
             .Select(s => (Store: s, Cost: JourneyCost(home.Location, s.Location))) // a store on a map: up to its exit (T6c-3)
             .Where(x => x.Cost is not null)
-            .OrderBy(x => x.Cost!.Value.Seconds).ThenBy(x => x.Store.Id)
+            .OrderBy(x => x.Cost!.Value.Ticks).ThenBy(x => x.Store.Id)
             .Select(x => x.Store)
             .FirstOrDefault();
         if (target is null && avoided.Count > 0)
