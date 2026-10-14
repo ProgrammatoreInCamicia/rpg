@@ -243,7 +243,7 @@ internal sealed partial class Simulation
                 player.DoorMemory[new DoorKey(area, at)] = new RememberedDoor(open, World.Now);
         // The explored floor is remembered here, with the doors, never when a view is read.
         if (map.UsesExploration && player.Conscious && CurrentPosition(player) is { } eye)
-            map.Explored.UnionWith(SquaresSeen(map, eye));
+            map.Explored.UnionWith(SquaresSeen(map, eye, onlyUnexplored: true).ToList());
     }
 
     /// <summary>
@@ -251,11 +251,23 @@ internal sealed partial class Simulation
     /// immediately surrounding floor can be made out; a wall still blocks it. This affects only map exploration:
     /// recognising actors and objects continues to use <see cref="CanSee"/> and its light requirement.
     /// </summary>
-    internal IEnumerable<GridPos> SquaresSeen(GridMap map, GridPos eye) =>
-        Enumerable.Range(0, map.Height).SelectMany(y => Enumerable.Range(0, map.Width).Select(x => new GridPos(x, y)))
-            .Where(square => map.HasLineOfSight(eye, square)
-                && (Math.Max(Math.Abs(square.X - eye.X), Math.Abs(square.Y - eye.Y)) <= 1
-                    || LightOn(map, square) >= Light.Dim));
+    internal IEnumerable<GridPos> SquaresSeen(GridMap map, GridPos eye, bool onlyUnexplored = false)
+    {
+        var daylight = Perception.DaylightAt(World.Now);
+        var torches = CarriedLights(map);
+        for (var y = 0; y < map.Height; y++)
+        for (var x = 0; x < map.Width; x++)
+        {
+            var square = new GridPos(x, y);
+            if (onlyUnexplored && map.Explored.Contains(square))
+                continue;
+            if (!map.HasLineOfSight(eye, square))
+                continue;
+            if (Math.Max(Math.Abs(x - eye.X), Math.Abs(y - eye.Y)) <= 1
+                || Max(map.DaylightOn(square, daylight), map.SourceLight(square, torches)) >= Light.Dim)
+                yield return square;
+        }
+    }
 
     /// <summary>The player knows the state of a door it opens or closes itself, even passing through in the dark.</summary>
     private void Touched(Actor actor, GridMap map, GridPos door)
