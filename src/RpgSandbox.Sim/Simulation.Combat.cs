@@ -72,29 +72,61 @@ internal sealed partial class Simulation
 
     private CommandResult Attack(AttackCommand command)
     {
+        var (rejected, attack, _) = GateAttack(command.Actor, command.Target, command.Attack, command.NonLethal);
+        if (rejected is not null)
+            return rejected;
         var actor = World.Actors[command.Actor];
-        if (!World.Actors.TryGetValue(command.Target, out var target))
-            return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Bersaglio sconosciuto: {command.Target}.");
-        if (ProfileOf(actor).Attacks.FirstOrDefault(a => a.Name == command.Attack) is not { } attack)
-            return CommandResult.Rejected(RejectionReason.UnknownAttack, $"{actor.Name} non ha l'attacco «{command.Attack}».");
-
+        var target = World.Actors[command.Target];
         if (EncounterOf(actor) is not { } e)
-            return OpenFight(actor, target, attack, command.NonLethal);
-
-        if (!IsTurnOf(e, actor))
-            return CommandResult.Rejected(RejectionReason.NotYourTurn, "Non è il tuo turno.");
-        var me = CombatantOf(e, actor.Id);
-        if (me.ActionUsed)
-            return CommandResult.Rejected(RejectionReason.NoActionLeft, "Hai già usato l'azione in questo turno.");
-        if (EncounterOf(target) != e)
-            return CommandResult.Rejected(RejectionReason.InCombat, $"{target.Name} non fa parte di questo scontro.");
-        var check = CheckAttack(e, actor, target, attack, command.NonLethal);
-        if (!check.Valid)
-            return CommandResult.Rejected(check.Reason, check.Why!);
-        me.ActionUsed = true;
-        var text = ResolveAttack(e, actor, target, attack, command.NonLethal, CombatLogKind.Attack);
+            return OpenFight(actor, target, attack!, command.NonLethal);
+        CombatantOf(e, actor.Id).ActionUsed = true;
+        var text = ResolveAttack(e, actor, target, attack!, command.NonLethal, CombatLogKind.Attack);
         CheckEnd(e);
         return new CommandResult { Message = text };
+    }
+
+    /// <summary>
+    /// Whether <paramref name="attackName"/> can be made now against <paramref name="targetId"/>, and how: the checks of
+    /// <see cref="AttackCommand"/>, touching nothing (P2b: also <see cref="SimulationSession.PreviewAttack"/>).
+    /// </summary>
+    private (CommandResult? Rejected, AttackProfile? Attack, AttackCheck? Check) GateAttack(ActorId actorId, ActorId targetId,
+        string attackName, bool nonLethal)
+    {
+        if (!World.Actors.TryGetValue(actorId, out var actor))
+            return (CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {actorId}."), null, null);
+        if (!World.Actors.TryGetValue(targetId, out var target))
+            return (CommandResult.Rejected(RejectionReason.ActorNotFound, $"Bersaglio sconosciuto: {targetId}."), null, null);
+        if (ProfileOf(actor).Attacks.FirstOrDefault(a => a.Name == attackName) is not { } attack)
+            return (CommandResult.Rejected(RejectionReason.UnknownAttack, $"{actor.Name} non ha l'attacco «{attackName}»."), null, null);
+        var e = EncounterOf(actor);
+        if (e is null && EncounterOf(target) is not null)
+            return (CommandResult.Rejected(RejectionReason.InCombat, $"{target.Name} sta già combattendo."), null, null);
+        if (e is not null)
+        {
+            if (!IsTurnOf(e, actor))
+                return (CommandResult.Rejected(RejectionReason.NotYourTurn, "Non è il tuo turno."), null, null);
+            if (CombatantOf(e, actor.Id).ActionUsed)
+                return (CommandResult.Rejected(RejectionReason.NoActionLeft, "Hai già usato l'azione in questo turno."), null, null);
+            if (EncounterOf(target) != e)
+                return (CommandResult.Rejected(RejectionReason.InCombat, $"{target.Name} non fa parte di questo scontro."), null, null);
+        }
+        var check = CheckAttack(e, actor, target, attack, nonLethal);
+        return check.Valid ? (null, attack, check) : (CommandResult.Rejected(check.Reason, check.Why!), null, null);
+    }
+
+    /// <summary>P2b: what an <see cref="AttackCommand"/> would be now, by the same checks; no dice, no state.</summary>
+    internal AttackPreview PreviewAttack(ActorId actorId, ActorId targetId, string attackName, bool nonLethal)
+    {
+        var (rejected, _, check) = GateAttack(actorId, targetId, attackName, nonLethal);
+        var actor = World.Actors.GetValueOrDefault(actorId);
+        var target = World.Actors.GetValueOrDefault(targetId);
+        return new AttackPreview
+        {
+            Valid = rejected is null, Reason = rejected?.Rejection ?? RejectionReason.None, Message = rejected?.Message ?? "",
+            Advantage = check?.Advantage ?? false, Disadvantage = check?.Disadvantage ?? false,
+            LongRange = check?.LongRange ?? false, AutoCritical = check?.AutoCritical ?? false,
+            From = actor is null ? null : CurrentSpot(actor), To = target is null ? null : CurrentSpot(target),
+        };
     }
 
     /// <summary>
@@ -427,8 +459,8 @@ internal sealed partial class Simulation
     }
 
     /// <summary>
-    /// Whether an attack can be made now, and how (SRD): melee within reach; ranged in sight, with Disadvantage beyond
-    /// the normal range or with a conscious enemy next to the attacker that sees it; Advantage against a target that
+    /// Whether an attack can be made now, and how (SRD): melee within reach; ranged in sight and, P2b, along a clear
+    /// straight line, with Disadvantage beyond the normal range or with a conscious enemy within 5 feet that sees it; Advantage against a target that
     /// does not see the attacker or is unconscious; every hit critical on an unconscious target within 5 feet. In C2
     /// only a target in sight can be attacked.
     /// </summary>
@@ -445,9 +477,8 @@ internal sealed partial class Simulation
         if (attack.Requires is { } weapon && attacker.Carried(weapon) == 0) // D1a: no weapon in hand, no attack with it
             return new(RejectionReason.NoWeapon, $"Non hai più: {World.Content.Item(weapon)?.Name ?? weapon}.");
         var map = World.Maps[attacker.MapArea!.Value];
-        var at = CurrentPosition(attacker)!.Value;
-        var there = CurrentPosition(target)!.Value;
-        var feet = at.StepsTo(there) * FeetPerSquare;
+        var from = CurrentSpot(attacker)!.Value;
+        var to = CurrentSpot(target)!.Value;
         bool disadvantage = false, longRange = false;
         if (attack.Melee)
         {
@@ -458,13 +489,17 @@ internal sealed partial class Simulation
         {
             if (nonLethal)
                 return new(RejectionReason.UnknownAttack, "Si può tramortire solo con un attacco in mischia.");
+            // P2b: the range from centre to centre, to the inch (along a row it is the squares' count; ADAPTATION: on a
+            // diagonal the true distance, not 5 feet a square); the shot flies straight and needs a clear line.
             var (normal, longest) = attack.Range!.Value;
-            if (feet > longest)
+            var inches = from.DistanceTo(to);
+            if (inches > longest * Spot.PerFoot)
                 return new(RejectionReason.TooFar, $"{target.Name} è oltre la gittata ({longest} piedi).");
-            longRange = feet > normal;
+            if (!SpotPlanner.LineClear(map, from, to))
+                return new(RejectionReason.NoLineOfFire, $"Non hai un tiro libero verso {target.Name}.");
+            longRange = inches > normal * Spot.PerFoot;
             var threats = e is null ? new[] { target } : EnemiesOf(e, attacker);
-            var closeCombat = threats.Any(foe => foe.Conscious && CurrentPosition(foe) is { } p && p.StepsTo(at) == 1
-                                                 && OpenDiagonal(map, p, at) && SeesActor(foe, attacker));
+            var closeCombat = threats.Any(foe => foe.Conscious && CurrentSpot(foe) is { } p && WithinFiveFeet(map, p, from) && SeesActor(foe, attacker));
             disadvantage = longRange || closeCombat;
         }
         // C3a, SRD Dodge: attacks against a dodging target that sees the attacker have Disadvantage.
@@ -473,7 +508,7 @@ internal sealed partial class Simulation
         return new(RejectionReason.None, null,
             Advantage: !SeesActor(target, attacker), // also an unconscious target: it sees nothing
             Disadvantage: disadvantage, LongRange: longRange,
-            AutoCritical: target.Vitality.Unconscious && feet <= FeetPerSquare);
+            AutoCritical: target.Vitality.Unconscious && WithinFiveFeet(map, from, to));
     }
 
     /// <summary>
@@ -484,6 +519,37 @@ internal sealed partial class Simulation
     /// </summary>
     internal static bool InReach(GridMap map, (GridPos Cell, Spot At) from, AttackProfile attack, (GridPos Cell, Spot At) to) =>
         from.At.DistanceTo(to.At) - 2 * SpotPlanner.BodyRadius <= attack.ReachFeet * Spot.PerFoot && SpotPlanner.LineClear(map, from.At, to.At);
+
+    /// <summary>
+    /// P2b: where a missed shot ends: aimed 24 inches beside the target's centre (beyond its body), on the side the
+    /// kept d20 sets (even to the left of the line, odd to the right: no second roll), and flown straight on to the first
+    /// solid thing or the long range, to the inch.
+    /// </summary>
+    private static Spot MissPoint(GridMap map, Spot from, Spot target, int kept, int longFeet)
+    {
+        double dx = target.X - from.X, dy = target.Y - from.Y, length = Math.Sqrt(dx * dx + dy * dy);
+        var side = kept % 2 == 0 ? 1 : -1;
+        double aimX = target.X - dy / length * 24 * side, aimY = target.Y + dx / length * 24 * side;
+        double ux = aimX - from.X, uy = aimY - from.Y, aim = Math.Sqrt(ux * ux + uy * uy);
+        Spot At(double along) => new((int)Math.Round(from.X + ux / aim * along, MidpointRounding.AwayFromZero),
+            (int)Math.Round(from.Y + uy / aim * along, MidpointRounding.AwayFromZero));
+        double clear = 0, blocked = longFeet * Spot.PerFoot;
+        if (SpotPlanner.LineClear(map, from, At(blocked)))
+            return At(blocked);
+        while (blocked - clear > 0.5)
+        {
+            var middle = (clear + blocked) / 2;
+            if (SpotPlanner.LineClear(map, from, At(middle)))
+                clear = middle;
+            else
+                blocked = middle;
+        }
+        return At(clear);
+    }
+
+    /// <summary>P2b: two bodies are within 5 feet of each other, edge to edge, with nothing solid between them.</summary>
+    private static bool WithinFiveFeet(GridMap map, Spot a, Spot b) =>
+        a.DistanceTo(b) - 2 * SpotPlanner.BodyRadius <= 5 * Spot.PerFoot && SpotPlanner.LineClear(map, a, b);
 
     /// <summary>P1b: where an actor stands now, as its square and its exact point.</summary>
     private (GridPos Cell, Spot At) StandingOf(Actor actor) => (CurrentPosition(actor)!.Value, CurrentSpot(actor)!.Value);
@@ -496,6 +562,11 @@ internal sealed partial class Simulation
         var check = CheckAttack(e, attacker, target, attack, nonLethal);
         var result = Attacks.Roll(World.Rng, attack, ProfileOf(target).ArmorClass, check.Advantage, check.Disadvantage, check.AutoCritical);
         var outcome = target.Vitality.TakeDamage(result.Damage, result.Critical, knockOut: nonLethal && attack.Melee);
+        // P2b: a shot flies straight from the attacker to its impact: the target if it hits, past it if it misses.
+        var map = World.Maps[e.Area];
+        Spot? shotFrom = attack.Melee ? null : CurrentSpot(attacker), shotTo = null;
+        if (shotFrom is { } origin)
+            shotTo = result.Hit ? CurrentSpot(target) : MissPoint(map, origin, CurrentSpot(target)!.Value, result.Roll.Kept, attack.Range!.Value.Long);
         if (attack.Item is { } item) // C3b: the javelin leaves the hand and lands by the target; the bolt is spent
         {
             attacker.Give(item, -1);
@@ -513,7 +584,7 @@ internal sealed partial class Simulation
         var seen = result.DescribeFor(attacker.IsPlayer ? AttackPerspective.Attacker : target.IsPlayer ? AttackPerspective.Target : AttackPerspective.Witness);
         Record(e, kind, attacker, target, (a, t) => $"{a} {how} {t}{extra}. {result.Describe()}.", result.Roll,
             attack: attack.Name, armorClass: result.TargetArmorClass, hit: result.Hit, critical: result.Critical, damage: result.Damage,
-            playerText: (a, t) => $"{a} {how} {t}{extra}. {seen}.");
+            playerText: (a, t) => $"{a} {how} {t}{extra}. {seen}.", shotFrom: shotFrom, shotTo: shotTo);
         var blow = World.RecordFact("Attack", $"{attacker.Name} {how} {target.Name}: {result.Describe()}.",
             $"{attacker.Name} {how} {target.Name}: {seen}.", Participants(attacker, target));
         LearnFrom(attacker, target, attack, result); // C5a
@@ -861,7 +932,8 @@ internal sealed partial class Simulation
     private void Record(Encounter e, CombatLogKind kind, Actor? actor, Actor? target, Func<string, string, string> text,
         D20Roll? roll = null, string? attack = null, int? armorClass = null, bool? hit = null, bool critical = false,
         int? damage = null, IReadOnlyList<GridPos>? path = null, IReadOnlyList<int>? d20 = null, int? kept = null,
-        Func<string, string, string>? playerText = null, IReadOnlyList<Spot>? spots = null, bool? sawMover = null)
+        Func<string, string, string>? playerText = null, IReadOnlyList<Spot>? spots = null, bool? sawMover = null,
+        Spot? shotFrom = null, Spot? shotTo = null)
     {
         var player = World.Actors[World.Player];
         bool Seen(Actor? x) => x is not null && (x.IsPlayer || SeesActor(player, x));
@@ -876,7 +948,7 @@ internal sealed partial class Simulation
             Round = e.Round, Kind = kind, Actor = actor?.Id, Target = target?.Id, Attack = attack,
             D20 = d20 ?? (roll is null ? Array.Empty<int>() : roll.Second is { } second ? new[] { roll.First, second } : new[] { roll.First }),
             Kept = kept ?? roll?.Kept, Bonus = roll?.Bonus, Total = roll?.Total, ArmorClass = armorClass, Hit = hit, Critical = critical,
-            Damage = damage, Path = path?.ToArray() ?? Array.Empty<GridPos>(), Spots = spots?.ToArray() ?? Array.Empty<Spot>(),
+            Damage = damage, Path = path?.ToArray() ?? Array.Empty<GridPos>(), Spots = spots?.ToArray() ?? Array.Empty<Spot>(), ShotFrom = shotFrom, ShotTo = shotTo,
             Text = text(actor?.Name ?? "", target?.Name ?? ""),
             PlayerText = perceived ? (playerText ?? text)(sawActor ? actor?.Name ?? "" : "Qualcuno", sawTarget ? target?.Name ?? "" : "qualcuno") : null,
             PlayerSawActor = sawActor, PlayerSawTarget = sawTarget,
@@ -955,7 +1027,9 @@ internal sealed partial class Simulation
                 Attack = r.Attack, D20 = r.Actor == player.Id ? r.D20 : Array.Empty<int>(), Kept = r.Actor == player.Id ? r.Kept : null,
                 Bonus = r.Actor == player.Id ? r.Bonus : null, Total = r.Actor == player.Id ? r.Total : null, ArmorClass = null, Hit = r.Hit,
                 Critical = r.Critical, Damage = r.Actor == player.Id || r.Target == player.Id ? r.Damage : null,
-                Path = r.PlayerSawActor ? r.Path : Array.Empty<GridPos>(), Spots = r.PlayerSawActor ? r.Spots : Array.Empty<Spot>(), Text = r.PlayerText!,
+                Path = r.PlayerSawActor ? r.Path : Array.Empty<GridPos>(), Spots = r.PlayerSawActor ? r.Spots : Array.Empty<Spot>(),
+                // P2b: the shot's origin only if the player saw who shot, its impact only if it saw the target.
+                ShotFrom = r.PlayerSawActor ? r.ShotFrom : null, ShotTo = r.PlayerSawTarget ? r.ShotTo : null, Text = r.PlayerText!,
             }).ToArray(),
         };
     }

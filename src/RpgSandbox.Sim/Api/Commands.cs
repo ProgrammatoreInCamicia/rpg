@@ -76,6 +76,17 @@ public sealed record DoorCommand : Command
     public required bool Open { get; init; }
 }
 
+/// <summary>
+/// P2b: open or shut the window between the squares <see cref="A"/> and <see cref="B"/>, standing in one of them with
+/// the body within 5 feet of it. Not in a fight (like a door).
+/// </summary>
+public sealed record WindowCommand : Command
+{
+    public required GridPos A { get; init; }
+    public required GridPos B { get; init; }
+    public required bool Open { get; init; }
+}
+
 /// <summary>Light a torch (it burns for 1 hour, SRD) or put out the one burning; a torch put out is spent.</summary>
 public sealed record TorchCommand : Command
 {
@@ -134,6 +145,11 @@ public enum RejectionReason
     // P1: free movement
     /// <summary>No room there for the walker's body: a wall, a closed space or someone standing too close.</summary>
     NoRoom,
+
+    // P2b: shots on real positions, windows
+    /// <summary>Something solid stands on the straight line from the attacker to the target (a wall, a closed door or window).</summary>
+    NoLineOfFire,
+    NotAWindow,
 }
 
 public sealed record CommandResult

@@ -67,7 +67,7 @@ internal sealed class SpotPlanner
             if (count == 1 || count == 2 && nw == se)
                 cornerPoints.Add((cy * Spot.PerSquare, cx * Spot.PerSquare));
         }
-        foreach (var edge in map.Edges.Where(e => e.Kind != MapEdgeKind.Door || closedDoorsBlock && map.IsClosedDoor(e.DoorAt!.Value)))
+        foreach (var edge in map.Boundaries.Where(e => e.Kind != MapEdgeKind.Door || closedDoorsBlock && map.IsClosedDoor(e.DoorAt!.Value)))
         {
             var (a, b) = Border(edge.A, edge.B);
             _walls.Add((a, b));
@@ -92,7 +92,7 @@ internal sealed class SpotPlanner
     }
 
     /// <summary>The border two adjacent squares share, as a segment from its top or left end.</summary>
-    private static (Spot A, Spot B) Border(GridPos a, GridPos b)
+    internal static (Spot A, Spot B) Border(GridPos a, GridPos b)
     {
         var lo = a.CompareTo(b) <= 0 ? a : b;
         return a.X != b.X
@@ -210,13 +210,18 @@ internal sealed class SpotPlanner
     }
 
     /// <summary>
-    /// P1b: nothing solid stands on the straight line between two points: no square one cannot stand in, no thin wall or
-    /// window, no closed door (a blow does not pass where a body does not; a window stops a blade). Touching a corner
-    /// counts as blocked, as two squares meeting at a corner do not let one reach across.
+    /// P1b: nothing solid stands on the straight line between two points: no square one cannot stand in, no thin wall, no
+    /// closed door or window (P2b: a blow or a shot passes an open window, a body never). Touching a corner counts as
+    /// blocked, as two squares meeting at a corner do not let one reach across. The line of a blow and of a shot.
     /// </summary>
     public static bool LineClear(GridMap map, Spot a, Spot b)
     {
-        foreach (var edge in map.Edges.Where(e => e.Kind != MapEdgeKind.Door || map.IsClosedDoor(e.DoorAt!.Value)))
+        foreach (var edge in map.Boundaries.Where(e => e.Kind switch
+                 {
+                     MapEdgeKind.Door => map.IsClosedDoor(e.DoorAt!.Value),
+                     MapEdgeKind.Window => !map.IsOpenWindow(e.A, e.B), // P2b: a blow or a shot passes an open window
+                     _ => true,
+                 }))
         {
             var (p, q) = Border(edge.A, edge.B);
             if (Intersect(a, b, p, q))

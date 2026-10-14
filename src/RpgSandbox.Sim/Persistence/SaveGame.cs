@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 26;
+    public const int SchemaVersion = 27;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -250,7 +250,7 @@ internal static class SaveGame
             Lights = m.Lights.Select(l => new LightDto { X = l.At.X, Y = l.At.Y, Bright = l.BrightFeet, Dim = l.DimFeet }).ToList(),
             Doors = m.Doors.Select(d => new DoorDto { X = d.Key.X, Y = d.Key.Y, Open = d.Value }).ToList(),
             Edges = m.Edges.Select(e => new MapEdgeDto { AX = e.A.X, AY = e.A.Y, BX = e.B.X, BY = e.B.Y,
-                Kind = e.Kind.ToString(), DoorX = e.DoorAt?.X, DoorY = e.DoorAt?.Y }).ToList(),
+                Kind = e.Kind.ToString(), DoorX = e.DoorAt?.X, DoorY = e.DoorAt?.Y, Open = e.Open }).ToList(),
             IndoorZones = m.IndoorZones.Select(z => z.Value).Order(StringComparer.Ordinal).ToList(),
             Explored = m.Explored.OrderBy(p => p.Y).ThenBy(p => p.X).Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
             Exits = m.Exits.Select(e => new ExitDto { Location = e.Key.Value, X = e.Value.X, Y = e.Value.Y }).ToList(),
@@ -437,6 +437,9 @@ internal static class SaveGame
                 Kind = Enum.TryParse<MapEdgeKind>(e.Kind, out var kind) && Enum.IsDefined(kind)
                     ? kind : throw new InvalidDataException($"tipo di confine sconosciuto '{e.Kind}'"),
                 DoorAt = e.DoorX is { } x && e.DoorY is { } y ? new GridPos(x, y) : null,
+                // P2b: before schema 27 a window had no state: closed.
+                Open = kind == MapEdgeKind.Window ? e.Open ?? (d.Version >= 27 ? throw new InvalidDataException("finestra senza stato") : false)
+                    : e.Open is null ? null : throw new InvalidDataException("stato aperto/chiuso su un confine che non è una finestra"),
             });
             var indoorZones = (m.IndoorZones ?? new()).Select(z => new LocationId(Required(z, "zona interna")));
             Check(m.Exits is not null && m.Exits.All(e => e is not null) && m.Posts is not null && m.Posts.All(p => p is not null),
@@ -963,6 +966,7 @@ internal static class SaveGame
             D20 = r.D20.ToList(), Kept = r.Kept, Bonus = r.Bonus, Total = r.Total, ArmorClass = r.ArmorClass, Hit = r.Hit,
             Critical = r.Critical, Damage = r.Damage, Path = r.Path.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
             Spots = r.Spots.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
+            ShotFrom = r.ShotFrom is { } f ? new PosDto { X = f.X, Y = f.Y } : null, ShotTo = r.ShotTo is { } s ? new PosDto { X = s.X, Y = s.Y } : null,
             Text = r.Text, PlayerText = r.PlayerText, PlayerSawActor = r.PlayerSawActor, PlayerSawTarget = r.PlayerSawTarget,
         }).ToList(),
     };
@@ -1037,7 +1041,8 @@ internal static class SaveGame
                     Target = r.Target is null ? null : new ActorId(r.Target), Attack = r.Attack, D20 = r.D20!.ToArray(), Kept = r.Kept,
                     Bonus = r.Bonus, Total = r.Total, ArmorClass = r.ArmorClass, Hit = r.Hit, Critical = r.Critical, Damage = r.Damage,
                     Path = r.Path!.Select(p => new GridPos(p!.X, p.Y)).ToArray(),
-                    Spots = (r.Spots ?? new()).Select(p => new Spot(p!.X, p.Y)).ToArray(), Text = r.Text!, PlayerText = r.PlayerText,
+                    Spots = (r.Spots ?? new()).Select(p => new Spot(p!.X, p.Y)).ToArray(),
+                    ShotFrom = r.ShotFrom is { } f ? new Spot(f.X, f.Y) : null, ShotTo = r.ShotTo is { } s ? new Spot(s.X, s.Y) : null, Text = r.Text!, PlayerText = r.PlayerText,
                     PlayerSawActor = r.PlayerSawActor, PlayerSawTarget = r.PlayerSawTarget,
                 });
             }

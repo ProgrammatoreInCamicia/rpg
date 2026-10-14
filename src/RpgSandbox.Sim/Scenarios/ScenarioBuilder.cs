@@ -242,7 +242,11 @@ public sealed class ScenarioBuilder
     {
         var map = MapOf(areaId, "edges");
         var at = doorAt is { } p ? new GridPos(p.X, p.Y) : (GridPos?)null;
-        map.Edges.Add(new MapEdgeView { A = new GridPos(a.X, a.Y), B = new GridPos(b.X, b.Y), Kind = kind, DoorAt = at });
+        map.Edges.Add(new MapEdgeView
+        {
+            A = new GridPos(a.X, a.Y), B = new GridPos(b.X, b.Y), Kind = kind, DoorAt = at,
+            Open = kind == MapEdgeKind.Window ? open : null, // P2b: a window starts open or closed
+        });
         if (kind == MapEdgeKind.Door && at is { } door)
             map.Doors.Add((door, open));
         return this;

@@ -11,4 +11,10 @@ public sealed record MapEdgeView
 
     /// <summary>The square used by DoorCommand; present only for a door boundary.</summary>
     public GridPos? DoorAt { get; init; }
+
+    /// <summary>
+    /// P2b: for a window, whether it is open (a shot or a blow passes it; sight and light always do, a body never);
+    /// null for any other boundary.
+    /// </summary>
+    public bool? Open { get; init; }
 }

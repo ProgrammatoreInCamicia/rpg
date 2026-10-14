@@ -298,6 +298,33 @@ internal sealed partial class Simulation
         return new CommandResult { Message = command.Open ? "Apri la porta." : "Chiudi la porta." };
     }
 
+    /// <summary>
+    /// P2b: opens or shuts a window, from one of its two squares with the body within 5 feet of it (reach, edge of the
+    /// body to the window). Outside fights, like a door; sight and light do not change, only shots and blows.
+    /// </summary>
+    private CommandResult UseWindow(WindowCommand command)
+    {
+        if (!World.Actors.TryGetValue(command.Actor, out var actor))
+            return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {command.Actor}.");
+        if (actor.CurrentAction is not null)
+            return CommandResult.Rejected(RejectionReason.ActorBusy, $"{actor.Name} è già impegnato.");
+        if (MapOf(actor) is not { } map || CurrentSpot(actor) is not { } here)
+            return CommandResult.Rejected(RejectionReason.NoMap, "Qui non ci sono finestre.");
+        if (!map.IsWindow(command.A, command.B))
+            return CommandResult.Rejected(RejectionReason.NotAWindow, "Lì non c'è una finestra.");
+        var (p, q) = SpotPlanner.Border(command.A, command.B);
+        if (here.Cell != command.A && here.Cell != command.B
+            || SpotPlanner.PointSegment(here, p, q) - SpotPlanner.BodyRadius > 5 * Spot.PerFoot)
+            return CommandResult.Rejected(RejectionReason.OutOfReach, "La finestra è troppo lontana: avvicinati.");
+        if (map.IsOpenWindow(command.A, command.B) == command.Open)
+            return CommandResult.Rejected(RejectionReason.AlreadyDone, command.Open ? "La finestra è già aperta." : "La finestra è già chiusa.");
+
+        map.SetWindow(command.A, command.B, command.Open);
+        World.RecordFact(command.Open ? "WindowOpened" : "WindowClosed",
+            $"{actor.Name} {(command.Open ? "apre" : "chiude")} la finestra fra {command.A} e {command.B}.", actor.Id);
+        return new CommandResult { Message = command.Open ? "Apri la finestra." : "Chiudi la finestra." };
+    }
+
     /// <summary>The square a walker steps into next, or null once it has arrived.</summary>
     private GridPos? NextSquare(MoveAction move)
     {

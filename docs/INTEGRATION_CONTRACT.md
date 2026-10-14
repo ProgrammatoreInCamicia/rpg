@@ -693,3 +693,37 @@ Decisione dell'utente: precisione vera. Un solo orologio della Sim, a tick.
   - `Path` (caselle) è filtrato allo stesso modo. Chi è visto in un punto qualsiasi della mossa ha l'`Actor` nella voce.
 - Salvataggio, schema 26: `LastSeenAt` (punto esatto) e gli `Spots` del registro. Dagli schemi precedenti
   `LastSeenEnemy` (casella) diventa il suo centro e le mosse vecchie non hanno `Spots`.
+
+## P2b: tiro su posizioni reali, linea di tiro dritta, finestre aperte e chiuse
+
+- **Gittata:** distanza fra i centri, in pollici, contro gittata × 12. Lungo righe e colonne coincide con le caselle; in
+  diagonale è la distanza vera (ADATTAMENTO: la griglia SRD conta 5 piedi per diagonale).
+- **Linea di tiro:** il segmento dal centro di chi tira al centro del bersaglio. La fermano muri, porte chiuse, caselle
+  solide e finestre chiuse; toccare uno spigolo blocca. Senza linea: rifiuto `NoLineOfFire` ("Non hai un tiro libero
+  verso X"). Serve anche vedere il bersaglio: vista e tiro sono due prove distinte (dietro una finestra chiusa lo vedi
+  ma non lo colpisci).
+- **Mischia:** la stessa linea (`SpotPlanner.LineClear`), quindi una finestra aperta lascia passare anche il colpo, una
+  chiusa no.
+- **Minaccia ravvicinata** (svantaggio al tiro) e **critico automatico** contro un incosciente: entro 5 piedi fra i
+  corpi (bordo a bordo, linea libera), non per caselle adiacenti.
+- **Le creature** sulla linea non la bloccano e non danno copertura: la copertura è un passo successivo.
+- **Finestre:**
+  - `MapEdgeView.Open`: per una finestra, aperta o chiusa; null per muri e porte.
+  - Lo scenario la dichiara con `AddEdge(..., MapEdgeKind.Window, open: …)` (chiusa per default; nel file `open`).
+  - Vista e luce passano sempre, il corpo mai.
+- **`WindowCommand { Actor, A, B, Open }`:**
+  - l'attore sta in A o in B, con il bordo del corpo entro 5 piedi dalla finestra;
+  - rifiuti: `NotAWindow`, `OutOfReach`, `AlreadyDone`, `ActorBusy`; in combattimento `InCombat`, come per le porte;
+  - fatti `WindowOpened`/`WindowClosed`; non interrompe la furtività.
+- **`SimulationSession.PreviewAttack(actor, target, attack, nonLethal)` → `AttackPreview`:**
+  - campi `Valid`, `Reason`, `Message`, `Advantage`, `Disadvantage`, `LongRange`, `AutoCritical`, `From`, `To`;
+  - stessi controlli di `AttackCommand` (`GateAttack`), nessun dado, nessuno stato.
+- **Il proiettile:** `CombatLogEntry.ShotFrom` e `ShotTo` (Spot?), solo per gli attacchi a distanza.
+  - `ShotFrom`: il centro di chi tira, pubblicato solo se il giocatore lo ha visto.
+  - `ShotTo`: pubblicato solo se il giocatore ha visto il bersaglio. Se il tiro colpisce, è il centro del bersaglio.
+    Se manca, la linea mira 24 pollici a lato del bersaglio e prosegue fino al primo ostacolo o alla gittata lunga. Il
+    lato è a sinistra se il d20 tenuto è pari, a destra se è dispari (nessun secondo tiro).
+  - Il client anima il segmento dritto; colpito o mancato lo decide il tiro (`Hit`).
+  - Il giavellotto a terra resta accanto al bersaglio, come prima.
+- **Salvataggio, schema 27:** lo stato delle finestre (`Open` nei bordi) e `ShotFrom`/`ShotTo` nel registro. Dagli
+  schemi precedenti le finestre sono chiuse.

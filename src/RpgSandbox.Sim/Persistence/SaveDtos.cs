@@ -366,6 +366,9 @@ internal sealed class MapEdgeDto
     public string Kind { get; set; } = "";
     public int? DoorX { get; set; }
     public int? DoorY { get; set; }
+
+    /// <summary>P2b (schema 27): for a window, whether it is open.</summary>
+    public bool? Open { get; set; }
 }
 
 internal sealed class LightDto
@@ -507,6 +510,10 @@ internal sealed class CombatRecordDto
 
     /// <summary>P2a (schema 26): the points of a move as the player saw them, in inches.</summary>
     public List<PosDto>? Spots { get; set; }
+
+    /// <summary>P2b (schema 27): a shot's flight, in inches.</summary>
+    public PosDto? ShotFrom { get; set; }
+    public PosDto? ShotTo { get; set; }
     public string Text { get; set; } = "";
     public string? PlayerText { get; set; }
     public bool PlayerSawActor { get; set; }

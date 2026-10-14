@@ -112,6 +112,10 @@ public sealed class SimulationSession
     /// <summary>P1: what a <see cref="MoveToSpotCommand"/> of <paramref name="actor"/> to <paramref name="to"/> would do (way, feet, seconds).</summary>
     public SpotMovePreview PreviewMoveToSpot(ActorId actor, Spot to, bool stealthy = false) => _sim.PreviewMoveToSpot(actor, to, stealthy);
 
+    /// <summary>P2b: whether an attack can be made now and how, by the same checks as <see cref="AttackCommand"/>.</summary>
+    public AttackPreview PreviewAttack(ActorId actor, ActorId target, string attack, bool nonLethal = false) =>
+        _sim.PreviewAttack(actor, target, attack, nonLethal);
+
     /// <summary>Writes a complete, self-contained snapshot of the game. Call between steps, never during one.</summary>
     public void Save(Stream stream)
     {

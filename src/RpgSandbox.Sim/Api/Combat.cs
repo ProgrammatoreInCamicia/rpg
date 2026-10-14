@@ -262,6 +262,14 @@ public sealed record CombatLogEntry
     /// </summary>
     public IReadOnlyList<Spot> Spots { get; init; } = Array.Empty<Spot>();
 
+    /// <summary>
+    /// P2b: for a ranged attack, the straight flight to animate: from the attacker's centre (only if the player saw who
+    /// shot) to where the shot ended (only if it saw the target): the target's centre on a hit; on a miss, past the
+    /// target on one side, to the first solid thing or the long range. The roll decides the hit, never the drawing.
+    /// </summary>
+    public Spot? ShotFrom { get; init; }
+    public Spot? ShotTo { get; init; }
+
     /// <summary>Ready-made text for the UI.</summary>
     public required string Text { get; init; }
 }
@@ -291,4 +299,23 @@ public sealed record ProvocationView
     public required int Step { get; init; }
     public required ActorId By { get; init; }
     public required string Name { get; init; }
+}
+
+/// <summary>
+/// P2b: what an <see cref="AttackCommand"/> would be now, by the same checks, without touching the world: no dice, no
+/// state. Whether it can be made (and why not), and how: Advantage, Disadvantage, long range, a sure critical.
+/// </summary>
+public sealed record AttackPreview
+{
+    public required bool Valid { get; init; }
+    public RejectionReason Reason { get; init; }
+    public string Message { get; init; } = "";
+    public bool Advantage { get; init; }
+    public bool Disadvantage { get; init; }
+    public bool LongRange { get; init; }
+    public bool AutoCritical { get; init; }
+
+    /// <summary>The line aimed along: from the attacker's centre to the target's.</summary>
+    public Spot? From { get; init; }
+    public Spot? To { get; init; }
 }

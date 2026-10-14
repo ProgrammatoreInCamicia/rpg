@@ -677,6 +677,10 @@ internal sealed class CombatRecord
 
     /// <summary>P2a: for a move, the points walked as the player saw them (all of them for the player's own).</summary>
     public IReadOnlyList<Spot> Spots { get; init; } = Array.Empty<Spot>();
+
+    /// <summary>P2b: for a shot, where it flew from (the attacker's centre) and where it ended (see the API).</summary>
+    public Spot? ShotFrom { get; init; }
+    public Spot? ShotTo { get; init; }
     public required string Text { get; init; }
 
     /// <summary>As the player perceived it, or null if it perceived nothing.</summary>

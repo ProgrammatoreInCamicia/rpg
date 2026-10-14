@@ -49,10 +49,13 @@ internal sealed class GridMap
                 || _cells[edge.A.X, edge.A.Y] == '#' || _cells[edge.B.X, edge.B.Y] == '#'
                 || !Enum.IsDefined(edge.Kind) || (edge.Kind == MapEdgeKind.Door) != (edge.DoorAt is not null)
                 || edge.DoorAt is { } doorAt && doorAt != edge.A && doorAt != edge.B
+                || edge.Open is not null && edge.Kind != MapEdgeKind.Window
                 || !_edges.TryAdd(EdgeKey(edge.A, edge.B), edge))
                 throw new InvalidDataException($"confine non valido nella mappa '{area}'");
             if (edge.DoorAt is { } at && !_edgeDoorCells.Add(at))
                 throw new InvalidDataException($"due porte sullo stesso quadrato in '{area}'");
+            if (edge.Kind == MapEdgeKind.Window && edge.Open == true)
+                _openWindows.Add(EdgeKey(edge.A, edge.B));
         }
         _occupied = occupied.ToHashSet();
         foreach (var cell in _occupied)
@@ -80,7 +83,31 @@ internal sealed class GridMap
     public int Width { get; }
     public int Height { get; }
     public IReadOnlyDictionary<char, LocationId> Zones { get; }
-    public IReadOnlyCollection<MapEdgeView> Edges => _edges.Values;
+    /// <summary>The thin boundaries, windows with their state now (P2b).</summary>
+    public IReadOnlyCollection<MapEdgeView> Edges =>
+        _edges.Select(e => e.Value.Kind == MapEdgeKind.Window ? e.Value with { Open = _openWindows.Contains(e.Key) } : e.Value).ToList();
+
+    /// <summary>The thin boundaries as built, for geometry (a window's state: <see cref="IsOpenWindow"/>).</summary>
+    public IReadOnlyCollection<MapEdgeView> Boundaries => _edges.Values;
+
+    /// <summary>P2b: the windows open now (a window is closed unless listed).</summary>
+    private readonly HashSet<(GridPos, GridPos)> _openWindows = new();
+
+    /// <summary>P2b: the window between two adjacent squares, if there is one.</summary>
+    public bool IsWindow(GridPos a, GridPos b) => _edges.TryGetValue(EdgeKey(a, b), out var edge) && edge.Kind == MapEdgeKind.Window;
+
+    public bool IsOpenWindow(GridPos a, GridPos b) => _openWindows.Contains(EdgeKey(a, b));
+
+    /// <summary>P2b: opens or shuts a window. Sight and light do not change (they always pass a window).</summary>
+    public void SetWindow(GridPos a, GridPos b, bool open)
+    {
+        if (!IsWindow(a, b))
+            throw new InvalidOperationException($"nessuna finestra fra {a} e {b}");
+        if (open)
+            _openWindows.Add(EdgeKey(a, b));
+        else
+            _openWindows.Remove(EdgeKey(a, b));
+    }
     public IReadOnlyCollection<LocationId> IndoorZones => _indoorZones;
     public HashSet<GridPos> Explored { get; } = new();
     public bool UsesExploration => _indoorZones.Count > 0;
