@@ -633,7 +633,8 @@ public partial class VillageMap : Node2D
 		_sneakToggle.SetPressedNoSignal(_sneak);
 		// Resume a walk or activity that was in progress when saving.
 		var view = _sim.GetPlayerView();
-		_seenCombatVisuals = view.Combat?.Log.Count ?? 0;
+		_seenCombatVisuals = view.Combat?.Log.Count ?? view.LastFight?.Count ?? 0;
+		_observingLastFight = view.Combat is null && view.LastFight is not null;
 		_running = view.Action?.Id;
 		_walking = view.Move is not null;
 		_speed = Math.Max(1, (view.Action?.CompletesAt.Since(view.Action.StartedAt).Seconds ?? 1) / MaxActivityRealSeconds);
@@ -650,7 +651,7 @@ public partial class VillageMap : Node2D
 	{
 		_view = _sim.GetPlayerView();
 		_spotPreviewAt = null; // doors, light and newly explored squares can change a route within one second
-		if (_view.Combat is null)
+		if (_view.Combat is null && _view.LastFight is null)
 			_combatVisualTracks.Clear();
 		if (_view.Combat is not null)
 		{
@@ -821,7 +822,7 @@ public partial class VillageMap : Node2D
 				_sorted.AddChild(token);
 			}
 			var previousPosition = token.Position;
-			token.Position = _view.Combat is not null && CombatVisualPosition(figure.Id) is { } visual
+			token.Position = CombatVisualPosition(figure.Id) is { } visual
 				? visual : AuthoritativePosition(figure.Position.Value, figure.Spot);
 			token.Modulate = Shade(ScreenToCell(token.Position));
 			var prone = figure.Condition is "morto" or "tramortito"

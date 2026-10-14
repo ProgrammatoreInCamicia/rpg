@@ -12,6 +12,7 @@ public partial class VillageMap
 	private readonly Dictionary<ActorId, double> _attackVisualUntil = new();
 	private readonly Dictionary<ActorId, double> _hitVisualUntil = new();
 	private int _seenCombatVisuals;
+	private bool _observingLastFight;
 	private Texture2D? _roadTexture;
 	private Texture2D? _woodTexture;
 	private Texture2D? _grassTexture;
@@ -186,16 +187,21 @@ public partial class VillageMap
 
 	private void ObserveCombatVisuals()
 	{
-		if (_view.Combat is not { } combat)
+		var lastFight = _view.Combat is null && _view.LastFight is not null;
+		var log = _view.Combat?.Log ?? _view.LastFight;
+		if (log is null)
 		{
 			_seenCombatVisuals = 0;
+			_observingLastFight = false;
 			return;
 		}
-		if (combat.Log.Count < _seenCombatVisuals)
+		// Combat.Log becomes LastFight with its old entries intact plus the final ones.
+		// A fresh Combat after LastFight instead begins a new register.
+		if ((!lastFight && _observingLastFight) || log.Count < _seenCombatVisuals)
 			_seenCombatVisuals = 0;
 		var now = Time.GetTicksMsec() / 1000.0;
 		var lastNpcMoves = new Dictionary<ActorId, CombatLogEntry>();
-		foreach (var entry in combat.Log.Skip(_seenCombatVisuals))
+		foreach (var entry in log.Skip(_seenCombatVisuals))
 		{
 			if (entry.Kind == CombatLogKind.Move && entry.Actor is { } mover && mover != _view.Id)
 				lastNpcMoves[mover] = entry;
@@ -220,7 +226,8 @@ public partial class VillageMap
 				continue;
 			StartCombatVisual(actor, move.Spots);
 		}
-		_seenCombatVisuals = combat.Log.Count;
+		_seenCombatVisuals = log.Count;
+		_observingLastFight = lastFight;
 	}
 
 	internal bool HasFigureSpriteForSmoke(ActorId id) => _tokens.TryGetValue(id, out var token)

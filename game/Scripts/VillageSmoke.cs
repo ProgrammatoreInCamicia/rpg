@@ -667,6 +667,12 @@ public partial class VillageSmoke : Node
 			await Frames(3); // the client advances NextRoundAt between rounds
 		}
 		Require(_map.View.Combat is null || _map.View.Dead, "G11: duel did not reach an ending");
+		var lastFight = _map.View.LastFight;
+		Require(lastFight is { Count: > 0 } && lastFight[^1].Kind == CombatLogKind.Ended,
+			"P2b: the final public fight log is unavailable after combat ends");
+		var finalAttack = lastFight!.LastOrDefault(e => e.Kind is CombatLogKind.Attack or CombatLogKind.OpportunityAttack);
+		Require(finalAttack?.Actor is { } finalAttacker && _map.AttackVisualActiveForSmoke(finalAttacker),
+			"P2b: the final attack did not animate from LastFight");
 		Require(highestRound >= 2 && _map.View.Now > beforeLoad.Now,
 			"G11: the client did not advance time between combat rounds");
 		Require(woundedCaptured, "G11: no screenshot of a wounded raider");
@@ -674,6 +680,11 @@ public partial class VillageSmoke : Node
 			&& _map.LevelExperienceTextForSmoke.Contains("Esperienza 25 / 300"),
 			"C5b: defeating the raider did not update the experience shown in the HUD");
 		Capture("30-duel-end.png");
+		var endedSave = System.IO.Path.Combine(_outputDir, "duel-ended.json");
+		_map.SaveGameToPath(endedSave);
+		_map.LoadGameFromPath(endedSave);
+		Require(_map.View.LastFight?.Count == lastFight!.Count && !_map.ShotVisualActiveForSmoke,
+			"P2b: loading the ended fight lost its log or replayed an old shot");
 	}
 
 	/// <summary>G10: typed C2 data exercises the real village HUD before encounters are wired to the Sim.</summary>

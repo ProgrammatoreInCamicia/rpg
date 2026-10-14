@@ -411,24 +411,10 @@ public partial class VillageMap
 	private void ExecuteCombatAttack(TargetView target)
 	{
 		_combatVisualTracks.Clear();
-		var finishingShot = PreviewVisibleShot(target.Target, target.Attack, _combatNonLethal.ButtonPressed);
 		var result = _sim.Execute(new AttackCommand { Actor = _sim.Player, Target = target.Target,
 			Attack = target.Attack, NonLethal = _combatNonLethal.ButtonPressed && IsMeleeAttack(target.Attack) });
-		ShowFinishingShot(finishingShot, result);
 		ShowMessage(result.Message);
 		Refresh();
-	}
-
-	private AttackPreview? PreviewVisibleShot(ActorId target, string attack, bool nonLethal) =>
-		IsMeleeAttack(attack) ? null : _sim.PreviewAttack(_sim.Player, target, attack, nonLethal);
-
-	private void ShowFinishingShot(AttackPreview? shot, CommandResult result)
-	{
-		// An encounter can end on this attack, removing its log from the next PlayerView.
-		// A successful ranged finishing blow hits the target, so the aimed centre is its resolved impact.
-		if (result.Success && _sim.GetPlayerView().Combat is null
-			&& shot is { Valid: true, From: { } from, To: { } to })
-			StartShotVisual(from, to);
 	}
 
 	private void ExecuteCombatAction(CombatAction action)
@@ -500,7 +486,6 @@ public partial class VillageMap
 		if (_openingTarget is not { } target || _openingConfirmedAttack is not { } attack)
 			return;
 		_openingPanel.Visible = false;
-		var finishingShot = PreviewVisibleShot(target, attack, _openingConfirmedNonLethal);
 		var result = _sim.Execute(new AttackCommand { Actor = _sim.Player, Target = target,
 			Attack = attack, NonLethal = _openingConfirmedNonLethal });
 		if (result.Rejection == RejectionReason.TooFar
@@ -513,17 +498,14 @@ public partial class VillageMap
 			}
 			return;
 		}
-		ShowFinishingShot(finishingShot, result);
 		ShowMessage(result.Message);
 		Refresh();
 	}
 
 	private void FinishApproachAttack((ActorId Target, string Attack, bool NonLethal) pending)
 	{
-		var finishingShot = PreviewVisibleShot(pending.Target, pending.Attack, pending.NonLethal);
 		var result = _sim.Execute(new AttackCommand { Actor = _sim.Player, Target = pending.Target,
 			Attack = pending.Attack, NonLethal = pending.NonLethal });
-		ShowFinishingShot(finishingShot, result);
 		ShowMessage(result.Message);
 		Refresh();
 	}
