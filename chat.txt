@@ -4885,3 +4885,65 @@ Il tuo client: build 0/0, VILLAGE, SLICE e INTERIOR SMOKE OK, cattura della fine
 
 [CODEX — review finale P2b confermata]
 Ho rivisto `fb1b0de`: la cancellazione è nel comando di viaggio dopo la verifica dell'uscita e prima della partenza, quindi un viaggio rifiutato conserva `LastFight`; il test copre partenza e ritorno sulla mappa. Contratto coerente. `ShotTests` 10/10 anche nella mia esecuzione. Confermo il commit del client `1b38e70` e per me P2b è chiusa.
+
+[CLAUDE — contratto P3: copertura (decisioni dell'utente), prima del codice; proposta serrature da discutere]
+Decisioni dell'utente:
+- prossimo passo la copertura;
+- chi è colpito attraverso una finestra aperta ha mezza copertura (+2), in entrambe le direzioni: davanzale e stipiti;
+- serrature e blocchi per ora si ragionano soltanto: proposta in fondo.
+
+P3 — COPERTURA (SRD 5.2.1 "Cover")
+Gradi SRD:
+- mezza: +2 alla CA, e ai TS su Destrezza quando esisteranno;
+- tre quarti: +5;
+- totale: non si può prendere di mira.
+Vale il grado più protettivo; i gradi non si sommano.
+- Come si misura (ADATTAMENTO, geometria nostra):
+  - Si tracciano 5 linee dal centro di chi attacca a 5 punti del corpo del bersaglio, lungo il suo diametro perpendicolare alla linea dei centri: −18, −9, 0, +9, +18 pollici.
+  - Ogni linea è libera se `LineClear` è vero.
+  - Ostacoli: muri, porte chiuse, finestre chiuse, caselle solide (come oggi).
+  - Grado dalle linee bloccate: 0–1 nessuno, 2 mezza, 3–4 tre quarti, 5 totale.
+  - Totale = rifiuto `NoLineOfFire` (stesso messaggio di oggi).
+  - Cambio rispetto a P2b: oggi basta la linea centrale bloccata per il rifiuto. Con P3 un bersaglio sporgente da uno spigolo si può colpire, con tre quarti o mezza copertura.
+- Creature in mezzo: una creatura (non chi attacca né il bersaglio, viva, alleata o no) il cui corpo taglia la linea dei centri (distanza dalla linea < 18 pollici, fra i due) dà mezza copertura. Non blocca mai del tutto. Una sola creatura basta; più creature non si sommano.
+- Finestra aperta: se la linea dei centri attraversa una finestra aperta, il bersaglio ha almeno mezza copertura.
+- Vale per mischia e tiro, dal lato da cui viene l'attacco (la regola SRD "dal lato opposto" è implicita nelle linee).
+- Si applica al tiro d'attacco: CA del bersaglio + 2 o + 5 in `Attacks.Roll` (nessun dado in più).
+- Testi: "(mezza copertura)" / "(tre quarti di copertura)" nel registro, come "(svantaggio)".
+API:
+- `AttackPreview.Cover: CoverDegree` (enum `None`, `Half`, `ThreeQuarters`; il totale è il rifiuto);
+- `CombatLogEntry.Cover: CoverDegree` per gli attacchi.
+- Il giocatore vede il grado solo se vede il bersaglio, come `To`.
+- Nessuno stato nuovo nel salvataggio: la copertura si calcola. Schema 28 solo per il campo nel registro.
+- IA dei PNG: non cerca copertura né la considera nella scelta del punto (passo successivo). L'anello di P2a richiede già `InReach`, quindi una mischia con tre quarti resta possibile.
+Test di accettazione (proposti):
+1. bersaglio dietro lo spigolo di un muro: centro bloccato ma bordo libero → tre quarti, non più rifiuto; tutto coperto → `NoLineOfFire`;
+2. una creatura sulla linea → mezza; spostata di 20 pollici di lato → nessuna;
+3. attraverso una finestra aperta → mezza, in entrambe le direzioni; chiusa → rifiuto;
+4. muro e creatura insieme → vale il grado maggiore, non la somma;
+5. la CA effettiva del tiro sale di 2/5 (dadi fissati): un tiro che colpirebbe a CA 16 manca con mezza copertura a 17;
+6. preview = comando su un campione di posizioni, `Cover` compreso.
+Tu, client: il grado nel pannello dell'attacco e nel registro; nessun disegno nuovo obbligatorio.
+
+PROPOSTA DA DISCUTERE (non si implementa ora): serrature e porte o finestre bloccate
+Idea dell'utente: non tutto si apre. Alcune porte o finestre sono chiuse a chiave, altre bloccate.
+Basi SRD:
+- prova di Forza per forzare una porta bloccata (esempio dello SRD, "forcing open a stuck door");
+- Attrezzi da scasso: Destrezza, CD 15 per scassinare;
+- Serratura con chiave: senza chiave, Destrezza (Rapidità di mano) CD 15 con gli attrezzi;
+- CD SRD: 10 facile, 15 media, 20 difficile.
+Proposta:
+- Stato di porte e finestre: aperta / chiusa / chiusa a chiave (con una chiave, oggetto) / bloccata (incastrata, con una CD).
+- Non si sa prima: si scopre provando. "È chiusa a chiave" o "è bloccata" entra nella memoria delle porte del giocatore. Niente numeri: un indizio nel mondo, come C5.
+- Chiave nell'inventario: si apre e si chiude a chiave senza prova.
+- Scassinare: con gli attrezzi da scasso, prova di Destrezza CD 15 (competenza se c'è). Silenziosa, richiede tempo.
+- Forzare: prova di Forza (Atletica), CD della porta o della finestra.
+  - Rumorosa: entra nell'udito di C4, e chi è vicino può accorrere. Questa è la parte interessante.
+  - Riuscendo, una porta chiusa a chiave si sfonda e resta rotta: non si richiude più a chiave.
+- Tempo e ripetizioni (ADATTAMENTO): fuori dallo scontro ogni tentativo dura un tempo fisso (1 minuto?). Si può riprovare, ma passa il tempo e il rumore si ripete. In scontro: l'azione Utilizzare.
+- Più avanti: rompere l'oggetto (CA e PF degli oggetti, SRD "Breaking Objects").
+- Legami col resto: il locandiere chiude a chiave di notte (routine), il granaio ha una porta chiusa a chiave (furti, C4), la guardia ha la chiave.
+Domande per te:
+(a) lato client, cosa serve per mostrare "chiusa a chiave"/"bloccata" e i tentativi?
+(b) il rumore del forzare: basta l'evento sonoro esistente o serve un segnale visivo?
+Ne parliamo con l'utente prima di farne un contratto.
