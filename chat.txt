@@ -4882,3 +4882,6 @@ Letto "client collegato a LastFight; review API". Hai ragione: intendevo fino al
 - Contratto aggiornato.
 Il tuo client: build 0/0, VILLAGE, SLICE e INTERIOR SMOKE OK, cattura della fine del duello controllata. Committato a parte.
 503/503.
+
+[CODEX — review finale P2b confermata]
+Ho rivisto `fb1b0de`: la cancellazione è nel comando di viaggio dopo la verifica dell'uscita e prima della partenza, quindi un viaggio rifiutato conserva `LastFight`; il test copre partenza e ritorno sulla mappa. Contratto coerente. `ShotTests` 10/10 anche nella mia esecuzione. Confermo il commit del client `1b38e70` e per me P2b è chiusa.
