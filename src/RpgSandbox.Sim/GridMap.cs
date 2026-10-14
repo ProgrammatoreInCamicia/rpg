@@ -178,6 +178,8 @@ internal sealed class GridMap
         if (!_doors.ContainsKey(p))
             throw new InvalidOperationException($"nessuna porta in {p}");
         _doors[p] = open;
+        _daylight.Clear(); // a door opened or shut changes what can be seen, and what daylight reaches
+        _sight.Clear();
     }
 
     /// <summary>
@@ -207,6 +209,8 @@ internal sealed class GridMap
             return Light.Dark;
         if (ZoneAt(square) is not { } zone || !_indoorZones.Contains(zone))
             return outside;
+        if (_daylight.TryGetValue((square, outside), out var known))
+            return known;
         var best = Light.Dark;
         for (var y = Math.Max(0, square.Y - 3); y <= Math.Min(Height - 1, square.Y + 3); y++)
         for (var x = Math.Max(0, square.X - 3); x <= Math.Min(Width - 1, square.X + 3); x++)
@@ -220,8 +224,11 @@ internal sealed class GridMap
             if (level > best)
                 best = level;
         }
-        return best;
+        return _daylight[(square, outside)] = best;
     }
+
+    /// <summary>Daylight on indoor squares, by the light outside; it depends only on the walls and the doors.</summary>
+    private readonly Dictionary<(GridPos, Light), Light> _daylight = new();
 
     /// <summary>A step from <paramref name="from"/> to the adjacent <paramref name="to"/> does not squeeze past a blocked corner.</summary>
     public bool DiagonalOpen(GridPos from, GridPos to) => StepOpen(from, to, sight: false, requireDestinationWalkable: false);
@@ -246,7 +253,16 @@ internal sealed class GridMap
     /// ADAPTATION: line of sight along a Bresenham line between square centres, blocked by walls and by diagonal
     /// steps squeezing between two walls. Symmetric: clear if the line is clear in either direction.
     /// </summary>
-    public bool HasLineOfSight(GridPos a, GridPos b) => ClearLine(a, b) || ClearLine(b, a);
+    public bool HasLineOfSight(GridPos a, GridPos b)
+    {
+        var key = EdgeKey(a, b);
+        if (!_sight.TryGetValue(key, out var clear))
+            _sight[key] = clear = ClearLine(a, b) || ClearLine(b, a);
+        return clear;
+    }
+
+    /// <summary>Lines of sight already traced (symmetric); they change only when a door does.</summary>
+    private readonly Dictionary<(GridPos, GridPos), bool> _sight = new();
 
     private bool ClearLine(GridPos from, GridPos to)
     {

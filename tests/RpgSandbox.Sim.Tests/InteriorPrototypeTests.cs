@@ -24,6 +24,24 @@ public class InteriorPrototypeTests
     }
 
     [Fact]
+    public void Daylight_indoors_follows_the_door_as_it_opens_and_shuts_again_after_being_looked_up()
+    {
+        // Daylight and sight are remembered per map (village speed-up): opening or shutting a door must forget them.
+        var map = House().Engine.World.Maps[InteriorPrototypeScenario.Area];
+        var indoors = Enumerable.Range(0, map.Height).SelectMany(y => Enumerable.Range(0, map.Width).Select(x => new GridPos(x, y)))
+            .Where(p => map.ZoneAt(p) is { } z && map.IndoorZones.Contains(z)).ToList();
+        string Daylight() => string.Concat(indoors.Select(p => (int)map.DaylightOn(p, Light.Bright)));
+
+        var shut = Daylight();
+        map.SetDoor(InteriorPrototypeScenario.Door, !map.Doors[InteriorPrototypeScenario.Door]);
+        var other = Daylight();
+        map.SetDoor(InteriorPrototypeScenario.Door, !map.Doors[InteriorPrototypeScenario.Door]);
+
+        Assert.NotEqual(shut, other);
+        Assert.Equal(shut, Daylight());
+    }
+
+    [Fact]
     public void Window_admits_sight_and_daylight_but_not_movement()
     {
         var s = House();
