@@ -58,29 +58,27 @@ public static class MappedVillageScenario
     };
 
     /// <summary>
-    /// G4 layout for the living village. The original 24-by-11 map above remains the T6a/T6b regression scenario;
-    /// its first ten rows and fixture coordinates are retained here. The southern extension adds a walled farmhouse
-    /// with an east-facing door; E is the road exit to the unmapped forest. The store's only access is west of it,
-    /// where the guard can stand nearby without occupying the access square.
+    /// Living village. The inn and farmhouse use thin edges around walkable floor; the granary yard stays open.
+    /// The old 24-by-11 Map remains the T6a/T6b regression fixture, and the village posts keep their coordinates.
     /// </summary>
     public static readonly IReadOnlyList<string> LivingMap = new[]
     {
-        "########################",
-        "#IIIIII#...............#",
-        "#IIIIII#...............#",
-        "#IIIIII................#",
-        "#IIIIII#.....GGGGGGGG..#",
-        "########.....GGGGGGGG..#",
+        "........################",
+        ".IIIIII................#",
+        ".IIIIII................#",
+        ".IIIIII................#",
+        ".IIIIII......GGGGGGGG..#",
+        ".............GGGGGGGG..#",
         "#............GGGGGGGG..#",
         "#............GGGGGGGG..#",
         "#............GGGGGGGG..#",
         "#......................#",
         "#......................#",
-        "#########..............#",
-        "#HHHHHHH#.............EE",
-        "#HHHHHHH...............#",
-        "#HHHHHHH#..............#",
-        "#########..............#",
+        ".......................#",
+        ".HHHHHHH..............EE",
+        ".HHHHHHH...............#",
+        ".HHHHHHH...............#",
+        ".......................#",
         "########################",
     };
 
@@ -107,8 +105,9 @@ public static class MappedVillageScenario
     /// G4: the village used by the live client and the T6c routines. This is a separate scenario so T6a/T6b tests
     /// keep exercising their original small map.
     /// </summary>
-    public static Scenario CreateLivingVillage() =>
-        new ScenarioBuilder()
+    public static Scenario CreateLivingVillage()
+    {
+        var b = new ScenarioBuilder()
             .AddArea(Ids.Village.Value, "Villaggio")
             .AddArea(Ids.Forest.Value, "Bosco")
             .AddLocation(Ids.Inn.Value, "Locanda", Ids.Village.Value)
@@ -131,8 +130,8 @@ public static class MappedVillageScenario
             .AddPost(Ids.Village.Value, Ids.Granary.Value, PostKind.Guard, (Ids.GuardPost.X, Ids.GuardPost.Y))
             .AddLight(Ids.Village.Value, (Ids.InnLamp.X, Ids.InnLamp.Y), brightFeet: 15, dimFeet: 30)
             .AddLight(Ids.Village.Value, (Ids.HouseLamp.X, Ids.HouseLamp.Y), brightFeet: 10, dimFeet: 15)
-            .AddDoor(Ids.Village.Value, (Ids.InnDoor.X, Ids.InnDoor.Y), open: true)
-            .AddDoor(Ids.Village.Value, (Ids.HouseDoor.X, Ids.HouseDoor.Y), open: false)
+            .AddInterior(Ids.Village.Value, Ids.Inn.Value)
+            .AddInterior(Ids.Village.Value, Ids.FarmerHouse.Value)
             .AddFaction(Ids.VillageFaction.Value, "Villaggio", homeStoreId: Ids.GranaryStore.Value, authorityId: Ids.Guard.Value)
             .AddRaidingFaction(Ids.Bandits.Value, "Banditi", homeStoreId: Ids.CampStore.Value, // T6c-3: as in the slice
                 dailyUpkeep: 6, upkeepTimeOfDay: Duration.FromHours(8),
@@ -152,6 +151,37 @@ public static class MappedVillageScenario
                 workLocationId: Ids.Granary.Value, shiftStart: Duration.FromHours(13), shiftEnd: Duration.FromHours(18), // T6c-2
                 build: "farmer", at: (Ids.FarmerHome.X, Ids.FarmerHome.Y))
             .AddActor(Ids.Raider.Value, "Razziatore", Ids.BanditCamp.Value, factionId: Ids.Bandits.Value,
-                build: "raider")
-            .Build();
+                build: "raider");
+
+        // The doors keep the same clickable squares as the old layout, but occupy a boundary instead of a tile.
+        for (var x = 1; x <= 6; x++)
+        {
+            b.AddEdge(Ids.Village.Value, (x, 0), (x, 1), x == 3 ? MapEdgeKind.Window : MapEdgeKind.Wall);
+            b.AddEdge(Ids.Village.Value, (x, 4), (x, 5), MapEdgeKind.Wall);
+        }
+        for (var y = 1; y <= 4; y++)
+        {
+            b.AddEdge(Ids.Village.Value, (0, y), (1, y), MapEdgeKind.Wall);
+            b.AddEdge(Ids.Village.Value, (6, y), (7, y), y switch
+            {
+                3 => MapEdgeKind.Door,
+                _ => MapEdgeKind.Wall,
+            }, y == 3 ? (7, y) : null, open: y == 3);
+        }
+        for (var x = 1; x <= 7; x++)
+        {
+            b.AddEdge(Ids.Village.Value, (x, 11), (x, 12), x == 4 ? MapEdgeKind.Window : MapEdgeKind.Wall);
+            b.AddEdge(Ids.Village.Value, (x, 14), (x, 15), x == 3 ? MapEdgeKind.Window : MapEdgeKind.Wall);
+        }
+        for (var y = 12; y <= 14; y++)
+        {
+            b.AddEdge(Ids.Village.Value, (0, y), (1, y), MapEdgeKind.Wall);
+            b.AddEdge(Ids.Village.Value, (7, y), (8, y), y == 13 ? MapEdgeKind.Door : MapEdgeKind.Wall,
+                y == 13 ? (8, y) : null);
+        }
+        // A short partition gives the farmhouse a second room and a real corner to look around.
+        b.AddEdge(Ids.Village.Value, (4, 12), (5, 12), MapEdgeKind.Wall);
+        b.AddEdge(Ids.Village.Value, (4, 14), (5, 14), MapEdgeKind.Wall);
+        return b.Build();
+    }
 }

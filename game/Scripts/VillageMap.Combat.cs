@@ -202,7 +202,7 @@ public partial class VillageMap
 		_combatChange.Text = combat.Log.LastOrDefault(e => e.Kind is CombatLogKind.Joined or CombatLogKind.Fled) is { } change
 			? $"Ingresso/fuga: {change.Text}" : "";
 		_combatSelf.Text = $"Tu: {combat.You.HitPoints}/{combat.You.MaxHitPoints} PF · {(combat.You.KnockedOut ? "tramortito" : LifeName(combat.You.State))}"
-			+ (_freeMovementPrototype
+			+ (_freeMovementEnabled
 				? $"\nMovimento: {Math.Floor(combat.You.MovementLeftInches / (double)Spot.PerFoot * 10) / 10:0.0} piedi"
 				: $"\nMovimento: {combat.You.MovementLeftFeet} piedi ({combat.You.SquaresLeft} caselle)")
 			+ $" · Azione: {(combat.You.ActionAvailable ? "pronta" : "usata")}"
@@ -290,7 +290,7 @@ public partial class VillageMap
 	private void DrawCombatOverlay()
 	{
 		ClearCombatOverlay();
-		if (_freeMovementPrototype || _view.Combat is not { } combat)
+		if (_freeMovementEnabled || _view.Combat is not { } combat)
 			return;
 		foreach (var square in combat.Reachable.Where(s => s.At != _view.Position))
 			_combatOverlay.AddChild(new Polygon2D { Polygon = Diamond(0.72f), Position = CellToScreen(square.At),
@@ -316,7 +316,7 @@ public partial class VillageMap
 
 	private void UpdateCombatHover()
 	{
-		if (_freeMovementPrototype || _view.Combat is not { IsYourTurn: true } combat || _view.Position is null)
+		if (_freeMovementEnabled || _view.Combat is not { IsYourTurn: true } combat || _view.Position is null)
 			return;
 		var cell = ScreenToCell(GetGlobalMousePosition());
 		if (_hoveredCombatCell == cell)
@@ -338,7 +338,7 @@ public partial class VillageMap
 		var pending = combat.PendingOpeningAttack is { } opening
 			? $"\nAttacco iniziale in attesa: {opening.Attack}." : "";
 		return (combat.IsYourTurn
-			? _freeMovementPrototype
+			? _freeMovementEnabled
 				? "Passa il mouse sul pavimento per vedere il percorso; clicca per muoverti."
 				: "Passa il mouse su una casella verde per vedere il percorso; clicca per muoverti."
 			: "Attendi il tuo turno.") + pending;
@@ -368,7 +368,7 @@ public partial class VillageMap
 			PickUp(item);
 			return true;
 		}
-		if (_freeMovementPrototype)
+		if (_freeMovementEnabled)
 			ExecuteCombatSpotMove(ScreenToSpot(point));
 		else
 			MoveTo(ScreenToCell(point));
@@ -404,7 +404,7 @@ public partial class VillageMap
 
 	private void ExecuteCombatAttack(TargetView target)
 	{
-		_combatVisualWay = null;
+		_combatVisualTracks.Clear();
 		var result = _sim.Execute(new AttackCommand { Actor = _sim.Player, Target = target.Target,
 			Attack = target.Attack, NonLethal = _combatNonLethal.ButtonPressed && IsMeleeAttack(target.Attack) });
 		ShowMessage(result.Message);
@@ -413,7 +413,7 @@ public partial class VillageMap
 
 	private void ExecuteCombatAction(CombatAction action)
 	{
-		_combatVisualWay = null;
+		_combatVisualTracks.Clear();
 		var result = _sim.Execute(new CombatActionCommand { Actor = _sim.Player, Action = action });
 		ShowMessage(result.Message);
 		Refresh();
@@ -421,7 +421,7 @@ public partial class VillageMap
 
 	private void EndCombatTurn()
 	{
-		_combatVisualWay = null;
+		_combatVisualTracks.Clear();
 		var result = _sim.Execute(new EndTurnCommand { Actor = _sim.Player });
 		ShowMessage(result.Message);
 		Refresh();

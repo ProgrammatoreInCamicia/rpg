@@ -49,6 +49,17 @@ public partial class VillageSmoke : Node
 			&& _map.HasFigureSpriteForSmoke(MappedVillageScenario.Ids.Guard),
 			"G15: directional character sprite did not load in the village");
 		Capture("1-start.png");
+		// The main village, like the isolated house, accepts an exact floor point rather than snapping a click to a tile centre.
+		var exactFloor = new Spot(165, 147);
+		_map.ClickSpotForSmoke(exactFloor);
+		await UntilIdle(4);
+		Require(_map.View.Spot == exactFloor
+			&& _map.FootPointOf(_map.View.Id) is { } exactFoot
+			&& exactFoot.DistanceTo(VillageMap.ScreenPointOf(exactFloor)) < 1f,
+			"The village click did not walk to the exact floor point");
+		Capture("1-free-walk.png");
+		_map.MoveTo(MappedVillageScenario.Ids.PlayerStart);
+		await UntilIdle(4);
 		_map.OpenInventoryForSmoke();
 		Require(_map.EquipmentLabelsForSmoke.Any(x => x == "Armatura: Cotta di maglia")
 			&& _map.EquipmentLabelsForSmoke.Any(x => x == "Scudo: Scudo")

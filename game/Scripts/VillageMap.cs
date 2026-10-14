@@ -39,7 +39,6 @@ public partial class VillageMap : Node2D
 	private Camera2D _camera = null!;
 	private GridPos? _smokeFocus;
 	private Polygon2D _hover = null!;
-	private Polygon2D _target = null!;
 	private readonly Dictionary<GridPos, CanvasItem> _lit = new(); // floor, walls and stores, shaded by their square's light
 	private readonly List<(GridPos Cell, CanvasItem Item)> _edgeLit = new();
 	private float[,] _glow = new float[0, 0];
@@ -81,7 +80,7 @@ public partial class VillageMap : Node2D
 	private LocationId? _exitAfterWalking;
 	private ActorId? _talkingTo;
 	private bool _walking;
-	private bool _freeMovementPrototype;
+	private bool _freeMovementEnabled;
 	private double _speed = 1;
 
 	/// <summary>
@@ -98,7 +97,7 @@ public partial class VillageMap : Node2D
 	public override void _Ready()
 	{
 		var interior = InteriorPrototype || OS.GetCmdlineUserArgs().Contains("--interior-prototype");
-		_freeMovementPrototype = interior;
+		_freeMovementEnabled = true;
 		_sim = SimulationSession.Create(interior ? InteriorPrototypeScenario.Create() : ScenarioFile.Load("living-village"));
 		if (interior)
 			_sim.Advance(Duration.FromHours(13)); // the playable scene opens in daylight; the smoke also checks night
@@ -242,7 +241,7 @@ public partial class VillageMap : Node2D
 				}
 				else if (GroundItemAt(ScreenToCell(point)) is { } item)
 					PickUp(item);
-				else if (_freeMovementPrototype)
+				else if (_freeMovementEnabled)
 					MoveToSpot(ScreenToSpot(point));
 				else
 					MoveTo(ScreenToCell(point));
@@ -481,9 +480,6 @@ public partial class VillageMap : Node2D
 		}
 		_running = result.Action;
 		_walking = true;
-		var move = _sim.GetPlayerView().Move!;
-		_target.Position = move.Spots is { } spots ? SpotToScreen(spots[^1]) : CellToScreen(move.Path[^1]);
-		_target.Visible = true;
 		Refresh();
 		return true;
 	}
@@ -530,7 +526,6 @@ public partial class VillageMap : Node2D
 		_attackAfterWalking = null;
 		_exitAfterWalking = null;
 		_pendingTicks = 0;
-		_target.Visible = false;
 		ShowMessage(result.Message);
 		Refresh();
 	}
@@ -616,11 +611,13 @@ public partial class VillageMap : Node2D
 		_attackAfterWalking = null;
 		_exitAfterWalking = null;
 		_talkingTo = null;
+		_combatVisualTracks.Clear();
 		_queue.Clear();
 		_sneak = _sim.GetPlayerView().Sneaking is not null;
 		_sneakToggle.SetPressedNoSignal(_sneak);
 		// Resume a walk or activity that was in progress when saving.
 		var view = _sim.GetPlayerView();
+		_seenCombatVisuals = view.Combat?.Log.Count ?? 0;
 		_running = view.Action?.Id;
 		_walking = view.Move is not null;
 		_speed = Math.Max(1, (view.Action?.CompletesAt.Since(view.Action.StartedAt).Seconds ?? 1) / MaxActivityRealSeconds);
@@ -638,7 +635,7 @@ public partial class VillageMap : Node2D
 		_view = _sim.GetPlayerView();
 		_spotPreviewAt = null; // doors, light and newly explored squares can change a route within one second
 		if (_view.Combat is null)
-			_combatVisualWay = null;
+			_combatVisualTracks.Clear();
 		if (_view.Combat is not null)
 		{
 			_journalOpen = false;
@@ -651,7 +648,6 @@ public partial class VillageMap : Node2D
 			_attackAfterWalking = null;
 			_exitAfterWalking = null;
 			_queue.Clear();
-			_target.Visible = false;
 		}
 		var onMap = _view.Map is not null && _view.Position is not null;
 		_floor.Visible = onMap;
@@ -719,9 +715,6 @@ public partial class VillageMap : Node2D
 			panel.Modulate = door.Known == DoorKnowledge.Remembered
 				? new Color(lit.R * 0.72f, lit.G * 0.72f, lit.B * 0.72f, 0.42f) : lit;
 		}
-		if (!_walking || !onMap)
-			_target.Visible = false;
-
 		// Store controls where a store is in sight; the core decides whether it is within reach.
 		_storeRow.Visible = onMap && _view.Combat is null && !_view.Dead
 			&& _view.VisibleStores.Any(s => s.Id == MappedVillageScenario.Ids.GranaryStore);
@@ -808,7 +801,7 @@ public partial class VillageMap : Node2D
 				_sorted.AddChild(token);
 			}
 			var previousPosition = token.Position;
-			token.Position = figure.Player && _view.Combat is not null && CombatVisualPosition() is { } visual
+			token.Position = _view.Combat is not null && CombatVisualPosition(figure.Id) is { } visual
 				? visual : AuthoritativePosition(figure.Position.Value, figure.Spot);
 			token.Modulate = Shade(ScreenToCell(token.Position));
 			var prone = figure.Condition is "morto" or "tramortito"
@@ -816,7 +809,8 @@ public partial class VillageMap : Node2D
 			token.GetNode<Polygon2D>("Body").Visible = !prone;
 			token.GetNode<Polygon2D>("Head").Visible = !prone;
 			token.GetNode<Polygon2D>("Prone").Visible = prone;
-			UpdateFigureSprite(token, figure.Id, previousPosition, figure.Move, prone);
+			UpdateFigureSprite(token, figure.Id, previousPosition,
+				figure.Move is not null || _combatVisualTracks.ContainsKey(figure.Id), prone);
 			token.GetNode<Line2D>("DodgeMark").Visible = !prone && _view.Combat is { } combat
 				&& (figure.Player ? combat.You.Dodging
 					: combat.Combatants.Any(c => c.Id == figure.Id && c.Dodging));
@@ -842,6 +836,23 @@ public partial class VillageMap : Node2D
 				? _view.TorchLitUntil is not null
 				: _view.VisibleActors.Any(a => a.Id == figure.Id && a.Torch);
 			shown.Add(figure.Id);
+		}
+		// A mover that vanished after a visible stretch still crosses that stretch on screen, then disappears.
+		foreach (var actor in _combatVisualTracks.Keys.ToArray())
+		{
+			if (shown.Contains(actor) || CombatVisualPosition(actor) is not { } position)
+				continue;
+			if (!_tokens.TryGetValue(actor, out var token))
+			{
+				token = MakeToken(actor, "Figura", false);
+				_tokens[actor] = token;
+				_sorted.AddChild(token);
+			}
+			var previousPosition = token.Position;
+			token.Position = position;
+			token.Modulate = Shade(ScreenToCell(position));
+			UpdateFigureSprite(token, actor, previousPosition, true, false);
+			shown.Add(actor);
 		}
 		foreach (var (id, token) in _tokens)
 			token.Visible = shown.Contains(id);
@@ -920,7 +931,7 @@ public partial class VillageMap : Node2D
 		{
 			var state = visibility[cell.Y][cell.X];
 			if (state == '0') return new Color(0.025f, 0.025f, 0.035f);
-			if (state == '1') return new Color(0.25f, 0.25f, 0.30f);
+			if (state == '1') return new Color(0.14f, 0.15f, 0.18f);
 		}
 		return cell.X >= 0 && cell.Y >= 0 && cell.X < _glow.GetLength(0) && cell.Y < _glow.GetLength(1)
 			? Night.Lerp(Colors.White, _glow[cell.X, cell.Y]) : Colors.White;
@@ -994,7 +1005,8 @@ public partial class VillageMap : Node2D
 		Input.SetDefaultCursorShape(person is null ? Input.CursorShape.Arrow : Input.CursorShape.PointingHand);
 		var cell = person is { } id && _tokens.TryGetValue(id, out var token) ? ScreenToCell(token.Position) : ScreenToCell(mouse);
 		var map = _view.Position is null ? null : _view.Map;
-		_hover.Visible = map is not null && cell.X >= 0 && cell.Y >= 0 && cell.X < map.Width && cell.Y < map.Height
+		_hover.Visible = _view.Combat is not null && map is not null
+			&& cell.X >= 0 && cell.Y >= 0 && cell.X < map.Width && cell.Y < map.Height
 						 && map.Rows[cell.Y][cell.X] != '#';
 		_hover.Position = CellToScreen(cell);
 	}
@@ -1101,10 +1113,8 @@ public partial class VillageMap : Node2D
 			_sorted.AddChild(marker);
 		}
 
-		_hover = new Polygon2D { Polygon = Diamond(), Color = Hover, ZIndex = -5 };
+		_hover = new Polygon2D { Polygon = Diamond(), Color = Hover, ZIndex = -5, Visible = false };
 		AddChild(_hover);
-		_target = new Polygon2D { Polygon = Diamond(0.6f), Color = new Color(0.3f, 0.6f, 1f, 0.6f), ZIndex = -5, Visible = false };
-		AddChild(_target);
 		BuildSpotOverlay();
 
 		var zoom = _view.MapVisibility is null ? 1.2f : 1.08f;

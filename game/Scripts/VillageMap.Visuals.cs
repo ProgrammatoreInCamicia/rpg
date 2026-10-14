@@ -108,7 +108,7 @@ public partial class VillageMap
 		_figureFacing[id] = 0;
 	}
 
-	private void UpdateFigureSprite(Node2D token, ActorId id, Vector2 previousPosition, MoveView? move, bool prone)
+	private void UpdateFigureSprite(Node2D token, ActorId id, Vector2 previousPosition, bool moving, bool prone)
 	{
 		if (token.GetNodeOrNull<Sprite2D>("Figure") is not { } sprite)
 			return;
@@ -116,7 +116,7 @@ public partial class VillageMap
 		token.GetNode<Polygon2D>("Head").Visible = false;
 		token.GetNode<Polygon2D>("Prone").Visible = false;
 		var delta = token.Position - previousPosition;
-		if (move is not null && delta.LengthSquared() > 0.01f)
+		if (moving && delta.LengthSquared() > 0.01f)
 			_figureFacing[id] = delta.Y >= 0 ? (delta.X < 0 ? 0 : 1) : (delta.X < 0 ? 2 : 3);
 		var asset = FigureAsset(id)!;
 		var facing = _figureFacing.GetValueOrDefault(id);
@@ -126,7 +126,7 @@ public partial class VillageMap
 		var now = Time.GetTicksMsec() / 1000.0;
 		var attacking = _attackVisualUntil.GetValueOrDefault(id) > now;
 		var hit = _hitVisualUntil.GetValueOrDefault(id) > now;
-		var bob = move is null || prone ? 0f : MathF.Sin((float)(now * 19)) * 1.2f;
+		var bob = !moving || prone ? 0f : MathF.Sin((float)(now * 19)) * 1.2f;
 		sprite.Position = prone ? new Vector2(0, -5) : new Vector2(attacking ? (facing is 0 or 2 ? -3 : 3) : 0, bob);
 		sprite.RotationDegrees = prone ? -78f : attacking ? (facing is 0 or 2 ? -8f : 8f) : 0f;
 		sprite.Modulate = hit ? new Color(1f, 0.52f, 0.48f) : Colors.White;
@@ -142,14 +142,27 @@ public partial class VillageMap
 		if (combat.Log.Count < _seenCombatVisuals)
 			_seenCombatVisuals = 0;
 		var now = Time.GetTicksMsec() / 1000.0;
+		var lastNpcMoves = new Dictionary<ActorId, CombatLogEntry>();
 		foreach (var entry in combat.Log.Skip(_seenCombatVisuals))
 		{
+			if (entry.Kind == CombatLogKind.Move && entry.Actor is { } mover && mover != _view.Id)
+				lastNpcMoves[mover] = entry;
 			if (entry.Kind is not (CombatLogKind.Attack or CombatLogKind.OpportunityAttack))
 				continue;
 			if (entry.Actor is { } attacker)
 				_attackVisualUntil[attacker] = now + 0.3;
 			if (entry.Hit == true && entry.Target is { } target)
 				_hitVisualUntil[target] = now + 0.35;
+		}
+		foreach (var (actor, move) in lastNpcMoves)
+		{
+			if (move.Spots.Count < 2)
+				continue;
+			var visible = _view.VisibleActors.FirstOrDefault(a => a.Id == actor);
+			// A later unseen movement may have changed the actor's current position.
+			if (visible is not null && visible.Spot != move.Spots[^1])
+				continue;
+			StartCombatVisual(actor, move.Spots);
 		}
 		_seenCombatVisuals = combat.Log.Count;
 	}

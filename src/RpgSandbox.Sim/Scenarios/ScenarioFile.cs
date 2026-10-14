@@ -44,6 +44,17 @@ public static class ScenarioFile
                         : throw r.Error("tipo di posto sconosciuto"), r.Square(p, "at"));
             foreach (var l in r.Objects(m, "lights"))
                 b.AddLight(area, r.Square(l, "at"), r.Int(l, "bright"), r.Int(l, "dim"));
+            foreach (var indoor in r.Values(m, "interiors"))
+                b.AddInterior(area, r.String(indoor, "zona interna"));
+            foreach (var edge in r.Objects(m, "edges"))
+            {
+                var name = r.Text(edge, "kind");
+                if (!Enum.TryParse<MapEdgeKind>(name, out var kind) || !Enum.IsDefined(kind))
+                    throw r.Error($"tipo di confine sconosciuto '{name}'");
+                b.AddEdge(area, r.Square(edge, "a"), r.Square(edge, "b"), kind,
+                    edge.TryGetProperty("at", out _) ? r.Square(edge, "at") : null,
+                    r.OptBool(edge, "open") ?? false);
+            }
             foreach (var d in r.Objects(m, "doors"))
                 b.AddDoor(area, r.Square(d, "at"), r.Bool(d, "open"));
         }

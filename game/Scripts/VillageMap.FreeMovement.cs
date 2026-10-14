@@ -14,9 +14,8 @@ public partial class VillageMap
 	private Spot? _spotPreviewFrom;
 	private long _spotPreviewTime = -1;
 	private bool _spotPreviewSneak;
-	private IReadOnlyList<Spot>? _combatVisualWay;
-	private double _combatVisualStarted;
-	private double _combatVisualDuration;
+	private sealed record CombatVisualTrack(IReadOnlyList<Spot> Way, double Started, double Duration);
+	private readonly Dictionary<ActorId, CombatVisualTrack> _combatVisualTracks = new();
 
 	private void BuildSpotOverlay()
 	{
@@ -42,7 +41,7 @@ public partial class VillageMap
 
 	private void UpdateSpotPreview(Vector2 mouse)
 	{
-		if (!_freeMovementPrototype || _view.Combat is { IsYourTurn: false } || _view.Dead || _view.Map is not { } map
+		if (!_freeMovementEnabled || _view.Combat is not { IsYourTurn: true } || _view.Dead || _view.Map is not { } map
 			|| _view.Spot is null)
 		{
 			_spotOverlay.Visible = false;
@@ -124,7 +123,7 @@ public partial class VillageMap
 	/// <summary>The fight has already resolved in the Sim; slide the figure over the part of its validated way it reached.</summary>
 	private void StartCombatSpotVisual(SpotMovePreview preview, Spot reached)
 	{
-		_combatVisualWay = null;
+		_combatVisualTracks.Remove(_view.Id);
 		if (preview.Way.Count < 2 || preview.Way[0] == reached)
 			return;
 		var way = new List<Spot> { preview.Way[0] };
@@ -154,24 +153,33 @@ public partial class VillageMap
 				way.AddRange(preview.Way.Skip(1).Take(leg - 1));
 			way.Add(reached);
 		}
+		StartCombatVisual(_view.Id, way);
+	}
+
+	/// <summary>Present an already-resolved combat movement along its actual path, for any visible actor.</summary>
+	private void StartCombatVisual(ActorId actor, IReadOnlyList<Spot> way)
+	{
+		_combatVisualTracks.Remove(actor);
+		if (way.Count < 2 || way[0] == way[^1])
+			return;
 		var length = 0.0;
 		for (var i = 1; i < way.Count; i++)
 			length += way[i - 1].DistanceTo(way[i]);
-		_combatVisualWay = way;
-		_combatVisualStarted = Time.GetTicksMsec() / 1000.0;
-		_combatVisualDuration = Math.Clamp(length / 360.0, 0.18, 0.9);
+		_combatVisualTracks[actor] = new CombatVisualTrack(way.ToArray(), Time.GetTicksMsec() / 1000.0,
+			Math.Clamp(length / 360.0, 0.18, 0.9));
 	}
 
-	private Vector2? CombatVisualPosition()
+	private Vector2? CombatVisualPosition(ActorId actor)
 	{
-		if (_combatVisualWay is not { } way)
+		if (!_combatVisualTracks.TryGetValue(actor, out var track))
 			return null;
-		var fraction = (Time.GetTicksMsec() / 1000.0 - _combatVisualStarted) / _combatVisualDuration;
+		var fraction = (Time.GetTicksMsec() / 1000.0 - track.Started) / track.Duration;
 		if (fraction >= 1)
 		{
-			_combatVisualWay = null;
+			_combatVisualTracks.Remove(actor);
 			return null;
 		}
+		var way = track.Way;
 		var length = 0.0;
 		for (var i = 1; i < way.Count; i++)
 			length += way[i - 1].DistanceTo(way[i]);

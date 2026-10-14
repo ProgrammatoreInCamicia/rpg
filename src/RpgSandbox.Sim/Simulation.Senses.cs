@@ -241,15 +241,21 @@ internal sealed partial class Simulation
         foreach (var (at, open) in map.Doors)
             if (SeesDoor(player, map, at))
                 player.DoorMemory[new DoorKey(area, at)] = new RememberedDoor(open, World.Now);
-        // Interior prototype: the squares seen are remembered here, with the doors, never when a view is read.
+        // The explored floor is remembered here, with the doors, never when a view is read.
         if (map.UsesExploration && player.Conscious && CurrentPosition(player) is { } eye)
             map.Explored.UnionWith(SquaresSeen(map, eye));
     }
 
-    /// <summary>The squares the player sees from <paramref name="eye"/> right now (the same rule as for what stands on them).</summary>
+    /// <summary>
+    /// Terrain currently perceivable from <paramref name="eye"/>. Even without light, the square underfoot and
+    /// immediately surrounding floor can be made out; a wall still blocks it. This affects only map exploration:
+    /// recognising actors and objects continues to use <see cref="CanSee"/> and its light requirement.
+    /// </summary>
     internal IEnumerable<GridPos> SquaresSeen(GridMap map, GridPos eye) =>
         Enumerable.Range(0, map.Height).SelectMany(y => Enumerable.Range(0, map.Width).Select(x => new GridPos(x, y)))
-            .Where(square => CanSee(map, eye, square));
+            .Where(square => map.HasLineOfSight(eye, square)
+                && (Math.Max(Math.Abs(square.X - eye.X), Math.Abs(square.Y - eye.Y)) <= 1
+                    || LightOn(map, square) >= Light.Dim));
 
     /// <summary>The player knows the state of a door it opens or closes itself, even passing through in the dark.</summary>
     private void Touched(Actor actor, GridMap map, GridPos door)

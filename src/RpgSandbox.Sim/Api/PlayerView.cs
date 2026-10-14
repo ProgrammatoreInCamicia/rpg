@@ -38,7 +38,7 @@ public sealed record PlayerView
     /// </summary>
     public IReadOnlyList<string>? MapLight { get; init; }
 
-    /// <summary>Interior prototype: '2' visible now, '1' remembered, '0' never seen.</summary>
+    /// <summary>Explored map: '2' terrain perceived now (including nearby floor in darkness), '1' remembered, '0' never explored.</summary>
     public IReadOnlyList<string>? MapVisibility { get; init; }
 
     /// <summary>Light where the player stands (daylight, lamps): it decides what can be seen (see the rules notes).</summary>

@@ -50,8 +50,7 @@ public partial class InteriorSmoke : Node
 				"the displayed figure did not end at its Sim spot");
 			_map.SetPaused(true);
 			var preview = _map.PreviewSpotForSmoke(new Spot(402, 276));
-			Require(preview.Visible && preview.RoutePoints >= 2 && preview.Hint.Contains("piedi"),
-				"the free walk route and cost are not visible over explored floor");
+			Require(!preview.Visible, "exploration still shows a combat-style route preview");
 			Capture("day-free-spot.png");
 			// Drive half a game second while paused so Stop is checked between two authoritative checkpoints.
 			var midGoal = Spot.CenterOf(new GridPos(7, 4));
