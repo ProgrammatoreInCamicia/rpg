@@ -21,7 +21,9 @@ public class ShotTests
             .AddArea("a", "A").AddLocation("yard", "Cortile", "a")
             .AddMap("a", Enumerable.Repeat(new string('Y', 16), 8).ToArray(), new Dictionary<char, string> { ['Y'] = "yard" })
             .AddActor("player", "Paladino", "yard", isPlayer: true, sheet: Sheets.Paladin(), at: (2, 3))
-            .AddActor("foe", "Guardia", "yard", combat: "guard", at: (6, 3));
+            .AddActor("foe", "Guardia", "yard", combat: "guard", at: (6, 3))
+            .AddArea("b", "B").AddLocation("far", "Lontano", "b").AddRoute("yard", "far", Duration.FromMinutes(5))
+            .AddExit("a", "yard", (15, 3));
         if (window)
             for (var y = 0; y < 8; y++)
                 b.AddEdge("a", (4, y), (5, y), MapEdgeKind.Window, open: openWindow);
@@ -231,6 +233,17 @@ public class ShotTests
             Assert.Equal(CombatLogKind.Ended, last[^1].Kind);
             Assert.Equal(last.Count, s.SaveAndReload().GetPlayerView().LastFight!.Count);
             Assert.Equal(s.SaveToString(), s.SaveAndReload().SaveToString());
+
+            // Gone once the player leaves that map, and not back on its return (review P2b).
+            Of(s, s.Player).PlaceAt(Spot.CenterOf(new GridPos(15, 3)));
+            var away = s.Execute(new TravelCommand { Actor = s.Player, Destination = new LocationId("far") });
+            Assert.True(away.Success, away.Message);
+            s.AdvanceUntilCompleted(away.Action!.Value, Duration.FromHours(1));
+            var back = s.Execute(new TravelCommand { Actor = s.Player, Destination = new LocationId("yard") });
+            Assert.True(back.Success, back.Message);
+            s.AdvanceUntilCompleted(back.Action!.Value, Duration.FromHours(1));
+            Assert.Equal(new AreaId("a"), Of(s, s.Player).MapArea);
+            Assert.Null(s.GetPlayerView().LastFight);
             return;
         }
         throw new InvalidOperationException("No seed gives that scene.");

@@ -103,6 +103,8 @@ internal sealed partial class Simulation
         actor.MapArea = null;
         if (leftMap is not null)
             NoteSensesChange(leftMap); // out of sight of any theft there (T6c-5)
+        if (actor.IsPlayer)
+            World.LastFight = null; // P2b: the last fight's log lasts until the player leaves that map
         Begin(actor, travel);
         World.RecordFact("TravelStarted", $"{actor.Name} parte da {World.Locations[origin].Name} verso {destination.Name}.", actor.Id);
         return CommandResult.Started(travel.Id, travel.CompletesAt, $"{actor.Name} si incammina verso {destination.Name}.");
