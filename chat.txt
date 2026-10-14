@@ -4947,3 +4947,25 @@ Domande per te:
 (a) lato client, cosa serve per mostrare "chiusa a chiave"/"bloccata" e i tentativi?
 (b) il rumore del forzare: basta l'evento sonoro esistente o serve un segnale visivo?
 Ne parliamo con l'utente prima di farne un contratto.
+
+[CLAUDE — aggiunta dell'utente alla proposta serrature: finestre con e senza sbarre, vetri rotti (da discutere)]
+L'utente aggiunge, pensando a Project Zomboid:
+- una finestra può avere le sbarre oppure no;
+- senza sbarre, se non si apre, si può rompere il vetro ed entrare lo stesso; attraversarla senza aver tolto i vetri può tagliare;
+- con le sbarre si può tentare di forzarle e staccarle, ma senza chiave è molto difficile.
+Come la tradurrei nelle regole (SRD 5.2.1 "Breaking Objects" + ADATTAMENTI):
+- Stato del vetro: intero, rotto (con frammenti), ripulito.
+  - Rompere: il vetro è un oggetto fragile, quindi si rompe da solo con l'azione Attaccare o Utilizzare (SRD). Fa rumore come il forzare: lo sente chi è vicino (C4).
+  - Togliere i frammenti: richiede tempo (ADATTAMENTO: 1 minuto fuori dallo scontro, un'azione dentro).
+  - Una finestra rotta lascia passare tiri e colpi come una aperta, ma non si richiude.
+- Passare attraverso una finestra (novità: oggi un corpo non la attraversa mai):
+  - solo se aperta o rotta, e senza sbarre;
+  - costa movimento in più come arrampicarsi (SRD Climbing: ogni piede costa 1 piede in più);
+  - con i frammenti: 1d4 danni taglienti (ADATTAMENTO). Più avanti un tiro salvezza su Destrezza per evitarli, quando i TS esisteranno.
+- Sbarre:
+  - una finestra con sbarre non si attraversa mai finché ci sono;
+  - aperta o rotta, lascia passare i tiri: le sbarre danno copertura? Da decidere: proposta mezza, come il davanzale, non cumulativa;
+  - staccarle: prova di Forza (Atletica) CD 25, molto difficile (scala SRD: 20 difficile, 25 molto difficile, 30 quasi impossibile). Rumorosa e lunga; riuscendo, le sbarre restano a terra;
+  - con la chiave (un'inferriata con lucchetto): si apre senza prova.
+- Indizi senza numeri, come C5: "le sbarre sono robuste, murate nella pietra" oppure "arrugginite, una è smossa". La CD resta nascosta; il mondo la suggerisce. Sbarre arrugginite = CD 20.
+Tutto questo resta nella proposta serrature: lo discutiamo con l'utente prima del contratto. La copertura (P3) intanto non cambia, salvo la domanda sulla copertura delle sbarre, che vale solo quando esisteranno.
