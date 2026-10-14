@@ -31,6 +31,23 @@ public partial class InteriorSmoke : Node
 			_map.SetPaused(true);
 			Require(_map.View.MapVisibility![3][6] == '2', "window does not reveal the first room");
 			Capture("day-window.png");
+			var window = _map.View.Map!.Edges.Single(e => e.Kind == MapEdgeKind.Window);
+			Require(window.Open == false && !_map.WindowPanelOpenForSmoke(window.A, window.B),
+				"the prototype window did not begin closed");
+			_map.SetPaused(false);
+			_map.ClickWindowForSmoke(window.A, window.B);
+			await Frames(2);
+			_map.SetPaused(true);
+			Require(_map.View.Map!.Edges.Single(e => e.Kind == MapEdgeKind.Window).Open == true
+				&& _map.WindowPanelOpenForSmoke(window.A, window.B),
+				$"clicking the window did not open it or its visual panel: {_map.LastMessage}");
+			Capture("day-window-open.png");
+			_map.SetPaused(false);
+			_map.ClickWindowForSmoke(window.A, window.B);
+			await Frames(2);
+			_map.SetPaused(true);
+			Require(_map.View.Map!.Edges.Single(e => e.Kind == MapEdgeKind.Window).Open == false,
+				"clicking the open window did not close it");
 			_map.SetPaused(false);
 			_map.MoveTo(new GridPos(6, 4));
 			await UntilIdle();

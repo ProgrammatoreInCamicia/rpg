@@ -40,7 +40,7 @@ tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64.exe --
 tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64_console.exe --path game res://Scenes/CombatPreview.tscn -- --combat-preview-smoke=<dir>
 ```
 
-Nel gioco: clic sul punto preciso del terreno per camminarci, clic sul segnale «Strada per il bosco» per raggiungere il campo dei banditi, Spazio per mettere in pausa/riprendere, X per fermarsi, Maiusc+clic su una porta per entrarci, WASD/frecce per la camera, rotella per lo zoom. Il riquadro «Eventi» mostra con l'ora gli ultimi fatti che riguardano il giocatore. Dal campo, «Torna al villaggio» riporta all'uscita. La vecchia scena a Luoghi si avvia con `--path game res://Scenes/Main.tscn`.
+Nel gioco: clic sul punto preciso del terreno per camminarci, clic su una finestra vicina per aprirla o chiuderla, clic sul segnale «Strada per il bosco» per raggiungere il campo dei banditi, Spazio per mettere in pausa/riprendere, X per fermarsi, Maiusc+clic su una porta per entrarci, WASD/frecce per la camera, rotella per lo zoom. Il riquadro «Eventi» mostra con l'ora gli ultimi fatti che riguardano il giocatore. Dal campo, «Torna al villaggio» riporta all'uscita. La vecchia scena a Luoghi si avvia con `--path game res://Scenes/Main.tscn`.
 
 Per attaccare fuori dallo scontro, clic destro su una persona visibile, scegli l'attacco e conferma. In esplorazione il pavimento non mostra caselle o percorsi al passaggio del mouse. Durante lo scontro, passa il mouse sul terreno per vedere percorso, distanza e attacchi di opportunità noti, poi clicca per muoverti. Clicca su un avversario per scegliere l'attacco; «Tramortisci» vale solo per la mischia. «Fine turno» fa agire gli altri combattenti.
 

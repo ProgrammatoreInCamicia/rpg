@@ -625,6 +625,9 @@ public partial class VillageSmoke : Node
 		await Frames(2);
 		Require(_map.AttackVisualActiveForSmoke(_map.View.Id),
 			"G15: the opening attack did not trigger its visual animation");
+		Require(_map.View.Combat!.Log.Any(e => e.Kind == CombatLogKind.Attack && e.Actor == _map.View.Id
+			&& e.ShotFrom is not null && e.ShotTo is not null) && _map.ShotVisualActiveForSmoke,
+			"P2b: the opening javelin did not use the resolved straight shot");
 		Capture("27-duel-start.png");
 		Require(_map.View.Combat!.Log.Any(e => e.Kind == CombatLogKind.Attack && e.Actor == _map.View.Id),
 			"G11: the opening attack is missing from the combat log");

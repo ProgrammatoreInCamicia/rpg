@@ -267,6 +267,7 @@ public partial class VillageMap
 		RejectionReason.NotYourTurn => "non è il tuo turno",
 		RejectionReason.NoActionLeft => "azione usata",
 		RejectionReason.NotVisible => "non visibile",
+		RejectionReason.NoLineOfFire => "tiro ostruito",
 		RejectionReason.NoAmmo => "finiti",
 		_ => choice.Why is { Length: <= 22 } why ? why : choice.Reason.ToString(),
 	};
@@ -363,6 +364,11 @@ public partial class VillageMap
 			SelectCombatant(person);
 			return true;
 		}
+		if (WindowAt(point) is not null)
+		{
+			ShowMessage("Non puoi usare una finestra durante uno scontro.");
+			return true;
+		}
 		if (GroundItemAt(ScreenToCell(point)) is { } item)
 		{
 			PickUp(item);
@@ -405,10 +411,24 @@ public partial class VillageMap
 	private void ExecuteCombatAttack(TargetView target)
 	{
 		_combatVisualTracks.Clear();
+		var finishingShot = PreviewVisibleShot(target.Target, target.Attack, _combatNonLethal.ButtonPressed);
 		var result = _sim.Execute(new AttackCommand { Actor = _sim.Player, Target = target.Target,
 			Attack = target.Attack, NonLethal = _combatNonLethal.ButtonPressed && IsMeleeAttack(target.Attack) });
+		ShowFinishingShot(finishingShot, result);
 		ShowMessage(result.Message);
 		Refresh();
+	}
+
+	private AttackPreview? PreviewVisibleShot(ActorId target, string attack, bool nonLethal) =>
+		IsMeleeAttack(attack) ? null : _sim.PreviewAttack(_sim.Player, target, attack, nonLethal);
+
+	private void ShowFinishingShot(AttackPreview? shot, CommandResult result)
+	{
+		// An encounter can end on this attack, removing its log from the next PlayerView.
+		// A successful ranged finishing blow hits the target, so the aimed centre is its resolved impact.
+		if (result.Success && _sim.GetPlayerView().Combat is null
+			&& shot is { Valid: true, From: { } from, To: { } to })
+			StartShotVisual(from, to);
 	}
 
 	private void ExecuteCombatAction(CombatAction action)
@@ -480,6 +500,7 @@ public partial class VillageMap
 		if (_openingTarget is not { } target || _openingConfirmedAttack is not { } attack)
 			return;
 		_openingPanel.Visible = false;
+		var finishingShot = PreviewVisibleShot(target, attack, _openingConfirmedNonLethal);
 		var result = _sim.Execute(new AttackCommand { Actor = _sim.Player, Target = target,
 			Attack = attack, NonLethal = _openingConfirmedNonLethal });
 		if (result.Rejection == RejectionReason.TooFar
@@ -492,14 +513,17 @@ public partial class VillageMap
 			}
 			return;
 		}
+		ShowFinishingShot(finishingShot, result);
 		ShowMessage(result.Message);
 		Refresh();
 	}
 
 	private void FinishApproachAttack((ActorId Target, string Attack, bool NonLethal) pending)
 	{
+		var finishingShot = PreviewVisibleShot(pending.Target, pending.Attack, pending.NonLethal);
 		var result = _sim.Execute(new AttackCommand { Actor = _sim.Player, Target = pending.Target,
 			Attack = pending.Attack, NonLethal = pending.NonLethal });
+		ShowFinishingShot(finishingShot, result);
 		ShowMessage(result.Message);
 		Refresh();
 	}

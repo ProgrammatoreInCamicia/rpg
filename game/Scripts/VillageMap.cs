@@ -41,6 +41,7 @@ public partial class VillageMap : Node2D
 	private Polygon2D _hover = null!;
 	private readonly Dictionary<GridPos, CanvasItem> _lit = new(); // floor, walls and stores, shaded by their square's light
 	private readonly List<(GridPos Cell, CanvasItem Item)> _edgeLit = new();
+	private readonly Dictionary<(GridPos A, GridPos B), Node2D> _windowPanels = new();
 	private float[,] _glow = new float[0, 0];
 	private string _lightKey = "";
 	private readonly Dictionary<ActorId, Node2D> _tokens = new();
@@ -182,6 +183,7 @@ public partial class VillageMap : Node2D
 					BeginExitJourney(exit);
 			}
 		}
+		UpdateShotVisuals();
 		PlaceTokens();
 		UpdateCombatHover();
 	}
@@ -239,6 +241,8 @@ public partial class VillageMap : Node2D
 					else
 						ClickDoor(door);
 				}
+				else if (WindowAt(point) is { } window)
+					ClickWindow(window);
 				else if (GroundItemAt(ScreenToCell(point)) is { } item)
 					PickUp(item);
 				else if (_freeMovementEnabled)
@@ -378,6 +382,17 @@ public partial class VillageMap : Node2D
 			return;
 		}
 		MoveTo(door);
+	});
+
+	internal void ClickWindow(MapEdgeView window) => Order("usa la finestra", walk: false, () =>
+	{
+		if (_view.Map?.Edges.FirstOrDefault(e => e.Kind == MapEdgeKind.Window
+			&& e.A == window.A && e.B == window.B) is not { Open: { } open } current)
+			return;
+		var result = _sim.Execute(new WindowCommand { Actor = _sim.Player,
+			A = current.A, B = current.B, Open = !open });
+		ShowMessage(result.Message);
+		Refresh();
 	});
 
 	internal void ToggleTorch() => Order("torcia", walk: false, () =>
@@ -612,6 +627,7 @@ public partial class VillageMap : Node2D
 		_exitAfterWalking = null;
 		_talkingTo = null;
 		_combatVisualTracks.Clear();
+		ClearShotVisuals();
 		_queue.Clear();
 		_sneak = _sim.GetPlayerView().Sneaking is not null;
 		_sneakToggle.SetPressedNoSignal(_sneak);
@@ -702,6 +718,10 @@ public partial class VillageMap : Node2D
 					? new Color(0.78f, 0.78f, 0.74f, 0.8f) : new Color(0.72f, 0.58f, 0.40f, 0.7f);
 			}
 		}
+		if (_view.Map is { } mapWithWindows)
+			foreach (var window in mapWithWindows.Edges.Where(e => e.Kind == MapEdgeKind.Window && e.Open is not null))
+				if (_windowPanels.TryGetValue((window.A, window.B), out var panel))
+					SetWindowPanelOpen(panel, window.Open!.Value);
 		var watchers = _view.VisibleActors.Where(a => a.SeesYou == true).Select(a => a.Name).ToList();
 		var hidden = _view.Sneaking is { } total ? $"Di soppiatto (Furtività {total}). "
 			: _view.Move is { Stealthy: true } ? "Vai piano, ma ti vedono: non sei nascosto. " : "";
@@ -1002,7 +1022,9 @@ public partial class VillageMap : Node2D
 	{
 		var mouse = GetGlobalMousePosition();
 		var person = PersonAt(mouse);
-		Input.SetDefaultCursorShape(person is null ? Input.CursorShape.Arrow : Input.CursorShape.PointingHand);
+		var canUseBoundary = _view.Combat is null && (DoorAt(mouse) is not null || WindowAt(mouse) is not null);
+		Input.SetDefaultCursorShape(person is not null || canUseBoundary
+			? Input.CursorShape.PointingHand : Input.CursorShape.Arrow);
 		var cell = person is { } id && _tokens.TryGetValue(id, out var token) ? ScreenToCell(token.Position) : ScreenToCell(mouse);
 		var map = _view.Position is null ? null : _view.Map;
 		_hover.Visible = _view.Combat is not null && map is not null
@@ -1078,6 +1100,8 @@ public partial class VillageMap : Node2D
 			var panel = MakeEdgePanel(edge);
 			_sorted.AddChild(panel);
 			_edgeLit.Add((edge.B, panel));
+			if (edge.Kind == MapEdgeKind.Window)
+				_windowPanels[(edge.A, edge.B)] = panel;
 			if (edge.DoorAt is { } at)
 				_doorPanels[at] = panel;
 		}
@@ -1116,6 +1140,7 @@ public partial class VillageMap : Node2D
 		_hover = new Polygon2D { Polygon = Diamond(), Color = Hover, ZIndex = -5, Visible = false };
 		AddChild(_hover);
 		BuildSpotOverlay();
+		BuildShotLayer();
 
 		var zoom = _view.MapVisibility is null ? 1.2f : 1.08f;
 		_camera = new Camera2D { Position = CameraTarget(CellToScreen(_view.Position ?? new GridPos(0, 0))), Zoom = new Vector2(zoom, zoom) };
@@ -1249,7 +1274,7 @@ public partial class VillageMap : Node2D
 		_stop = new Button { Text = "Fermati (X)" };
 		_stop.Pressed += Stop;
 		box.AddChild(_stop);
-		box.AddChild(new Label { Text = "Maiusc+clic su una porta: cammina sulla sua casella." });
+		box.AddChild(new Label { Text = "Clicca una finestra per aprirla o chiuderla. Maiusc+clic su una porta: cammina sulla sua casella." });
 		var paceRow = new HBoxContainer();
 		paceRow.AddThemeConstantOverride("separation", 6);
 		paceRow.AddChild(new Label { Text = "Ritmo:", TooltipText = "Quanto scorre veloce il tempo mentre cammini. Le regole non cambiano: cambia solo quanto aspetti." });

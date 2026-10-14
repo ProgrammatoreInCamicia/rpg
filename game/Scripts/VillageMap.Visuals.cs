@@ -63,6 +63,7 @@ public partial class VillageMap
 		var color = edge.Kind == MapEdgeKind.Door ? DoorWood : Wall;
 		node.AddChild(new Polygon2D
 		{
+			Name = edge.Kind == MapEdgeKind.Window ? "Glass" : "Panel",
 			Polygon = new[] { first, second, second + Vector2.Up * height, first + Vector2.Up * height },
 			Color = edge.Kind == MapEdgeKind.Window ? new Color(0.38f, 0.62f, 0.67f, 0.46f) : color,
 		});
@@ -70,9 +71,60 @@ public partial class VillageMap
 			Width = edge.Kind == MapEdgeKind.Window ? 3f : 2f, DefaultColor = color.Lightened(0.18f) };
 		node.AddChild(frame);
 		if (edge.Kind == MapEdgeKind.Window)
+		{
 			node.AddChild(new Line2D { Points = new[] { first, second }, Width = 5f, DefaultColor = Wall });
+			node.AddChild(new Line2D { Name = "OpenSash",
+				Points = new[] { first + Vector2.Up * height, first + new Vector2(-12, -height - 9) },
+				Width = 3f, DefaultColor = Wall.Lightened(0.2f), Visible = false });
+		}
 		return node;
 	}
+
+	private static void SetWindowPanelOpen(Node2D panel, bool open)
+	{
+		panel.GetNode<Polygon2D>("Glass").Visible = !open;
+		panel.GetNode<Line2D>("OpenSash").Visible = open;
+	}
+
+	private MapEdgeView? WindowAt(Vector2 point)
+	{
+		if (_view.Map is not { } map)
+			return null;
+		foreach (var edge in map.Edges.Where(e => e.Kind == MapEdgeKind.Window))
+		{
+			if (_view.MapVisibility is { } visibility
+				&& visibility[edge.A.Y][edge.A.X] != '2' && visibility[edge.B.Y][edge.B.X] != '2')
+				continue;
+			if (!_windowPanels.TryGetValue((edge.A, edge.B), out var panel))
+				continue;
+			var local = point - panel.Position;
+			var glass = panel.GetNode<Polygon2D>("Glass");
+			if (Geometry2D.IsPointInPolygon(local, glass.Polygon)
+				|| DistanceToSegment(local, glass.Polygon[0], glass.Polygon[1]) <= 7f
+				|| DistanceToSegment(local, glass.Polygon[2], glass.Polygon[3]) <= 7f)
+				return edge;
+		}
+		return null;
+	}
+
+	private static float DistanceToSegment(Vector2 point, Vector2 from, Vector2 to)
+	{
+		var line = to - from;
+		var fraction = line.LengthSquared() == 0 ? 0 : Mathf.Clamp((point - from).Dot(line) / line.LengthSquared(), 0, 1);
+		return point.DistanceTo(from + line * fraction);
+	}
+
+	internal void ClickWindowForSmoke(GridPos a, GridPos b)
+	{
+		var panel = _windowPanels[(a, b)];
+		var glass = panel.GetNode<Polygon2D>("Glass").Polygon;
+		var at = panel.Position + glass.Aggregate(Vector2.Zero, (sum, point) => sum + point) / glass.Length;
+		_UnhandledInput(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true,
+			Position = GetGlobalTransformWithCanvas() * at });
+	}
+
+	internal bool WindowPanelOpenForSmoke(GridPos a, GridPos b) =>
+		!_windowPanels[(a, b)].GetNode<Polygon2D>("Glass").Visible;
 
 	private static string? FigureAsset(ActorId id) => id == MappedVillageScenario.Ids.Player
 		? "paladin" : id == MappedVillageScenario.Ids.Guard ? "guard"
@@ -150,7 +202,11 @@ public partial class VillageMap
 			if (entry.Kind is not (CombatLogKind.Attack or CombatLogKind.OpportunityAttack))
 				continue;
 			if (entry.Actor is { } attacker)
+			{
 				_attackVisualUntil[attacker] = now + 0.3;
+				if (entry.ShotFrom is { } from && entry.ShotTo is { } to)
+					StartShotVisual(from, to);
+			}
 			if (entry.Hit == true && entry.Target is { } target)
 				_hitVisualUntil[target] = now + 0.35;
 		}
