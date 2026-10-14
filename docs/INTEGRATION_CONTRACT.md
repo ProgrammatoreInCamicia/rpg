@@ -727,3 +727,10 @@ Decisione dell'utente: precisione vera. Un solo orologio della Sim, a tick.
   - Il giavellotto a terra resta accanto al bersaglio, come prima.
 - **Salvataggio, schema 27:** lo stato delle finestre (`Open` nei bordi) e `ShotFrom`/`ShotTo` nel registro. Dagli
   schemi precedenti le finestre sono chiuse.
+- **`PlayerView.LastFight`** (`IReadOnlyList<CombatLogEntry>?`): il registro pubblico dell'ultimo scontro del giocatore,
+  con la stessa proiezione e gli stessi filtri di `CombatView.Log`. C'è dal momento in cui lo scontro finisce, o in cui
+  il giocatore ne esce, così l'ultimo colpo o tiro (anche di un PNG) si può animare. È null mentre il giocatore
+  combatte, se non è più sulla mappa di quello scontro, o se non ce n'è stato. Salvato (schema 27, campo facoltativo).
+- **Chi colpisce si vede mentre il colpo arriva:** un giocatore messo fuori combattimento da un colpo vede ancora chi
+  l'ha colpito (`Actor` e `ShotFrom` nella voce).
+- **`PreviewAttack` non rivela posizioni nascoste:** `From`/`To` sono null per una creatura che il giocatore non vede.

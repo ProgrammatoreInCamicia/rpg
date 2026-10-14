@@ -213,4 +213,69 @@ public class ShotTests
         bad["Maps"]![0]!["Edges"]![0]!.AsObject().Remove("Open");
         Assert.False(LoadFromString(bad.ToJsonString()).Success);
     }
+
+    [Fact]
+    public void The_last_shot_of_a_fight_stays_readable_once_the_fight_is_over_and_survives_save_and_load()
+    {
+        for (ulong seed = 1; seed <= 200; seed++)
+        {
+            var s = Yard(seed);
+            s.Engine.World.Actors[Foe].Vitality = new Vitality(11, false, 1);
+            Throw(s);
+            if (s.GetPlayerView().Combat is not null || Of(s, Foe).Conscious)
+                continue; // the javelin missed
+            var last = s.GetPlayerView().LastFight!;
+            var shot = last.Last(l => l.Kind == CombatLogKind.Attack);
+            Assert.Equal(Spot.CenterOf(new GridPos(2, 3)), shot.ShotFrom);
+            Assert.Equal(Spot.CenterOf(new GridPos(6, 3)), shot.ShotTo);
+            Assert.Equal(CombatLogKind.Ended, last[^1].Kind);
+            Assert.Equal(last.Count, s.SaveAndReload().GetPlayerView().LastFight!.Count);
+            Assert.Equal(s.SaveToString(), s.SaveAndReload().SaveToString());
+            return;
+        }
+        throw new InvalidOperationException("No seed gives that scene.");
+    }
+
+    [Fact]
+    public void An_npcs_last_blow_stays_readable_too_with_who_struck_although_it_knocked_the_player_out()
+    {
+        for (ulong seed = 1; seed <= 300; seed++)
+        {
+            var s = Yard(seed);
+            Of(s, Foe).PlaceAt(Spot.CenterOf(new GridPos(3, 3)));
+            s.Engine.World.Actors[s.Player].Vitality = new Vitality(11, true, 1);
+            s.Execute(new AttackCommand { Actor = Foe, Target = s.Player, Attack = "Lancia" });
+            for (var i = 0; i < 30 && s.GetPlayerView().Combat is not null; i++)
+            {
+                if (s.GetPlayerView().Combat!.IsYourTurn)
+                    s.Execute(new EndTurnCommand { Actor = s.Player });
+                s.Advance(Duration.FromSeconds(1));
+            }
+            if (s.GetPlayerView().Combat is not null || Of(s, s.Player).Conscious)
+                continue;
+            var last = s.GetPlayerView().LastFight;
+            Assert.NotNull(last);
+            Assert.Contains(last!, l => l.Kind == CombatLogKind.Attack && l.Actor == Foe && l.Hit == true);
+            return;
+        }
+        throw new InvalidOperationException("No seed gives that scene.");
+    }
+
+    [Fact]
+    public void The_attack_preview_never_gives_away_where_an_unseen_creature_stands()
+    {
+        var s = Yard(more: b =>
+        {
+            for (var y = 0; y < 8; y++)
+                b.AddEdge("a", (4, y), (5, y), MapEdgeKind.Wall);
+        });
+        var aim = Aim(s);
+        Assert.Equal(RejectionReason.NotVisible, aim.Reason);
+        Assert.Null(aim.To);
+        Assert.Equal(Spot.CenterOf(new GridPos(2, 3)), aim.From);
+        Assert.Null(s.PreviewAttack(Foe, s.Player, "Lancia").From);
+
+        Of(s, Foe).PlaceAt(Spot.CenterOf(new GridPos(3, 3)));
+        Assert.Equal(Spot.CenterOf(new GridPos(3, 3)), Aim(s).To);
+    }
 }

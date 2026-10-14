@@ -217,6 +217,7 @@ internal static class SaveGame
             },
         }).ToList(),
         NextEncounterId = w.NextEncounterId,
+        LastFight = w.LastFight is { } last ? new LastFightDto { Area = last.Area.Value, Log = last.Log.Select(RecordDto).ToList() } : null,
         Encounters = w.Encounters.Values.Select(ToDto).ToList(),
         Stores = w.Stores.Values.Select(s => new StoreDto
         {
@@ -629,6 +630,12 @@ internal static class SaveGame
         foreach (var faction in w.Factions.Values)
             Check(faction.Authority is null || w.Actors.ContainsKey(faction.Authority.Value), $"autorità di '{faction.Id}' sconosciuta");
         RestoreEncounters(w, d);
+        if (d.LastFight is { } last) // P2b
+        {
+            var area = new AreaId(Required(last.Area, "area dell'ultimo scontro"));
+            Check(w.Maps.ContainsKey(area) && last.Log is not null, "ultimo scontro non valido");
+            w.LastFight = new LastFight(area, last.Log!.Select(r => RecordOf(r, w, d.Version, "registro dell'ultimo scontro")).ToList());
+        }
         // C4b: wars are kept both ways; the wanted are real people, judged on a recorded deed.
         foreach (var f in d.Factions)
         {
@@ -960,16 +967,38 @@ internal static class SaveGame
             LastSeenAt = c.LastSeenAt is { } at ? new PosDto { X = at.X, Y = at.Y } : null, JoinedInRound = c.JoinedInRound, Fleeing = c.Fleeing,
             Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted,
         }).ToList(),
-        Log = e.Log.Select(r => new CombatRecordDto
-        {
-            Round = r.Round, Kind = r.Kind.ToString(), Actor = r.Actor?.Value, Target = r.Target?.Value, Attack = r.Attack,
-            D20 = r.D20.ToList(), Kept = r.Kept, Bonus = r.Bonus, Total = r.Total, ArmorClass = r.ArmorClass, Hit = r.Hit,
-            Critical = r.Critical, Damage = r.Damage, Path = r.Path.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
-            Spots = r.Spots.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
-            ShotFrom = r.ShotFrom is { } f ? new PosDto { X = f.X, Y = f.Y } : null, ShotTo = r.ShotTo is { } s ? new PosDto { X = s.X, Y = s.Y } : null,
-            Text = r.Text, PlayerText = r.PlayerText, PlayerSawActor = r.PlayerSawActor, PlayerSawTarget = r.PlayerSawTarget,
-        }).ToList(),
+        Log = e.Log.Select(RecordDto).ToList(),
     };
+
+    private static CombatRecordDto RecordDto(CombatRecord r) => new()
+    {
+        Round = r.Round, Kind = r.Kind.ToString(), Actor = r.Actor?.Value, Target = r.Target?.Value, Attack = r.Attack,
+        D20 = r.D20.ToList(), Kept = r.Kept, Bonus = r.Bonus, Total = r.Total, ArmorClass = r.ArmorClass, Hit = r.Hit,
+        Critical = r.Critical, Damage = r.Damage, Path = r.Path.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
+        Spots = r.Spots.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
+        ShotFrom = r.ShotFrom is { } f ? new PosDto { X = f.X, Y = f.Y } : null, ShotTo = r.ShotTo is { } s ? new PosDto { X = s.X, Y = s.Y } : null,
+        Text = r.Text, PlayerText = r.PlayerText, PlayerSawActor = r.PlayerSawActor, PlayerSawTarget = r.PlayerSawTarget,
+    };
+
+    /// <summary>One line of a fight's log, checked (<paramref name="where"/> names the log in the error).</summary>
+    private static CombatRecord RecordOf(CombatRecordDto? r, WorldState w, int version, string where)
+    {
+        Check(r is not null && Enum.TryParse<CombatLogKind>(r.Kind, out var kind) && Enum.IsDefined(kind) && r.Text is not null
+              && r.D20 is not null && r.Path is not null && r.Path.All(p => p is not null) && (r.Spots ?? new()).All(p => p is not null)
+              && (version < 26 || r.Spots is not null), $"{where} non valido");
+        Check((r!.Actor is null || w.Actors.ContainsKey(new ActorId(r.Actor))) && (r.Target is null || w.Actors.ContainsKey(new ActorId(r.Target))),
+            $"{where} con attori sconosciuti");
+        return new CombatRecord
+        {
+            Round = r.Round, Kind = Enum.Parse<CombatLogKind>(r.Kind), Actor = r.Actor is null ? null : new ActorId(r.Actor),
+            Target = r.Target is null ? null : new ActorId(r.Target), Attack = r.Attack, D20 = r.D20!.ToArray(), Kept = r.Kept,
+            Bonus = r.Bonus, Total = r.Total, ArmorClass = r.ArmorClass, Hit = r.Hit, Critical = r.Critical, Damage = r.Damage,
+            Path = r.Path!.Select(p => new GridPos(p!.X, p.Y)).ToArray(),
+            Spots = (r.Spots ?? new()).Select(p => new Spot(p!.X, p.Y)).ToArray(),
+            ShotFrom = r.ShotFrom is { } f ? new Spot(f.X, f.Y) : null, ShotTo = r.ShotTo is { } s ? new Spot(s.X, s.Y) : null, Text = r.Text!, PlayerText = r.PlayerText,
+            PlayerSawActor = r.PlayerSawActor, PlayerSawTarget = r.PlayerSawTarget,
+        };
+    }
 
     /// <summary>
     /// C2: fights in progress, and the rules that bind them to the actors: each combatant in one fight only, on the
@@ -1029,23 +1058,7 @@ internal static class SaveGame
                 e.Opening = new OpeningAttack(attacker, target, o.Attack, o.NonLethal);
             }
             foreach (var r in dto.Log!)
-            {
-                Check(r is not null && Enum.TryParse<CombatLogKind>(r.Kind, out var kind) && Enum.IsDefined(kind) && r.Text is not null
-                      && r.D20 is not null && r.Path is not null && r.Path.All(p => p is not null) && (r.Spots ?? new()).All(p => p is not null)
-                      && (d.Version < 26 || r.Spots is not null), $"registro dello scontro {dto.Id} non valido");
-                Check((r!.Actor is null || w.Actors.ContainsKey(new ActorId(r.Actor))) && (r.Target is null || w.Actors.ContainsKey(new ActorId(r.Target))),
-                    $"registro dello scontro {dto.Id} con attori sconosciuti");
-                e.Log.Add(new CombatRecord
-                {
-                    Round = r.Round, Kind = Enum.Parse<CombatLogKind>(r.Kind), Actor = r.Actor is null ? null : new ActorId(r.Actor),
-                    Target = r.Target is null ? null : new ActorId(r.Target), Attack = r.Attack, D20 = r.D20!.ToArray(), Kept = r.Kept,
-                    Bonus = r.Bonus, Total = r.Total, ArmorClass = r.ArmorClass, Hit = r.Hit, Critical = r.Critical, Damage = r.Damage,
-                    Path = r.Path!.Select(p => new GridPos(p!.X, p.Y)).ToArray(),
-                    Spots = (r.Spots ?? new()).Select(p => new Spot(p!.X, p.Y)).ToArray(),
-                    ShotFrom = r.ShotFrom is { } f ? new Spot(f.X, f.Y) : null, ShotTo = r.ShotTo is { } s ? new Spot(s.X, s.Y) : null, Text = r.Text!, PlayerText = r.PlayerText,
-                    PlayerSawActor = r.PlayerSawActor, PlayerSawTarget = r.PlayerSawTarget,
-                });
-            }
+                e.Log.Add(RecordOf(r, w, d.Version, $"registro dello scontro {dto.Id}"));
             AddUnique(w.Encounters, e.Id, e, "scontro");
         }
         foreach (var actor in w.Actors.Values)

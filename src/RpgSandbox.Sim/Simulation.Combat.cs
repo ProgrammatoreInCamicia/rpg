@@ -117,6 +117,8 @@ internal sealed partial class Simulation
     /// <summary>P2b: what an <see cref="AttackCommand"/> would be now, by the same checks; no dice, no state.</summary>
     internal AttackPreview PreviewAttack(ActorId actorId, ActorId targetId, string attackName, bool nonLethal)
     {
+        var player = World.Actors[World.Player];
+        bool Shown(Actor a) => a.IsPlayer || SeesActor(player, a);
         var (rejected, _, check) = GateAttack(actorId, targetId, attackName, nonLethal);
         var actor = World.Actors.GetValueOrDefault(actorId);
         var target = World.Actors.GetValueOrDefault(targetId);
@@ -125,7 +127,9 @@ internal sealed partial class Simulation
             Valid = rejected is null, Reason = rejected?.Rejection ?? RejectionReason.None, Message = rejected?.Message ?? "",
             Advantage = check?.Advantage ?? false, Disadvantage = check?.Disadvantage ?? false,
             LongRange = check?.LongRange ?? false, AutoCritical = check?.AutoCritical ?? false,
-            From = actor is null ? null : CurrentSpot(actor), To = target is null ? null : CurrentSpot(target),
+            // Review P2b: never where the player does not see someone (the preview would give away a hidden position).
+            From = actor is not null && Shown(actor) ? CurrentSpot(actor) : null,
+            To = target is not null && Shown(target) ? CurrentSpot(target) : null,
         };
     }
 
@@ -405,6 +409,8 @@ internal sealed partial class Simulation
     {
         var actors = e.Order.Select(c => World.Actors[c.Actor]).ToList();
         Record(e, CombatLogKind.Ended, null, null, (_, _) => why);
+        if (actors.Any(a => a.IsPlayer)) // P2b: its last lines stay readable once it is over
+            World.LastFight = new LastFight(e.Area, e.Log.ToList());
         World.RecordFact("CombatEnded", why, actors.Where(a => a.IsPlayer || actors.Any(o => o.IsPlayer && SeesActor(o, a)))
             .Select(a => a.Id).ToArray());
         World.Scheduler.RemoveRound(e.Id);
@@ -561,6 +567,9 @@ internal sealed partial class Simulation
     {
         var check = CheckAttack(e, attacker, target, attack, nonLethal);
         var result = Attacks.Roll(World.Rng, attack, ProfileOf(target).ArmorClass, check.Advantage, check.Disadvantage, check.AutoCritical);
+        // P2b: who struck is seen as the blow comes, before it lands (one knocked out by it still saw who did it).
+        var player = World.Actors[World.Player];
+        var sawAttacker = attacker.IsPlayer || SeesActor(player, attacker);
         var outcome = target.Vitality.TakeDamage(result.Damage, result.Critical, knockOut: nonLethal && attack.Melee);
         // P2b: a shot flies straight from the attacker to its impact: the target if it hits, past it if it misses.
         var map = World.Maps[e.Area];
@@ -584,7 +593,7 @@ internal sealed partial class Simulation
         var seen = result.DescribeFor(attacker.IsPlayer ? AttackPerspective.Attacker : target.IsPlayer ? AttackPerspective.Target : AttackPerspective.Witness);
         Record(e, kind, attacker, target, (a, t) => $"{a} {how} {t}{extra}. {result.Describe()}.", result.Roll,
             attack: attack.Name, armorClass: result.TargetArmorClass, hit: result.Hit, critical: result.Critical, damage: result.Damage,
-            playerText: (a, t) => $"{a} {how} {t}{extra}. {seen}.", shotFrom: shotFrom, shotTo: shotTo);
+            playerText: (a, t) => $"{a} {how} {t}{extra}. {seen}.", shotFrom: shotFrom, shotTo: shotTo, sawMover: sawAttacker);
         var blow = World.RecordFact("Attack", $"{attacker.Name} {how} {target.Name}: {result.Describe()}.",
             $"{attacker.Name} {how} {target.Name}: {seen}.", Participants(attacker, target));
         LearnFrom(attacker, target, attack, result); // C5a
@@ -938,7 +947,7 @@ internal sealed partial class Simulation
         var player = World.Actors[World.Player];
         bool Seen(Actor? x) => x is not null && (x.IsPlayer || SeesActor(player, x));
         var inFight = e.Order.Any(c => c.Actor == player.Id);
-        var sawActor = sawMover ?? Seen(actor); // P2a: for a move, seen anywhere along it
+        var sawActor = sawMover ?? Seen(actor); // P2a: a mover seen anywhere along its move; P2b: an attacker as it struck
         var sawTarget = Seen(target);
         var perceived = sawActor || sawTarget
                         || (inFight && kind is CombatLogKind.Started or CombatLogKind.TurnStarted or CombatLogKind.Initiative or CombatLogKind.Ended
@@ -1020,7 +1029,17 @@ internal sealed partial class Simulation
                     Attacker = Known(World.Actors[o.Attacker]) ? o.Attacker : null, Target = o.Target, Attack = o.Attack,
                 }
                 : null,
-            Log = e.Log.Where(r => r.PlayerText is not null).Select(r => new CombatLogEntry
+            Log = PublicLog(e.Log, player),
+        };
+    }
+
+    /// <summary>P2b: the last fight the player was in, once over, while it is not fighting and still on that map.</summary>
+    internal IReadOnlyList<CombatLogEntry>? LastFightOf(Actor player) =>
+        EncounterOf(player) is null && World.LastFight is { } last && player.MapArea == last.Area ? PublicLog(last.Log, player) : null;
+
+    /// <summary>A fight's log as the player perceived it.</summary>
+    private static IReadOnlyList<CombatLogEntry> PublicLog(IEnumerable<CombatRecord> log, Actor player) =>
+            log.Where(r => r.PlayerText is not null).Select(r => new CombatLogEntry
             {
                 Round = r.Round, Kind = r.Kind, Actor = r.PlayerSawActor ? r.Actor : null, Target = r.PlayerSawTarget ? r.Target : null,
                 // C5a: only the player's own rolls are shown; a target's AC never (it is learned, see Lore).
@@ -1030,9 +1049,7 @@ internal sealed partial class Simulation
                 Path = r.PlayerSawActor ? r.Path : Array.Empty<GridPos>(), Spots = r.PlayerSawActor ? r.Spots : Array.Empty<Spot>(),
                 // P2b: the shot's origin only if the player saw who shot, its impact only if it saw the target.
                 ShotFrom = r.PlayerSawActor ? r.ShotFrom : null, ShotTo = r.PlayerSawTarget ? r.ShotTo : null, Text = r.PlayerText!,
-            }).ToArray(),
-        };
-    }
+            }).ToArray();
 }
 
 // C3a: Dash, Disengage, Dodge (SRD 5.2.1 Actions).

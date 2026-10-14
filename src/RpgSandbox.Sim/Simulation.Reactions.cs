@@ -194,6 +194,8 @@ internal sealed partial class Simulation
             Defeat(e, runner, null); // C5b: driven off (judged while it is still in the fight)
             e.Order.Remove(c);
             Record(e, CombatLogKind.Fled, runner, null, (a, _) => $"{a} è scappato: è fuori dallo scontro.");
+            if (runner.IsPlayer) // P2b: out of the fight, it keeps its log
+                World.LastFight = new LastFight(e.Area, e.Log.ToList());
             World.RecordFact("Escaped", $"{runner.Name} è scappato dallo scontro.", runner.Id);
         }
         if (e.Order.Select(c => c.Side).Distinct().Count() < 2)

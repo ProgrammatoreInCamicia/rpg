@@ -29,6 +29,9 @@ internal sealed class SaveDto
     public ContentDto? Content { get; set; }
     public List<EncounterDto> Encounters { get; set; } = new();
     public long NextEncounterId { get; set; }
+
+    /// <summary>P2b (schema 27): the last fight the player was in, once over; null if none.</summary>
+    public LastFightDto? LastFight { get; set; }
 }
 
 internal sealed class AreaDto
@@ -585,4 +588,10 @@ internal sealed class KindLoreDto
     public List<string> Attacks { get; set; } = new();
     public List<string> Tells { get; set; } = new();
     public bool Studied { get; set; }
+}
+
+internal sealed class LastFightDto
+{
+    public string Area { get; set; } = "";
+    public List<CombatRecordDto> Log { get; set; } = new();
 }

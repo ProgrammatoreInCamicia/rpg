@@ -343,6 +343,7 @@ public sealed class SimulationSession
             RecentEvents = Freeze(w.RecentFacts.Where(f => f.Participants.Contains(player.Id)).TakeLast(10)
                 .Select(f => new FactView { Id = f.Id, At = f.At, Kind = f.Kind, Description = f.PlayerDescription ?? f.Description })),
             Combat = _sim.CombatViewOf(player),
+            LastFight = _sim.LastFightOf(player),
             Dead = player.Vitality.State == Rules.LifeState.Dead,
             Unconscious = player.Vitality.Unconscious,
             Level = w.LevelOf(player),

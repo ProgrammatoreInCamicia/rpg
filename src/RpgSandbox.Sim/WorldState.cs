@@ -751,6 +751,9 @@ internal sealed class WorldState
     public SortedDictionary<long, Encounter> Encounters { get; } = new();
     public long NextEncounterId { get; set; } = 1;
 
+    /// <summary>P2b: the log of the last fight the player was in, from its end (see <see cref="Api.PlayerView.LastFight"/>).</summary>
+    public LastFight? LastFight { get; set; }
+
     public static WorldState FromScenario(Scenario scenario)
     {
         var world = new WorldState { Player = scenario.Player, Rng = new SplitMix64(scenario.Seed), Content = scenario.Content };
@@ -832,3 +835,6 @@ internal readonly record struct DoorKey(AreaId Area, GridPos At)
 
 /// <summary>A door as last seen: open or closed, and when.</summary>
 internal sealed record RememberedDoor(bool Open, GameTime SeenAt);
+
+/// <summary>P2b: a finished fight's log, kept for the player on the map it was fought on.</summary>
+internal sealed record LastFight(AreaId Area, IReadOnlyList<CombatRecord> Log);

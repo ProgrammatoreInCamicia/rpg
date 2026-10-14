@@ -98,6 +98,12 @@ public sealed record PlayerView
     /// <summary>C2: the fight the player is in; null outside a fight. While it is the player's turn the world is still.</summary>
     public CombatView? Combat { get; init; }
 
+    /// <summary>
+    /// P2b: the log of the last fight the player was in, as it perceived it (the same entries as <see cref="CombatView.Log"/>),
+    /// once the fight is over: its last blow or shot included. Null while fighting, after leaving that map, or if none.
+    /// </summary>
+    public IReadOnlyList<CombatLogEntry>? LastFight { get; init; }
+
     /// <summary>C2: the player is dead. The world may go on; the client offers to load a game.</summary>
     public bool Dead { get; init; }
 
