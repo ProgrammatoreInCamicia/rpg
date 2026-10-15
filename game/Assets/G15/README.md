@@ -14,6 +14,8 @@ Generated with Codex's built-in image generation tool. Prompt set:
 
 The sheets are prototypes, not animation frame sheets. Future art can replace each asset without changing Sim data or movement rules.
 
-The optional 3D walk experiment is available in the village with **P**. It uses `Characters/paladin-3d-walk-8x8.png`: 8 facings and 8 walking phases rendered from one articulated Godot character. The source scene is `Scenes/Paladin3DPrototype.tscn` and its code is `Scripts/Paladin3DPrototype.cs`. Press P again to restore the original painted sprite. This low-poly model tests motion continuity and facing; it is not the final art direction.
+The earlier 3D walk atlas is available in the village with **P** for comparison. It uses `Characters/paladin-3d-walk-8x8.png`: 8 facings and 8 walking phases rendered from one articulated Godot character. The source scene is `Scenes/Paladin3DPrototype.tscn` and its code is `Scripts/Paladin3DPrototype.cs`. Press P again to return to live 3D.
+
+The paladin is rendered in real time from its 3D rig by default in the village. Its transparent SubViewport texture is composited into the existing 2D scene, so the current map shading and Y-sorting still apply. Press **O** to compare the original painted sprite, then O again to return to live 3D. P switches between the earlier atlas and live 3D. Neither changes Sim movement or rules. The live mode currently renders only the player, not every NPC; its cost with many characters is still unmeasured.
 
 The source PNGs are stored at 512 pixels on their longest side. The client scales character quadrants to roughly 50 screen pixels wide and samples material patches in proportion to each texture's dimensions.

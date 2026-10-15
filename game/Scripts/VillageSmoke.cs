@@ -48,6 +48,7 @@ public partial class VillageSmoke : Node
 		Require(_map.HasFigureSpriteForSmoke(MappedVillageScenario.Ids.Player)
 			&& _map.HasFigureSpriteForSmoke(MappedVillageScenario.Ids.Guard),
 			"G15: directional character sprite did not load in the village");
+		Require(_map.PaladinLive3dLoadedForSmoke, "G15: the live 3D paladin is not the village default");
 		_map.TogglePaladin3dPrototypeForSmoke();
 		await Frames(2);
 		Require(_map.Paladin3dLoadedForSmoke, "G15: the optional 3D paladin walk atlas did not load");
@@ -67,6 +68,16 @@ public partial class VillageSmoke : Node
 			&& exactFoot.DistanceTo(VillageMap.ScreenPointOf(exactFloor)) < 1f,
 			"The village click did not walk to the exact floor point");
 		Capture("1-free-walk.png");
+		_map.MoveTo(MappedVillageScenario.Ids.PlayerStart);
+		await UntilIdle(4);
+		await Frames(3);
+		Require(_map.PaladinLive3dLoadedForSmoke, "G15: the live 3D paladin did not supply the village sprite texture");
+		Capture("1-paladin-live-3d.png");
+		_map.ClickSpotForSmoke(new Spot(180, 145));
+		await Frames(8);
+		Require(_map.PaladinLive3dLoadedForSmoke, "G15: the live 3D paladin vanished while walking");
+		Capture("1-paladin-live-3d-walking.png");
+		await UntilIdle(4);
 		_map.MoveTo(MappedVillageScenario.Ids.PlayerStart);
 		await UntilIdle(4);
 		_map.OpenInventoryForSmoke();
@@ -222,6 +233,9 @@ public partial class VillageSmoke : Node
 		Require(_map.View.MapLight![3][9] == '2', "The torch should light the squares around");
 		await Frames(3);
 		Capture("6-door-closed-torch.png");
+		await Frames(3);
+		Require(_map.PaladinLive3dLoadedForSmoke, "G15: the live 3D paladin vanished by a closed door and torch");
+		Capture("6-paladin-live-3d-torch-door.png");
 
 		// Shift-click uses a door square as a walking destination, even from next to it.
 		var doorNow = _map.GetViewport().GetCanvasTransform() * VillageMap.ScreenPointOf(MappedVillageScenario.Ids.InnDoor);
@@ -273,6 +287,7 @@ public partial class VillageSmoke : Node
 		await NightRaid();
 		await DiscoveredTheft();
 		await DoorMemory();
+		await WindowGlassAndBars();
 		await CombatHudPreview();
 		await DeedJournalPreview();
 		await NightDuel();
@@ -823,6 +838,53 @@ public partial class VillageSmoke : Node
 		Require(_map.View.Doors.Single(d => d.At == houseDoor).Known == DoorKnowledge.Remembered,
 			"The UI load lost the remembered door state");
 		Capture("24-door-remembered-closed.png");
+		_map.FocusForSmoke(null);
+	}
+
+	/// <summary>P4b: the visible window state and available actions follow a real Sim save.</summary>
+	private async Task WindowGlassAndBars()
+	{
+		var a = new GridPos(3, 0);
+		var b = new GridPos(3, 1);
+		var barsA = new GridPos(4, 11);
+		var barsB = new GridPos(4, 12);
+		var session = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
+		var walk = session.Execute(new MoveCommand { Actor = session.Player, To = b });
+		Require(walk.Success, "P4b: cannot approach the inn window");
+		session.AdvanceUntilCompleted(walk.Action!.Value, Duration.FromMinutes(5));
+		var intactSave = System.IO.Path.Combine(_outputDir, "window-intact.json");
+		using (var stream = File.Create(intactSave)) session.Save(stream);
+		_map.LoadGameFromPath(intactSave);
+		_map.OpenWindowMenuForSmoke(a, b);
+		Require(_map.BarrierActionsForSmoke.Any(x => x.StartsWith("Rompi il vetro"))
+			&& !_map.WindowShardsForSmoke(a, b) && _map.WindowBarsForSmoke(barsA, barsB),
+			"P4b: intact glass or farmhouse bars are not represented");
+		var broken = session.Execute(new BreakGlassCommand { Actor = session.Player, A = a, B = b });
+		Require(broken.Success, "P4b: cannot break the inn window glass");
+		session.AdvanceUntilCompleted(broken.Action!.Value, Duration.FromMinutes(5));
+		var brokenSave = System.IO.Path.Combine(_outputDir, "window-broken.json");
+		using (var stream = File.Create(brokenSave)) session.Save(stream);
+		_map.LoadGameFromPath(brokenSave);
+		_map.FocusForSmoke(b);
+		_map.OpenWindowMenuForSmoke(a, b);
+		Require(_map.WindowShardsForSmoke(a, b) && !_map.WindowPanelOpenForSmoke(a, b)
+			&& _map.BarrierActionsForSmoke.Any(x => x.StartsWith("Togli i frammenti"))
+			&& _map.BarrierActionsForSmoke.Contains("Scavalca")
+			&& !_map.BarrierActionsForSmoke.Contains("Chiudi"),
+			"P4b: broken glass did not update the artwork or actions");
+		await Frames(2);
+		Capture("23c-p4b-broken-window.png");
+		var cleared = session.Execute(new ClearGlassCommand { Actor = session.Player, A = a, B = b });
+		Require(cleared.Success, "P4b: cannot clear the broken glass");
+		session.AdvanceUntilCompleted(cleared.Action!.Value, Duration.FromMinutes(5));
+		var clearedSave = System.IO.Path.Combine(_outputDir, "window-cleared.json");
+		using (var stream = File.Create(clearedSave)) session.Save(stream);
+		_map.LoadGameFromPath(clearedSave);
+		_map.OpenWindowMenuForSmoke(barsA, barsB);
+		Require(!_map.WindowShardsForSmoke(a, b)
+			&& _map.BarrierActionsForSmoke.Any(x => x.StartsWith("Forza le sbarre"))
+			&& !_map.BarrierActionsForSmoke.Contains("Scavalca"),
+			"P4b: cleared glass or visible bars did not update the artwork or actions");
 		_map.FocusForSmoke(null);
 	}
 

@@ -3,12 +3,19 @@ using Godot;
 namespace RpgSandbox.Game;
 
 /// <summary>
-/// Isolated art experiment: one articulated 3D character rendered from eight angles.
-/// Run the scene with -- --paladin-prototype=ABSOLUTE_DIRECTORY to export its frames.
-/// No simulation state or village rendering depends on this prototype.
+/// One articulated 3D character. Run its scene with -- --paladin-prototype=ABSOLUTE_DIRECTORY
+/// to export an atlas, or instantiate LiveMode in the village to render it each frame.
+/// Movement and rules remain in the simulation; this is presentation only.
 /// </summary>
 public partial class Paladin3DPrototype : Node3D
 {
+	/// <summary>Use the same rig as a live ViewportTexture in the village, without exporting an atlas.</summary>
+	public bool LiveMode { get; set; }
+	public Texture2D LiveTexture => _viewport.GetTexture();
+	public void PoseLive(float yaw, float cycle) => Pose(yaw, cycle);
+	public void SetLiveRendering(bool active) => _viewport.RenderTargetUpdateMode = active
+		? SubViewport.UpdateMode.Always : SubViewport.UpdateMode.Disabled;
+
 	private readonly List<Node3D> _hips = new();
 	private readonly List<Node3D> _knees = new();
 	private readonly List<Node3D> _shoulders = new();
@@ -19,6 +26,12 @@ public partial class Paladin3DPrototype : Node3D
 
 	public override async void _Ready()
 	{
+		if (LiveMode)
+		{
+			BuildScene();
+			Pose(0f, 0f);
+			return;
+		}
 		var destination = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--paladin-prototype="));
 		if (destination is null)
 		{
@@ -179,9 +192,9 @@ public partial class Paladin3DPrototype : Node3D
 		parent.AddChild(part);
 	}
 
-	private void Pose(int direction, float cycle)
+	private void Pose(float yaw, float cycle)
 	{
-		_figure.Rotation = new Vector3(0, direction * Mathf.Pi / 4f, 0);
+		_figure.Rotation = new Vector3(0, yaw, 0);
 		var stride = Mathf.Sin(cycle * Mathf.Tau);
 		_body.Position = new Vector3(0, 0.024f * (1f - Mathf.Cos(cycle * Mathf.Tau * 2f)), 0);
 		_body.Rotation = new Vector3(0, 0.018f * stride, 0);
@@ -205,7 +218,7 @@ public partial class Paladin3DPrototype : Node3D
 		for (var direction = 0; direction < 8; direction++)
 		for (var phase = 0; phase < phases; phase++)
 		{
-			Pose(direction, phase / (float)phases);
+			Pose(direction * Mathf.Pi / 4f, phase / (float)phases);
 			await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
 			await ToSignal(RenderingServer.Singleton, RenderingServer.SignalName.FramePostDraw);
 			var frame = _viewport.GetTexture().GetImage();

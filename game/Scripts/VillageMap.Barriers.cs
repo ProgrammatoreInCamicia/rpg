@@ -15,7 +15,7 @@ public partial class VillageMap
 	private void BuildBarrierUi(CanvasLayer ui)
 	{
 		_barrierMenu = new PanelContainer { OffsetLeft = 900, OffsetRight = 1264, OffsetTop = 100,
-			OffsetBottom = 360, Visible = false };
+			OffsetBottom = 560, Visible = false };
 		_barrierMenu.AddThemeStyleboxOverride("panel", new StyleBoxFlat
 			{ BgColor = new Color(0.10f, 0.11f, 0.13f, 0.96f) });
 		ui.AddChild(_barrierMenu);
@@ -67,7 +67,7 @@ public partial class VillageMap
 			SetBarrierMark(panel, KnownWindow(a, b));
 		foreach (var mark in _barrierMarks.Values)
 			mark.Visible &= _view.Map is not null && _view.Position is not null;
-		if (_view.Combat is not null || _view.Dead || _view.Map is null)
+		if (_view.Dead || _view.Map is null || _view.Combat is { IsYourTurn: false })
 			_barrierMenu.Visible = false;
 	}
 
@@ -82,13 +82,17 @@ public partial class VillageMap
 	{
 		if (edge.Open is not { } open)
 			return;
-		OpenBarrierMenu(KnownWindow(edge.A, edge.B), door: null, edge.A, edge.B, open);
+		OpenBarrierMenu(KnownWindow(edge.A, edge.B), door: null, edge.A, edge.B, open, edge);
 	}
 
-	private void OpenBarrierMenu(KnownBarrierView? known, GridPos? door, GridPos? a, GridPos? b, bool open)
+	private void OpenBarrierMenu(KnownBarrierView? known, GridPos? door, GridPos? a, GridPos? b, bool open,
+		MapEdgeView? window = null)
 	{
-		if (_view.Combat is not null || _view.Dead)
+		if (_view.Dead || _view.Combat is { IsYourTurn: false })
 			return;
+		var combat = _view.Combat;
+		var interaction = combat is null ? "" : combat.You.InteractionAvailable ? " (gratis)" : " (usa l'azione)";
+		var action = combat is null ? "1 minuto" : "usa l'azione";
 		_personMenu.Visible = false;
 		_barrierMenu.Visible = true;
 		foreach (var child in _barrierActions.GetChildren().Skip(2).ToArray())
@@ -102,22 +106,56 @@ public partial class VillageMap
 			: known.Locked ? $"Chiusa a chiave: {known.Clue}"
 			: known.Stuck ? $"Bloccata: {known.Clue}"
 			: known.Clue;
-		AddBarrierButton(open ? "Chiudi" : "Apri", () =>
+		if (window is not null)
 		{
-			if (door is { } at) ClickDoor(at);
-			else if (_view.Map?.Edges.FirstOrDefault(e => e.Kind == MapEdgeKind.Window && e.A == a && e.B == b) is { } edge)
-				ClickWindow(edge);
-		});
-		if (known is { Locked: true } && _view.Inventory.Any(i => i.Item.Value == "thieves-tools" && i.Count > 0))
-			AddBarrierButton("Scassina (1 minuto)", () => StartActivity(new PickLockCommand
+			var visible = window.Glass switch
+			{
+				WindowGlass.Broken => "Vetro rotto; restano frammenti.",
+				WindowGlass.Cleared => "Vetro ripulito.",
+				_ => "",
+			};
+			if (window.Barred == true)
+				visible += (visible.Length > 0 ? " " : "") + "Sbarre alla finestra.";
+			if (visible.Length > 0)
+				_barrierClue.Text = visible + (known is null ? "" : $" {known.Clue}");
+		}
+		if (window is null || window.Glass == WindowGlass.Intact)
+			AddBarrierButton((open ? "Chiudi" : "Apri") + interaction, () =>
+			{
+				if (combat is not null)
+					RunCombatBarrier(door is { } at
+						? new DoorCommand { Actor = _sim.Player, At = at, Open = !open }
+						: new WindowCommand { Actor = _sim.Player, A = a!.Value, B = b!.Value, Open = !open });
+				else if (door is { } at) ClickDoor(at);
+				else if (_view.Map?.Edges.FirstOrDefault(e => e.Kind == MapEdgeKind.Window && e.A == a && e.B == b) is { } edge)
+					ClickWindow(edge);
+			});
+		if (window is { Glass: WindowGlass.Intact })
+			AddBarrierButton(combat is null ? "Rompi il vetro (6 secondi, rumoroso)" : "Rompi il vetro (usa l'azione, rumoroso)", () => RunBarrierWork(new BreakGlassCommand
+				{ Actor = _sim.Player, A = a, B = b }));
+		if (window is { Glass: WindowGlass.Broken } && combat is null)
+			AddBarrierButton("Togli i frammenti (1 minuto)", () => StartActivity(new ClearGlassCommand
+				{ Actor = _sim.Player, A = a, B = b }));
+		if (window is { Barred: false } && (open || window.Glass is WindowGlass.Broken or WindowGlass.Cleared))
+			AddBarrierButton(combat is null ? "Scavalca" : $"Scavalca ({ClimbCostFeet(a!.Value, b!.Value):0.#} piedi)",
+				() => RunBarrierWork(new ClimbCommand
+				{ Actor = _sim.Player, A = a, B = b }));
+		if (window is { Barred: true })
+			AddBarrierButton($"Forza le sbarre ({action}, rumoroso)", () => RunBarrierWork(new ForceCommand
+				{ Actor = _sim.Player, A = a, B = b }));
+		if (window is not { Glass: WindowGlass.Broken or WindowGlass.Cleared }
+			&& known is { Locked: true } && _view.Inventory.Any(i => i.Item.Value == "thieves-tools" && i.Count > 0))
+			AddBarrierButton($"Scassina ({action})", () => RunBarrierWork(new PickLockCommand
 				{ Actor = _sim.Player, Door = door, A = a, B = b }));
-		if (known is { Locked: true } or { Stuck: true })
-			AddBarrierButton("Forza (1 minuto, rumoroso)", () => StartActivity(new ForceCommand
+		if (window is not { Barred: true } && window is not { Glass: WindowGlass.Broken or WindowGlass.Cleared }
+			&& known is ({ Locked: true } or { Stuck: true }))
+			AddBarrierButton($"Forza ({action}, rumoroso)", () => RunBarrierWork(new ForceCommand
 				{ Actor = _sim.Player, Door = door, A = a, B = b }));
-		if (known is { Locked: true })
-			AddBarrierButton("Apri con la chiave", () => UseBarrierLock(door, a, b, locked: false));
-		else if (known is { HasLock: true, Locked: false, Stuck: false, Broken: false } && !open)
-			AddBarrierButton("Chiudi a chiave", () => UseBarrierLock(door, a, b, locked: true));
+		if (window is not { Glass: WindowGlass.Broken or WindowGlass.Cleared } && known is { Locked: true })
+			AddBarrierButton("Apri con la chiave" + interaction, () => UseBarrierLock(door, a, b, locked: false));
+		else if (window is not { Glass: WindowGlass.Broken or WindowGlass.Cleared }
+			&& known is { HasLock: true, Locked: false, Stuck: false, Broken: false } && !open)
+			AddBarrierButton("Chiudi a chiave" + interaction, () => UseBarrierLock(door, a, b, locked: true));
 		AddBarrierButton("Chiudi menu", () => { });
 	}
 
@@ -132,17 +170,48 @@ public partial class VillageMap
 		_barrierActions.AddChild(button);
 	}
 
-	private void UseBarrierLock(GridPos? door, GridPos? a, GridPos? b, bool locked) =>
+	private double ClimbCostFeet(GridPos a, GridPos b)
+	{
+		if (_view.Spot is not { } from)
+			return 10;
+		var beyond = from.Cell == a ? b : a;
+		var inches = Math.Ceiling(from.DistanceTo(Spot.CenterOf(beyond)) - 1e-9) + 5 * Spot.PerFoot;
+		return inches / Spot.PerFoot;
+	}
+
+	private void RunCombatBarrier(Command command)
+	{
+		var result = _sim.Execute(command);
+		ShowMessage(result.Message);
+		Refresh();
+	}
+
+	private void RunBarrierWork(Command command)
+	{
+		if (_view.Combat is not null) RunCombatBarrier(command);
+		else StartActivity(command);
+	}
+
+	private void UseBarrierLock(GridPos? door, GridPos? a, GridPos? b, bool locked)
+	{
+		var command = new LockCommand { Actor = _sim.Player, Door = door, A = a, B = b, Locked = locked };
+		if (_view.Combat is not null)
+		{
+			RunCombatBarrier(command);
+			return;
+		}
 		Order(locked ? "chiudi a chiave" : "apri con la chiave", walk: false, () =>
 		{
-			var result = _sim.Execute(new LockCommand
-				{ Actor = _sim.Player, Door = door, A = a, B = b, Locked = locked });
+			var result = _sim.Execute(command);
 			ShowMessage(result.Message);
 			Refresh();
 		});
+	}
 
 	internal bool BarrierMenuVisibleForSmoke => _barrierMenu.Visible;
 	internal void OpenDoorMenuForSmoke(GridPos at) => OpenDoorMenu(at);
+	internal void OpenWindowMenuForSmoke(GridPos a, GridPos b) =>
+		OpenWindowMenu(_view.Map!.Edges.Single(e => e.Kind == MapEdgeKind.Window && e.A == a && e.B == b));
 	internal IReadOnlyList<string> BarrierActionsForSmoke => _barrierActions.GetChildren().OfType<Button>()
 		.Select(button => button.Text).ToArray();
 	internal string? BarrierMarkForSmoke(GridPos at) => _doorPanels.TryGetValue(at, out var panel)

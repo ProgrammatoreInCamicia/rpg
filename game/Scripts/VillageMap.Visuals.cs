@@ -14,6 +14,10 @@ public partial class VillageMap
 	private Vector2 _paladin3dDirectionTravel;
 	private int _paladin3dFacing = 1;
 	private bool _paladin3dPrototype;
+	private Paladin3DPrototype? _paladinLiveModel;
+	private bool _paladinLive3d = true;
+	private float _paladinLiveYaw;
+	private float _paladinLiveTargetYaw;
 	private readonly Dictionary<ActorId, double> _attackVisualUntil = new();
 	private readonly Dictionary<ActorId, double> _hitVisualUntil = new();
 	private int _seenCombatVisuals;
@@ -79,6 +83,22 @@ public partial class VillageMap
 		if (edge.Kind == MapEdgeKind.Window)
 		{
 			node.AddChild(new Line2D { Points = new[] { first, second }, Width = 5f, DefaultColor = Wall });
+			var shards = new Node2D { Name = "Shards", Visible = false };
+			for (var i = 0; i < 4; i++)
+			{
+				var along = first.Lerp(second, (i + 0.5f) / 4f);
+				shards.AddChild(new Line2D { Points = new[] { along, along + new Vector2(i % 2 == 0 ? -3 : 3, -7 - i % 2 * 3) },
+					Width = 1.5f, DefaultColor = new Color(0.68f, 0.90f, 0.94f, 0.9f) });
+			}
+			node.AddChild(shards);
+			var bars = new Node2D { Name = "Bars", Visible = edge.Barred == true };
+			for (var i = 1; i <= 3; i++)
+			{
+				var along = first.Lerp(second, i / 4f);
+				bars.AddChild(new Line2D { Points = new[] { along, along + Vector2.Up * height },
+					Width = 2.3f, DefaultColor = new Color(0.27f, 0.24f, 0.20f) });
+			}
+			node.AddChild(bars);
 			node.AddChild(new Line2D { Name = "OpenSash",
 				Points = new[] { first + Vector2.Up * height, first + new Vector2(-12, -height - 9) },
 				Width = 3f, DefaultColor = Wall.Lightened(0.2f), Visible = false });
@@ -86,10 +106,12 @@ public partial class VillageMap
 		return node;
 	}
 
-	private static void SetWindowPanelOpen(Node2D panel, bool open)
+	private static void SetWindowPanel(Node2D panel, MapEdgeView edge)
 	{
-		panel.GetNode<Polygon2D>("Glass").Visible = !open;
-		panel.GetNode<Line2D>("OpenSash").Visible = open;
+		panel.GetNode<Polygon2D>("Glass").Visible = edge.Open == false && edge.Glass == WindowGlass.Intact;
+		panel.GetNode<Node2D>("Shards").Visible = edge.Glass == WindowGlass.Broken;
+		panel.GetNode<Node2D>("Bars").Visible = edge.Barred == true;
+		panel.GetNode<Line2D>("OpenSash").Visible = edge.Open == true && edge.Glass == WindowGlass.Intact;
 	}
 
 	private MapEdgeView? WindowAt(Vector2 point)
@@ -130,7 +152,11 @@ public partial class VillageMap
 	}
 
 	internal bool WindowPanelOpenForSmoke(GridPos a, GridPos b) =>
-		!_windowPanels[(a, b)].GetNode<Polygon2D>("Glass").Visible;
+		_windowPanels[(a, b)].GetNode<Line2D>("OpenSash").Visible;
+	internal bool WindowShardsForSmoke(GridPos a, GridPos b) =>
+		_windowPanels[(a, b)].GetNode<Node2D>("Shards").Visible;
+	internal bool WindowBarsForSmoke(GridPos a, GridPos b) =>
+		_windowPanels[(a, b)].GetNode<Node2D>("Bars").Visible;
 
 	private static string? FigureAsset(ActorId id) => id == MappedVillageScenario.Ids.Player
 		? "paladin" : id == MappedVillageScenario.Ids.Guard ? "guard"
@@ -176,24 +202,27 @@ public partial class VillageMap
 		token.GetNode<Polygon2D>("Prone").Visible = false;
 		var delta = token.Position - previousPosition;
 		var asset = FigureAsset(id)!;
+		var live = id == MappedVillageScenario.Ids.Player && _paladinLive3d && EnsurePaladinLiveModel() is { };
 		var prototype = id == MappedVillageScenario.Ids.Player && _paladin3dPrototype && LoadPaladin3dFrames() is { };
-		var plannedTangent = prototype && moving ? WalkTangent(walk, token.Position) : null;
+		var plannedTangent = (prototype || live) && moving ? WalkTangent(walk, token.Position) : null;
 		if (plannedTangent is { } tangent)
 		{
-			_paladin3dFacing = PrototypeFacing(tangent);
+			if (prototype) _paladin3dFacing = PrototypeFacing(tangent);
+			if (live) _paladinLiveTargetYaw = LiveYaw(tangent);
 			_paladin3dDirectionTravel = Vector2.Zero;
 		}
 		if (moving && delta.LengthSquared() is > 0.01f and < 10000f)
 		{
 			_figureFacing[id] = delta.Y >= 0 ? (delta.X < 0 ? 0 : 1) : (delta.X < 0 ? 2 : 3);
-			if (prototype)
+			if (prototype || live)
 			{
 				if (plannedTangent is null)
 				{
 					_paladin3dDirectionTravel += delta;
 					if (_paladin3dDirectionTravel.LengthSquared() >= 4f)
 					{
-						_paladin3dFacing = PrototypeFacing(_paladin3dDirectionTravel);
+						if (prototype) _paladin3dFacing = PrototypeFacing(_paladin3dDirectionTravel);
+						if (live) _paladinLiveTargetYaw = LiveYaw(_paladin3dDirectionTravel);
 						_paladin3dDirectionTravel = Vector2.Zero;
 					}
 				}
@@ -202,18 +231,24 @@ public partial class VillageMap
 		}
 		if (!moving)
 			_paladin3dDirectionTravel = Vector2.Zero;
+		if (live)
+		{
+			var weight = 1f - Mathf.Exp(-12f * (float)GetProcessDeltaTime());
+			_paladinLiveYaw = Mathf.LerpAngle(_paladinLiveYaw, _paladinLiveTargetYaw, weight);
+			_paladinLiveModel!.PoseLive(_paladinLiveYaw, moving ? _paladin3dWalkDistance / 40f : 0f);
+		}
 		var facing = _figureFacing.GetValueOrDefault(id);
-		var frame = prototype
+		Texture2D frame = live ? _paladinLiveModel!.LiveTexture : prototype
 			? _paladin3dFrames![_paladin3dFacing * 8 + (moving ? (int)(_paladin3dWalkDistance / 5f) % 8 : 0)]
 			: _figureAtlases[asset][facing];
 		if (sprite.Texture != frame)
 			sprite.Texture = frame;
-		sprite.Scale = Vector2.One * (prototype ? 0.32f : 50f / _figureAtlases[asset][0].GetWidth());
-		sprite.Offset = prototype ? new Vector2(0, -64) : new Vector2(0, -_figureAtlases[asset][0].GetHeight() * 0.40f);
+		sprite.Scale = Vector2.One * (prototype || live ? 0.32f : 50f / _figureAtlases[asset][0].GetWidth());
+		sprite.Offset = prototype || live ? new Vector2(0, -64) : new Vector2(0, -_figureAtlases[asset][0].GetHeight() * 0.40f);
 		var now = Time.GetTicksMsec() / 1000.0;
 		var attacking = _attackVisualUntil.GetValueOrDefault(id) > now;
 		var hit = _hitVisualUntil.GetValueOrDefault(id) > now;
-		var bob = !moving || prone || prototype ? 0f : MathF.Sin((float)(now * 13)) * 0.6f;
+		var bob = !moving || prone || prototype || live ? 0f : MathF.Sin((float)(now * 13)) * 0.6f;
 		sprite.Position = prone ? new Vector2(0, -5) : new Vector2(attacking ? (facing is 0 or 2 ? -3 : 3) : 0, bob);
 		sprite.RotationDegrees = prone ? -78f : attacking ? (facing is 0 or 2 ? -8f : 8f) : 0f;
 		sprite.Modulate = hit ? new Color(1f, 0.52f, 0.48f) : Colors.White;
@@ -278,17 +313,67 @@ public partial class VillageMap
 		return facing;
 	}
 
+	/// <summary>Invert the fixed orthographic camera's ground-plane projection, retaining a continuous 3D heading.</summary>
+	private static float LiveYaw(Vector2 travel)
+	{
+		var sin = 0.291f * travel.X + 0.651f * travel.Y;
+		var cos = -0.249f * travel.X + 0.759f * travel.Y;
+		return Mathf.Atan2(sin, cos);
+	}
+
+	private Paladin3DPrototype EnsurePaladinLiveModel()
+	{
+		if (_paladinLiveModel is not null)
+			return _paladinLiveModel;
+		_paladinLiveModel = new Paladin3DPrototype { Name = "LivePaladinRenderer", LiveMode = true };
+		AddChild(_paladinLiveModel);
+		return _paladinLiveModel;
+	}
+
+	private void TogglePaladinLive3dPrototype()
+	{
+		_paladinLive3d = !_paladinLive3d;
+		if (_paladinLive3d)
+		{
+			_paladin3dPrototype = false;
+			_paladinLiveYaw = _paladinLiveTargetYaw = _paladin3dFacing * Mathf.Pi / 4f;
+			EnsurePaladinLiveModel().SetLiveRendering(true);
+		}
+		else
+			_paladinLiveModel?.SetLiveRendering(false);
+		_paladin3dWalkDistance = 0;
+		_paladin3dDirectionTravel = Vector2.Zero;
+		ShowMessage(_paladinLive3d ? "Paladino 3D in tempo reale attivo."
+			: "Sprite dipinta di confronto attiva (O per tornare al 3D).");
+		PlaceTokens();
+	}
+
 	private void TogglePaladin3dPrototype()
 	{
 		_paladin3dPrototype = !_paladin3dPrototype;
+		if (_paladin3dPrototype)
+		{
+			_paladinLive3d = false;
+			_paladinLiveModel?.SetLiveRendering(false);
+		}
+		else
+		{
+			_paladinLive3d = true;
+			EnsurePaladinLiveModel().SetLiveRendering(true);
+		}
 		_paladin3dWalkDistance = 0;
 		_paladin3dDirectionTravel = Vector2.Zero;
-		ShowMessage(_paladin3dPrototype ? "Prova paladino 3D attiva (P per tornare alla sprite)."
-			: "Sprite originale ripristinata.");
+		ShowMessage(_paladin3dPrototype ? "Atlante 3D di confronto attivo (P per tornare al 3D live)."
+			: "Paladino 3D in tempo reale ripristinato.");
 		PlaceTokens();
 	}
 
 	internal void TogglePaladin3dPrototypeForSmoke() => TogglePaladin3dPrototype();
+	internal void TogglePaladinLive3dPrototypeForSmoke() => TogglePaladinLive3dPrototype();
+	internal bool PaladinLive3dLoadedForSmoke => _paladinLive3d && _paladinLiveModel is not null
+		&& _tokens.TryGetValue(MappedVillageScenario.Ids.Player, out var token)
+		&& token.GetNodeOrNull<Sprite2D>("Figure") is { Texture: { } texture }
+		&& texture == _paladinLiveModel.LiveTexture;
 	internal bool Paladin3dLoadedForSmoke => _paladin3dFrames?.Length == 64
 		&& _tokens.TryGetValue(MappedVillageScenario.Ids.Player, out var token)
 		&& token.GetNodeOrNull<Sprite2D>("Figure") is { Texture: { } texture }

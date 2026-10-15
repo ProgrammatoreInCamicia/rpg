@@ -209,6 +209,11 @@ public partial class VillageMap : Node2D
 			TogglePaladin3dPrototype();
 			return;
 		}
+		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.O })
+		{
+			TogglePaladinLive3dPrototype();
+			return;
+		}
 		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F })
 		{
 			SetSneak(!_sneak);
@@ -731,7 +736,7 @@ public partial class VillageMap : Node2D
 		if (_view.Map is { } mapWithWindows)
 			foreach (var window in mapWithWindows.Edges.Where(e => e.Kind == MapEdgeKind.Window && e.Open is not null))
 				if (_windowPanels.TryGetValue((window.A, window.B), out var panel))
-					SetWindowPanelOpen(panel, window.Open!.Value);
+					SetWindowPanel(panel, window);
 		RefreshBarrierMarks();
 		var watchers = _view.VisibleActors.Where(a => a.SeesYou == true).Select(a => a.Name).ToList();
 		var hidden = _view.Sneaking is { } total ? $"Di soppiatto (Furtività {total}). "
@@ -1033,7 +1038,8 @@ public partial class VillageMap : Node2D
 	{
 		var mouse = GetGlobalMousePosition();
 		var person = PersonAt(mouse);
-		var canUseBoundary = _view.Combat is null && (DoorAt(mouse) is not null || WindowAt(mouse) is not null);
+		var canUseBoundary = (_view.Combat is null || _view.Combat.IsYourTurn)
+			&& (DoorAt(mouse) is not null || WindowAt(mouse) is not null);
 		Input.SetDefaultCursorShape(person is not null || canUseBoundary
 			? Input.CursorShape.PointingHand : Input.CursorShape.Arrow);
 		var cell = person is { } id && _tokens.TryGetValue(id, out var token) ? ScreenToCell(token.Position) : ScreenToCell(mouse);
