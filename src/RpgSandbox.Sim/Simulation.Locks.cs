@@ -69,12 +69,12 @@ internal sealed partial class Simulation
         {
             barrier.Locked = false;
             Learn(actor, map, key, barrier);
-            World.RecordFact(key.IsDoor ? "DoorUnlocked" : "WindowUnlocked", $"{actor.Name} apre con la chiave {Name(key)} ({key}).", actor.Id);
+            World.RecordFact(key.IsDoor ? "DoorUnlocked" : "WindowUnlocked", $"{actor.Name} apre con la chiave {Name(key)}.", actor.Id);
             return null;
         }
         Learn(actor, map, key, barrier);
         World.RecordFact(barrier.Locked ? "FoundLocked" : "FoundStuck",
-            $"{actor.Name} trova {Name(key)} {(barrier.Locked ? "chiusa a chiave" : "bloccata")} ({key}).", actor.Id);
+            $"{actor.Name} trova {Name(key)} {(barrier.Locked ? "chiusa a chiave" : "bloccata")}.", actor.Id);
         var what = key.IsDoor ? "La porta" : "La finestra";
         return barrier.Locked
             ? CommandResult.Rejected(RejectionReason.Locked, $"{what} è chiusa a chiave: {barrier.ClueText}.")
@@ -85,7 +85,8 @@ internal sealed partial class Simulation
     private void Learn(Actor actor, GridMap map, BarrierKey key, Barrier barrier)
     {
         if (actor.IsPlayer)
-            actor.KnownBarriers[(map.Area, key)] = new KnownBarrier(barrier.Locked, barrier.Stuck, barrier.Broken, barrier.ClueText, World.Now);
+            actor.KnownBarriers[(map.Area, key)] = new KnownBarrier(barrier.Locked, barrier.Stuck, barrier.Broken, barrier.ClueText, World.Now,
+                HasLock: barrier.Key is not null); // a lock shows, once one tries it (review P4a)
     }
 
     private CommandResult UseLock(LockCommand command)
@@ -111,7 +112,7 @@ internal sealed partial class Simulation
         barrier.Locked = command.Locked;
         Learn(actor, map, key, barrier);
         World.RecordFact(command.Locked ? (key.IsDoor ? "DoorLocked" : "WindowLocked") : (key.IsDoor ? "DoorUnlocked" : "WindowUnlocked"),
-            $"{actor.Name} {(command.Locked ? "chiude a chiave" : "apre con la chiave")} {Name(key)} ({key}).", actor.Id);
+            $"{actor.Name} {(command.Locked ? "chiude a chiave" : "apre con la chiave")} {Name(key)}.", actor.Id);
         return new CommandResult { Message = command.Locked ? $"Chiudi a chiave {Name(key)}." : $"Apri la serratura con la chiave." };
     }
 
@@ -216,7 +217,7 @@ internal sealed partial class Simulation
     private void Bangs(Actor forcer, GridMap map, BarrierKey key)
     {
         var square = key.A;
-        var fact = World.RecordFact("Forcing", $"{forcer.Name} forza {Name(key)} ({key}).", forcer.Id);
+        var fact = World.RecordFact("Forcing", $"{forcer.Name} forza {Name(key)}.", forcer.Id);
         foreach (var witness in World.Actors.Values.Where(a => a.Id != forcer.Id && a.MapArea == map.Area && a.Conscious)
                      .OrderBy(a => a.Id.Value, StringComparer.Ordinal).ToList())
         {

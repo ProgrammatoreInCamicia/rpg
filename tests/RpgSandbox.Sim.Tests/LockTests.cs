@@ -61,6 +61,8 @@ public class LockTests
         Assert.Contains("chiusa a chiave", refused.Message);
         var known = Assert.Single(s.GetPlayerView().KnownBarriers);
         Assert.Equal((Door, true, false, false, "una porta robusta di quercia"), (known.Door!.Value, known.Locked, known.Stuck, known.Broken, known.Clue));
+        Assert.True(known.HasLock);
+        Assert.DoesNotContain(s.GetWorldView().RecentFacts, f => f.Kind == "FoundLocked" && f.Description.Contains("(")); // no coordinates for the player
         Assert.DoesNotMatch("[0-9]", known.Clue);
         Assert.False(s.Engine.World.Maps[Area].Doors[Door]);
 
@@ -172,6 +174,7 @@ public class LockTests
         var open = new WindowCommand { Actor = s.Player, A = WindowA, B = WindowB, Open = true };
         Assert.Equal(RejectionReason.Stuck, s.Execute(open).Rejection);
         Assert.True(Assert.Single(s.GetPlayerView().KnownBarriers).Stuck);
+        Assert.False(Assert.Single(s.GetPlayerView().KnownBarriers).HasLock); // it only sticks: nothing to lock
 
         Work(s, s.Execute(new ForceCommand { Actor = s.Player, A = WindowA, B = WindowB }));
         Assert.True(s.Engine.World.Maps[Area].IsOpenWindow(WindowA, WindowB));

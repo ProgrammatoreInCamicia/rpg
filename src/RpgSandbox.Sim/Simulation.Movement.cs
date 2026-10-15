@@ -273,7 +273,7 @@ internal sealed partial class Simulation
             {
                 Learn(actor, map, BarrierKey.Door(door), barrier);
                 World.RecordFact(barrier.Locked ? "FoundLocked" : "FoundStuck",
-                    $"{actor.Name} trova la porta {(barrier.Locked ? "chiusa a chiave" : "bloccata")} ({BarrierKey.Door(door)}) e si ferma.", actor.Id);
+                    $"{actor.Name} trova la porta {(barrier.Locked ? "chiusa a chiave" : "bloccata")} e si ferma.", actor.Id);
                 CancelAction(actor);
                 return;
             }

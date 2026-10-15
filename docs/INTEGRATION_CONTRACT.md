@@ -826,6 +826,8 @@ attrezzi (competenza nell'attrezzo: + bonus di competenza; anche nell'abilità u
 - **Vista:**
   - `PlayerView.KnownBarriers` (`KnownBarrierView { Door | A,B, Locked, Stuck, Broken, Clue }`): solo ciò che il
     giocatore ha scoperto su questa mappa. Lo stato nascosto non è in `MapView.Edges`.
+  - `KnownBarrierView.HasLock` (review P4a): ha una serratura, quindi si può chiudere a chiave. Si scopre provandola, insieme
+    al resto; false per una porta o finestra che è solo incastrata.
   - Gli indizi non hanno numeri. Quelli di default dipendono dalla CD: "il legno è gonfio e marcio" (≤10), "è robusta"
     (≤15), "è rinforzata con bande di ferro".
 - **Fatti del diario:** `ObservationView.Kind` può essere `BreakIn` ("colpi contro una porta" se sentito, "scasso" se

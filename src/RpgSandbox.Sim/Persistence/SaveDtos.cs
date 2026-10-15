@@ -378,6 +378,7 @@ internal sealed class KnownBarrierDto
     public bool Broken { get; set; }
     public string Clue { get; set; } = "";
     public long LearnedAt { get; set; }
+    public bool HasLock { get; set; }
 }
 
 internal sealed class PendingRelockDto

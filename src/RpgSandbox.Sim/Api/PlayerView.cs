@@ -241,5 +241,8 @@ public sealed record KnownBarrierView
     public required bool Locked { get; init; }
     public required bool Stuck { get; init; }
     public required bool Broken { get; init; }
+
+    /// <summary>P4a review: it has a lock (a key fits it), so it can be locked; false for one that only sticks.</summary>
+    public bool HasLock { get; init; }
     public required string Clue { get; init; }
 }

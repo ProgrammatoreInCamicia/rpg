@@ -435,7 +435,7 @@ internal sealed class BarrierAction : PendingAction
 internal enum BarrierWork { PickLock, Force }
 
 /// <summary>P4a: what the player has found out about a door or window (only by trying), and when.</summary>
-internal sealed record KnownBarrier(bool Locked, bool Stuck, bool Broken, string Clue, GameTime LearnedAt);
+internal sealed record KnownBarrier(bool Locked, bool Stuck, bool Broken, string Clue, GameTime LearnedAt, bool HasLock = false);
 
 /// <summary>P4a: a locked door a walker opened with its key, to lock again once past it (at that step of that walk).</summary>
 internal sealed record PendingRelock(GridPos Door, ActionId Walk, int AfterStep);

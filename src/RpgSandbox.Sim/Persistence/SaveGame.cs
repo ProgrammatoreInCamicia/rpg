@@ -198,7 +198,7 @@ internal static class SaveGame
             KnownBarriers = a.KnownBarriers.Select(k => new KnownBarrierDto
             {
                 Area = k.Key.Area.Value, AX = k.Key.Key.A.X, AY = k.Key.Key.A.Y, BX = k.Key.Key.B.X, BY = k.Key.Key.B.Y,
-                Locked = k.Value.Locked, Stuck = k.Value.Stuck, Broken = k.Value.Broken, Clue = k.Value.Clue, LearnedAt = k.Value.LearnedAt.Ticks,
+                Locked = k.Value.Locked, Stuck = k.Value.Stuck, Broken = k.Value.Broken, Clue = k.Value.Clue, LearnedAt = k.Value.LearnedAt.Ticks, HasLock = k.Value.HasLock,
             }).ToList(),
             PendingRelock = a.PendingRelock is { } relockBehind ? new PendingRelockDto { X = relockBehind.Door.X, Y = relockBehind.Door.Y, Walk = relockBehind.Walk.Value, AfterStep = relockBehind.AfterStep } : null,
             Knowledge = a.Knowledge.Select(ToDto).ToList(),
@@ -623,7 +623,7 @@ internal static class SaveGame
                 var key = new BarrierKey(new GridPos(k?.AX ?? -1, k?.AY ?? -1), new GridPos(k?.BX ?? -1, k?.BY ?? -1));
                 Check(k is not null && a.IsPlayer && w.Maps.TryGetValue(new AreaId(k.Area), out var known) && known.BarrierOf(key) is not null
                       && k.Clue is not null && Time(k.LearnedAt) <= Time(d.Now), $"serratura conosciuta da '{a.Id}' non valida");
-                Check(actor.KnownBarriers.TryAdd((new AreaId(k!.Area), key), new KnownBarrier(k.Locked, k.Stuck, k.Broken, k.Clue, Time(k.LearnedAt))),
+                Check(actor.KnownBarriers.TryAdd((new AreaId(k!.Area), key), new KnownBarrier(k.Locked, k.Stuck, k.Broken, k.Clue!, Time(k.LearnedAt), k.HasLock)),
                     $"serratura conosciuta due volte da '{a.Id}'");
             }
             if (a.PendingRelock is { } relock)
