@@ -98,9 +98,9 @@ public partial class VillageMap
 		}
 		_barrierTitle.Text = door is not null ? "Porta" : "Finestra";
 		_barrierClue.Text = known is null ? "Non sai se è chiusa a chiave o bloccata."
-			: known.Broken ? $"Serratura rotta. {known.Clue}"
-			: known.Locked ? $"Chiusa a chiave. {known.Clue}"
-			: known.Stuck ? $"Bloccata. {known.Clue}"
+			: known.Broken ? $"Serratura rotta: {known.Clue}"
+			: known.Locked ? $"Chiusa a chiave: {known.Clue}"
+			: known.Stuck ? $"Bloccata: {known.Clue}"
 			: known.Clue;
 		AddBarrierButton(open ? "Chiudi" : "Apri", () =>
 		{
@@ -116,7 +116,7 @@ public partial class VillageMap
 				{ Actor = _sim.Player, Door = door, A = a, B = b }));
 		if (known is { Locked: true })
 			AddBarrierButton("Apri con la chiave", () => UseBarrierLock(door, a, b, locked: false));
-		else if (known is { Locked: false, Stuck: false, Broken: false } && !open)
+		else if (known is { HasLock: true, Locked: false, Stuck: false, Broken: false } && !open)
 			AddBarrierButton("Chiudi a chiave", () => UseBarrierLock(door, a, b, locked: true));
 		AddBarrierButton("Chiudi menu", () => { });
 	}
