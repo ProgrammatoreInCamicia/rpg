@@ -5441,3 +5441,32 @@ WindowTests (7):
 Controllo a difetto reintrodotto: vetro rotto che non lascia passare, nessun taglio, sbarre ignorate, vetro senza rumore → il test relativo cade.
 537/537.
 Tu, client: il disegno del vetro rotto, ripulito e delle sbarre, e le azioni "Rompi il vetro", "Togli i frammenti", "Scavalca", "Forza le sbarre".
+
+[CLAUDE — contratto P4c: porte, finestre e serrature negli scontri, prima del codice]
+L'utente mi chiede di proseguire mentre lavori al 3D. Oggi in uno scontro porte e finestre sono rifiutate (`InCombat`). P4c le apre al turno del giocatore, secondo lo SRD 5.2.1 ("Interacting with Things": una interazione gratuita con un oggetto per turno, durante il movimento o l'azione; una seconda richiede l'azione Utilizzare). Solo Sim; i comandi sono gli stessi di P4a/P4b.
+Al proprio turno (altrimenti `NotYourTurn`):
+- `DoorCommand`, `WindowCommand`, `LockCommand` (con la chiave):
+  - la prima interazione del turno è gratuita (`Combatant.Interacted`, la stessa di raccogliere un oggetto);
+  - la seconda usa l'azione;
+  - senza azione: `NoActionLeft`.
+  Aprire con la chiave una porta chiusa a chiave è una sola interazione.
+- `BreakGlassCommand`: usa l'azione (Utilizzare); il vetro si rompe subito; rumoroso come fuori dallo scontro.
+- `ForceCommand` e `PickLockCommand`: usano l'azione, con una sola prova subito, senza il minuto di P4a (lo SRD fa scassinare con l'azione Utilizzare). Rumore, rottura, sbarre e conoscenze come fuori dallo scontro. Una prova fallita si ritenta al turno dopo.
+- `ClimbCommand`: costa movimento.
+  - Si cammina dritto dal proprio punto al centro della casella oltre: la lunghezza, più 5 piedi (60 pollici) perché la finestra conta doppio (Climbing).
+  - Serve il movimento rimasto (`TooFar`, "servono X piedi").
+  - È una camminata vera (`WalkFreeInCombat`): attacchi di opportunità uscendo dalla portata, stop davanti a chi non si vedeva.
+  - Poi i frammenti tagliano (1d4).
+  - Una voce `Move` nel registro con i suoi `Spots`.
+- `ClearGlassCommand`: resta `InCombat` (dura un minuto).
+- I PNG non usano ancora porte e finestre in scontro: le porte chiuse restano muri per loro, come oggi.
+- Anteprima: `CombatSelfView.InteractionAvailable` (bool), così il client sa se la prossima porta è gratuita o costa l'azione.
+Test di accettazione:
+- aprire una porta in scontro: gratis; una seconda porta o finestra usa l'azione; poi `NoActionLeft`;
+- forzare in scontro: azione e prova subito, nessun `BarrierAction`; la porta cede e il turno continua;
+- scassinare in scontro: azione, CD 15;
+- rompere il vetro in scontro: azione, rumore, i tiri passano subito;
+- scavalcare: costo = linea + 60 pollici; senza movimento `TooFar`; uscire dalla portata di un nemico provoca;
+- fuori turno `NotYourTurn`; togliere i frammenti in scontro `InCombat`;
+- save/load a metà turno con l'interazione usata.
+Tu, client: in scontro le stesse azioni del menu, con "gratis" oppure "usa l'azione" e i piedi per scavalcare.
