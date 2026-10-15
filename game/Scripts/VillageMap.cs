@@ -228,6 +228,10 @@ public partial class VillageMap : Node2D
 			var point = GetGlobalTransformWithCanvas().AffineInverse() * mouse.Position;
 			if (PersonAt(point) is { } target)
 				OpenPersonMenu(target);
+			else if (DoorAt(point) is { } door)
+				OpenDoorMenu(door);
+			else if (WindowAt(point) is { } window)
+				OpenWindowMenu(window);
 			return;
 		}
 		switch (mouse.ButtonIndex)
@@ -728,6 +732,7 @@ public partial class VillageMap : Node2D
 			foreach (var window in mapWithWindows.Edges.Where(e => e.Kind == MapEdgeKind.Window && e.Open is not null))
 				if (_windowPanels.TryGetValue((window.A, window.B), out var panel))
 					SetWindowPanelOpen(panel, window.Open!.Value);
+		RefreshBarrierMarks();
 		var watchers = _view.VisibleActors.Where(a => a.SeesYou == true).Select(a => a.Name).ToList();
 		var hidden = _view.Sneaking is { } total ? $"Di soppiatto (Furtività {total}). "
 			: _view.Move is { Stealthy: true } ? "Vai piano, ma ti vedono: non sei nascosto. " : "";
@@ -1105,6 +1110,8 @@ public partial class VillageMap : Node2D
 		{
 			var panel = MakeEdgePanel(edge);
 			_sorted.AddChild(panel);
+			if (edge.Kind is MapEdgeKind.Window or MapEdgeKind.Door)
+				AddBarrierMark(panel, edge.Kind == MapEdgeKind.Window ? 17f : WallHeight);
 			_edgeLit.Add((edge.B, panel));
 			if (edge.Kind == MapEdgeKind.Window)
 				_windowPanels[(edge.A, edge.B)] = panel;
@@ -1127,6 +1134,7 @@ public partial class VillageMap : Node2D
 			_doorOutlines[door.At] = outline;
 			var panel = MakeBlock(door.At, DoorWood, WallHeight, _woodTexture);
 			_sorted.AddChild(panel);
+			AddBarrierMark(panel, WallHeight);
 			_doorPanels[door.At] = panel;
 		}
 
@@ -1280,7 +1288,8 @@ public partial class VillageMap : Node2D
 		_stop = new Button { Text = "Fermati (X)" };
 		_stop.Pressed += Stop;
 		box.AddChild(_stop);
-		box.AddChild(new Label { Text = "Clicca una finestra per aprirla o chiuderla. Maiusc+clic su una porta: cammina sulla sua casella." });
+		box.AddChild(new Label { Text = "Clic destro: azioni su porte e finestre. Maiusc+clic: entra nella porta.",
+			AutowrapMode = TextServer.AutowrapMode.WordSmart });
 		var paceRow = new HBoxContainer();
 		paceRow.AddThemeConstantOverride("separation", 6);
 		paceRow.AddChild(new Label { Text = "Ritmo:", TooltipText = "Quanto scorre veloce il tempo mentre cammini. Le regole non cambiano: cambia solo quanto aspetti." });
@@ -1352,6 +1361,7 @@ public partial class VillageMap : Node2D
 		box.AddChild(_eventsPanel);
 		BuildCombatUi(ui);
 		BuildLoreUi(ui);
+		BuildBarrierUi(ui);
 		BuildJournalUi(ui);
 
 		_offMapPanel = new PanelContainer { OffsetLeft = 440, OffsetRight = 840, OffsetTop = 100, OffsetBottom = 245,

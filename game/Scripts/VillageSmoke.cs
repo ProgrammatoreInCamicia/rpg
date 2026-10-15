@@ -793,6 +793,22 @@ public partial class VillageSmoke : Node
 		_map.LoadGameFromPath(seenSave);
 		await Frames(3);
 		Capture("23-door-seen-closed.png");
+		_map.OpenDoorMenuForSmoke(houseDoor);
+		Require(_map.BarrierMenuVisibleForSmoke && !_map.BarrierActionsForSmoke.Any(a => a.StartsWith("Forza") || a.StartsWith("Scassina")),
+			"P4a: an untried door exposed hidden lock actions");
+		var locked = session.Execute(new DoorCommand { Actor = session.Player, At = houseDoor, Open = true });
+		Require(!locked.Success && locked.Rejection == RejectionReason.Locked,
+			"P4a: the farmhouse door did not reveal its lock when tried");
+		var discoveredSave = System.IO.Path.Combine(_outputDir, "door-lock-discovered.json");
+		using (var stream = File.Create(discoveredSave)) session.Save(stream);
+		_map.LoadGameFromPath(discoveredSave);
+		_map.OpenDoorMenuForSmoke(houseDoor);
+		Require(_map.BarrierActionsForSmoke.Any(a => a.StartsWith("Forza"))
+			&& !_map.BarrierActionsForSmoke.Any(a => a.StartsWith("Scassina"))
+			&& _map.BarrierMarkForSmoke(houseDoor) == "CHIAVE",
+			"P4a: discovered lock did not show the proper actions and marker");
+		await Frames(2);
+		Capture("23b-p4a-discovered-lock.png");
 
 		walk = session.Execute(new MoveCommand { Actor = session.Player, To = MappedVillageScenario.Ids.PlayerStart });
 		Require(walk.Success, "Cannot return to the inn for the remembered door");
