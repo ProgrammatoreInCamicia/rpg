@@ -177,4 +177,51 @@ public class CoverTests
         AsSchema(data, 27);
         Assert.True(LoadFromString(data.ToJsonString()).Success);
     }
+
+    [Fact]
+    public void The_player_does_not_read_the_cover_of_a_target_it_does_not_see()
+    {
+        // A wall between rows 4|5 (x 3–7) hides a companion at (8,5) from the player at (2,3); the guard at (8,4) sees it and
+        // strikes it through an open window between (8,4) and (8,5): half cover the player must not read (review P3).
+        for (ulong seed = 1; seed <= 200; seed++)
+        {
+            var s = Yard(seed, b =>
+            {
+                for (var x = 3; x <= 7; x++)
+                    b.AddEdge("a", (x, 4), (x, 5), MapEdgeKind.Wall);
+                b.AddEdge("a", (8, 4), (8, 5), MapEdgeKind.Window, open: true);
+            });
+            Of(s, Foe).PlaceAt(Spot.CenterOf(new GridPos(8, 4)));
+            s.Execute(new AttackCommand { Actor = s.Player, Target = Foe, Attack = Javelin });
+            if (s.GetPlayerView().Combat is not { IsYourTurn: true } || !Of(s, Foe).Conscious)
+                continue;
+            Of(s, Passerby).PlaceAt(Spot.CenterOf(new GridPos(8, 5)));
+            Assert.False(s.Engine.SeesActor(Of(s, s.Player), Of(s, Passerby)));
+            Assert.True(s.Engine.SeesActor(Of(s, s.Player), Of(s, Foe)));
+            var fight = s.Engine.World.Encounters.Values.Single();
+            if (fight.Order.FindIndex(c => c.Actor == Foe) < fight.Order.FindIndex(c => c.Actor == s.Player))
+                continue; // the guard must act right after the player, before the companion (added last) steps out
+            var side = fight.Order.Single(c => c.Actor == s.Player).Side;
+            fight.Order.Add(new Combatant { Actor = Passerby, Side = side, Initiative = 0, InitiativeBonus = 0 });
+            var before = fight.Log.Count;
+
+            s.Execute(new EndTurnCommand { Actor = s.Player });
+            for (var i = 0; i < 12 && s.GetPlayerView().Combat is { IsYourTurn: false }; i++)
+                s.Advance(Duration.FromSeconds(1));
+
+            var log = s.Engine.World.Encounters.Values.SingleOrDefault()?.Log ?? s.Engine.World.LastFight!.Log;
+            var blow = log.Skip(before).FirstOrDefault(l => l.Kind == CombatLogKind.Attack && l.Actor == Foe && l.Target == Passerby);
+            if (blow is null)
+                continue;
+            Assert.Equal(CoverDegree.Half, blow.Cover);
+            Assert.Contains("(mezza copertura)", blow.Text);
+            Assert.DoesNotContain("copertura", blow.PlayerText);
+            var seen = (s.GetPlayerView().Combat?.Log ?? s.GetPlayerView().LastFight)!.Last(l => l.Kind == CombatLogKind.Attack && l.Actor == Foe);
+            Assert.Null(seen.Target);
+            Assert.Equal(CoverDegree.None, seen.Cover);
+            Assert.DoesNotContain("copertura", seen.Text);
+            return;
+        }
+        throw new InvalidOperationException("No seed gives that scene.");
+    }
 }

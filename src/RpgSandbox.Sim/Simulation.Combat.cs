@@ -573,6 +573,7 @@ internal sealed partial class Simulation
         // P2b: who struck is seen as the blow comes, before it lands (one knocked out by it still saw who did it).
         var player = World.Actors[World.Player];
         var sawAttacker = attacker.IsPlayer || SeesActor(player, attacker);
+        var sawTarget = target.IsPlayer || SeesActor(player, target);
         var outcome = target.Vitality.TakeDamage(result.Damage, result.Critical, knockOut: nonLethal && attack.Melee);
         // P2b: a shot flies straight from the attacker to its impact: the target if it hits, past it if it misses.
         var map = World.Maps[e.Area];
@@ -593,11 +594,13 @@ internal sealed partial class Simulation
         var how = kind == CombatLogKind.OpportunityAttack ? "coglie l'occasione e attacca" : "attacca";
         var extra = (check.Advantage ? " (vantaggio)" : "") + (check.Disadvantage ? " (svantaggio)" : "") + (check.LongRange ? " (gittata lunga)" : "")
             + CoverText(check.Cover);
+        // Review P3: the player reads the cover only of a target it sees (it would give away the ground around it).
+        var extraSeen = sawTarget ? extra : extra[..^CoverText(check.Cover).Length];
         // C5a: the player reads it from its side of the GM screen.
         var seen = result.DescribeFor(attacker.IsPlayer ? AttackPerspective.Attacker : target.IsPlayer ? AttackPerspective.Target : AttackPerspective.Witness);
         Record(e, kind, attacker, target, (a, t) => $"{a} {how} {t}{extra}. {result.Describe()}.", result.Roll,
             attack: attack.Name, armorClass: result.TargetArmorClass, hit: result.Hit, critical: result.Critical, damage: result.Damage,
-            playerText: (a, t) => $"{a} {how} {t}{extra}. {seen}.", shotFrom: shotFrom, shotTo: shotTo, sawMover: sawAttacker, cover: check.Cover);
+            playerText: (a, t) => $"{a} {how} {t}{extraSeen}. {seen}.", shotFrom: shotFrom, shotTo: shotTo, sawMover: sawAttacker, cover: check.Cover);
         var blow = World.RecordFact("Attack", $"{attacker.Name} {how} {target.Name}: {result.Describe()}.",
             $"{attacker.Name} {how} {target.Name}: {seen}.", Participants(attacker, target));
         LearnFrom(attacker, target, attack, result, cover); // C5a
