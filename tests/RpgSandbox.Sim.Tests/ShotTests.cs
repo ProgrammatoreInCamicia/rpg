@@ -41,33 +41,44 @@ public class ShotTests
         s.Execute(new AttackCommand { Actor = s.Player, Target = Foe, Attack = attack });
 
     [Fact]
-    public void A_shot_does_not_go_through_a_wall_even_where_the_target_is_seen_round_its_end_and_can_be_walked_to()
+    public void Round_a_walls_end_a_body_wholly_behind_it_cannot_be_shot_one_partly_out_can_be_with_cover()
     {
         // A short wall down x = 4|5 over rows 2–4. Sight is traced square to square and slips past a corner; a shot flies
-        // straight from centre to centre. Somewhere the guard is seen but the straight line touches the wall.
+        // straight. P3: a seen target whose 5 body points are all behind the wall cannot be shot (total cover); one whose
+        // centre is behind it but an edge is out can, with cover, and the shot ends on that edge, never through the wall.
         var s = Yard(more: b =>
         {
             for (var y = 2; y <= 4; y++)
                 b.AddEdge("a", (4, y), (5, y), MapEdgeKind.Wall);
         });
         var map = s.Engine.World.Maps[Area];
-        var found = false;
-        for (var y = 0; y < 8 && !found; y++)
-        for (var x = 5; x < 12 && !found; x++)
+        var from = Of(s, s.Player).Spot!.Value;
+        bool whole = false, partly = false;
+        for (var y = 20; y < 460 && !(whole && partly); y += 4)
+        for (var x = 320; x < 700 && !(whole && partly); x += 4)
         {
-            Of(s, Foe).PlaceAt(Spot.CenterOf(new GridPos(x, y)));
-            if (!s.Engine.SeesActor(Of(s, s.Player), Of(s, Foe)) || SpotPlanner.LineClear(map, Of(s, s.Player).Spot!.Value, Of(s, Foe).Spot!.Value))
+            var at = new Spot(x, y);
+            Of(s, Foe).PlaceAt(at);
+            if (!s.Engine.SeesActor(Of(s, s.Player), Of(s, Foe)) || SpotPlanner.LineClear(map, from, at))
                 continue;
-            found = true;
             var aim = Aim(s);
-            Assert.False(aim.Valid);
-            Assert.Equal(RejectionReason.NoLineOfFire, aim.Reason);
-            Assert.Equal(RejectionReason.NoLineOfFire, Throw(s).Rejection);
-            Assert.True(s.PreviewMoveToSpot(s.Player, new Spot(Of(s, Foe).Spot!.Value.X - 60, Of(s, Foe).Spot!.Value.Y)).Valid
-                        || s.PreviewMoveToSpot(s.Player, new Spot(Of(s, Foe).Spot!.Value.X, Of(s, Foe).Spot!.Value.Y + 60)).Valid,
-                "a walk to it exists");
+            if (!whole && Simulation.AimAt(map, from, at).Aim is null)
+            {
+                whole = true;
+                Assert.Equal(RejectionReason.NoLineOfFire, aim.Reason);
+                Assert.Equal(RejectionReason.NoLineOfFire, Throw(s.SaveAndReload()).Rejection);
+            }
+            else if (!partly && Simulation.AimAt(map, from, at) is { Aim: { } edge })
+            {
+                partly = true;
+                Assert.True(aim.Valid, aim.Message);
+                Assert.NotEqual(CoverDegree.None, aim.Cover);
+                Assert.Equal(edge, aim.To);
+                Assert.True(SpotPlanner.LineClear(map, from, edge));
+            }
         }
-        Assert.True(found, "no square is seen round the wall's end without a straight line");
+        Assert.True(whole, "no seen spot wholly behind the wall");
+        Assert.True(partly, "no seen spot partly out of the wall");
     }
 
     [Fact]

@@ -10,13 +10,13 @@ internal sealed partial class Simulation
     /// After an attack: the player's own blow narrows the target's Armor Class (a natural 1 or 20 says nothing); a blow
     /// the player saw someone else strike teaches that it has that attack, and its kind too if the attack is natural.
     /// </summary>
-    private void LearnFrom(Actor attacker, Actor target, AttackProfile attack, AttackResult result)
+    private void LearnFrom(Actor attacker, Actor target, AttackProfile attack, AttackResult result, int coverBonus)
     {
         var player = World.Actors[World.Player];
         if (attacker.IsPlayer)
         {
             if (result.Roll.Kept is not (1 or 20))
-                player.Lore.Of(target.Id).LearnArmorClass(result.Roll.Total, result.Hit);
+                player.Lore.Of(target.Id).LearnArmorClass(result.Roll.Total - coverBonus, result.Hit); // P3: its own AC, not the cover's
             return;
         }
         if (!SeesActor(player, attacker))

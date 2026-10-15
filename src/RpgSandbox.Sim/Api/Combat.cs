@@ -188,6 +188,9 @@ public sealed record TargetView
 
     /// <summary>Every hit is a Critical Hit (an unconscious target within 5 feet).</summary>
     public bool AutoCritical { get; init; }
+
+    /// <summary>P3: the target's cover against this attack (it depends only on where the two stand).</summary>
+    public CoverDegree Cover { get; init; }
 }
 
 public sealed record PendingAttackView
@@ -270,6 +273,9 @@ public sealed record CombatLogEntry
     public Spot? ShotFrom { get; init; }
     public Spot? ShotTo { get; init; }
 
+    /// <summary>P3: for an attack, the target's cover (only if the player saw the target; otherwise None).</summary>
+    public CoverDegree Cover { get; init; }
+
     /// <summary>Ready-made text for the UI.</summary>
     public required string Text { get; init; }
 }
@@ -315,7 +321,16 @@ public sealed record AttackPreview
     public bool LongRange { get; init; }
     public bool AutoCritical { get; init; }
 
-    /// <summary>The line aimed along: from the attacker's centre to the target's.</summary>
+    /// <summary>P3: the target's cover against this attack.</summary>
+    public CoverDegree Cover { get; init; }
+
+    /// <summary>The line aimed along: from the attacker's centre to the point of the target's body aimed at (P3).</summary>
     public Spot? From { get; init; }
     public Spot? To { get; init; }
 }
+
+/// <summary>
+/// P3: a target's cover against an attack (SRD 5.2.1): half +2 to AC, three-quarters +5. Total cover is no degree:
+/// the target cannot be targeted (the attack is refused).
+/// </summary>
+public enum CoverDegree { None, Half, ThreeQuarters }

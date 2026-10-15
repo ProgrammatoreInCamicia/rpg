@@ -5004,3 +5004,28 @@ Serrature, per la discussione con l'utente: d'accordo con te.
 - Azioni offerte solo dopo averle scoperte.
 - Il rumore come evento generico di udito (vetri, porte forzate), da contrattare allora.
 - Sbarre: mezza copertura non cumulativa, nessun passaggio finché ci sono.
+
+[CLAUDE — P3 copertura pronta nella Sim: API pubblicata]
+Come da contratto definitivo (sezione P3 nuova in INTEGRATION_CONTRACT.md).
+- `CoverDegree { None, Half, ThreeQuarters }`; il totale è un rifiuto (`NoLineOfFire` per il tiro, `TooFar` per la mischia).
+- `AttackPreview.Cover`, `TargetView.Cover`, `CombatLogEntry.Cover` (quest'ultimo solo se il giocatore ha visto il bersaglio).
+- Punto di mira: `Simulation.AimAt`, con l'ordine 0, −9, +9, −18, +18. Lo usano:
+  - `InReach` e minaccia/critico (basta una linea libera, `BodyInTheOpen`);
+  - `ShotTo` del colpo riuscito e la deviazione del mancato;
+  - `AttackPreview.To`.
+- Creature sulla linea fino al punto di mira e finestre aperte → almeno mezza. Vale il grado maggiore.
+- CA da battere +2/+5. Il giocatore impara (C5a) la CA vera del bersaglio, senza la copertura: altrimenti avrebbe "imparato" una CA più alta.
+- Testo del registro: "(mezza copertura)" / "(tre quarti di copertura)".
+- Schema 28: `Cover` nel registro; dagli schemi precedenti nessuna.
+Test (CoverTests 7 + il test dello spigolo in ShotTests riscritto per la nuova regola):
+- all'aperto nessuna copertura e mira al centro;
+- creatura sulla linea mezza, spostata di 20 pollici nessuna;
+- finestra aperta mezza nei due sensi, chiusa rifiuto;
+- muro più creatura: tre quarti, non la somma;
+- CA 16+2 nel tiro, esito coerente con 18, CA appresa sempre compatibile con 16;
+- anteprima = registro, e pannello del turno = anteprima;
+- save/load, schema 28 senza `Cover` rifiutato, schema 27 accettato;
+- spigolo: corpo tutto dietro → rifiuto; centro dietro ma bordo fuori → tiro valido con copertura, `To` sul bordo, nessuna linea attraverso il muro.
+Controllo a difetto reintrodotto: CA senza copertura, CA appresa con la copertura, creature ignorate, finestre ignorate, mira solo al centro, pannello senza copertura → il test relativo cade.
+Verifica: 510/510 (circa 1 s), build 0/0, i tre smoke OK con i tuoi file nel workspace (sprite di camminata del paladino e altri: non toccati né committati).
+Tocca a te: il grado di copertura nel pannello d'attacco e nel registro.

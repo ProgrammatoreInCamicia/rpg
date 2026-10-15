@@ -126,10 +126,10 @@ internal sealed partial class Simulation
         {
             Valid = rejected is null, Reason = rejected?.Rejection ?? RejectionReason.None, Message = rejected?.Message ?? "",
             Advantage = check?.Advantage ?? false, Disadvantage = check?.Disadvantage ?? false,
-            LongRange = check?.LongRange ?? false, AutoCritical = check?.AutoCritical ?? false,
+            LongRange = check?.LongRange ?? false, AutoCritical = check?.AutoCritical ?? false, Cover = check?.Cover ?? CoverDegree.None,
             // Review P2b: never where the player does not see someone (the preview would give away a hidden position).
             From = actor is not null && Shown(actor) ? CurrentSpot(actor) : null,
-            To = target is not null && Shown(target) ? CurrentSpot(target) : null,
+            To = target is not null && Shown(target) ? check?.Aim ?? CurrentSpot(target) : null, // P3: the point aimed at
         };
     }
 
@@ -459,7 +459,7 @@ internal sealed partial class Simulation
     // ---------------------------------------------------------------- attacks
 
     private sealed record AttackCheck(RejectionReason Reason, string? Why, bool Advantage = false, bool Disadvantage = false,
-        bool LongRange = false, bool AutoCritical = false)
+        bool LongRange = false, bool AutoCritical = false, CoverDegree Cover = CoverDegree.None, Spot? Aim = null)
     {
         public bool Valid => Reason == RejectionReason.None;
     }
@@ -485,6 +485,7 @@ internal sealed partial class Simulation
         var map = World.Maps[attacker.MapArea!.Value];
         var from = CurrentSpot(attacker)!.Value;
         var to = CurrentSpot(target)!.Value;
+        var (aim, blocked) = AimAt(map, from, to); // P3: where the blow or shot goes, and the cover
         bool disadvantage = false, longRange = false;
         if (attack.Melee)
         {
@@ -501,7 +502,7 @@ internal sealed partial class Simulation
             var inches = from.DistanceTo(to);
             if (inches > longest * Spot.PerFoot)
                 return new(RejectionReason.TooFar, $"{target.Name} è oltre la gittata ({longest} piedi).");
-            if (!SpotPlanner.LineClear(map, from, to))
+            if (aim is null)
                 return new(RejectionReason.NoLineOfFire, $"Non hai un tiro libero verso {target.Name}.");
             longRange = inches > normal * Spot.PerFoot;
             var threats = e is null ? new[] { target } : EnemiesOf(e, attacker);
@@ -514,7 +515,8 @@ internal sealed partial class Simulation
         return new(RejectionReason.None, null,
             Advantage: !SeesActor(target, attacker), // also an unconscious target: it sees nothing
             Disadvantage: disadvantage, LongRange: longRange,
-            AutoCritical: target.Vitality.Unconscious && WithinFiveFeet(map, from, to));
+            AutoCritical: target.Vitality.Unconscious && WithinFiveFeet(map, from, to),
+            Cover: CoverOf(map, attacker, target, from, aim!.Value, blocked), Aim: aim);
     }
 
     /// <summary>
@@ -524,7 +526,7 @@ internal sealed partial class Simulation
     /// included, unless a wall or a corner is in the way; two squares apart is out of reach.
     /// </summary>
     internal static bool InReach(GridMap map, (GridPos Cell, Spot At) from, AttackProfile attack, (GridPos Cell, Spot At) to) =>
-        from.At.DistanceTo(to.At) - 2 * SpotPlanner.BodyRadius <= attack.ReachFeet * Spot.PerFoot && SpotPlanner.LineClear(map, from.At, to.At);
+        from.At.DistanceTo(to.At) - 2 * SpotPlanner.BodyRadius <= attack.ReachFeet * Spot.PerFoot && BodyInTheOpen(map, from.At, to.At); // P3: a point of the body in the open will do
 
     /// <summary>
     /// P2b: where a missed shot ends: aimed 24 inches beside the target's centre (beyond its body), on the side the
@@ -555,7 +557,7 @@ internal sealed partial class Simulation
 
     /// <summary>P2b: two bodies are within 5 feet of each other, edge to edge, with nothing solid between them.</summary>
     private static bool WithinFiveFeet(GridMap map, Spot a, Spot b) =>
-        a.DistanceTo(b) - 2 * SpotPlanner.BodyRadius <= 5 * Spot.PerFoot && SpotPlanner.LineClear(map, a, b);
+        a.DistanceTo(b) - 2 * SpotPlanner.BodyRadius <= 5 * Spot.PerFoot && BodyInTheOpen(map, a, b);
 
     /// <summary>P1b: where an actor stands now, as its square and its exact point.</summary>
     private (GridPos Cell, Spot At) StandingOf(Actor actor) => (CurrentPosition(actor)!.Value, CurrentSpot(actor)!.Value);
@@ -566,7 +568,8 @@ internal sealed partial class Simulation
     private string ResolveAttack(Encounter e, Actor attacker, Actor target, AttackProfile attack, bool nonLethal, CombatLogKind kind)
     {
         var check = CheckAttack(e, attacker, target, attack, nonLethal);
-        var result = Attacks.Roll(World.Rng, attack, ProfileOf(target).ArmorClass, check.Advantage, check.Disadvantage, check.AutoCritical);
+        var cover = CoverBonus(check.Cover); // P3: cover raises the AC to beat
+        var result = Attacks.Roll(World.Rng, attack, ProfileOf(target).ArmorClass + cover, check.Advantage, check.Disadvantage, check.AutoCritical);
         // P2b: who struck is seen as the blow comes, before it lands (one knocked out by it still saw who did it).
         var player = World.Actors[World.Player];
         var sawAttacker = attacker.IsPlayer || SeesActor(player, attacker);
@@ -575,7 +578,7 @@ internal sealed partial class Simulation
         var map = World.Maps[e.Area];
         Spot? shotFrom = attack.Melee ? null : CurrentSpot(attacker), shotTo = null;
         if (shotFrom is { } origin)
-            shotTo = result.Hit ? CurrentSpot(target) : MissPoint(map, origin, CurrentSpot(target)!.Value, result.Roll.Kept, attack.Range!.Value.Long);
+            shotTo = result.Hit ? check.Aim : MissPoint(map, origin, check.Aim!.Value, result.Roll.Kept, attack.Range!.Value.Long);
         if (attack.Item is { } item) // C3b: the javelin leaves the hand and lands by the target; the bolt is spent
         {
             attacker.Give(item, -1);
@@ -588,15 +591,16 @@ internal sealed partial class Simulation
         target.FoughtWith.Add(attacker.Id);
         e.AttackedThisRound = true;
         var how = kind == CombatLogKind.OpportunityAttack ? "coglie l'occasione e attacca" : "attacca";
-        var extra = (check.Advantage ? " (vantaggio)" : "") + (check.Disadvantage ? " (svantaggio)" : "") + (check.LongRange ? " (gittata lunga)" : "");
+        var extra = (check.Advantage ? " (vantaggio)" : "") + (check.Disadvantage ? " (svantaggio)" : "") + (check.LongRange ? " (gittata lunga)" : "")
+            + CoverText(check.Cover);
         // C5a: the player reads it from its side of the GM screen.
         var seen = result.DescribeFor(attacker.IsPlayer ? AttackPerspective.Attacker : target.IsPlayer ? AttackPerspective.Target : AttackPerspective.Witness);
         Record(e, kind, attacker, target, (a, t) => $"{a} {how} {t}{extra}. {result.Describe()}.", result.Roll,
             attack: attack.Name, armorClass: result.TargetArmorClass, hit: result.Hit, critical: result.Critical, damage: result.Damage,
-            playerText: (a, t) => $"{a} {how} {t}{extra}. {seen}.", shotFrom: shotFrom, shotTo: shotTo, sawMover: sawAttacker);
+            playerText: (a, t) => $"{a} {how} {t}{extra}. {seen}.", shotFrom: shotFrom, shotTo: shotTo, sawMover: sawAttacker, cover: check.Cover);
         var blow = World.RecordFact("Attack", $"{attacker.Name} {how} {target.Name}: {result.Describe()}.",
             $"{attacker.Name} {how} {target.Name}: {seen}.", Participants(attacker, target));
-        LearnFrom(attacker, target, attack, result); // C5a
+        LearnFrom(attacker, target, attack, result, cover); // C5a
         WitnessFight(e, attacker, target, opening: false, blow);
         Fell(e, target, attacker, outcome);
         return $"{attacker.Name} {how} {target.Name}{extra}. {seen}.";
@@ -942,7 +946,7 @@ internal sealed partial class Simulation
         D20Roll? roll = null, string? attack = null, int? armorClass = null, bool? hit = null, bool critical = false,
         int? damage = null, IReadOnlyList<GridPos>? path = null, IReadOnlyList<int>? d20 = null, int? kept = null,
         Func<string, string, string>? playerText = null, IReadOnlyList<Spot>? spots = null, bool? sawMover = null,
-        Spot? shotFrom = null, Spot? shotTo = null)
+        Spot? shotFrom = null, Spot? shotTo = null, CoverDegree cover = CoverDegree.None)
     {
         var player = World.Actors[World.Player];
         bool Seen(Actor? x) => x is not null && (x.IsPlayer || SeesActor(player, x));
@@ -957,7 +961,7 @@ internal sealed partial class Simulation
             Round = e.Round, Kind = kind, Actor = actor?.Id, Target = target?.Id, Attack = attack,
             D20 = d20 ?? (roll is null ? Array.Empty<int>() : roll.Second is { } second ? new[] { roll.First, second } : new[] { roll.First }),
             Kept = kept ?? roll?.Kept, Bonus = roll?.Bonus, Total = roll?.Total, ArmorClass = armorClass, Hit = hit, Critical = critical,
-            Damage = damage, Path = path?.ToArray() ?? Array.Empty<GridPos>(), Spots = spots?.ToArray() ?? Array.Empty<Spot>(), ShotFrom = shotFrom, ShotTo = shotTo,
+            Damage = damage, Path = path?.ToArray() ?? Array.Empty<GridPos>(), Spots = spots?.ToArray() ?? Array.Empty<Spot>(), ShotFrom = shotFrom, ShotTo = shotTo, Cover = cover,
             Text = text(actor?.Name ?? "", target?.Name ?? ""),
             PlayerText = perceived ? (playerText ?? text)(sawActor ? actor?.Name ?? "" : "Qualcuno", sawTarget ? target?.Name ?? "" : "qualcuno") : null,
             PlayerSawActor = sawActor, PlayerSawTarget = sawTarget,
@@ -1021,6 +1025,7 @@ internal sealed partial class Simulation
                 {
                     Target = x.Id, Attack = a.Name, Valid = reason == RejectionReason.None, Reason = reason, Why = why,
                     Advantage = check.Advantage, Disadvantage = check.Disadvantage, LongRange = check.LongRange, AutoCritical = check.AutoCritical,
+                    Cover = check.Cover, // P3
                 };
             })).ToArray(),
             PendingOpeningAttack = e.Opening is { } o && (o.Attacker == player.Id || o.Target == player.Id)
@@ -1048,7 +1053,8 @@ internal sealed partial class Simulation
                 Critical = r.Critical, Damage = r.Actor == player.Id || r.Target == player.Id ? r.Damage : null,
                 Path = r.PlayerSawActor ? r.Path : Array.Empty<GridPos>(), Spots = r.PlayerSawActor ? r.Spots : Array.Empty<Spot>(),
                 // P2b: the shot's origin only if the player saw who shot, its impact only if it saw the target.
-                ShotFrom = r.PlayerSawActor ? r.ShotFrom : null, ShotTo = r.PlayerSawTarget ? r.ShotTo : null, Text = r.PlayerText!,
+                ShotFrom = r.PlayerSawActor ? r.ShotFrom : null, ShotTo = r.PlayerSawTarget ? r.ShotTo : null,
+                Cover = r.PlayerSawTarget ? r.Cover : CoverDegree.None, Text = r.PlayerText!, // P3: the cover only if the target was seen
             }).ToArray();
 }
 

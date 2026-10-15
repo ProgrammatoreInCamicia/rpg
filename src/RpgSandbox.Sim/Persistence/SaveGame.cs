@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 27;
+    public const int SchemaVersion = 28;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -977,6 +977,7 @@ internal static class SaveGame
         Critical = r.Critical, Damage = r.Damage, Path = r.Path.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
         Spots = r.Spots.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
         ShotFrom = r.ShotFrom is { } f ? new PosDto { X = f.X, Y = f.Y } : null, ShotTo = r.ShotTo is { } s ? new PosDto { X = s.X, Y = s.Y } : null,
+        Cover = r.Cover.ToString(),
         Text = r.Text, PlayerText = r.PlayerText, PlayerSawActor = r.PlayerSawActor, PlayerSawTarget = r.PlayerSawTarget,
     };
 
@@ -996,6 +997,8 @@ internal static class SaveGame
             Path = r.Path!.Select(p => new GridPos(p!.X, p.Y)).ToArray(),
             Spots = (r.Spots ?? new()).Select(p => new Spot(p!.X, p.Y)).ToArray(),
             ShotFrom = r.ShotFrom is { } f ? new Spot(f.X, f.Y) : null, ShotTo = r.ShotTo is { } s ? new Spot(s.X, s.Y) : null, Text = r.Text!, PlayerText = r.PlayerText,
+            Cover = r.Cover is null ? (version >= 28 ? throw new InvalidDataException($"{where}: copertura mancante") : CoverDegree.None) // P3: none before 28
+                : Enum.TryParse<CoverDegree>(r.Cover, out var cover) && Enum.IsDefined(cover) ? cover : throw new InvalidDataException($"{where}: copertura sconosciuta"),
             PlayerSawActor = r.PlayerSawActor, PlayerSawTarget = r.PlayerSawTarget,
         };
     }

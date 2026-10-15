@@ -735,3 +735,31 @@ Decisione dell'utente: precisione vera. Un solo orologio della Sim, a tick.
 - **Chi colpisce si vede mentre il colpo arriva:** un giocatore messo fuori combattimento da un colpo vede ancora chi
   l'ha colpito (`Actor` e `ShotFrom` nella voce).
 - **`PreviewAttack` non rivela posizioni nascoste:** `From`/`To` sono null per una creatura che il giocatore non vede.
+
+## P3: copertura (SRD 5.2.1 "Cover")
+
+- **Gradi:** mezza (+2 alla CA), tre quarti (+5), totale (non si può prendere di mira). Vale il grado più protettivo;
+  non si sommano. `CoverDegree { None, Half, ThreeQuarters }`; il totale è un rifiuto.
+- **Linee al corpo (ADATTAMENTO):**
+  - Si tracciano 5 linee dal centro di chi attacca a 5 punti del corpo del bersaglio, lungo il diametro perpendicolare
+    alla linea dei centri: −18, −9, 0, +9, +18 pollici (negativo = a sinistra guardando dall'attaccante).
+  - Una linea è fermata da muri, porte e finestre chiuse, caselle solide (`LineClear`).
+  - Fermate 0–1: nessuna copertura; 2: mezza; 3–4: tre quarti; 5: totale. Il totale dà il rifiuto `NoLineOfFire`
+    per il tiro, `TooFar` ("fuori portata") per la mischia.
+- **Punto di mira:** il primo punto con la linea libera, nell'ordine 0, −9, +9, −18, +18 (al centro senza ostacoli).
+  Serve per:
+  - la portata della mischia (`InReach`) e la minaccia ravvicinata e il critico automatico (entro 5 piedi): basta
+    una linea libera, la distanza resta fra i corpi;
+  - `ShotTo` di un tiro riuscito, e la linea da cui devia un tiro mancato;
+  - `AttackPreview.To`.
+  - La gittata resta fra i centri.
+  Rispetto a P2b: un bersaglio che sporge da uno spigolo si può colpire, con copertura.
+- **Creature e finestre:** almeno mezza copertura se il corpo di un'altra creatura viva taglia la linea fino al punto
+  di mira, oppure se quella linea attraversa una finestra aperta (davanzale e stipiti, decisione dell'utente; in
+  entrambe le direzioni).
+- **Il tiro:** la CA da battere sale di 2 o 5. Ciò che il giocatore impara della CA del bersaglio (C5a) resta la sua
+  CA, senza la copertura. Nel testo del registro "(mezza copertura)" / "(tre quarti di copertura)".
+- **API:** `AttackPreview.Cover`, `TargetView.Cover` (stesso calcolo del pannello), `CombatLogEntry.Cover` (solo se il
+  giocatore ha visto il bersaglio).
+- **IA dei PNG:** non cerca copertura e non la considera (passo successivo).
+- **Salvataggio, schema 28:** la copertura di ogni voce del registro; dagli schemi precedenti nessuna.

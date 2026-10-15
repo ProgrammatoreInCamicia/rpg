@@ -681,6 +681,9 @@ internal sealed class CombatRecord
     /// <summary>P2b: for a shot, where it flew from (the attacker's centre) and where it ended (see the API).</summary>
     public Spot? ShotFrom { get; init; }
     public Spot? ShotTo { get; init; }
+
+    /// <summary>P3: the target's cover against an attack.</summary>
+    public CoverDegree Cover { get; init; }
     public required string Text { get; init; }
 
     /// <summary>As the player perceived it, or null if it perceived nothing.</summary>

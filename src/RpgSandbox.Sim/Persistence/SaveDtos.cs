@@ -517,6 +517,9 @@ internal sealed class CombatRecordDto
     /// <summary>P2b (schema 27): a shot's flight, in inches.</summary>
     public PosDto? ShotFrom { get; set; }
     public PosDto? ShotTo { get; set; }
+
+    /// <summary>P3 (schema 28): the target's cover, by name; null before.</summary>
+    public string? Cover { get; set; }
     public string Text { get; set; } = "";
     public string? PlayerText { get; set; }
     public bool PlayerSawActor { get; set; }

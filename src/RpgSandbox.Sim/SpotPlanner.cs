@@ -268,7 +268,7 @@ internal sealed class SpotPlanner
     private static bool OnSegment(Spot p, Spot a, Spot b) =>
         Math.Min(a.X, b.X) <= p.X && p.X <= Math.Max(a.X, b.X) && Math.Min(a.Y, b.Y) <= p.Y && p.Y <= Math.Max(a.Y, b.Y);
 
-    private static bool Intersect(Spot a, Spot b, Spot c, Spot d)
+    internal static bool Intersect(Spot a, Spot b, Spot c, Spot d)
     {
         long d1 = Cross(c, d, a), d2 = Cross(c, d, b), d3 = Cross(a, b, c), d4 = Cross(a, b, d);
         if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0)))
