@@ -123,45 +123,10 @@ internal sealed partial class Simulation
     {
         if (!World.Actors.TryGetValue(command.Actor, out var actor))
             return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {command.Actor}.");
-        var (key, map, rejected) = Target(actor, command);
+        var (key, map, time, rejected) = CheckBarrierWork(actor, command, work);
         if (rejected is not null)
             return rejected;
         var barrier = map!.BarrierOf(key);
-        if (work is BarrierWork.BreakGlass or BarrierWork.ClearGlass or BarrierWork.Climb && key.IsDoor)
-            return CommandResult.Rejected(RejectionReason.NotAWindow, "Si fa solo con una finestra.");
-        var glass = key.IsDoor ? WindowGlass.Intact : map.GlassOf(key.A, key.B);
-        var time = BarrierWorkTime;
-        switch (work)
-        {
-            case BarrierWork.PickLock:
-                if (barrier is not { Locked: true })
-                    return CommandResult.Rejected(RejectionReason.NotHeld, $"{Capital(Name(key))} non è chiusa a chiave.");
-                if (actor.Carried(ThievesTools) == 0)
-                    return CommandResult.Rejected(RejectionReason.NoTools, "Ti servono degli attrezzi da scasso.");
-                break;
-            case BarrierWork.Force when barrier is { Barred: true }: // P4b: the bars come first
-                break;
-            case BarrierWork.Force:
-                if (barrier is not { Holds: true })
-                    return CommandResult.Rejected(RejectionReason.NotHeld, $"{Capital(Name(key))} si apre normalmente.");
-                break;
-            case BarrierWork.BreakGlass: // P4b: fragile, it breaks without a check (SRD Breaking Objects)
-                if (glass != WindowGlass.Intact)
-                    return CommandResult.Rejected(RejectionReason.AlreadyDone, "Il vetro è già rotto.");
-                time = Duration.FromSeconds(6);
-                break;
-            case BarrierWork.ClearGlass:
-                if (glass != WindowGlass.Broken)
-                    return CommandResult.Rejected(RejectionReason.NotHeld, "Non ci sono frammenti da togliere.");
-                break;
-            case BarrierWork.Climb:
-                if (ClimbRefused(actor, map, key) is { } refused)
-                    return refused;
-                // ADAPTATION, SRD Climbing: the 5 feet of the window count double, 10 feet of walking at its Speed.
-                time = Duration.FromTicks(MoveAction.TicksFor(2, actor.Sheet.Speed));
-                break;
-        }
-
         var action = new BarrierAction
         {
             Id = World.AllocateActionId(), Actor = actor.Id, StartedAt = World.Now, CompletesAt = World.Now.Plus(time),
@@ -181,6 +146,51 @@ internal sealed partial class Simulation
         if (work is BarrierWork.Force or BarrierWork.BreakGlass)
             Bangs(actor, map, key, glass: work == BarrierWork.BreakGlass); // loud from the first blow
         return CommandResult.Started(action.Id, action.CompletesAt, $"{actor.Name}: {action.Description.ToLowerInvariant()}.");
+    }
+
+    /// <summary>Whether a work on a door or window can start, on which, and how long it takes outside a fight.</summary>
+    private (BarrierKey Key, GridMap? Map, Duration Time, CommandResult? Rejected) CheckBarrierWork(Actor actor, BarrierCommand command, BarrierWork work)
+    {
+        var (key, map, rejected) = Target(actor, command);
+        if (rejected is not null)
+            return (key, map, default, rejected);
+        var barrier = map!.BarrierOf(key);
+        if (work is BarrierWork.BreakGlass or BarrierWork.ClearGlass or BarrierWork.Climb && key.IsDoor)
+            return (key, map, default, CommandResult.Rejected(RejectionReason.NotAWindow, "Si fa solo con una finestra."));
+        var glass = key.IsDoor ? WindowGlass.Intact : map.GlassOf(key.A, key.B);
+        var time = BarrierWorkTime;
+        switch (work)
+        {
+            case BarrierWork.PickLock:
+                if (barrier is not { Locked: true })
+                    return (key, map, default, CommandResult.Rejected(RejectionReason.NotHeld, $"{Capital(Name(key))} non è chiusa a chiave."));
+                if (actor.Carried(ThievesTools) == 0)
+                    return (key, map, default, CommandResult.Rejected(RejectionReason.NoTools, "Ti servono degli attrezzi da scasso."));
+                break;
+            case BarrierWork.Force when barrier is { Barred: true }: // P4b: the bars come first
+                break;
+            case BarrierWork.Force:
+                if (barrier is not { Holds: true })
+                    return (key, map, default, CommandResult.Rejected(RejectionReason.NotHeld, $"{Capital(Name(key))} si apre normalmente."));
+                break;
+            case BarrierWork.BreakGlass: // P4b: fragile, it breaks without a check (SRD Breaking Objects)
+                if (glass != WindowGlass.Intact)
+                    return (key, map, default, CommandResult.Rejected(RejectionReason.AlreadyDone, "Il vetro è già rotto."));
+                time = Duration.FromSeconds(6);
+                break;
+            case BarrierWork.ClearGlass:
+                if (glass != WindowGlass.Broken)
+                    return (key, map, default, CommandResult.Rejected(RejectionReason.NotHeld, "Non ci sono frammenti da togliere."));
+                break;
+            case BarrierWork.Climb:
+                if (ClimbRefused(actor, map, key) is { } refused)
+                    return (key, map, default, refused);
+                // ADAPTATION, SRD Climbing: the 5 feet of the window count double, 10 feet of walking at its Speed.
+                time = Duration.FromTicks(MoveAction.TicksFor(2, actor.Sheet.Speed));
+                break;
+        }
+
+        return (key, map, time, null);
     }
 
     /// <summary>
@@ -204,9 +214,11 @@ internal sealed partial class Simulation
     private GridPos Beyond(Actor actor, BarrierKey key) => CurrentSpot(actor)!.Value.Cell == key.A ? key.B : key.A;
 
     /// <summary>The end of a minute's work: the check, against what the door or window is now.</summary>
-    private void CompleteBarrierWork(Actor actor, BarrierAction work)
+    private void CompleteBarrierWork(Actor actor, BarrierAction action) => ResolveBarrierWork(actor, action.Work, action.Target);
+
+    /// <summary>P4a/P4b: the outcome of a work on a door or window: at the end of its minute, or at once in a fight (P4c).</summary>
+    private void ResolveBarrierWork(Actor actor, BarrierWork work, BarrierKey key)
     {
-        var key = work.Target;
         if (MapOf(actor) is not { } map || CurrentSpot(actor) is not { } here
             || !(key.IsDoor ? DoorInReach(map, here.Cell, key.A) : WindowInReach(here, key.A, key.B)))
         {
@@ -214,7 +226,7 @@ internal sealed partial class Simulation
             return;
         }
         var barrier = map.BarrierOf(key);
-        switch (work.Work)
+        switch (work)
         {
             case BarrierWork.BreakGlass: // P4b
                 if (map.GlassOf(key.A, key.B) == WindowGlass.Intact)
@@ -233,7 +245,7 @@ internal sealed partial class Simulation
                 ForceBars(actor, map, key, barrier);
                 return;
         }
-        if (work.Work == BarrierWork.PickLock)
+        if (work == BarrierWork.PickLock)
         {
             if (barrier is not { Locked: true } || actor.Carried(ThievesTools) == 0)
             {
@@ -392,5 +404,105 @@ internal sealed partial class Simulation
     {
         var opens = Opens(actor, map);
         return map.Doors.Keys.Where(d => map.DoorHolds(d) && !opens(d)).ToList();
+    }
+}
+
+// P4c: doors, windows and locks in a fight, on one's turn (SRD 5.2.1 "Interacting with Things": one object for free a
+// turn, a second takes the Utilize action).
+internal sealed partial class Simulation
+{
+    private CommandResult CombatBarrier(Encounter e, Actor actor, Command command)
+    {
+        if (!IsTurnOf(e, actor))
+            return CommandResult.Rejected(RejectionReason.NotYourTurn, "Non è il tuo turno.");
+        var me = CombatantOf(e, actor.Id);
+        switch (command)
+        {
+            case DoorCommand or WindowCommand or LockCommand:
+            {
+                // The free interaction of the turn; a second one takes the action.
+                var takesAction = me.Interacted;
+                if (takesAction && me.ActionUsed)
+                    return CommandResult.Rejected(RejectionReason.NoActionLeft, "Hai già usato l'interazione con un oggetto e l'azione in questo turno.");
+                var result = command switch
+                {
+                    DoorCommand door => UseDoor(door),
+                    WindowCommand window => UseWindow(window),
+                    _ => UseLock((LockCommand)command),
+                };
+                if (!result.Success)
+                    return result;
+                if (takesAction)
+                    me.ActionUsed = true;
+                else
+                    me.Interacted = true;
+                return takesAction ? result with { Message = $"{result.Message} (usi l'azione)" } : result;
+            }
+            case ClimbCommand climb:
+                return CombatClimb(e, actor, me, climb);
+            case ClearGlassCommand:
+                return CommandResult.Rejected(RejectionReason.InCombat, "Togliere i frammenti richiede un minuto: non durante uno scontro.");
+            case BarrierCommand work:
+            {
+                if (me.ActionUsed)
+                    return CommandResult.Rejected(RejectionReason.NoActionLeft, "Hai già usato l'azione in questo turno.");
+                var kind = work switch
+                {
+                    PickLockCommand => BarrierWork.PickLock,
+                    BreakGlassCommand => BarrierWork.BreakGlass,
+                    _ => BarrierWork.Force,
+                };
+                var (key, map, _, rejected) = CheckBarrierWork(actor, work, kind);
+                if (rejected is not null)
+                    return rejected;
+                // The Utilize action: one check at once, no minute's work (SRD Thieves' Tools: Utilize).
+                me.ActionUsed = true;
+                if (kind is BarrierWork.Force or BarrierWork.BreakGlass)
+                    Bangs(actor, map!, key, glass: kind == BarrierWork.BreakGlass);
+                ResolveBarrierWork(actor, kind, key);
+                return new CommandResult { Message = World.RecentFacts.Last!.Value.Description };
+            }
+            default:
+                return CommandResult.Rejected(RejectionReason.InCombat, $"{actor.Name} sta combattendo.");
+        }
+    }
+
+    /// <summary>
+    /// P4c: over a window in a fight: walked straight to the centre of the square beyond, the window's 5 feet counting
+    /// double (SRD Climbing: 60 inches more). A real walk: opportunity attacks on leaving reach, a stop before someone
+    /// unseen. Shards cut once over.
+    /// </summary>
+    private CommandResult CombatClimb(Encounter e, Actor actor, Combatant me, ClimbCommand command)
+    {
+        var (key, map, rejected) = Target(actor, command);
+        if (rejected is not null)
+            return rejected;
+        if (key.IsDoor)
+            return CommandResult.Rejected(RejectionReason.NotAWindow, "Si fa solo con una finestra.");
+        if (ClimbRefused(actor, map!, key) is { } refused)
+            return refused;
+        var from = CurrentSpot(actor)!.Value;
+        var to = Spot.CenterOf(Beyond(actor, key));
+        var way = new SpotPath(new[] { from, to }, from.DistanceTo(to));
+        var cost = (int)Math.Ceiling(way.Length - 1e-9) + 5 * Spot.PerFoot;
+        var left = MovementLeftInches(e, actor);
+        if (cost > left)
+            return CommandResult.Rejected(RejectionReason.TooFar,
+                $"Troppo lontano: servono {FeetText(cost)} piedi, te ne restano {FeetLeftText(left)}.");
+        var (_, stopped) = WalkFreeInCombat(e, actor, way);
+        if (stopped is not null)
+            return new CommandResult { Message = $"{actor.Name} non scavalca: {stopped}." };
+        me.MovedInches += 5 * Spot.PerFoot;
+        World.RecordFact("Climbed", $"{actor.Name} scavalca la finestra.", actor.Id);
+        if (map!.GlassOf(key.A, key.B) == WindowGlass.Broken)
+        {
+            var cut = World.Rng.Roll(4);
+            var outcome = actor.Vitality.TakeDamage(cut, critical: false);
+            World.RecordFact("CutByGlass", $"{actor.Name} si taglia sui vetri rotti: {cut} danni taglienti.", actor.Id);
+            if (!actor.Conscious)
+                Fell(e, actor, null, outcome);
+            CheckEnd(e);
+        }
+        return new CommandResult { Message = $"{actor.Name} scavalca la finestra ({FeetText(cost)} piedi)." };
     }
 }

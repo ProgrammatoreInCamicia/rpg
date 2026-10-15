@@ -61,6 +61,7 @@ public class WindowTests
         Assert.True(Map(s).LetsThrough(A, B));
         Assert.True(SpotPlanner.LineClear(Map(s), Spot.CenterOf(A), Spot.CenterOf(B)));
         Assert.Equal(RejectionReason.Broken, s.Execute(new WindowCommand { Actor = s.Player, A = A, B = B, Open = true }).Rejection);
+        Assert.Equal(RejectionReason.Broken, s.Execute(new WindowCommand { Actor = s.Player, A = A, B = B, Open = false }).Rejection); // review P4b
         Assert.Equal(RejectionReason.AlreadyDone, s.Execute(new BreakGlassCommand { Actor = s.Player, A = A, B = B }).Rejection);
         var heard = Assert.Single(Of(s, Guard).Knowledge, o => o.Kind == DeedKind.BreakIn);
         Assert.Equal(PerceptionMode.Heard, heard.Perceived);
@@ -91,7 +92,10 @@ public class WindowTests
         Assert.InRange(hp - Of(s, s.Player).Vitality.Current, 1, 4);
         Assert.Contains(s.GetWorldView().RecentFacts, f => f.Kind == "CutByGlass" && f.Description.Contains("danni taglienti"));
 
-        Done(s, s.Execute(new ClearGlassCommand { Actor = s.Player, A = A, B = B }));
+        Of(s, s.Player).Sneak = 12; // review P4b: clearing the shards is quiet, it does not end sneaking
+        var clear = s.Execute(new ClearGlassCommand { Actor = s.Player, A = A, B = B });
+        Assert.Equal(12, Of(s, s.Player).Sneak);
+        Done(s, clear);
         Assert.Equal(WindowGlass.Cleared, Window(s).Glass);
         Assert.Equal(RejectionReason.NotHeld, s.Execute(new ClearGlassCommand { Actor = s.Player, A = A, B = B }).Rejection);
         hp = Of(s, s.Player).Vitality.Current;

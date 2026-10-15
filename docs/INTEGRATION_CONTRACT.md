@@ -870,3 +870,24 @@ attrezzi (competenza nell'attrezzo: + bonus di competenza; anche nell'abilità u
   { "forceDc", "clue" }`, `"glass": "Broken"`. Villaggio di prova: la finestra della casa del contadino fra (4,11) e
   (4,12) ha sbarre arrugginite (CD 20, "le sbarre sono arrugginite, una è smossa").
 - **Salvataggio, schema 30:** sbarre e vetri. Dagli schemi precedenti: vetri interi e nessuna sbarra.
+
+## P4c: porte, finestre e serrature negli scontri
+
+Al proprio turno, secondo lo SRD 5.2.1 ("Interacting with Things": una interazione gratuita con un oggetto per turno;
+una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
+- **`DoorCommand`, `WindowCommand`, `LockCommand`:**
+  - la prima interazione del turno è gratuita (`Combatant.Interacted`, la stessa di raccogliere un oggetto);
+  - la seconda usa l'azione, e il messaggio finisce con "(usi l'azione)";
+  - poi `NoActionLeft`.
+  Aprire con la chiave una porta chiusa a chiave è una sola interazione. `CombatSelfView.InteractionAvailable` dice se la
+  prossima è gratuita.
+- **`ForceCommand`, `PickLockCommand`, `BreakGlassCommand`:** usano l'azione (Utilizzare), con una sola prova o
+  rottura subito, senza il minuto di lavoro. Rumore, rottura, sbarre e conoscenze come fuori dallo scontro. Il messaggio è
+  l'esito.
+- **`ClimbCommand`:** costa movimento.
+  - Si cammina dritto dal proprio punto al centro della casella oltre: la lunghezza, più 60 pollici (la finestra conta
+    doppio). Senza abbastanza movimento: `TooFar`.
+  - È una camminata vera: attacchi di opportunità uscendo dalla portata, una voce `Move` con i suoi `Spots`.
+  - Poi i frammenti tagliano (1d4); se fanno cadere, la caduta come in scontro.
+- **`ClearGlassCommand`:** `InCombat` (dura un minuto).
+- **I PNG** non usano ancora porte e finestre negli scontri: le porte chiuse restano muri per loro.

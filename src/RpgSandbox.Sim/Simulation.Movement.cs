@@ -340,10 +340,10 @@ internal sealed partial class Simulation
         if (here.Cell != command.A && here.Cell != command.B
             || SpotPlanner.PointSegment(here, p, q) - SpotPlanner.BodyRadius > 5 * Spot.PerFoot)
             return CommandResult.Rejected(RejectionReason.OutOfReach, "La finestra è troppo lontana: avvicinati.");
-        if (map.IsOpenWindow(command.A, command.B) == command.Open)
-            return CommandResult.Rejected(RejectionReason.AlreadyDone, command.Open ? "La finestra è già aperta." : "La finestra è già chiusa.");
         if (map.GlassOf(command.A, command.B) != WindowGlass.Intact) // P4b
             return CommandResult.Rejected(RejectionReason.Broken, "Il vetro è rotto: la finestra resta aperta.");
+        if (map.IsOpenWindow(command.A, command.B) == command.Open)
+            return CommandResult.Rejected(RejectionReason.AlreadyDone, command.Open ? "La finestra è già aperta." : "La finestra è già chiusa.");
         if (command.Open && OpensByHand(actor, map, BarrierKey.Window(command.A, command.B)) is { } held) // P4a: locked or stuck
             return held;
 

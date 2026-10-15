@@ -13,7 +13,7 @@ internal sealed partial class Simulation
         RememberDoors(); // a command may open a door or move the player's view (T6c-5)
         // Anything louder than a whisper ends sneaking (SRD Hide): talking, depositing, waiting... Taking food quietly,
         // stopping, a door or a torch do not (a lit torch gives you away by its light anyway); a normal walk ends it in StartMove.
-        if (result.Success && command is not (MoveCommand or MoveToSpotCommand or StopCommand or TakeFoodCommand or DoorCommand or WindowCommand or LockCommand or PickLockCommand or TorchCommand or PickUpCommand or DropCommand
+        if (result.Success && command is not (MoveCommand or MoveToSpotCommand or StopCommand or TakeFoodCommand or DoorCommand or WindowCommand or LockCommand or PickLockCommand or ClearGlassCommand or TorchCommand or PickUpCommand or DropCommand
                 or ObserveCommand)
             && World.Actors.TryGetValue(command.Actor, out var actor))
             actor.Sneak = null;
@@ -39,6 +39,7 @@ internal sealed partial class Simulation
                     PickUpCommand pick => PickUp(pick),
                     DropCommand drop => Drop(drop),
                     ObserveCommand observe => Observe(fight, observe),
+                    DoorCommand or WindowCommand or BarrierCommand => CombatBarrier(fight, actor, command), // P4c
                     _ => CommandResult.Rejected(RejectionReason.InCombat, $"{actor.Name} sta combattendo."),
                 };
         }

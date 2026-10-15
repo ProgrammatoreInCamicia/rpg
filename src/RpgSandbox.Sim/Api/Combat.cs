@@ -141,6 +141,9 @@ public sealed record CombatSelfView
     public required int SquaresLeft { get; init; }
     public required bool ActionAvailable { get; init; }
 
+    /// <summary>P4c: the free interaction with an object this turn is still there (a door, a window): a second one takes the action.</summary>
+    public bool InteractionAvailable { get; init; }
+
     /// <summary>SRD: one Reaction, regained at the start of one's own turn.</summary>
     public required bool ReactionAvailable { get; init; }
 

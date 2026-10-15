@@ -1015,7 +1015,7 @@ internal sealed partial class Simulation
                 KnockedOut = player.Vitality.KnockedOut, DeathSaveSuccesses = player.Vitality.DeathSaveSuccesses,
                 DeathSaveFailures = player.Vitality.DeathSaveFailures,
                 MovementLeftFeet = Math.Max(0, MovementLeft(e, player)), MovementLeftInches = Math.Max(0, MovementLeftInches(e, player)), SquaresLeft = Math.Max(0, MovementLeft(e, player)) / FeetPerSquare,
-                ActionAvailable = !me.ActionUsed, ReactionAvailable = !me.ReactionUsed, Disengaged = me.Disengaged, Dodging = me.Dodging,
+                ActionAvailable = !me.ActionUsed, InteractionAvailable = !me.Interacted, ReactionAvailable = !me.ReactionUsed, Disengaged = me.Disengaged, Dodging = me.Dodging,
             },
             Combatants = e.Order.Select(c => World.Actors[c.Actor]).Where(x => x.Id != player.Id && SeesActor(player, x))
                 .Select(x => new CombatantView
