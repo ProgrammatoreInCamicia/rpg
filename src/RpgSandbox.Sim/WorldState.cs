@@ -122,6 +122,13 @@ internal sealed class Actor
     /// </summary>
     public SortedDictionary<DoorKey, RememberedDoor> DoorMemory { get; } = new(DoorKey.Order);
 
+    /// <summary>P4a: the player's knowledge of doors and windows that hold (by area, then door or window).</summary>
+    public SortedDictionary<(AreaId Area, BarrierKey Key), KnownBarrier> KnownBarriers { get; } = new(Comparer<(AreaId Area, BarrierKey Key)>.Create(
+        (x, y) => string.CompareOrdinal(x.Area.Value, y.Area.Value) is var c && c != 0 ? c : BarrierKey.Order.Compare(x.Key, y.Key)));
+
+    /// <summary>P4a: a door to lock again behind it.</summary>
+    public PendingRelock? PendingRelock { get; set; }
+
     /// <summary>When the actor last arrived at <see cref="Location"/>: decides whether a witness saw a deed from its start.</summary>
     public GameTime ArrivedAt { get; set; }
 
@@ -235,6 +242,9 @@ internal enum DeedKind
 
     /// <summary>A death blow, a deed of its own: who struck it did not necessarily start the fight.</summary>
     Killing,
+
+    /// <summary>P4a: a door or window forced; its culprit only if seen doing it.</summary>
+    BreakIn,
 }
 
 /// <summary>
@@ -413,6 +423,22 @@ internal sealed class TravelAction : PendingAction
     public required LocationId Origin { get; init; }
     public required LocationId Destination { get; init; }
 }
+
+/// <summary>P4a: picking a lock or forcing a door or window: a minute's work, its check at the end.</summary>
+internal sealed class BarrierAction : PendingAction
+{
+    public override string Kind => "Barrier";
+    public required BarrierWork Work { get; init; }
+    public required BarrierKey Target { get; init; }
+}
+
+internal enum BarrierWork { PickLock, Force }
+
+/// <summary>P4a: what the player has found out about a door or window (only by trying), and when.</summary>
+internal sealed record KnownBarrier(bool Locked, bool Stuck, bool Broken, string Clue, GameTime LearnedAt);
+
+/// <summary>P4a: a locked door a walker opened with its key, to lock again once past it (at that step of that walk).</summary>
+internal sealed record PendingRelock(GridPos Door, ActionId Walk, int AfterStep);
 
 internal sealed class DepositFoodAction : PendingAction
 {
@@ -807,7 +833,10 @@ internal sealed class WorldState
         foreach (var m in scenario.Maps)
             world.Maps.Add(m.Area, new GridMap(m.Area, m.Rows, m.Zones,
                 scenario.Stores.Where(s => s.At is not null && world.Locations[s.Location].Area == m.Area).Select(s => s.At!.Value),
-                m.Lights, m.Doors, m.Exits, m.Posts, m.Edges, m.IndoorZones));
+                m.Lights, m.Doors, m.Exits, m.Posts, m.Edges, m.IndoorZones, m.Locks.Select(l => (l.Key, l.Spec.ToBarrier()))));
+        foreach (var m in scenario.Maps) // P4a
+            foreach (var (at, item, count) in m.Ground)
+                world.Maps[m.Area].PutOnGround(at, new ItemId(item), count);
         return world;
     }
 

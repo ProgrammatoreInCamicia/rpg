@@ -782,3 +782,57 @@ Decisione dell'utente: precisione vera. Un solo orologio della Sim, a tick.
 - **Fine dello scontro (review P3b):** per tenerlo aperto conta solo vedere un nemico cosciente. Un nemico a terra non
   tiene vivo da solo uno scontro: dopo un giro senza attacchi finisce, e chi è morente continua i tiri contro la morte
   fuori dallo scontro.
+
+## P4a: porte e finestre chiuse a chiave o bloccate
+
+Regole SRD 5.2.1: Thieves' Tools "Pick a lock (DC 15)"; Lock; prove di caratteristica ("forcing open a stuck door");
+attrezzi (competenza nell'attrezzo: + bonus di competenza; anche nell'abilità usata: Vantaggio).
+- **Stati** (nascosti finché il giocatore non prova):
+  - chiusa a chiave: ha una chiave, che è un oggetto;
+  - bloccata;
+  - rotta: forzata mentre era chiusa a chiave; non si chiude più a chiave.
+  Nello scenario: `AddDoor(..., lockSpec)` e `AddEdge(..., lockSpec)` per porte su bordo e finestre, con
+  `LockSpec(Key, Locked, Stuck, ForceDc = 15, Clue)`; nel file `"lock": { "key", "locked", "stuck", "forceDc", "clue" }`.
+- **Aprire** (`DoorCommand`/`WindowCommand` con Open=true):
+  - chiusa a chiave e chiave nell'inventario: si apre, la serratura si apre, fatto `DoorUnlocked`;
+  - senza chiave: rifiuto `Locked` ("La porta è chiusa a chiave: <indizio>.");
+  - bloccata: rifiuto `Stuck`.
+  In entrambi i casi il giocatore lo impara (`FoundLocked`/`FoundStuck`).
+- **`LockCommand { Actor, Door | A,B, Locked }`:** con la chiave e la porta o finestra chiusa. Rifiuti: `NoLock` (non
+  ha serratura), `Broken`, `NoKey`, `NotClosed`, `AlreadyDone`.
+- **`PickLockCommand { Actor, Door | A,B }`:**
+  - servono gli attrezzi da scasso (`thieves-tools`), altrimenti rifiuto `NoTools`;
+  - un minuto di lavoro (`BarrierAction`), poi Destrezza contro CD 15: + competenza con `ToolProficiencies` contenente
+    `thieves-tools`, e Vantaggio se competente anche in Rapidità di mano;
+  - riuscita: non più chiusa a chiave, resta chiusa. Silenzioso. Fatti `LockPicked`/`LockPickFailed`.
+- **`ForceCommand { Actor, Door | A,B }`:**
+  - un minuto, poi Forza (Atletica) contro la CD della porta o finestra;
+  - riuscita: si apre; se era chiusa a chiave resta rotta, se era bloccata non lo è più. Fatti `Forced`/`ForceFailed`.
+  - Rumoroso dal primo colpo:
+    - chi vede chi forza ha un fatto `BreakIn` visto, con il colpevole;
+    - chi lo sente (udito di C4) ha un `BreakIn` sentito, con il quadrato approssimato e senza colpevole, e si ferma
+      a decidere: un'autorità "Va a vedere" per 10 minuti;
+    - il giocatore che non vede legge il fatto `HeardForcing` "Senti colpi contro una porta o una finestra, verso <luogo>.".
+- **Rifiuti comuni:**
+  - `NotHeld`: niente da scassinare o forzare;
+  - `OutOfReach`, `NotADoor`, `NotAWindow`;
+  - `InCombat` nello scontro.
+  Una pausa di routine di un PNG viene interrotta, come per camminare.
+- **Percorsi:**
+  - chi cammina passa per una porta che tiene solo se ha la chiave; per tutti gli altri è un muro, sia a caselle sia
+    nel cammino libero;
+  - un PNG che apre con la sua chiave la richiude a chiave quando l'ha passata;
+  - il giocatore no: decide lui con `LockCommand`.
+- **Vista:**
+  - `PlayerView.KnownBarriers` (`KnownBarrierView { Door | A,B, Locked, Stuck, Broken, Clue }`): solo ciò che il
+    giocatore ha scoperto su questa mappa. Lo stato nascosto non è in `MapView.Edges`.
+  - Gli indizi non hanno numeri. Quelli di default dipendono dalla CD: "il legno è gonfio e marcio" (≤10), "è robusta"
+    (≤15), "è rinforzata con bande di ferro".
+- **Fatti del diario:** `ObservationView.Kind` può essere `BreakIn` ("colpi contro una porta" se sentito, "scasso" se
+  visto).
+- **Villaggio di prova:**
+  - la casa del contadino è chiusa a chiave (CD 15, "una porta robusta di quercia") e il contadino ha `farmhouse-key`;
+  - la finestra nord della locanda è bloccata (CD 10, "il telaio è gonfio di umidità");
+  - gli attrezzi da scasso sono a terra nella locanda in (2,3).
+- **Salvataggio, schema 29:** serrature della mappa, conoscenze del giocatore, richiusure in sospeso, `BarrierAction`,
+  competenze negli attrezzi. Dagli schemi precedenti: niente serrature.

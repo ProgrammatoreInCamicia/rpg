@@ -54,6 +54,17 @@ public sealed record CharacterSheet
         init => _skills = Array.AsReadOnly(value.Distinct().OrderBy(s => s).ToArray());
     }
 
+    /// <summary>P4a: tools the character is proficient with, by item id (thieves' tools: + Proficiency Bonus to pick a lock).</summary>
+    public IReadOnlyList<string> ToolProficiencies
+    {
+        get => _tools;
+        init => _tools = Array.AsReadOnly(value.Distinct().Order(StringComparer.Ordinal).ToArray());
+    }
+
+    private readonly IReadOnlyList<string> _tools = Array.Empty<string>();
+
+    public bool IsProficientWith(string tool) => ToolProficiencies.Contains(tool);
+
     private readonly IReadOnlyList<Skill> _skills = Array.Empty<Skill>();
 
     public required int ArmorClass { get; init; }

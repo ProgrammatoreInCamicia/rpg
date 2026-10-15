@@ -35,7 +35,7 @@ public class RationTests
 
         Assert.True(s.Execute(new PickUpCommand { Actor = s.Player, At = PlayerStart, Item = Ration, Count = 3 }).Success);
         Assert.Equal(10, s.GetPlayerView().Food);
-        Assert.Empty(s.GetPlayerView().GroundItems);
+        Assert.DoesNotContain(s.GetPlayerView().GroundItems, g => g.Item == Ration); // P4a: thieves' tools lie in the inn
     }
 
     [Fact]

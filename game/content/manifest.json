@@ -3,6 +3,7 @@
   "version": "1",
   "files": [
     "srd/items.json",
+    "original/items.json",
     "srd/classes.json",
     "srd/creatures.json",
     "original/kinds.json",

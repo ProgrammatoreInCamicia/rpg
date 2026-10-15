@@ -64,6 +64,7 @@ public class MapContactTests
     {
         var s = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
         s.AdvanceTo(At(1, 12));
+        s.Engine.World.Actors[s.Player].Give("farmhouse-key", 1); // P4a: the farmhouse is locked
         Walk(s, playerAt);
         var theft = s.Engine.World.RecordFact("FoodStolen", "Furto di prova.");
         s.Engine.World.Actors[Guard].Claims.Add(new Claim { Thief = s.Player, Store = GranaryStore, Theft = theft, Owed = 2 });

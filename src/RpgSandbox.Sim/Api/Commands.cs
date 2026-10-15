@@ -87,6 +87,29 @@ public sealed record WindowCommand : Command
     public required bool Open { get; init; }
 }
 
+/// <summary>
+/// P4a: a door (<see cref="Door"/>, its square) or a window (<see cref="A"/> and <see cref="B"/>, its two squares): give one
+/// or the other. The actor must be where it could open it (as for <see cref="DoorCommand"/> or <see cref="WindowCommand"/>).
+/// </summary>
+public abstract record BarrierCommand : Command
+{
+    public GridPos? Door { get; init; }
+    public GridPos? A { get; init; }
+    public GridPos? B { get; init; }
+}
+
+/// <summary>P4a: lock or unlock a closed door or window with its key (an item carried).</summary>
+public sealed record LockCommand : BarrierCommand
+{
+    public required bool Locked { get; init; }
+}
+
+/// <summary>P4a: pick a lock with thieves' tools: a minute, then a Dexterity check (SRD: DC 15). Quiet.</summary>
+public sealed record PickLockCommand : BarrierCommand;
+
+/// <summary>P4a: force a locked or stuck door or window: a minute, then a Strength (Athletics) check. Loud.</summary>
+public sealed record ForceCommand : BarrierCommand;
+
 /// <summary>Light a torch (it burns for 1 hour, SRD) or put out the one burning; a torch put out is spent.</summary>
 public sealed record TorchCommand : Command
 {
@@ -150,6 +173,18 @@ public enum RejectionReason
     /// <summary>Something solid stands on the straight line from the attacker to the target (a wall, a closed door or window).</summary>
     NoLineOfFire,
     NotAWindow,
+
+    // P4a: locks and stuck doors and windows
+    Locked,
+    Stuck,
+    NoKey,
+    /// <summary>No lock to lock or unlock: no key fits it.</summary>
+    NoLock,
+    NotClosed,
+    Broken,
+    NoTools,
+    /// <summary>Nothing to pick or force: it opens by hand.</summary>
+    NotHeld,
 }
 
 public sealed record CommandResult

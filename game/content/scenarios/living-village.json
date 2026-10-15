@@ -56,7 +56,7 @@
           {"a":[1,4],"b":[1,5],"kind":"Wall"},
           {"a":[2,0],"b":[2,1],"kind":"Wall"},
           {"a":[2,4],"b":[2,5],"kind":"Wall"},
-          {"a":[3,0],"b":[3,1],"kind":"Window"},
+          {"a":[3,0],"b":[3,1],"kind":"Window","lock":{"stuck":true,"forceDc":10,"clue":"il telaio è gonfio di umidità"}},
           {"a":[3,4],"b":[3,5],"kind":"Wall"},
           {"a":[4,0],"b":[4,1],"kind":"Wall"},
           {"a":[4,4],"b":[4,5],"kind":"Wall"},
@@ -89,11 +89,14 @@
           {"a":[0,12],"b":[1,12],"kind":"Wall"},
           {"a":[7,12],"b":[8,12],"kind":"Wall"},
           {"a":[0,13],"b":[1,13],"kind":"Wall"},
-          {"a":[7,13],"b":[8,13],"kind":"Door","at":[8,13],"open":false},
+          {"a":[7,13],"b":[8,13],"kind":"Door","at":[8,13],"open":false,"lock":{"key":"farmhouse-key","locked":true,"forceDc":15,"clue":"una porta robusta di quercia"}},
           {"a":[0,14],"b":[1,14],"kind":"Wall"},
           {"a":[7,14],"b":[8,14],"kind":"Wall"},
           {"a":[4,12],"b":[5,12],"kind":"Wall"},
           {"a":[4,14],"b":[5,14],"kind":"Wall"}
+        ],
+        "ground": [
+          { "at": [2, 3], "item": "thieves-tools" }
         ]
       }
     ],
@@ -113,7 +116,7 @@
         "at": [2, 2], "torches": 3 },
       { "id": "guard", "name": "Guardia", "location": "inn", "faction": "village", "build": "village-guard", "at": [5, 2] },
       { "id": "farmer", "name": "Contadino", "location": "farmer_house", "faction": "village", "build": "farmer",
-        "work": { "location": "granary", "from": "13:00", "to": "18:00" }, "at": [3, 13] },
+        "work": { "location": "granary", "from": "13:00", "to": "18:00" }, "at": [3, 13], "items": [["club", 1], ["farmhouse-key", 1]] },
       { "id": "raider", "name": "Razziatore", "location": "bandit_camp", "faction": "bandits", "build": "raider" }
     ]
   }

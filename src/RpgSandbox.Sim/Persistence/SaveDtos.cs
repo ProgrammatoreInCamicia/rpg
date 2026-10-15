@@ -105,6 +105,10 @@ internal sealed class ActorDto
     public long Coins { get; set; }
     public long? TorchLitUntil { get; set; }
     public List<RememberedDoorDto> Doors { get; set; } = new();
+    /// <summary>P4a (schema 29): the doors and windows the player found locked, stuck or broken.</summary>
+    public List<KnownBarrierDto>? KnownBarriers { get; set; }
+    /// <summary>P4a (schema 29): a door to lock again behind a walk.</summary>
+    public PendingRelockDto? PendingRelock { get; set; }
     public List<ObservationDto> Knowledge { get; set; } = new();
     public List<long> ActedOn { get; set; } = new();
     public string Build { get; set; } = "";
@@ -162,6 +166,7 @@ internal sealed class DecisionDto
 [JsonDerivedType(typeof(ConfiscateActionDto), "Confiscate")]
 [JsonDerivedType(typeof(MoveActionDto), "Move")]
 [JsonDerivedType(typeof(DownedActionDto), "Downed")]
+[JsonDerivedType(typeof(BarrierActionDto), "Barrier")]
 internal abstract class ActionDto
 {
     public long Id { get; set; }
@@ -296,6 +301,8 @@ internal sealed class SheetDto
     public int Charisma { get; set; }
     public int ProficiencyBonus { get; set; }
     public List<string> SkillProficiencies { get; set; } = new();
+    /// <summary>P4a (schema 29): tool proficiencies by item id; absent before.</summary>
+    public List<string>? ToolProficiencies { get; set; }
     public int ArmorClass { get; set; }
     public bool StealthDisadvantage { get; set; }
     public int Speed { get; set; } = 30;
@@ -340,6 +347,54 @@ internal sealed class MapDto
     public List<ExitDto> Exits { get; set; } = new();
     public List<PostDto> Posts { get; set; } = new();
     public List<GroundItemDto> Ground { get; set; } = new();
+
+    /// <summary>P4a (schema 29): doors and windows that lock or stick, as they hold now.</summary>
+    public List<BarrierDto>? Barriers { get; set; }
+}
+
+internal sealed class BarrierDto
+{
+    public int AX { get; set; }
+    public int AY { get; set; }
+    public int BX { get; set; }
+    public int BY { get; set; }
+    public string? Key { get; set; }
+    public bool Locked { get; set; }
+    public bool Stuck { get; set; }
+    public bool Broken { get; set; }
+    public int ForceDc { get; set; }
+    public string? Clue { get; set; }
+}
+
+internal sealed class KnownBarrierDto
+{
+    public string Area { get; set; } = "";
+    public int AX { get; set; }
+    public int AY { get; set; }
+    public int BX { get; set; }
+    public int BY { get; set; }
+    public bool Locked { get; set; }
+    public bool Stuck { get; set; }
+    public bool Broken { get; set; }
+    public string Clue { get; set; } = "";
+    public long LearnedAt { get; set; }
+}
+
+internal sealed class PendingRelockDto
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+    public long Walk { get; set; }
+    public int AfterStep { get; set; }
+}
+
+internal sealed class BarrierActionDto : ActionDto
+{
+    public string Work { get; set; } = "";
+    public int AX { get; set; }
+    public int AY { get; set; }
+    public int BX { get; set; }
+    public int BY { get; set; }
 }
 
 internal sealed class MoveActionDto : ActionDto

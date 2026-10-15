@@ -33,7 +33,7 @@ internal sealed partial class Simulation
                 return CommandResult.Rejected(RejectionReason.AlreadyThere, $"{actor.Name} è già lì.");
             return StartMoveToSpot(new MoveToSpotCommand { Actor = actor.Id, To = Spot.CenterOf(from), Stealthy = command.Stealthy });
         }
-        if (map.FindPath(from, command.To, command.Stealthy ? square => SneakCost(map, square) : null) is not { } path)
+        if (map.FindPath(from, command.To, command.Stealthy ? square => SneakCost(map, square) : null, Opens(actor, map)) is not { } path)
             return CommandResult.Rejected(RejectionReason.Unreachable, "Non si può raggiungere quel punto.");
         if (command.StopNextTo)
         {
@@ -124,7 +124,7 @@ internal sealed partial class Simulation
         var blockers = others.Where(o => o.Conscious && (HoldsHostile(o, actor) || HoldsHostile(actor, o))).Select(o => CurrentSpot(o)!.Value);
         var standing = others.Select(o => CurrentSpot(o)!.Value)
             .Concat(others.Select(o => o.CurrentAction as MoveAction).OfType<MoveAction>().Select(FinalSpot));
-        return new SpotPlanner(map, blockers, standing);
+        return new SpotPlanner(map, blockers, standing, barredDoors: BarredDoors(actor, map)); // P4a
     }
 
     /// <summary>P1: where an actor stands right now, exactly: mid-walk, its point on its way at this tick (P1c).</summary>
@@ -176,7 +176,7 @@ internal sealed partial class Simulation
         // T6c-1: a waypoint on every square of the way (the arrival is the completion), where contacts are evaluated and
         // the door ahead, if closed, is opened (free, SRD). A door next to the start is opened at once.
         if (map.ClosedDoorBetween(from, steps[0]) is { } firstDoor)
-            OpenDoorOnTheWay(actor, map, firstDoor);
+            OpenDoorOnTheWay(actor, map, firstDoor, move, crossingTo: 0);
         for (var step = 1; step < steps.Count; step++)
             World.Scheduler.Schedule(move.StartedAt.Plus(Duration.FromTicks(move.TicksTo(step))), new MoveWaypoint(move.Id, step));
         var how = stealth is not null ? $" Furtività: {stealth.Describe()}."
@@ -256,12 +256,34 @@ internal sealed partial class Simulation
             return;
         Place(actor, move.Path[waypoint.Step - 1], move.Spots?[waypoint.Step - 1]);
         var map = World.Maps[actor.MapArea!.Value];
+        RelockBehind(actor, map, move, reached: waypoint.Step - 1);
         if (map.ClosedDoorBetween(move.Path[waypoint.Step - 1], move.Path[waypoint.Step]) is { } nextDoor)
-            OpenDoorOnTheWay(actor, map, nextDoor);
+            OpenDoorOnTheWay(actor, map, nextDoor, move, crossingTo: waypoint.Step);
     }
 
-    private void OpenDoorOnTheWay(Actor actor, GridMap map, GridPos door)
+    /// <summary>
+    /// Opens the closed door a walker comes to (free, SRD). P4a: a locked one opens with the walker's key and is locked
+    /// again once it is past (<see cref="RelockBehind"/>); one it cannot open (locked meanwhile, or stuck) stops it here.
+    /// </summary>
+    private void OpenDoorOnTheWay(Actor actor, GridMap map, GridPos door, MoveAction move, int crossingTo)
     {
+        if (map.BarrierOf(BarrierKey.Door(door)) is { Holds: true } barrier)
+        {
+            if (!Opens(actor, map)(door))
+            {
+                Learn(actor, map, BarrierKey.Door(door), barrier);
+                World.RecordFact(barrier.Locked ? "FoundLocked" : "FoundStuck",
+                    $"{actor.Name} trova la porta {(barrier.Locked ? "chiusa a chiave" : "bloccata")} ({BarrierKey.Door(door)}) e si ferma.", actor.Id);
+                CancelAction(actor);
+                return;
+            }
+            barrier.Locked = false;
+            World.RecordFact("DoorUnlocked", $"{actor.Name} apre con la chiave la porta in {door}.", actor.Id);
+            // Past an edge door once on the square beyond it; past a door square once off it, one step further.
+            // An NPC leaves it as it found it; the player decides for itself (LockCommand).
+            if (!actor.IsPlayer)
+                actor.PendingRelock = new PendingRelock(door, move.Id, map.IsEdgeDoor(door) ? crossingTo : crossingTo + 1);
+        }
         NoteSensesChange(map);
         map.SetDoor(door, open: true);
         Touched(actor, map, door);
@@ -289,6 +311,8 @@ internal sealed partial class Simulation
                 && (CurrentPosition(a) == command.At || a.CurrentAction is MoveAction m && NextSquare(m) == command.At)))
             return CommandResult.Rejected(RejectionReason.DoorBlocked, "Qualcuno è sulla porta.");
 
+        if (command.Open && OpensByHand(actor, map, BarrierKey.Door(command.At)) is { } held) // P4a: locked or stuck
+            return held;
         NoteSensesChange(map);
         map.SetDoor(command.At, command.Open);
         Touched(actor, map, command.At);
@@ -318,6 +342,8 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(RejectionReason.OutOfReach, "La finestra è troppo lontana: avvicinati.");
         if (map.IsOpenWindow(command.A, command.B) == command.Open)
             return CommandResult.Rejected(RejectionReason.AlreadyDone, command.Open ? "La finestra è già aperta." : "La finestra è già chiusa.");
+        if (command.Open && OpensByHand(actor, map, BarrierKey.Window(command.A, command.B)) is { } held) // P4a: locked or stuck
+            return held;
 
         map.SetWindow(command.A, command.B, command.Open);
         World.RecordFact(command.Open ? "WindowOpened" : "WindowClosed",

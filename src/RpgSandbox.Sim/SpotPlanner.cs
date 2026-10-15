@@ -34,15 +34,18 @@ internal sealed class SpotPlanner
     /// <param name="blockers">Bodies one cannot pass through (hostile creatures).</param>
     /// <param name="standing">Every other body: one cannot stop on them.</param>
     /// <param name="closedDoorsBlock">In a fight a closed door is a wall (opening it is an interaction); outside, the walker opens it.</param>
-    public SpotPlanner(GridMap map, IEnumerable<Spot> blockers, IEnumerable<Spot> standing, bool closedDoorsBlock = false)
+    /// <param name="barredDoors">P4a: closed doors this walker cannot open (locked without its key, or stuck): walls to it.</param>
+    public SpotPlanner(GridMap map, IEnumerable<Spot> blockers, IEnumerable<Spot> standing, bool closedDoorsBlock = false,
+        IEnumerable<GridPos>? barredDoors = null)
     {
+        var barred = (barredDoors ?? Array.Empty<GridPos>()).ToHashSet();
         _width = map.Width * Spot.PerSquare;
         _height = map.Height * Spot.PerSquare;
         _blockers = blockers.ToList();
         _standing = standing.ToList();
 
         bool Blocked(int x, int y) => !map.InBounds(new GridPos(x, y)) || !map.IsWalkable(new GridPos(x, y))
-            || closedDoorsBlock && map.IsClosedDoor(new GridPos(x, y)) && !map.IsEdgeDoor(new GridPos(x, y));
+            || (closedDoorsBlock && map.IsClosedDoor(new GridPos(x, y)) || barred.Contains(new GridPos(x, y))) && !map.IsEdgeDoor(new GridPos(x, y));
         for (var y = 0; y < map.Height; y++)
         for (var x = 0; x < map.Width; x++)
         {
@@ -67,7 +70,8 @@ internal sealed class SpotPlanner
             if (count == 1 || count == 2 && nw == se)
                 cornerPoints.Add((cy * Spot.PerSquare, cx * Spot.PerSquare));
         }
-        foreach (var edge in map.Boundaries.Where(e => e.Kind != MapEdgeKind.Door || closedDoorsBlock && map.IsClosedDoor(e.DoorAt!.Value)))
+        foreach (var edge in map.Boundaries.Where(e => e.Kind != MapEdgeKind.Door
+                     || (closedDoorsBlock && map.IsClosedDoor(e.DoorAt!.Value) || barred.Contains(e.DoorAt!.Value))))
         {
             var (a, b) = Border(edge.A, edge.B);
             _walls.Add((a, b));

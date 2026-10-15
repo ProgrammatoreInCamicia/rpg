@@ -288,7 +288,7 @@ internal sealed partial class Simulation
         // The authority's post is common knowledge; where it is right now is only known by looking around. To talk one
         // must be next to it on a map (T6c-4), in the same place elsewhere.
         if (CanTalk(npc, authority))
-            return Do(untold.Kind == DeedKind.Theft ? "Riferisci il furto" : "Riferisci lo scontro", $"Racconta a {authority.Name} {Deeds.About(untold)}.",
+            return Do(untold.Kind switch { DeedKind.Theft => "Riferisci il furto", DeedKind.BreakIn => "Riferisci lo scasso", _ => "Riferisci lo scontro" }, $"Racconta a {authority.Name} {Deeds.About(untold)}.",
                 new ReportCommand { Actor = npc.Id, Recipient = authority.Id, Observation = untold.Id });
         if (StepNextTo(npc, authority) is { } approach)
             return new Plan("Va dalla guardia", $"Vede {authority.Name} e le va accanto per parlarle.", () => Execute(approach));
@@ -439,7 +439,7 @@ internal sealed partial class Simulation
 
     /// <summary>C4a: a deed the faction's authority should hear of: any theft; a fight with a member in it, or heard nearby.</summary>
     private bool Concerns(Observation o, FactionId faction) =>
-        o.Kind == DeedKind.Theft
+        o.Kind is DeedKind.Theft or DeedKind.BreakIn // P4a: a break-in is the authority's business too
         || o.Perceived == PerceptionMode.Heard
         || o.Involved.Any(i => World.Actors[i.Id].Faction == faction);
 

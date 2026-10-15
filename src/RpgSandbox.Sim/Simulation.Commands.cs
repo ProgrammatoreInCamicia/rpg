@@ -13,7 +13,7 @@ internal sealed partial class Simulation
         RememberDoors(); // a command may open a door or move the player's view (T6c-5)
         // Anything louder than a whisper ends sneaking (SRD Hide): talking, depositing, waiting... Taking food quietly,
         // stopping, a door or a torch do not (a lit torch gives you away by its light anyway); a normal walk ends it in StartMove.
-        if (result.Success && command is not (MoveCommand or MoveToSpotCommand or StopCommand or TakeFoodCommand or DoorCommand or WindowCommand or TorchCommand or PickUpCommand or DropCommand
+        if (result.Success && command is not (MoveCommand or MoveToSpotCommand or StopCommand or TakeFoodCommand or DoorCommand or WindowCommand or LockCommand or PickLockCommand or TorchCommand or PickUpCommand or DropCommand
                 or ObserveCommand)
             && World.Actors.TryGetValue(command.Actor, out var actor))
             actor.Sneak = null;
@@ -59,6 +59,9 @@ internal sealed partial class Simulation
         StopCommand stop => Stop(stop),
         DoorCommand door => UseDoor(door),
         WindowCommand window => UseWindow(window),
+        LockCommand lockCommand => UseLock(lockCommand), // P4a
+        PickLockCommand pick => StartBarrierWork(pick, BarrierWork.PickLock),
+        ForceCommand force => StartBarrierWork(force, BarrierWork.Force),
         TorchCommand torch => UseTorch(torch),
         AttackCommand attack => Attack(attack),
         EndTurnCommand or CombatActionCommand => CommandResult.Rejected(RejectionReason.NotInCombat, "Non stai combattendo."),
@@ -258,6 +261,9 @@ internal sealed partial class Simulation
             case DepositFoodAction deposit:
                 CompleteDeposit(actor, deposit);
                 break;
+            case BarrierAction work:
+                CompleteBarrierWork(actor, work);
+                break;
             case TakeFoodAction take:
                 CompleteTake(actor, take);
                 break;
@@ -269,6 +275,7 @@ internal sealed partial class Simulation
                 break;
             case MoveAction move:
                 Place(actor, move.Path[^1], move.Spots?[^1]); // contacts follow once the instant's positions are all known
+                RelockBehind(actor, World.Maps[actor.MapArea!.Value], move, reached: move.Path.Count - 1);
                 break;
             case DownedAction:
                 CompleteDowned(actor);

@@ -89,16 +89,20 @@ internal sealed partial class Simulation
             || CurrentPosition(npc) is not { } here)
             return null;
         var noise = npc.Knowledge
-            .Where(o => o.Kind == DeedKind.Assault && o.Source is null && o.Perceived == PerceptionMode.Heard && o.Square is not null
-                        && o.Encounter is { } fight && World.Encounters.TryGetValue(fight, out var e) && e.Area == area
-                        && !e.Order.Any(c => SeesActor(npc, World.Actors[c.Actor])))
+            .Where(o => o.Source is null && o.Perceived == PerceptionMode.Heard && o.Square is not null
+                        && (o.Kind == DeedKind.Assault && o.Encounter is { } fight && World.Encounters.TryGetValue(fight, out var e) && e.Area == area
+                            && !e.Order.Any(c => SeesActor(npc, World.Actors[c.Actor]))
+                            // P4a: blows on a door, heard lately (on its own map: it heard them there)
+                            || o.Kind == DeedKind.BreakIn && World.Now.Since(o.LearnedAt).CompareTo(Tuning.InvestigateBreakInFor) <= 0))
             .OrderByDescending(o => o.LearnedAt).ThenBy(o => o.Id)
             .FirstOrDefault();
-        if (noise is not { Square: { } towards } || towards == here)
+        var fightNoise = noise?.Kind == DeedKind.Assault;
+        // A fight: up to the noise; blows on a door: up to the door (a door square is not always walkable).
+        if (noise is not { Square: { } towards } || towards == here || !fightNoise && here.StepsTo(towards) <= 1)
             return null;
         var map = World.Maps[area];
-        inputs.Add("Sente rumori di lotta e non vede chi");
-        return new Plan("Va a vedere", "Va verso i rumori di lotta.", () =>
+        inputs.Add(fightNoise ? "Sente rumori di lotta e non vede chi" : "Sente colpi contro una porta");
+        return new Plan("Va a vedere", fightNoise ? "Va verso i rumori di lotta." : "Va verso i colpi.", () =>
             Execute(new MoveCommand { Actor = npc.Id, To = towards, StopNextTo = !map.IsWalkable(towards) }));
     }
 

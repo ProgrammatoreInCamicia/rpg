@@ -149,14 +149,15 @@ public static class MappedVillageScenario
                 at: (Ids.GuardStart.X, Ids.GuardStart.Y))
             .AddActor(Ids.Farmer.Value, "Contadino", Ids.FarmerHouse.Value, factionId: Ids.VillageFaction.Value,
                 workLocationId: Ids.Granary.Value, shiftStart: Duration.FromHours(13), shiftEnd: Duration.FromHours(18), // T6c-2
-                build: "farmer", at: (Ids.FarmerHome.X, Ids.FarmerHome.Y))
+                build: "farmer", at: (Ids.FarmerHome.X, Ids.FarmerHome.Y), items: new[] { ("club", 1), ("farmhouse-key", 1) })
             .AddActor(Ids.Raider.Value, "Razziatore", Ids.BanditCamp.Value, factionId: Ids.Bandits.Value,
                 build: "raider");
 
         // The doors keep the same clickable squares as the old layout, but occupy a boundary instead of a tile.
         for (var x = 1; x <= 6; x++)
         {
-            b.AddEdge(Ids.Village.Value, (x, 0), (x, 1), x == 3 ? MapEdgeKind.Window : MapEdgeKind.Wall);
+            b.AddEdge(Ids.Village.Value, (x, 0), (x, 1), x == 3 ? MapEdgeKind.Window : MapEdgeKind.Wall,
+                lockSpec: x == 3 ? new LockSpec(Stuck: true, ForceDc: 10, Clue: "il telaio è gonfio di umidità") : null); // P4a: for trying
             b.AddEdge(Ids.Village.Value, (x, 4), (x, 5), MapEdgeKind.Wall);
         }
         for (var y = 1; y <= 4; y++)
@@ -177,11 +178,13 @@ public static class MappedVillageScenario
         {
             b.AddEdge(Ids.Village.Value, (0, y), (1, y), MapEdgeKind.Wall);
             b.AddEdge(Ids.Village.Value, (7, y), (8, y), y == 13 ? MapEdgeKind.Door : MapEdgeKind.Wall,
-                y == 13 ? (8, y) : null);
+                y == 13 ? (8, y) : null, lockSpec: y == 13 // P4a: the farmer keeps the key
+                    ? new LockSpec(Key: "farmhouse-key", Locked: true, ForceDc: 15, Clue: "una porta robusta di quercia") : null);
         }
         // A short partition gives the farmhouse a second room and a real corner to look around.
         b.AddEdge(Ids.Village.Value, (4, 12), (5, 12), MapEdgeKind.Wall);
         b.AddEdge(Ids.Village.Value, (4, 14), (5, 14), MapEdgeKind.Wall);
+        b.AddGroundItem(Ids.Village.Value, (2, 3), "thieves-tools"); // P4a: in the inn, for trying them out
         return b.Build();
     }
 }

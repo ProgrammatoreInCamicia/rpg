@@ -104,6 +104,12 @@ public sealed record PlayerView
     /// </summary>
     public IReadOnlyList<CombatLogEntry>? LastFight { get; init; }
 
+    /// <summary>
+    /// P4a: the doors and windows of this map the player has found locked, stuck or broken (only by trying), as it last
+    /// found them, with the clue the world gives (never a number).
+    /// </summary>
+    public IReadOnlyList<KnownBarrierView> KnownBarriers { get; init; } = Array.Empty<KnownBarrierView>();
+
     /// <summary>C2: the player is dead. The world may go on; the client offers to load a game.</summary>
     public bool Dead { get; init; }
 
@@ -224,4 +230,16 @@ public sealed record TopicView
     public required string Kind { get; init; }
     public required ObservationId Observation { get; init; }
     public required string Summary { get; init; }
+}
+
+/// <summary>P4a: what the player knows of a door (<see cref="Door"/>) or a window (<see cref="A"/>, <see cref="B"/>) that holds.</summary>
+public sealed record KnownBarrierView
+{
+    public GridPos? Door { get; init; }
+    public GridPos? A { get; init; }
+    public GridPos? B { get; init; }
+    public required bool Locked { get; init; }
+    public required bool Stuck { get; init; }
+    public required bool Broken { get; init; }
+    public required string Clue { get; init; }
 }

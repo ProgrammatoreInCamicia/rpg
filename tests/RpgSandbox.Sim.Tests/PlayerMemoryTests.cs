@@ -37,7 +37,11 @@ public class PlayerMemoryTests
         var seenAt = s.Now;
 
         Walk(s, PlayerStart); // back into the inn, walls in between
-        s.AdvanceTo(At(1, 13, 30)); // meanwhile the farmer went out to work and left his door open
+        s.AdvanceTo(At(1, 13, 30));
+        // Meanwhile the door is unlocked and left open, out of the player's sight (by hand: since P4a the farmer locks it
+        // again behind him).
+        s.Engine.World.Maps[Village].BarrierOf(BarrierKey.Door(HouseDoor))!.Locked = false;
+        s.Engine.World.Maps[Village].SetDoor(HouseDoor, open: true);
         Assert.True(s.Engine.World.Maps[Village].Doors[HouseDoor]);
 
         var remembered = Door(s, HouseDoor);

@@ -12,21 +12,22 @@ internal sealed partial class Simulation
     /// order that can be reached. Null when there is no way there (a place cut off by walls): the NPC then hesitates and
     /// decides again later, instead of failing.
     /// </summary>
-    private static GridPos? TargetSquare(GridMap map, LocationId place, PostKind? kind, GridPos from)
+    private static GridPos? TargetSquare(GridMap map, LocationId place, PostKind? kind, GridPos from, Func<GridPos, bool>? opens)
     {
         if (PostOf(map, place, kind) is { } post)
-            return Reachable(map, from, post) ? post : null;
+            return Reachable(map, from, post, opens) ? post : null;
         for (var y = 0; y < map.Height; y++)
         for (var x = 0; x < map.Width; x++)
         {
             var square = new GridPos(x, y);
-            if (map.ZoneAt(square) == place && map.IsWalkable(square) && Reachable(map, from, square))
+            if (map.ZoneAt(square) == place && map.IsWalkable(square) && Reachable(map, from, square, opens))
                 return square;
         }
         return null;
     }
 
-    private static bool Reachable(GridMap map, GridPos from, GridPos to) => from == to || map.FindPath(from, to) is not null;
+    private static bool Reachable(GridMap map, GridPos from, GridPos to, Func<GridPos, bool>? opens) =>
+        from == to || map.FindPath(from, to, opens: opens) is not null; // P4a: through the doors this walker can open
 
     /// <summary>
     /// Where the NPC was going: on the place's post when it has one of that kind (or Rest for Home); otherwise anywhere
@@ -61,13 +62,13 @@ internal sealed partial class Simulation
             {
                 if (IsAt(npc, place, kind) || CurrentPosition(npc) is not { } standing)
                     return null;
-                return TargetSquare(map, place, kind, standing) is { } target ? new MoveCommand { Actor = npc.Id, To = target } : null;
+                return TargetSquare(map, place, kind, standing, Opens(npc, map)) is { } target ? new MoveCommand { Actor = npc.Id, To = target } : null;
             }
 
             // Leave by the exit that makes the rest of the way shortest, among those that can be walked to from here.
             var from = CurrentPosition(npc)!.Value;
             var best = map.Exits
-                .Where(exit => Reachable(map, from, exit.Value))
+                .Where(exit => Reachable(map, from, exit.Value, Opens(npc, map)))
                 .SelectMany(exit => JourneyTargets(place).Select(t => (Exit: exit, Target: t, Cost: PathCost(exit.Key, t))))
                 .Where(c => c.Cost is not null)
                 .OrderBy(c => c.Cost!.Value.Ticks).ThenBy(c => c.Exit.Key.Value, StringComparer.Ordinal)
@@ -142,7 +143,7 @@ internal sealed partial class Simulation
         {
             var map = World.Maps[area];
             var square = UseSquares(store, map)
-                .Select(s => (Square: s, Path: map.FindPath(from, s)))
+                .Select(s => (Square: s, Path: map.FindPath(from, s, opens: Opens(npc, map))))
                 .Where(c => c.Path is not null)
                 .OrderBy(c => c.Path!.Count).ThenBy(c => c.Square.Y).ThenBy(c => c.Square.X)
                 .Select(c => (GridPos?)c.Square)

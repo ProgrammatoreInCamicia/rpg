@@ -60,6 +60,10 @@ internal sealed record MapDefinition(AreaId Area, IReadOnlyList<string> Rows, IR
 {
     public List<LightSource> Lights { get; } = new();
     public List<(GridPos At, bool Open)> Doors { get; } = new();
+    /// <summary>P4a: doors and windows that lock or stick.</summary>
+    public List<(BarrierKey Key, LockSpec Spec)> Locks { get; } = new();
+    /// <summary>P4a: items lying on the ground at the start.</summary>
+    public List<(GridPos At, string Item, int Count)> Ground { get; } = new();
     public List<MapEdgeView> Edges { get; } = new();
     public List<LocationId> IndoorZones { get; } = new();
     public List<(LocationId Location, GridPos At)> Exits { get; } = new();
@@ -223,11 +227,20 @@ public sealed class ScenarioBuilder
         ?? throw new InvalidOperationException($"Add the map of '{areaId}' before its {what}.");
 
     /// <summary>Puts a door on a walkable square of a mapped area (open or closed). Add the map first.</summary>
-    public ScenarioBuilder AddDoor(string areaId, (int X, int Y) at, bool open)
+    public ScenarioBuilder AddDoor(string areaId, (int X, int Y) at, bool open, LockSpec? lockSpec = null)
     {
         var map = _maps.LastOrDefault(m => m.Area.Value == areaId)
                   ?? throw new InvalidOperationException($"Add the map of '{areaId}' before its doors.");
         map.Doors.Add((new GridPos(at.X, at.Y), open));
+        if (lockSpec is not null)
+            map.Locks.Add((BarrierKey.Door(new GridPos(at.X, at.Y)), lockSpec));
+        return this;
+    }
+
+    /// <summary>P4a: <paramref name="count"/> of <paramref name="item"/> lying on a square at the start.</summary>
+    public ScenarioBuilder AddGroundItem(string areaId, (int X, int Y) at, string item, int count = 1)
+    {
+        MapOf(areaId, "ground items").Ground.Add((new GridPos(at.X, at.Y), item, count));
         return this;
     }
 
@@ -238,7 +251,7 @@ public sealed class ScenarioBuilder
     }
 
     public ScenarioBuilder AddEdge(string areaId, (int X, int Y) a, (int X, int Y) b, MapEdgeKind kind,
-        (int X, int Y)? doorAt = null, bool open = false)
+        (int X, int Y)? doorAt = null, bool open = false, LockSpec? lockSpec = null)
     {
         var map = MapOf(areaId, "edges");
         var at = doorAt is { } p ? new GridPos(p.X, p.Y) : (GridPos?)null;
@@ -249,6 +262,13 @@ public sealed class ScenarioBuilder
         });
         if (kind == MapEdgeKind.Door && at is { } door)
             map.Doors.Add((door, open));
+        if (lockSpec is not null) // P4a: a door on a boundary locks by its square, a window by its two squares
+            map.Locks.Add((kind switch
+            {
+                MapEdgeKind.Door when at is { } d => BarrierKey.Door(d),
+                MapEdgeKind.Window => BarrierKey.Window(new GridPos(a.X, a.Y), new GridPos(b.X, b.Y)),
+                _ => throw new InvalidOperationException("Only a door or a window can lock or stick."),
+            }, lockSpec));
         return this;
     }
 
@@ -353,7 +373,14 @@ public sealed class ScenarioBuilder
             try
             {
                 maps[map.Area] = new GridMap(map.Area, map.Rows, map.Zones, storeSquares, map.Lights, map.Doors, map.Exits, map.Posts,
-                    map.Edges, map.IndoorZones);
+                    map.Edges, map.IndoorZones, map.Locks.Select(l => (l.Key, l.Spec.ToBarrier())));
+                foreach (var (at, item, count) in map.Ground) // P4a
+                {
+                    Require(_content.Item(item) is not null && count > 0 && maps[map.Area].IsWalkable(at), $"Ground item '{item}' at {at} is unknown or not on open ground.");
+                    maps[map.Area].PutOnGround(at, new ItemId(item), count);
+                }
+                foreach (var (key, spec) in map.Locks)
+                    Require(spec.Key is null || _content.Item(spec.Key) is not null, $"The key '{spec.Key}' of the {key} is not an item.");
             }
             catch (InvalidDataException e)
             {
@@ -419,4 +446,14 @@ public sealed class ScenarioBuilder
             Require(seen.Add(id), $"Duplicate {kind} id '{id}'.");
         }
     }
+}
+
+/// <summary>
+/// P4a: how a door or window holds: <paramref name="Key"/> is the item that locks it (null: no key fits);
+/// <paramref name="Locked"/> starts locked; <paramref name="Stuck"/> starts stuck; <paramref name="ForceDc"/> is the
+/// Strength (Athletics) DC to force it; <paramref name="Clue"/> what the world shows of it (never a number).
+/// </summary>
+public sealed record LockSpec(string? Key = null, bool Locked = false, bool Stuck = false, int ForceDc = 15, string? Clue = null)
+{
+    internal Barrier ToBarrier() => new() { Key = Key, Locked = Locked, Stuck = Stuck, ForceDc = ForceDc, Clue = Clue };
 }

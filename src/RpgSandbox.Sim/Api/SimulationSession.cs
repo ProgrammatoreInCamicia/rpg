@@ -344,6 +344,13 @@ public sealed class SimulationSession
                 .Select(f => new FactView { Id = f.Id, At = f.At, Kind = f.Kind, Description = f.PlayerDescription ?? f.Description })),
             Combat = _sim.CombatViewOf(player),
             LastFight = _sim.LastFightOf(player),
+            KnownBarriers = player.MapArea is { } here
+                ? Freeze(player.KnownBarriers.Where(k => k.Key.Area == here).Select(k => new KnownBarrierView
+                {
+                    Door = k.Key.Key.IsDoor ? k.Key.Key.A : null, A = k.Key.Key.IsDoor ? null : k.Key.Key.A, B = k.Key.Key.IsDoor ? null : k.Key.Key.B,
+                    Locked = k.Value.Locked, Stuck = k.Value.Stuck, Broken = k.Value.Broken, Clue = k.Value.Clue,
+                }))
+                : Array.Empty<KnownBarrierView>(),
             Dead = player.Vitality.State == Rules.LifeState.Dead,
             Unconscious = player.Vitality.Unconscious,
             Level = w.LevelOf(player),

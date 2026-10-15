@@ -8,6 +8,9 @@ internal static class Tuning
     public static readonly Duration DepositFoodDuration = Duration.FromMinutes(2);
     public static readonly Duration TakeFoodDuration = Duration.FromMinutes(3);
     public static readonly Duration ReportDuration = Duration.FromMinutes(5);
+
+    /// <summary>P4a: how long an authority goes to look at blows on a door it heard.</summary>
+    public static readonly Duration InvestigateBreakInFor = Duration.FromMinutes(10);
     public static readonly Duration ConfiscateDuration = Duration.FromMinutes(2);
 
     /// <summary>How long an NPC with nothing to do rests before deciding again (shortened to the next shift boundary).</summary>

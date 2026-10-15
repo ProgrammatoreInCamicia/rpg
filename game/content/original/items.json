@@ -1,0 +1,6 @@
+{
+  "source": "Original to this project: items of its own world (keys and the like), with no rules beyond being carried.",
+  "items": [
+    { "id": "farmhouse-key", "name": "Chiave della casa del contadino", "pounds": 0.1, "cost": 0 }
+  ]
+}

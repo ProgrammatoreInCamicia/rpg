@@ -36,7 +36,25 @@ internal static class TestHelpers
     {
         if (version < 25)
             ToSeconds(save);
+        if (version < 29) // P4a: no locks, no knowledge of them, no tools
+            Strip(save, "Barriers", "KnownBarriers", "PendingRelock", "ToolProficiencies");
         save["Version"] = version;
+    }
+
+    /// <summary>Removes every property of those names, at any depth.</summary>
+    private static void Strip(JsonNode node, params string[] names)
+    {
+        if (node is JsonArray array)
+            foreach (var item in array)
+                if (item is not null)
+                    Strip(item, names);
+        if (node is not JsonObject obj)
+            return;
+        foreach (var name in names)
+            obj.Remove(name);
+        foreach (var (_, value) in obj.ToList())
+            if (value is not null)
+                Strip(value, names);
     }
 
     private static void ToSeconds(JsonNode node)

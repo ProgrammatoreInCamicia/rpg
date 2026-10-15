@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 28;
+    public const int SchemaVersion = 29;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -195,6 +195,12 @@ internal static class SaveGame
             {
                 Area = d.Key.Area.Value, X = d.Key.At.X, Y = d.Key.At.Y, Open = d.Value.Open, SeenAt = d.Value.SeenAt.Ticks,
             }).ToList(),
+            KnownBarriers = a.KnownBarriers.Select(k => new KnownBarrierDto
+            {
+                Area = k.Key.Area.Value, AX = k.Key.Key.A.X, AY = k.Key.Key.A.Y, BX = k.Key.Key.B.X, BY = k.Key.Key.B.Y,
+                Locked = k.Value.Locked, Stuck = k.Value.Stuck, Broken = k.Value.Broken, Clue = k.Value.Clue, LearnedAt = k.Value.LearnedAt.Ticks,
+            }).ToList(),
+            PendingRelock = a.PendingRelock is { } relockBehind ? new PendingRelockDto { X = relockBehind.Door.X, Y = relockBehind.Door.Y, Walk = relockBehind.Walk.Value, AfterStep = relockBehind.AfterStep } : null,
             Knowledge = a.Knowledge.Select(ToDto).ToList(),
             ActedOn = a.ActedOn.Select(o => o.Value).ToList(),
             Build = a.Build, SheetOverride = a.SheetOverride,
@@ -254,6 +260,11 @@ internal static class SaveGame
                 Kind = e.Kind.ToString(), DoorX = e.DoorAt?.X, DoorY = e.DoorAt?.Y, Open = e.Open }).ToList(),
             IndoorZones = m.IndoorZones.Select(z => z.Value).Order(StringComparer.Ordinal).ToList(),
             Explored = m.Explored.OrderBy(p => p.Y).ThenBy(p => p.X).Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
+            Barriers = m.Barriers.Select(b => new BarrierDto
+            {
+                AX = b.Key.A.X, AY = b.Key.A.Y, BX = b.Key.B.X, BY = b.Key.B.Y, Key = b.Value.Key, Locked = b.Value.Locked,
+                Stuck = b.Value.Stuck, Broken = b.Value.Broken, ForceDc = b.Value.ForceDc, Clue = b.Value.Clue,
+            }).ToList(),
             Exits = m.Exits.Select(e => new ExitDto { Location = e.Key.Value, X = e.Value.X, Y = e.Value.Y }).ToList(),
             Posts = m.Posts.Select(p => new PostDto { Location = p.Key.Location.Value, Kind = p.Key.Kind.ToString(), X = p.Value.X, Y = p.Value.Y }).ToList(),
             Ground = m.Ground.SelectMany(g => g.Value.Select(i => new GroundItemDto { X = g.Key.X, Y = g.Key.Y, Item = i.Key.Value, Count = i.Value })).ToList(),
@@ -302,6 +313,7 @@ internal static class SaveGame
         Title = s.Title, Strength = s.Strength, Dexterity = s.Dexterity, Constitution = s.Constitution,
         Intelligence = s.Intelligence, Wisdom = s.Wisdom, Charisma = s.Charisma, ProficiencyBonus = s.ProficiencyBonus,
         SkillProficiencies = s.SkillProficiencies.Select(k => k.ToString()).ToList(), ArmorClass = s.ArmorClass,
+        ToolProficiencies = s.ToolProficiencies.ToList(),
         StealthDisadvantage = s.StealthDisadvantage,
         Speed = s.Speed,
     };
@@ -313,6 +325,7 @@ internal static class SaveGame
         SkillProficiencies = s.SkillProficiencies
             .Select(k => Enum.TryParse<Skill>(k, out var skill) && Enum.IsDefined(skill) ? skill : throw new InvalidDataException($"abilità sconosciuta '{k}'"))
             .ToArray(),
+        ToolProficiencies = (s.ToolProficiencies ?? new()).Select(t => Required(t, "attrezzo")).ToArray(),
         ArmorClass = s.ArmorClass,
         StealthDisadvantage = s.StealthDisadvantage,
         Speed = s.Speed,
@@ -355,6 +368,7 @@ internal static class SaveGame
             GuardAction ga => new GuardActionDto { Store = ga.Store.Value },
             ConfiscateAction ca => new ConfiscateActionDto { Target = ca.Target.Value, Store = ca.Store.Value },
             DownedAction => new DownedActionDto(),
+            BarrierAction b => new BarrierActionDto { Work = b.Work.ToString(), AX = b.Target.A.X, AY = b.Target.A.Y, BX = b.Target.B.X, BY = b.Target.B.Y },
             MoveAction mv => new MoveActionDto
             {
                 From = new PosDto { X = mv.From.X, Y = mv.From.Y }, Path = mv.Path.Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(), Speed = mv.Speed, Stealthy = mv.Stealthy,
@@ -449,7 +463,13 @@ internal static class SaveGame
             var posts = m.Posts!.Select(p => (new LocationId(Required(p.Location, "luogo di un posto")),
                 Enum.TryParse<PostKind>(p.Kind, out var kind) && Enum.IsDefined(kind) ? kind : throw new InvalidDataException($"tipo di posto sconosciuto '{p.Kind}'"),
                 new GridPos(p.X, p.Y)));
-            AddUnique(w.Maps, area, new GridMap(area, m.Rows!, zones, occupied, lights, doors, exits, posts, edges, indoorZones), "mappa");
+            // P4a: before schema 29 nothing locked or stuck.
+            Check(d.Version < 29 || m.Barriers is not null, $"serrature della mappa '{area}' mancanti");
+            var barriers = (m.Barriers ?? new()).Select(b => b is null || b.Key is { } k && w.Content.Item(k) is null
+                ? throw new InvalidDataException($"serratura non valida nella mappa '{area}'")
+                : (new BarrierKey(new GridPos(b.AX, b.AY), new GridPos(b.BX, b.BY)),
+                    new Barrier { Key = b.Key, Locked = b.Locked, Stuck = b.Stuck, Broken = b.Broken, ForceDc = b.ForceDc, Clue = b.Clue }));
+            AddUnique(w.Maps, area, new GridMap(area, m.Rows!, zones, occupied, lights, doors, exits, posts, edges, indoorZones, barriers), "mappa");
             Check((m.Explored ?? new()).All(p => p is not null), $"memoria della mappa '{area}' non valida");
             foreach (var p in m.Explored ?? new())
                 Check(w.Maps[area].InBounds(new GridPos(p.X, p.Y)) && w.Maps[area].Explored.Add(new GridPos(p.X, p.Y)),
@@ -597,6 +617,17 @@ internal static class SaveGame
                 Check(actor.DoorMemory.TryAdd(new DoorKey(new AreaId(door!.Area), new GridPos(door.X, door.Y)), new RememberedDoor(door.Open, Time(door.SeenAt))),
                     $"porta ricordata due volte da '{a.Id}'");
             }
+            Check(d.Version < 29 || a.KnownBarriers is not null, $"serrature conosciute da '{a.Id}' mancanti"); // P4a
+            foreach (var k in a.KnownBarriers ?? new())
+            {
+                var key = new BarrierKey(new GridPos(k?.AX ?? -1, k?.AY ?? -1), new GridPos(k?.BX ?? -1, k?.BY ?? -1));
+                Check(k is not null && a.IsPlayer && w.Maps.TryGetValue(new AreaId(k.Area), out var known) && known.BarrierOf(key) is not null
+                      && k.Clue is not null && Time(k.LearnedAt) <= Time(d.Now), $"serratura conosciuta da '{a.Id}' non valida");
+                Check(actor.KnownBarriers.TryAdd((new AreaId(k!.Area), key), new KnownBarrier(k.Locked, k.Stuck, k.Broken, k.Clue, Time(k.LearnedAt))),
+                    $"serratura conosciuta due volte da '{a.Id}'");
+            }
+            if (a.PendingRelock is { } relock)
+                actor.PendingRelock = new PendingRelock(new GridPos(relock.X, relock.Y), new ActionId(relock.Walk), relock.AfterStep);
             foreach (var item in a.Inventory ?? throw new InvalidDataException($"inventario di '{a.Id}' mancante"))
             {
                 Check(item is not null && content.Item(item.Item ?? "") is not null && item.Count > 0 && actor.Carried(item.Item!) == 0,
@@ -841,6 +872,10 @@ internal static class SaveGame
             case TakeFoodAction take:
                 Check(w.Stores.ContainsKey(take.Store), $"prelievo di '{a.Id}' da deposito sconosciuto");
                 break;
+            case BarrierAction work: // P4a
+                Check(a.MapArea is { } area && w.Maps.TryGetValue(area, out var workMap) && workMap.BarrierOf(work.Target) is not null,
+                    $"lavoro di '{a.Id}' su una porta o finestra sconosciuta");
+                break;
         }
         if (a.Assignment is { } r)
         {
@@ -900,6 +935,12 @@ internal static class SaveGame
                 Interruptible = wait.Interruptible,
             },
             DownedActionDto => new DownedAction { Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description },
+            BarrierActionDto b => new BarrierAction
+            {
+                Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
+                Work = Enum.TryParse<BarrierWork>(b.Work, out var work) && Enum.IsDefined(work) ? work : throw new InvalidDataException($"lavoro sconosciuto '{b.Work}'"),
+                Target = new BarrierKey(new GridPos(b.AX, b.AY), new GridPos(b.BX, b.BY)),
+            },
             _ => throw new InvalidDataException("tipo di azione sconosciuto"),
         };
     }
@@ -1082,6 +1123,7 @@ internal static class SaveGame
         var kind = Enum.TryParse<DeedKind>(o.Kind, out var k) && Enum.IsDefined(k) ? k : throw new InvalidDataException($"tipo di fatto sconosciuto '{o.Kind}'");
         // A theft names its store; a fight or a killing never does, and always belongs to a fight.
         Check(kind == DeedKind.Theft ? !string.IsNullOrEmpty(o.Store) && o.Location is not null && o.Encounter is null
+                : kind == DeedKind.BreakIn ? o.Store is null && o.StoreName is null && o.Amount == 0 && o.Encounter is null // P4a: no fight
                 : o.Store is null && o.StoreName is null && o.Amount == 0 && o.Encounter is not null,
             $"osservazione di tipo {kind} incoerente");
         Check(o.Involved is not null && o.Involved.All(i => i is not null && !string.IsNullOrEmpty(i.Actor) && i.Name is not null),

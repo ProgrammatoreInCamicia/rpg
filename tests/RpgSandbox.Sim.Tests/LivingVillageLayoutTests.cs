@@ -32,7 +32,8 @@ public class LivingVillageLayoutTests
         Assert.Equal(GuardPost, map.Posts[(Granary, PostKind.Guard)]);
         Assert.Equal(new[] { GranaryAccess }, session.Engine.World.Stores[GranaryStore].Access);
 
-        Assert.NotNull(map.FindPath(FarmerHome, FarmerWork));
+        Assert.Null(map.FindPath(FarmerHome, FarmerWork)); // P4a: the farmhouse is locked...
+        Assert.NotNull(map.FindPath(FarmerHome, FarmerWork, opens: door => door == HouseDoor)); // ...the farmer has the key
         Assert.NotNull(map.FindPath(ForestExit, GranaryAccess));
         Assert.True(GuardPost.IsAdjacentOrSame(GranaryAccess));
         Assert.True(map.HasLineOfSight(GuardPost, GranaryAccess));

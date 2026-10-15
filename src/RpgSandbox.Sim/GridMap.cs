@@ -23,7 +23,8 @@ internal sealed class GridMap
     public GridMap(AreaId area, IReadOnlyList<string> rows, IReadOnlyDictionary<char, LocationId> zones, IEnumerable<GridPos> occupied,
         IEnumerable<LightSource>? lights = null, IEnumerable<(GridPos At, bool Open)>? doors = null,
         IEnumerable<(LocationId Location, GridPos At)>? exits = null, IEnumerable<(LocationId Location, PostKind Kind, GridPos At)>? posts = null,
-        IEnumerable<MapEdgeView>? edges = null, IEnumerable<LocationId>? indoorZones = null)
+        IEnumerable<MapEdgeView>? edges = null, IEnumerable<LocationId>? indoorZones = null,
+        IEnumerable<(BarrierKey Key, Barrier Barrier)>? barriers = null)
     {
         if (rows.Count == 0 || rows.Any(r => r.Length != rows[0].Length || r.Length == 0))
             throw new InvalidDataException($"la mappa dell'area '{area}' deve avere righe non vuote e della stessa lunghezza");
@@ -77,6 +78,14 @@ internal sealed class GridMap
         foreach (var (location, kind, at) in posts ?? Array.Empty<(LocationId, PostKind, GridPos)>())
             if (!Enum.IsDefined(kind) || !IsWalkable(at) || ZoneAt(at) != location || !_posts.TryAdd((location, kind), at))
                 throw new InvalidDataException($"posto {kind} di '{location}' non valido in {at}: deve essere una casella percorribile del Luogo, uno per tipo");
+        foreach (var (key, barrier) in barriers ?? Array.Empty<(BarrierKey, Barrier)>()) // P4a
+        {
+            if (!(key.IsDoor ? _doors.ContainsKey(key.A) : IsWindow(key.A, key.B) && key == BarrierKey.Window(key.A, key.B)) || barrier.ForceDc is < 1 or > 30
+                || barrier.Broken && barrier.Locked || !_barriers.TryAdd(key, barrier))
+                throw new InvalidDataException($"serratura non valida nella mappa '{area}': {key}");
+            if (barrier.Holds && (key.IsDoor ? _doors[key.A] : _openWindows.Contains(EdgeKey(key.A, key.B))))
+                throw new InvalidDataException($"una {key} aperta non può essere chiusa a chiave o bloccata in '{area}'");
+        }
     }
 
     public AreaId Area { get; }
@@ -86,6 +95,16 @@ internal sealed class GridMap
     /// <summary>The thin boundaries, windows with their state now (P2b).</summary>
     public IReadOnlyCollection<MapEdgeView> Edges =>
         _edges.Select(e => e.Value.Kind == MapEdgeKind.Window ? e.Value with { Open = _openWindows.Contains(e.Key) } : e.Value).ToList();
+
+    /// <summary>P4a: doors and windows that lock or stick, and how they hold now.</summary>
+    public IReadOnlyDictionary<BarrierKey, Barrier> Barriers => _barriers;
+
+    private readonly SortedDictionary<BarrierKey, Barrier> _barriers = new(BarrierKey.Order);
+
+    public Barrier? BarrierOf(BarrierKey key) => _barriers.GetValueOrDefault(key);
+
+    /// <summary>P4a: the closed door here does not open by hand (locked or stuck).</summary>
+    public bool DoorHolds(GridPos door) => IsClosedDoor(door) && _barriers.TryGetValue(BarrierKey.Door(door), out var b) && b.Holds;
 
     /// <summary>The thin boundaries as built, for geometry (a window's state: <see cref="IsOpenWindow"/>).</summary>
     public IReadOnlyCollection<MapEdgeView> Boundaries => _edges.Values;
@@ -368,7 +387,9 @@ internal sealed class GridMap
     /// (estimate, y, x). Returns the squares after <paramref name="from"/>, ending at <paramref name="to"/>, or null
     /// when unreachable.
     /// </summary>
-    public IReadOnlyList<GridPos>? FindPath(GridPos from, GridPos to, Func<GridPos, int>? extraCost = null)
+    /// <param name="opens">P4a: the doors the walker can open though they hold (locked, with its key); null: none. A closed door
+    /// that holds and is not among them is a wall to this walker.</param>
+    public IReadOnlyList<GridPos>? FindPath(GridPos from, GridPos to, Func<GridPos, int>? extraCost = null, Func<GridPos, bool>? opens = null)
     {
         if (!IsWalkable(to) || !InBounds(from))
             return null;
@@ -395,6 +416,8 @@ internal sealed class GridMap
                     continue;
                 if (dx != 0 && dy != 0 && (!IsWalkable(new GridPos(here.X + dx, here.Y)) || !IsWalkable(new GridPos(here.X, here.Y + dy))))
                     continue; // no cutting corners
+                if (ClosedDoorBetween(here, next) is { } door && DoorHolds(door) && opens?.Invoke(door) != true)
+                    continue; // P4a: locked without its key, or stuck
                 var nextCost = (Steps: cost[here].Steps + 1 + (extraCost?.Invoke(next) ?? 0), Drift: cost[here].Drift + Drift(next));
                 if (cost.TryGetValue(next, out var known) && known.CompareTo(nextCost) <= 0)
                     continue;

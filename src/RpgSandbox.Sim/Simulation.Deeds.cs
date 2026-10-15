@@ -10,6 +10,7 @@ internal static class Deeds
     {
         DeedKind.Theft => $"del furto da {o.StoreName}",
         DeedKind.Assault => o.Perceived == PerceptionMode.Heard ? $"dei rumori di lotta{Where(o)}" : $"dello scontro{Where(o)}",
+        DeedKind.BreakIn => o.Perceived == PerceptionMode.Heard ? $"dei colpi contro una porta{Where(o)}" : $"dello scasso{Where(o)}",
         _ => $"dell'uccisione{Where(o)}",
     };
 
@@ -18,6 +19,7 @@ internal static class Deeds
     {
         DeedKind.Theft => $"furto da {o.StoreName}",
         DeedKind.Assault => o.Perceived == PerceptionMode.Heard ? $"rumori di lotta{Where(o)}" : $"scontro{Where(o)}",
+        DeedKind.BreakIn => o.Perceived == PerceptionMode.Heard ? $"colpi contro una porta{Where(o)}" : $"scasso{Where(o)}",
         _ => $"uccisione{Where(o)}",
     };
 
@@ -26,6 +28,7 @@ internal static class Deeds
     {
         DeedKind.Theft => "del furto",
         DeedKind.Assault => "dello scontro",
+        DeedKind.BreakIn => "dello scasso",
         _ => "dell'uccisione",
     };
 
@@ -36,6 +39,7 @@ internal static class Deeds
         DeedKind.Assault when o.CulpritName is { } c => $"l'ha cominciato {c}{(o.VictimName is { } v ? $" contro {v}" : "")}",
         DeedKind.Assault when o.Involved.Count > 0 => $"si battevano {string.Join(" e ", o.Involved.Select(i => i.Name))}, non si sa chi ha cominciato",
         DeedKind.Assault => "nessun nome, solo rumori",
+        DeedKind.BreakIn => o.CulpritName is { } c ? $"forzava {c}" : "nessun nome, solo colpi",
         _ => $"{o.CulpritName ?? "qualcuno"} ha ucciso {o.VictimName ?? "qualcuno"}",
     };
 

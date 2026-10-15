@@ -23,7 +23,8 @@ public class NpcRoutineTests
         s.AdvanceTo(At(1, 13, 10));
         Assert.Equal(FarmerWork, Square(s, Farmer));
         Assert.Equal(Granary, s.GetWorldView().Actor(Farmer).Location);
-        Assert.True(s.Engine.World.Maps[Village].Doors[HouseDoor]); // opened on the way out
+        Assert.False(s.Engine.World.Maps[Village].Doors[HouseDoor]); // P4a: opened with his key on the way out, locked again behind him
+        Assert.True(s.Engine.World.Maps[Village].BarrierOf(BarrierKey.Door(HouseDoor))!.Locked);
         Assert.Equal("Routine: lavora", s.GetWorldView().Actor(Farmer).LastDecision!.Rule);
 
         s.AdvanceTo(At(1, 18, 10));

@@ -53,10 +53,12 @@ public static class ScenarioFile
                     throw r.Error($"tipo di confine sconosciuto '{name}'");
                 b.AddEdge(area, r.Square(edge, "a"), r.Square(edge, "b"), kind,
                     edge.TryGetProperty("at", out _) ? r.Square(edge, "at") : null,
-                    r.OptBool(edge, "open") ?? false);
+                    r.OptBool(edge, "open") ?? false, r.LockOf(edge));
             }
             foreach (var d in r.Objects(m, "doors"))
-                b.AddDoor(area, r.Square(d, "at"), r.Bool(d, "open"));
+                b.AddDoor(area, r.Square(d, "at"), r.Bool(d, "open"), r.LockOf(d));
+            foreach (var g in r.Objects(m, "ground")) // P4a
+                b.AddGroundItem(area, r.Square(g, "at"), r.Text(g, "item"), r.OptInt(g, "count") ?? 1);
         }
         foreach (var f in r.Objects(s, "factions"))
         {
@@ -131,6 +133,14 @@ public static class ScenarioFile
             e.ValueKind == JsonValueKind.String && e.GetString() is { Length: > 0 } s ? s : throw Error($"'{what}' non è un testo");
 
         public string Text(JsonElement e, string name) => String(Field(e, name), name);
+
+        /// <summary>
+        /// P4a: { "lock": { "key": "farmhouse-key", "locked": true, "stuck": false, "forceDc": 15, "clue": "..." } } on a
+        /// door or edge; null without one.
+        /// </summary>
+        public LockSpec? LockOf(JsonElement e) => e.TryGetProperty("lock", out var l)
+            ? new LockSpec(OptText(l, "key"), OptBool(l, "locked") ?? false, OptBool(l, "stuck") ?? false, OptInt(l, "forceDc") ?? 15, OptText(l, "clue"))
+            : null;
 
         public string? OptText(JsonElement e, string name) => e.TryGetProperty(name, out _) ? Text(e, name) : null;
 

@@ -34,6 +34,7 @@
     { "id": "torch", "name": "Torcia", "pounds": 1, "cost": 1 },
     { "id": "ration", "name": "Razione", "pounds": 2, "cost": 50 },
     { "id": "arrow", "name": "Freccia", "pounds": 0.05, "cost": 5 },
-    { "id": "bolt", "name": "Dardo da balestra", "pounds": 0.075, "cost": 5 }
+    { "id": "bolt", "name": "Dardo da balestra", "pounds": 0.075, "cost": 5 },
+    { "id": "thieves-tools", "name": "Attrezzi da scasso", "pounds": 1, "cost": 2500 }
   ]
 }
