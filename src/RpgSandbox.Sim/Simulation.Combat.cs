@@ -890,13 +890,16 @@ internal sealed partial class Simulation
             ProfileOf(npc).Attacks.Where(a => a.Melee).Concat(ProfileOf(npc).Attacks.Where(a => !a.Melee))
                 .FirstOrDefault(a => CheckAttack(e, npc, target, a, nonLethal: false).Valid && !KeepsLastWeapon(npc, a));
 
-        bool TryAttack(Actor target)
+        bool TryAttack(Actor target, bool tookCover = false)
         {
             if (c.ActionUsed || Usable(target) is not { } attack)
                 return false;
             c.ActionUsed = true;
             ResolveAttack(e, npc, target, attack, nonLethal: attack.Melee && Spares(npc, target), CombatLogKind.Attack);
-            npc.LastDecision = new DecisionTrace(World.Now, "Scontro: attacca", $"Attacca {target.Name} con {attack.Name}.", Array.Empty<string>());
+            // Review P3b: a shot from cover keeps the reason it moved in its trace.
+            npc.LastDecision = tookCover
+                ? new DecisionTrace(World.Now, "Scontro: si ripara", $"Si mette al riparo, poi attacca {target.Name} con {attack.Name}.", Array.Empty<string>())
+                : new DecisionTrace(World.Now, "Scontro: attacca", $"Attacca {target.Name} con {attack.Name}.", Array.Empty<string>());
             CheckEnd(e);
             return true;
         }
@@ -906,9 +909,10 @@ internal sealed partial class Simulation
         {
             c.LastSeenAt = CurrentSpot(target);
             // P3b: about to shoot (no blow in reach), it may first step into cover.
-            if (!c.ActionUsed && Usable(target) is { Melee: false } shot && SeekCover(e, npc, target, shot) && (CheckEnd(e) || !npc.Conscious))
+            var tookCover = !c.ActionUsed && Usable(target) is { Melee: false } shot && SeekCover(e, npc, target, shot);
+            if (tookCover && (CheckEnd(e) || !npc.Conscious))
                 return;
-            if (TryAttack(target) || !World.Encounters.ContainsKey(e.Id))
+            if (TryAttack(target, tookCover) || !World.Encounters.ContainsKey(e.Id))
                 return;
         }
         // P2a: on exact points, by the same planning and walk as the player's free moves.

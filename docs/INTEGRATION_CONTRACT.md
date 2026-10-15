@@ -766,7 +766,7 @@ Decisione dell'utente: precisione vera. Un solo orologio della Sim, a tick.
   CA, senza la copertura. Nel testo del registro "(mezza copertura)" / "(tre quarti di copertura)".
 - **API:** `AttackPreview.Cover`, `TargetView.Cover` (stesso calcolo del pannello), `CombatLogEntry.Cover` (solo se il
   giocatore ha visto il bersaglio).
-- **IA dei PNG:** non cerca copertura e non la considera (passo successivo).
+- **IA dei PNG:** vedi P3b qui sotto (chi tira cerca copertura); chi colpisce in mischia non la considera.
 - **Salvataggio, schema 28:** la copertura di ogni voce del registro; dagli schemi precedenti nessuna.
 - **P3b, i PNG che tirano cercano copertura** (solo Sim, nessuna API nuova):
   - Quando un PNG non può colpire in mischia ma ha un tiro valido, prima di tirare può spostarsi, nel movimento

@@ -73,6 +73,7 @@ public class NpcCoverTests
         Assert.NotEqual(CoverDegree.None, s.PreviewAttack(s.Player, Bandit, Javelin).Cover);
         // Review P3b: a net gain, not a shelter it shares with its target.
         Assert.True(s.PreviewAttack(s.Player, Bandit, Javelin).Cover > s.PreviewAttack(Bandit, s.Player, "Balestra leggera").Cover);
+        Assert.Equal("Scontro: si ripara", Of(s, Bandit).LastDecision!.Rule); // the reason survives the shot
     }
 
     [Fact]
@@ -131,5 +132,28 @@ public class NpcCoverTests
         var own = s.PreviewAttack(s.Player, Bandit, Javelin).Cover;
         var theirs = s.PreviewAttack(Bandit, s.Player, "Balestra leggera").Cover;
         Assert.True(!turn.Any(l => l.Kind == CombatLogKind.Move) || own > theirs, $"moved to {Of(s, Bandit).Spot}: its cover {own}, the player's {theirs}");
+    }
+
+    [Fact]
+    public void It_does_not_step_into_cover_if_the_way_provokes_an_opportunity_attack()
+    {
+        // A bandit without its scimitar, next to the player: it can only shoot. The cover past the wall's end lies out of the
+        // player's reach, so the way there would provoke its Opportunity Attack: it shoots from where it stands.
+        var (s, turn) = BanditsTurn(seed =>
+        {
+            var x = Yard(seed, 16, player: (2, 3), bandit: (3, 3), b =>
+            {
+                for (var y = 0; y <= 2; y++)
+                    b.AddEdge("a", (7, y), (8, y), MapEdgeKind.Wall);
+            });
+            x.Engine.World.Actors[Bandit].Give("scimitar", -1);
+            x.Engine.World.Actors[Bandit].PlaceAt(new Spot(210, 182)); // due east of it lies a strip of cover, out of reach
+            return x;
+        });
+
+        Assert.Contains(turn, l => l.Kind == CombatLogKind.Attack && l.Attack == "Balestra leggera");
+        var log = Log(s);
+        Assert.DoesNotContain(log, l => l.Kind == CombatLogKind.OpportunityAttack);
+        Assert.True(Of(s, Bandit).Spot!.Value.DistanceTo(Of(s, s.Player).Spot!.Value) - 36 <= 60, "it stayed within the player's reach");
     }
 }
