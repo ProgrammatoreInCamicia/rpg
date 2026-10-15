@@ -24,7 +24,7 @@ internal sealed class GridMap
         IEnumerable<LightSource>? lights = null, IEnumerable<(GridPos At, bool Open)>? doors = null,
         IEnumerable<(LocationId Location, GridPos At)>? exits = null, IEnumerable<(LocationId Location, PostKind Kind, GridPos At)>? posts = null,
         IEnumerable<MapEdgeView>? edges = null, IEnumerable<LocationId>? indoorZones = null,
-        IEnumerable<(BarrierKey Key, Barrier Barrier)>? barriers = null)
+        IEnumerable<(BarrierKey Key, Barrier Barrier)>? barriers = null, IEnumerable<(BarrierKey Key, WindowGlass Glass)>? glass = null)
     {
         if (rows.Count == 0 || rows.Any(r => r.Length != rows[0].Length || r.Length == 0))
             throw new InvalidDataException($"la mappa dell'area '{area}' deve avere righe non vuote e della stessa lunghezza");
@@ -85,7 +85,13 @@ internal sealed class GridMap
                 throw new InvalidDataException($"serratura non valida nella mappa '{area}': {key}");
             if (barrier.Holds && (key.IsDoor ? _doors[key.A] : _openWindows.Contains(EdgeKey(key.A, key.B))))
                 throw new InvalidDataException($"una {key} aperta non può essere chiusa a chiave o bloccata in '{area}'");
+            if (barrier.Barred && key.IsDoor || barrier.BarsDc is < 1 or > 30)
+                throw new InvalidDataException($"sbarre non valide nella mappa '{area}': {key}");
         }
+        foreach (var (key, state) in glass ?? Array.Empty<(BarrierKey, WindowGlass)>()) // P4b
+            if (key.IsDoor || !IsWindow(key.A, key.B) || key != BarrierKey.Window(key.A, key.B) || !Enum.IsDefined(state)
+                || state != WindowGlass.Intact && !_glass.TryAdd(EdgeKey(key.A, key.B), state))
+                throw new InvalidDataException($"vetro non valido nella mappa '{area}': {key}");
     }
 
     public AreaId Area { get; }
@@ -94,7 +100,35 @@ internal sealed class GridMap
     public IReadOnlyDictionary<char, LocationId> Zones { get; }
     /// <summary>The thin boundaries, windows with their state now (P2b).</summary>
     public IReadOnlyCollection<MapEdgeView> Edges =>
-        _edges.Select(e => e.Value.Kind == MapEdgeKind.Window ? e.Value with { Open = _openWindows.Contains(e.Key) } : e.Value).ToList();
+        _edges.Select(e => e.Value.Kind == MapEdgeKind.Window
+            ? e.Value with
+            {
+                Open = _openWindows.Contains(e.Key), Glass = _glass.GetValueOrDefault(e.Key, WindowGlass.Intact), // P4b
+                Barred = _barriers.TryGetValue(BarrierKey.Window(e.Key.Item1, e.Key.Item2), out var b) && b.Barred,
+            }
+            : e.Value).ToList();
+
+    /// <summary>P4b: windows whose glass is not whole (a whole one is not listed).</summary>
+    private readonly Dictionary<(GridPos, GridPos), WindowGlass> _glass = new();
+
+    public WindowGlass GlassOf(GridPos a, GridPos b) => _glass.GetValueOrDefault(EdgeKey(a, b), WindowGlass.Intact);
+
+    public void SetGlass(GridPos a, GridPos b, WindowGlass glass)
+    {
+        if (!IsWindow(a, b))
+            throw new InvalidOperationException($"nessuna finestra fra {a} e {b}");
+        if (glass == WindowGlass.Intact)
+            _glass.Remove(EdgeKey(a, b));
+        else
+            _glass[EdgeKey(a, b)] = glass;
+    }
+
+    /// <summary>P4b: a shot or a blow passes this window: open, or its glass broken.</summary>
+    public bool LetsThrough(GridPos a, GridPos b) => IsOpenWindow(a, b) || GlassOf(a, b) != WindowGlass.Intact;
+
+    /// <summary>P4b: the windows whose glass is not whole, for the save.</summary>
+    public IEnumerable<(BarrierKey Key, WindowGlass Glass)> BrokenGlass =>
+        _glass.Select(g => (BarrierKey.Window(g.Key.Item1, g.Key.Item2), g.Value));
 
     /// <summary>P4a: doors and windows that lock or stick, and how they hold now.</summary>
     public IReadOnlyDictionary<BarrierKey, Barrier> Barriers => _barriers;

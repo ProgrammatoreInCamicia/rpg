@@ -350,6 +350,9 @@ internal sealed class MapDto
 
     /// <summary>P4a (schema 29): doors and windows that lock or stick, as they hold now.</summary>
     public List<BarrierDto>? Barriers { get; set; }
+
+    /// <summary>P4b (schema 30): windows whose glass is not whole.</summary>
+    public List<GlassDto>? Glass { get; set; }
 }
 
 internal sealed class BarrierDto
@@ -364,6 +367,20 @@ internal sealed class BarrierDto
     public bool Broken { get; set; }
     public int ForceDc { get; set; }
     public string? Clue { get; set; }
+
+    /// <summary>P4b (schema 30): bars on a window.</summary>
+    public bool Barred { get; set; }
+    public int BarsDc { get; set; } = 25;
+    public string? BarsClue { get; set; }
+}
+
+internal sealed class GlassDto
+{
+    public int AX { get; set; }
+    public int AY { get; set; }
+    public int BX { get; set; }
+    public int BY { get; set; }
+    public string State { get; set; } = "";
 }
 
 internal sealed class KnownBarrierDto

@@ -171,7 +171,8 @@ public static class MappedVillageScenario
         }
         for (var x = 1; x <= 7; x++)
         {
-            b.AddEdge(Ids.Village.Value, (x, 11), (x, 12), x == 4 ? MapEdgeKind.Window : MapEdgeKind.Wall);
+            b.AddEdge(Ids.Village.Value, (x, 11), (x, 12), x == 4 ? MapEdgeKind.Window : MapEdgeKind.Wall,
+                bars: x == 4 ? new BarsSpec(ForceDc: 20, Clue: "le sbarre sono arrugginite, una è smossa") : null); // P4b: for trying
             b.AddEdge(Ids.Village.Value, (x, 14), (x, 15), x == 3 ? MapEdgeKind.Window : MapEdgeKind.Wall);
         }
         for (var y = 12; y <= 14; y++)

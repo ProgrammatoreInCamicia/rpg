@@ -110,6 +110,15 @@ public sealed record PickLockCommand : BarrierCommand;
 /// <summary>P4a: force a locked or stuck door or window: a minute, then a Strength (Athletics) check. Loud.</summary>
 public sealed record ForceCommand : BarrierCommand;
 
+/// <summary>P4b: break a window's glass (fragile: no check, SRD). Six seconds, loud; it lets shots and blows through and never shuts again.</summary>
+public sealed record BreakGlassCommand : BarrierCommand;
+
+/// <summary>P4b: clear the shards from a broken window: a minute, quiet; then nobody is cut climbing through.</summary>
+public sealed record ClearGlassCommand : BarrierCommand;
+
+/// <summary>P4b: climb through an open or broken window without bars, to the square beyond (10 feet of walking).</summary>
+public sealed record ClimbCommand : BarrierCommand;
+
 /// <summary>Light a torch (it burns for 1 hour, SRD) or put out the one burning; a torch put out is spent.</summary>
 public sealed record TorchCommand : Command
 {
@@ -185,6 +194,11 @@ public enum RejectionReason
     NoTools,
     /// <summary>Nothing to pick or force: it opens by hand.</summary>
     NotHeld,
+
+    // P4b: windows
+    /// <summary>A closed window with its glass whole: nobody climbs through.</summary>
+    Closed,
+    Barred,
 }
 
 public sealed record CommandResult

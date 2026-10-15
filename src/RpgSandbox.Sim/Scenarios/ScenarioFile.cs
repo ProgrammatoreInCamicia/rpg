@@ -53,7 +53,10 @@ public static class ScenarioFile
                     throw r.Error($"tipo di confine sconosciuto '{name}'");
                 b.AddEdge(area, r.Square(edge, "a"), r.Square(edge, "b"), kind,
                     edge.TryGetProperty("at", out _) ? r.Square(edge, "at") : null,
-                    r.OptBool(edge, "open") ?? false, r.LockOf(edge));
+                    r.OptBool(edge, "open") ?? false, r.LockOf(edge),
+                    edge.TryGetProperty("bars", out var bars) ? new BarsSpec(r.OptInt(bars, "forceDc") ?? 25, r.OptText(bars, "clue")) : null, // P4b
+                    r.OptText(edge, "glass") is { } glass ? Enum.TryParse<WindowGlass>(glass, out var g) && Enum.IsDefined(g) ? g
+                        : throw r.Error($"vetro sconosciuto '{glass}'") : WindowGlass.Intact);
             }
             foreach (var d in r.Objects(m, "doors"))
                 b.AddDoor(area, r.Square(d, "at"), r.Bool(d, "open"), r.LockOf(d));

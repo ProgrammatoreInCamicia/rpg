@@ -432,7 +432,7 @@ internal sealed class BarrierAction : PendingAction
     public required BarrierKey Target { get; init; }
 }
 
-internal enum BarrierWork { PickLock, Force }
+internal enum BarrierWork { PickLock, Force, BreakGlass, ClearGlass, Climb }
 
 /// <summary>P4a: what the player has found out about a door or window (only by trying), and when.</summary>
 internal sealed record KnownBarrier(bool Locked, bool Stuck, bool Broken, string Clue, GameTime LearnedAt, bool HasLock = false);
@@ -833,7 +833,7 @@ internal sealed class WorldState
         foreach (var m in scenario.Maps)
             world.Maps.Add(m.Area, new GridMap(m.Area, m.Rows, m.Zones,
                 scenario.Stores.Where(s => s.At is not null && world.Locations[s.Location].Area == m.Area).Select(s => s.At!.Value),
-                m.Lights, m.Doors, m.Exits, m.Posts, m.Edges, m.IndoorZones, m.Locks.Select(l => (l.Key, l.Spec.ToBarrier()))));
+                m.Lights, m.Doors, m.Exits, m.Posts, m.Edges, m.IndoorZones, m.Barriers(), m.Glass));
         foreach (var m in scenario.Maps) // P4a
             foreach (var (at, item, count) in m.Ground)
                 world.Maps[m.Area].PutOnGround(at, new ItemId(item), count);

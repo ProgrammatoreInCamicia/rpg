@@ -38,6 +38,8 @@ internal static class TestHelpers
             ToSeconds(save);
         if (version < 29) // P4a: no locks, no knowledge of them, no tools
             Strip(save, "Barriers", "KnownBarriers", "PendingRelock", "ToolProficiencies");
+        if (version < 30) // P4b: no bars, every glass whole
+            Strip(save, "Glass", "Barred", "BarsDc", "BarsClue");
         save["Version"] = version;
     }
 

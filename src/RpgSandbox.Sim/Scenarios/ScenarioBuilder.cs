@@ -62,6 +62,23 @@ internal sealed record MapDefinition(AreaId Area, IReadOnlyList<string> Rows, IR
     public List<(GridPos At, bool Open)> Doors { get; } = new();
     /// <summary>P4a: doors and windows that lock or stick.</summary>
     public List<(BarrierKey Key, LockSpec Spec)> Locks { get; } = new();
+    /// <summary>P4b: windows with bars, and windows whose glass is not whole at the start.</summary>
+    public List<(BarrierKey Key, BarsSpec Spec)> Bars { get; } = new();
+    public List<(BarrierKey Key, WindowGlass Glass)> Glass { get; } = new();
+
+    /// <summary>P4a/P4b: what holds each door or window: its lock or sticking, and its bars.</summary>
+    public IEnumerable<(BarrierKey Key, Barrier Barrier)> Barriers() =>
+        Locks.Select(l => l.Key).Concat(Bars.Select(b => b.Key)).Distinct().Select(key =>
+        {
+            var spec = Locks.FirstOrDefault(l => l.Key == key).Spec;
+            var bars = Bars.FirstOrDefault(b => b.Key == key).Spec;
+            return (key, new Barrier
+            {
+                Key = spec?.Key, Locked = spec?.Locked ?? false, Stuck = spec?.Stuck ?? false, ForceDc = spec?.ForceDc ?? 15,
+                Clue = spec?.Clue, Barred = bars is not null, BarsDc = bars?.ForceDc ?? 25, BarsClue = bars?.Clue,
+            });
+        });
+
     /// <summary>P4a: items lying on the ground at the start.</summary>
     public List<(GridPos At, string Item, int Count)> Ground { get; } = new();
     public List<MapEdgeView> Edges { get; } = new();
@@ -251,7 +268,8 @@ public sealed class ScenarioBuilder
     }
 
     public ScenarioBuilder AddEdge(string areaId, (int X, int Y) a, (int X, int Y) b, MapEdgeKind kind,
-        (int X, int Y)? doorAt = null, bool open = false, LockSpec? lockSpec = null)
+        (int X, int Y)? doorAt = null, bool open = false, LockSpec? lockSpec = null, BarsSpec? bars = null,
+        WindowGlass glass = WindowGlass.Intact)
     {
         var map = MapOf(areaId, "edges");
         var at = doorAt is { } p ? new GridPos(p.X, p.Y) : (GridPos?)null;
@@ -269,6 +287,12 @@ public sealed class ScenarioBuilder
                 MapEdgeKind.Window => BarrierKey.Window(new GridPos(a.X, a.Y), new GridPos(b.X, b.Y)),
                 _ => throw new InvalidOperationException("Only a door or a window can lock or stick."),
             }, lockSpec));
+        if ((bars is not null || glass != WindowGlass.Intact) && kind != MapEdgeKind.Window)
+            throw new InvalidOperationException("Only a window has bars or glass.");
+        if (bars is not null) // P4b
+            map.Bars.Add((BarrierKey.Window(new GridPos(a.X, a.Y), new GridPos(b.X, b.Y)), bars));
+        if (glass != WindowGlass.Intact)
+            map.Glass.Add((BarrierKey.Window(new GridPos(a.X, a.Y), new GridPos(b.X, b.Y)), glass));
         return this;
     }
 
@@ -373,7 +397,7 @@ public sealed class ScenarioBuilder
             try
             {
                 maps[map.Area] = new GridMap(map.Area, map.Rows, map.Zones, storeSquares, map.Lights, map.Doors, map.Exits, map.Posts,
-                    map.Edges, map.IndoorZones, map.Locks.Select(l => (l.Key, l.Spec.ToBarrier())));
+                    map.Edges, map.IndoorZones, map.Barriers(), map.Glass);
                 foreach (var (at, item, count) in map.Ground) // P4a
                 {
                     Require(_content.Item(item) is not null && count > 0 && maps[map.Area].IsWalkable(at), $"Ground item '{item}' at {at} is unknown or not on open ground.");
@@ -453,7 +477,7 @@ public sealed class ScenarioBuilder
 /// <paramref name="Locked"/> starts locked; <paramref name="Stuck"/> starts stuck; <paramref name="ForceDc"/> is the
 /// Strength (Athletics) DC to force it; <paramref name="Clue"/> what the world shows of it (never a number).
 /// </summary>
-public sealed record LockSpec(string? Key = null, bool Locked = false, bool Stuck = false, int ForceDc = 15, string? Clue = null)
-{
-    internal Barrier ToBarrier() => new() { Key = Key, Locked = Locked, Stuck = Stuck, ForceDc = ForceDc, Clue = Clue };
-}
+public sealed record LockSpec(string? Key = null, bool Locked = false, bool Stuck = false, int ForceDc = 15, string? Clue = null);
+
+/// <summary>P4b: bars on a window: <paramref name="ForceDc"/> to force them off (25 sturdy, 20 rusty); what the world shows of them.</summary>
+public sealed record BarsSpec(int ForceDc = 25, string? Clue = null);

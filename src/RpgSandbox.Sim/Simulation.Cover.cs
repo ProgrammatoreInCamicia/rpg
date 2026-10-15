@@ -69,7 +69,7 @@ internal sealed partial class Simulation
 
     /// <summary>P3: the line crosses an open window.</summary>
     private static bool ThroughOpenWindow(GridMap map, Spot from, Spot to) =>
-        map.Boundaries.Any(e => e.Kind == MapEdgeKind.Window && map.IsOpenWindow(e.A, e.B)
+        map.Boundaries.Any(e => e.Kind == MapEdgeKind.Window && map.LetsThrough(e.A, e.B)
             && SpotPlanner.Border(e.A, e.B) is var (p, q) && SpotPlanner.Intersect(from, to, p, q));
 
     /// <summary>P3: the bonus to AC a degree of cover gives (SRD: +2 half, +5 three-quarters).</summary>

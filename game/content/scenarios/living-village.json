@@ -78,7 +78,7 @@
           {"a":[2,14],"b":[2,15],"kind":"Wall"},
           {"a":[3,11],"b":[3,12],"kind":"Wall"},
           {"a":[3,14],"b":[3,15],"kind":"Window"},
-          {"a":[4,11],"b":[4,12],"kind":"Window"},
+          {"a":[4,11],"b":[4,12],"kind":"Window","bars":{"forceDc":20,"clue":"le sbarre sono arrugginite, una è smossa"}},
           {"a":[4,14],"b":[4,15],"kind":"Wall"},
           {"a":[5,11],"b":[5,12],"kind":"Wall"},
           {"a":[5,14],"b":[5,15],"kind":"Wall"},

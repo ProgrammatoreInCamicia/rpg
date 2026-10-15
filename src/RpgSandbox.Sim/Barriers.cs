@@ -40,6 +40,16 @@ internal sealed class Barrier
     /// <summary>What the world shows of how hard it is (never a number); a default by <see cref="ForceDc"/> if none.</summary>
     public string? Clue { get; init; }
 
+    /// <summary>P4b: a window with bars: nobody climbs through it until they are forced off.</summary>
+    public bool Barred { get; set; }
+
+    /// <summary>P4b: the Strength (Athletics) DC to force the bars off (SRD: 25 very hard; 20 rusty).</summary>
+    public int BarsDc { get; init; } = 25;
+
+    public string? BarsClue { get; init; }
+
+    public string BarsClueText => BarsClue ?? (BarsDc <= 20 ? "le sbarre sono arrugginite" : "le sbarre sono robuste, murate nella pietra");
+
     /// <summary>It does not open by hand now.</summary>
     public bool Holds => Locked || Stuck;
 

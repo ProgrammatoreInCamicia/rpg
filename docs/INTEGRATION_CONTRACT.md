@@ -838,3 +838,35 @@ attrezzi (competenza nell'attrezzo: + bonus di competenza; anche nell'abilità u
   - gli attrezzi da scasso sono a terra nella locanda in (2,3).
 - **Salvataggio, schema 29:** serrature della mappa, conoscenze del giocatore, richiusure in sospeso, `BarrierAction`,
   competenze negli attrezzi. Dagli schemi precedenti: niente serrature.
+
+## P4b: vetri, attraversare le finestre, sbarre
+
+- **Vetro di una finestra:** `MapEdgeView.Glass` (`WindowGlass`: `Intact`, `Broken`, `Cleared`; null per i non-finestre).
+  È visibile.
+  - **`BreakGlassCommand { Actor, A, B }`:** 6 secondi, senza prova (oggetto fragile, SRD "Breaking Objects").
+    - Rumoroso come forzare: `BreakIn` per chi vede o sente, un'autorità va a vedere. Il giocatore che non vede legge
+      `HeardGlass` "Senti vetri infrangersi, verso <luogo>.".
+    - Fatti `GlassBreaking`, `GlassBroken`.
+    - Col vetro rotto (o ripulito) la finestra lascia passare tiri e colpi anche se il telaio è chiuso, e non si apre né
+      si chiude più (`WindowCommand` → `Broken`).
+  - **`ClearGlassCommand { Actor, A, B }`:** 1 minuto, silenzioso; da rotto a ripulito (`GlassCleared`). Senza frammenti:
+    `NotHeld`.
+- **`ClimbCommand { Actor, A, B }`:**
+  - si attraversa solo se la finestra è aperta, o col vetro rotto o ripulito, e senza sbarre;
+  - dalla posizione di `WindowCommand`, si arriva al centro della casella oltre, che dev'essere libera;
+  - dura quanto 10 piedi di cammino alla propria Velocità, 2 s a 30 (ADATTAMENTO: arrampicarsi, i 5 piedi della
+    finestra contano doppio);
+  - con i frammenti: 1d4 danni taglienti (`CutByGlass`; ADATTAMENTO, più avanti un TS su Destrezza); se fanno cadere a
+    terra, i tiri contro la morte come fuori da uno scontro;
+  - rifiuti: `Closed` (chiusa col vetro intero), `Barred`, `NoRoom`, `NotAWindow`/`NotADoor`, `OutOfReach`;
+  - fuori dallo scontro; nessun cammino passa mai da una finestra da solo.
+- **Sbarre:** `MapEdgeView.Barred` (visibile).
+  - Si tira attraverso (finestra aperta o vetro rotto) con mezza copertura, la stessa del davanzale, non sommata.
+  - **Staccarle:** `ForceCommand` su una finestra con sbarre forza le sbarre: Forza (Atletica) contro la loro CD (25
+    robuste, 20 arrugginite). Riuscita: niente più sbarre (`BarsTorn`). Rumoroso come forzare.
+  - L'indizio delle sbarre va in `KnownBarrierView.Clue`, come il giocatore le ha trovate.
+  - Il lucchetto alle sbarre è rimandato.
+- **Scenario:** `AddEdge(..., Window, bars: new BarsSpec(ForceDc, Clue), glass: WindowGlass.Broken)`; nel file `"bars":
+  { "forceDc", "clue" }`, `"glass": "Broken"`. Villaggio di prova: la finestra della casa del contadino fra (4,11) e
+  (4,12) ha sbarre arrugginite (CD 20, "le sbarre sono arrugginite, una è smossa").
+- **Salvataggio, schema 30:** sbarre e vetri. Dagli schemi precedenti: vetri interi e nessuna sbarra.

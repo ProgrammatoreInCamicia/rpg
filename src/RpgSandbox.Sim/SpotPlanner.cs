@@ -256,7 +256,7 @@ internal sealed class SpotPlanner
         foreach (var edge in map.Boundaries.Where(e => e.Kind switch
                  {
                      MapEdgeKind.Door => map.IsClosedDoor(e.DoorAt!.Value),
-                     MapEdgeKind.Window => !map.IsOpenWindow(e.A, e.B), // P2b: a blow or a shot passes an open window
+                     MapEdgeKind.Window => !map.LetsThrough(e.A, e.B), // P2b/P4b: a blow or a shot passes an open or broken window
                      _ => true,
                  }))
         {

@@ -17,4 +17,13 @@ public sealed record MapEdgeView
     /// null for any other boundary.
     /// </summary>
     public bool? Open { get; init; }
+
+    /// <summary>P4b: a window's glass (visible); null for any other boundary.</summary>
+    public WindowGlass? Glass { get; init; }
+
+    /// <summary>P4b: a window with bars (visible): nobody climbs through it; null for any other boundary.</summary>
+    public bool? Barred { get; init; }
 }
+
+/// <summary>P4b: a window's glass: whole; broken (shards left: they cut who climbs through); cleared of its shards.</summary>
+public enum WindowGlass { Intact, Broken, Cleared }

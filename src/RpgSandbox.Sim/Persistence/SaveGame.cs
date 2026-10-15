@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 29;
+    public const int SchemaVersion = 30;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -260,10 +260,12 @@ internal static class SaveGame
                 Kind = e.Kind.ToString(), DoorX = e.DoorAt?.X, DoorY = e.DoorAt?.Y, Open = e.Open }).ToList(),
             IndoorZones = m.IndoorZones.Select(z => z.Value).Order(StringComparer.Ordinal).ToList(),
             Explored = m.Explored.OrderBy(p => p.Y).ThenBy(p => p.X).Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
+            Glass = m.BrokenGlass.Select(g => new GlassDto { AX = g.Key.A.X, AY = g.Key.A.Y, BX = g.Key.B.X, BY = g.Key.B.Y, State = g.Glass.ToString() }).ToList(),
             Barriers = m.Barriers.Select(b => new BarrierDto
             {
                 AX = b.Key.A.X, AY = b.Key.A.Y, BX = b.Key.B.X, BY = b.Key.B.Y, Key = b.Value.Key, Locked = b.Value.Locked,
                 Stuck = b.Value.Stuck, Broken = b.Value.Broken, ForceDc = b.Value.ForceDc, Clue = b.Value.Clue,
+                Barred = b.Value.Barred, BarsDc = b.Value.BarsDc, BarsClue = b.Value.BarsClue,
             }).ToList(),
             Exits = m.Exits.Select(e => new ExitDto { Location = e.Key.Value, X = e.Value.X, Y = e.Value.Y }).ToList(),
             Posts = m.Posts.Select(p => new PostDto { Location = p.Key.Location.Value, Kind = p.Key.Kind.ToString(), X = p.Value.X, Y = p.Value.Y }).ToList(),
@@ -468,8 +470,16 @@ internal static class SaveGame
             var barriers = (m.Barriers ?? new()).Select(b => b is null || b.Key is { } k && w.Content.Item(k) is null
                 ? throw new InvalidDataException($"serratura non valida nella mappa '{area}'")
                 : (new BarrierKey(new GridPos(b.AX, b.AY), new GridPos(b.BX, b.BY)),
-                    new Barrier { Key = b.Key, Locked = b.Locked, Stuck = b.Stuck, Broken = b.Broken, ForceDc = b.ForceDc, Clue = b.Clue }));
-            AddUnique(w.Maps, area, new GridMap(area, m.Rows!, zones, occupied, lights, doors, exits, posts, edges, indoorZones, barriers), "mappa");
+                    new Barrier
+                    {
+                        Key = b.Key, Locked = b.Locked, Stuck = b.Stuck, Broken = b.Broken, ForceDc = b.ForceDc, Clue = b.Clue,
+                        Barred = b.Barred, BarsDc = b.BarsDc, BarsClue = b.BarsClue,
+                    }));
+            Check(d.Version < 30 || m.Glass is not null, $"vetri della mappa '{area}' mancanti"); // P4b: before, all whole
+            var glass = (m.Glass ?? new()).Select(g => g is not null && Enum.TryParse<WindowGlass>(g.State, out var state) && Enum.IsDefined(state)
+                ? (new BarrierKey(new GridPos(g.AX, g.AY), new GridPos(g.BX, g.BY)), state)
+                : throw new InvalidDataException($"vetro non valido nella mappa '{area}'"));
+            AddUnique(w.Maps, area, new GridMap(area, m.Rows!, zones, occupied, lights, doors, exits, posts, edges, indoorZones, barriers, glass), "mappa");
             Check((m.Explored ?? new()).All(p => p is not null), $"memoria della mappa '{area}' non valida");
             foreach (var p in m.Explored ?? new())
                 Check(w.Maps[area].InBounds(new GridPos(p.X, p.Y)) && w.Maps[area].Explored.Add(new GridPos(p.X, p.Y)),

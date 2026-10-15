@@ -85,7 +85,8 @@ internal sealed partial class Simulation
     private void Learn(Actor actor, GridMap map, BarrierKey key, Barrier barrier)
     {
         if (actor.IsPlayer)
-            actor.KnownBarriers[(map.Area, key)] = new KnownBarrier(barrier.Locked, barrier.Stuck, barrier.Broken, barrier.ClueText, World.Now,
+            actor.KnownBarriers[(map.Area, key)] = new KnownBarrier(barrier.Locked, barrier.Stuck, barrier.Broken,
+                barrier.Barred ? barrier.BarsClueText : barrier.ClueText, World.Now, // P4b: bars show first
                 HasLock: barrier.Key is not null); // a lock shows, once one tries it (review P4a)
     }
 
@@ -126,30 +127,81 @@ internal sealed partial class Simulation
         if (rejected is not null)
             return rejected;
         var barrier = map!.BarrierOf(key);
-        if (work == BarrierWork.PickLock)
+        if (work is BarrierWork.BreakGlass or BarrierWork.ClearGlass or BarrierWork.Climb && key.IsDoor)
+            return CommandResult.Rejected(RejectionReason.NotAWindow, "Si fa solo con una finestra.");
+        var glass = key.IsDoor ? WindowGlass.Intact : map.GlassOf(key.A, key.B);
+        var time = BarrierWorkTime;
+        switch (work)
         {
-            if (barrier is not { Locked: true })
-                return CommandResult.Rejected(RejectionReason.NotHeld, $"{Capital(Name(key))} non è chiusa a chiave.");
-            if (actor.Carried(ThievesTools) == 0)
-                return CommandResult.Rejected(RejectionReason.NoTools, "Ti servono degli attrezzi da scasso.");
+            case BarrierWork.PickLock:
+                if (barrier is not { Locked: true })
+                    return CommandResult.Rejected(RejectionReason.NotHeld, $"{Capital(Name(key))} non è chiusa a chiave.");
+                if (actor.Carried(ThievesTools) == 0)
+                    return CommandResult.Rejected(RejectionReason.NoTools, "Ti servono degli attrezzi da scasso.");
+                break;
+            case BarrierWork.Force when barrier is { Barred: true }: // P4b: the bars come first
+                break;
+            case BarrierWork.Force:
+                if (barrier is not { Holds: true })
+                    return CommandResult.Rejected(RejectionReason.NotHeld, $"{Capital(Name(key))} si apre normalmente.");
+                break;
+            case BarrierWork.BreakGlass: // P4b: fragile, it breaks without a check (SRD Breaking Objects)
+                if (glass != WindowGlass.Intact)
+                    return CommandResult.Rejected(RejectionReason.AlreadyDone, "Il vetro è già rotto.");
+                time = Duration.FromSeconds(6);
+                break;
+            case BarrierWork.ClearGlass:
+                if (glass != WindowGlass.Broken)
+                    return CommandResult.Rejected(RejectionReason.NotHeld, "Non ci sono frammenti da togliere.");
+                break;
+            case BarrierWork.Climb:
+                if (ClimbRefused(actor, map, key) is { } refused)
+                    return refused;
+                // ADAPTATION, SRD Climbing: the 5 feet of the window count double, 10 feet of walking at its Speed.
+                time = Duration.FromTicks(MoveAction.TicksFor(2, actor.Sheet.Speed));
+                break;
         }
-        else if (barrier is not { Holds: true })
-            return CommandResult.Rejected(RejectionReason.NotHeld, $"{Capital(Name(key))} si apre normalmente.");
 
         var action = new BarrierAction
         {
-            Id = World.AllocateActionId(), Actor = actor.Id, StartedAt = World.Now, CompletesAt = World.Now.Plus(BarrierWorkTime),
+            Id = World.AllocateActionId(), Actor = actor.Id, StartedAt = World.Now, CompletesAt = World.Now.Plus(time),
             Work = work, Target = key,
-            Description = work == BarrierWork.PickLock ? $"Scassina {Name(key)}" : $"Forza {Name(key)}",
+            Description = work switch
+            {
+                BarrierWork.PickLock => $"Scassina {Name(key)}",
+                BarrierWork.BreakGlass => "Rompe il vetro",
+                BarrierWork.ClearGlass => "Toglie i frammenti di vetro",
+                BarrierWork.Climb => "Scavalca la finestra",
+                _ => barrier is { Barred: true } ? "Forza le sbarre" : $"Forza {Name(key)}",
+            },
         };
         if (actor.CurrentAction is WaitAction)
             CancelAction(actor);
         Begin(actor, action);
-        if (work == BarrierWork.Force)
-            Bangs(actor, map, key); // loud from the first blow
-        return CommandResult.Started(action.Id, action.CompletesAt,
-            work == BarrierWork.PickLock ? $"{actor.Name} si mette a scassinare {Name(key)}." : $"{actor.Name} si mette a forzare {Name(key)}.");
+        if (work is BarrierWork.Force or BarrierWork.BreakGlass)
+            Bangs(actor, map, key, glass: work == BarrierWork.BreakGlass); // loud from the first blow
+        return CommandResult.Started(action.Id, action.CompletesAt, $"{actor.Name}: {action.Description.ToLowerInvariant()}.");
     }
+
+    /// <summary>
+    /// P4b: why one cannot climb through this window from where it stands: closed with its glass whole, barred, or someone
+    /// (or something solid) on the square beyond. Null if it can.
+    /// </summary>
+    private CommandResult? ClimbRefused(Actor actor, GridMap map, BarrierKey key)
+    {
+        if (!map.LetsThrough(key.A, key.B))
+            return CommandResult.Rejected(RejectionReason.Closed, "La finestra è chiusa.");
+        if (map.BarrierOf(key) is { Barred: true })
+            return CommandResult.Rejected(RejectionReason.Barred, "Ci sono le sbarre.");
+        var beyond = Beyond(actor, key);
+        if (!map.IsWalkable(beyond) || World.Actors.Values.Any(a => a.Id != actor.Id && a.MapArea == map.Area && a.Vitality.State != LifeState.Dead
+                && CurrentSpot(a) is { } there && there.DistanceTo(Spot.CenterOf(beyond)) < 2 * SpotPlanner.BodyRadius))
+            return CommandResult.Rejected(RejectionReason.NoRoom, "Dall'altra parte non c'è spazio.");
+        return null;
+    }
+
+    /// <summary>P4b: the square on the other side of a window from the actor.</summary>
+    private GridPos Beyond(Actor actor, BarrierKey key) => CurrentSpot(actor)!.Value.Cell == key.A ? key.B : key.A;
 
     /// <summary>The end of a minute's work: the check, against what the door or window is now.</summary>
     private void CompleteBarrierWork(Actor actor, BarrierAction work)
@@ -162,6 +214,25 @@ internal sealed partial class Simulation
             return;
         }
         var barrier = map.BarrierOf(key);
+        switch (work.Work)
+        {
+            case BarrierWork.BreakGlass: // P4b
+                if (map.GlassOf(key.A, key.B) == WindowGlass.Intact)
+                    map.SetGlass(key.A, key.B, WindowGlass.Broken);
+                World.RecordFact("GlassBroken", $"{actor.Name} ha rotto il vetro della finestra.", actor.Id);
+                return;
+            case BarrierWork.ClearGlass:
+                if (map.GlassOf(key.A, key.B) == WindowGlass.Broken)
+                    map.SetGlass(key.A, key.B, WindowGlass.Cleared);
+                World.RecordFact("GlassCleared", $"{actor.Name} toglie i frammenti di vetro dalla finestra.", actor.Id);
+                return;
+            case BarrierWork.Climb:
+                ClimbThrough(actor, map, key);
+                return;
+            case BarrierWork.Force when barrier is { Barred: true }:
+                ForceBars(actor, map, key, barrier);
+                return;
+        }
         if (work.Work == BarrierWork.PickLock)
         {
             if (barrier is not { Locked: true } || actor.Carried(ThievesTools) == 0)
@@ -211,13 +282,50 @@ internal sealed partial class Simulation
     }
 
     /// <summary>
+    /// P4b: over the sill to the square beyond, if it still can (the window may have shut, the square be taken). Shards
+    /// left in the frame cut: 1d4 slashing (ADAPTATION; a Dexterity save once saving throws exist).
+    /// </summary>
+    private void ClimbThrough(Actor actor, GridMap map, BarrierKey key)
+    {
+        if (ClimbRefused(actor, map, key) is { } refused)
+        {
+            World.RecordFact("ClimbFailed", $"{actor.Name} non riesce a scavalcare la finestra: {refused.Message}", actor.Id);
+            return;
+        }
+        var beyond = Beyond(actor, key);
+        Place(actor, beyond);
+        World.RecordFact("Climbed", $"{actor.Name} scavalca la finestra.", actor.Id);
+        if (map.GlassOf(key.A, key.B) != WindowGlass.Broken)
+            return;
+        var cut = World.Rng.Roll(4);
+        actor.Vitality.TakeDamage(cut, critical: false);
+        World.RecordFact("CutByGlass", $"{actor.Name} si taglia sui vetri rotti: {cut} danni taglienti.", actor.Id);
+        if (!actor.Conscious)
+            BeginDowned(actor);
+    }
+
+    /// <summary>P4b: a Strength (Athletics) check against the bars' DC; they come off for good. Loud, like any forcing.</summary>
+    private void ForceBars(Actor actor, GridMap map, BarrierKey key, Barrier barrier)
+    {
+        var force = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Athletics));
+        var torn = force.Total >= barrier.BarsDc;
+        Learn(actor, map, key, barrier); // as it found them: the bars' clue
+        if (torn)
+            barrier.Barred = false;
+        World.RecordFact(torn ? "BarsTorn" : "ForceFailed",
+            $"{actor.Name} {(torn ? "stacca le sbarre della finestra" : "non riesce a staccare le sbarre")}: Forza (Atletica) {force.Describe()}.", actor.Id);
+    }
+
+    /// <summary>
     /// P4a: the blows of someone forcing a door or window, heard like a fight (C4): who sees the forcer witnesses a
     /// break-in; who only hears it knows roughly where (an authority goes to look). The player hears it as a fact.
     /// </summary>
-    private void Bangs(Actor forcer, GridMap map, BarrierKey key)
+    private void Bangs(Actor forcer, GridMap map, BarrierKey key, bool glass = false)
     {
         var square = key.A;
-        var fact = World.RecordFact("Forcing", $"{forcer.Name} forza {Name(key)}.", forcer.Id);
+        var fact = glass
+            ? World.RecordFact("GlassBreaking", $"{forcer.Name} rompe il vetro della finestra.", forcer.Id)
+            : World.RecordFact("Forcing", $"{forcer.Name} forza {Name(key)}.", forcer.Id);
         foreach (var witness in World.Actors.Values.Where(a => a.Id != forcer.Id && a.MapArea == map.Area && a.Conscious)
                      .OrderBy(a => a.Id.Value, StringComparer.Ordinal).ToList())
         {
@@ -227,7 +335,8 @@ internal sealed partial class Simulation
             if (witness.IsPlayer)
             {
                 if (!sees)
-                    World.RecordFact("HeardForcing", $"Senti colpi contro una porta o una finestra{Towards(map, Approximate(map, square))}.", witness.Id);
+                    World.RecordFact(glass ? "HeardGlass" : "HeardForcing",
+                        $"{(glass ? "Senti vetri infrangersi" : "Senti colpi contro una porta o una finestra")}{Towards(map, Approximate(map, square))}.", witness.Id);
                 continue;
             }
             var id = new ObservationId(World.NextObservationId++);

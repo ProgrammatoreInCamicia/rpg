@@ -62,6 +62,9 @@ internal sealed partial class Simulation
         LockCommand lockCommand => UseLock(lockCommand), // P4a
         PickLockCommand pick => StartBarrierWork(pick, BarrierWork.PickLock),
         ForceCommand force => StartBarrierWork(force, BarrierWork.Force),
+        BreakGlassCommand breakGlass => StartBarrierWork(breakGlass, BarrierWork.BreakGlass), // P4b
+        ClearGlassCommand clearGlass => StartBarrierWork(clearGlass, BarrierWork.ClearGlass),
+        ClimbCommand climb => StartBarrierWork(climb, BarrierWork.Climb),
         TorchCommand torch => UseTorch(torch),
         AttackCommand attack => Attack(attack),
         EndTurnCommand or CombatActionCommand => CommandResult.Rejected(RejectionReason.NotInCombat, "Non stai combattendo."),
