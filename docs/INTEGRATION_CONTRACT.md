@@ -743,6 +743,11 @@ Decisione dell'utente: precisione vera. Un solo orologio della Sim, a tick.
 - **Linee al corpo (ADATTAMENTO):**
   - Si tracciano 5 linee dal centro di chi attacca a 5 punti del corpo del bersaglio, lungo il diametro perpendicolare
     alla linea dei centri: −18, −9, 0, +9, +18 pollici (negativo = a sinistra guardando dall'attaccante).
+  - Review P3b, linee simmetriche: anche chi attacca ha 5 punti sul proprio corpo, gli stessi offset, e si sporge da
+    quello che vede più punti del bersaglio (a parità il primo nell'ordine 0, −9, +9, −18, +18). Le linee si contano
+    da quella partenza; nessuna linea libera da nessuna partenza è copertura totale. Così un tiro è possibile in un
+    verso esattamente quando lo è nell'altro: niente feritoie da cui si tira senza poter essere colpiti. `ShotFrom`,
+    `AttackPreview.From`, `InReach` e la creatura sulla linea partono da quel punto.
   - Una linea è fermata da muri, porte e finestre chiuse, caselle solide (`LineClear`).
   - Fermate 0–1: nessuna copertura; 2: mezza; 3–4: tre quarti; 5: totale. Il totale dà il rifiuto `NoLineOfFire`
     per il tiro, `TooFar` ("fuori portata") per la mischia.
@@ -763,3 +768,17 @@ Decisione dell'utente: precisione vera. Un solo orologio della Sim, a tick.
   giocatore ha visto il bersaglio).
 - **IA dei PNG:** non cerca copertura e non la considera (passo successivo).
 - **Salvataggio, schema 28:** la copertura di ogni voce del registro; dagli schemi precedenti nessuna.
+- **P3b, i PNG che tirano cercano copertura** (solo Sim, nessuna API nuova):
+  - Quando un PNG non può colpire in mischia ma ha un tiro valido, prima di tirare può spostarsi, nel movimento
+    rimasto e senza Scatto.
+  - Candidati: 16 direzioni × passi di 30 pollici fino a 360, entro il movimento rimasto. Ogni candidato deve
+    lasciare il corpo libero ed essere raggiungibile, con una sola ricerca per tutti (`SpotPlanner.LengthsTo`).
+  - Scartati i punti da cui il tiro non è valido (bersaglio non visto, oltre la gittata lunga, nessun punto del corpo
+    in vista) e quelli la cui via provoca un attacco di opportunità di un nemico che il PNG percepisce.
+  - Ordine (review P3b): vantaggio netto, cioè la copertura del PNG contro il bersaglio (come se tirasse lui) meno quella
+    del bersaglio; poi senza gittata lunga; poi via più corta. Un riparo condiviso non è un guadagno.
+  - Si sposta solo se il vantaggio netto migliora, o se toglie la gittata lunga senza peggiorarlo.
+  - La mossa è una normale voce `Move`; decisione "Scontro: si ripara".
+- **Fine dello scontro (review P3b):** per tenerlo aperto conta solo vedere un nemico cosciente. Un nemico a terra non
+  tiene vivo da solo uno scontro: dopo un giro senza attacchi finisce, e chi è morente continua i tiri contro la morte
+  fuori dallo scontro.

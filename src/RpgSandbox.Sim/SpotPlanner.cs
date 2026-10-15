@@ -165,6 +165,39 @@ internal sealed class SpotPlanner
     }
 
     /// <summary>
+    /// P3b: the length of the shortest way from <paramref name="from"/> to each of <paramref name="goals"/> (all must
+    /// fit), in one search; infinity where there is none.
+    /// </summary>
+    public double[] LengthsTo(Spot from, IReadOnlyList<Spot> goals)
+    {
+        var nodes = new List<Spot> { from };
+        nodes.AddRange(goals);
+        nodes.AddRange(_corners.Where(c => c != from && !goals.Contains(c)));
+        var g = Enumerable.Repeat(double.PositiveInfinity, nodes.Count).ToArray();
+        var closed = new bool[nodes.Count];
+        var open = new PriorityQueue<int, (double Cost, int Node)>();
+        g[0] = 0;
+        open.Enqueue(0, (0, 0));
+        while (open.TryDequeue(out var u, out _))
+        {
+            if (closed[u])
+                continue;
+            closed[u] = true;
+            for (var v = 1; v < nodes.Count; v++)
+            {
+                if (closed[v])
+                    continue;
+                var cost = g[u] + nodes[u].DistanceTo(nodes[v]);
+                if (cost >= g[v] || !Clear(nodes[u], nodes[v]))
+                    continue;
+                g[v] = cost;
+                open.Enqueue(v, (cost, v));
+            }
+        }
+        return g.Skip(1).Take(goals.Count).ToArray();
+    }
+
+    /// <summary>
     /// P2a: the goal of <paramref name="goals"/> (all must fit) with the shortest way from <paramref name="from"/>, and
     /// that way; ties go to the goal listed first. Null if none can be reached. One search for all of them.
     /// </summary>

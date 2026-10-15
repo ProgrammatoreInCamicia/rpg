@@ -128,7 +128,7 @@ internal sealed partial class Simulation
             Advantage = check?.Advantage ?? false, Disadvantage = check?.Disadvantage ?? false,
             LongRange = check?.LongRange ?? false, AutoCritical = check?.AutoCritical ?? false, Cover = check?.Cover ?? CoverDegree.None,
             // Review P2b: never where the player does not see someone (the preview would give away a hidden position).
-            From = actor is not null && Shown(actor) ? CurrentSpot(actor) : null,
+            From = actor is not null && Shown(actor) ? check?.Origin ?? CurrentSpot(actor) : null,
             To = target is not null && Shown(target) ? check?.Aim ?? CurrentSpot(target) : null, // P3: the point aimed at
         };
     }
@@ -390,8 +390,9 @@ internal sealed partial class Simulation
         RunTurns(e);
     }
 
+    // Review P3b: a foe lying unconscious keeps no fight going on its own (nobody strikes the fallen).
     private bool AnyoneSeesAnEnemy(Encounter e) =>
-        e.Order.Select(c => World.Actors[c.Actor]).Any(a => a.Conscious && EnemiesOf(e, a).Any(foe => SeesActor(a, foe)));
+        e.Order.Select(c => World.Actors[c.Actor]).Any(a => a.Conscious && EnemiesOf(e, a).Any(foe => foe.Conscious && SeesActor(a, foe)));
 
     /// <summary>A side with nobody conscious left: the fight ends. Returns true if it ended.</summary>
     private bool CheckEnd(Encounter e)
@@ -459,7 +460,7 @@ internal sealed partial class Simulation
     // ---------------------------------------------------------------- attacks
 
     private sealed record AttackCheck(RejectionReason Reason, string? Why, bool Advantage = false, bool Disadvantage = false,
-        bool LongRange = false, bool AutoCritical = false, CoverDegree Cover = CoverDegree.None, Spot? Aim = null)
+        bool LongRange = false, bool AutoCritical = false, CoverDegree Cover = CoverDegree.None, Spot? Aim = null, Spot? Origin = null)
     {
         public bool Valid => Reason == RejectionReason.None;
     }
@@ -485,7 +486,7 @@ internal sealed partial class Simulation
         var map = World.Maps[attacker.MapArea!.Value];
         var from = CurrentSpot(attacker)!.Value;
         var to = CurrentSpot(target)!.Value;
-        var (aim, blocked) = AimAt(map, from, to); // P3: where the blow or shot goes, and the cover
+        var (origin, aim, blocked) = AimAt(map, from, to); // P3: where the blow or shot leaves from and goes, and the cover
         bool disadvantage = false, longRange = false;
         if (attack.Melee)
         {
@@ -516,7 +517,7 @@ internal sealed partial class Simulation
             Advantage: !SeesActor(target, attacker), // also an unconscious target: it sees nothing
             Disadvantage: disadvantage, LongRange: longRange,
             AutoCritical: target.Vitality.Unconscious && WithinFiveFeet(map, from, to),
-            Cover: CoverOf(map, attacker, target, from, aim!.Value, blocked), Aim: aim);
+            Cover: CoverOf(map, attacker, target, origin!.Value, aim!.Value, blocked), Aim: aim, Origin: origin);
     }
 
     /// <summary>
@@ -577,7 +578,7 @@ internal sealed partial class Simulation
         var outcome = target.Vitality.TakeDamage(result.Damage, result.Critical, knockOut: nonLethal && attack.Melee);
         // P2b: a shot flies straight from the attacker to its impact: the target if it hits, past it if it misses.
         var map = World.Maps[e.Area];
-        Spot? shotFrom = attack.Melee ? null : CurrentSpot(attacker), shotTo = null;
+        Spot? shotFrom = attack.Melee ? null : check.Origin ?? CurrentSpot(attacker), shotTo = null; // P3: from where it leans out
         if (shotFrom is { } origin)
             shotTo = result.Hit ? check.Aim : MissPoint(map, origin, check.Aim!.Value, result.Roll.Kept, attack.Range!.Value.Long);
         if (attack.Item is { } item) // C3b: the javelin leaves the hand and lands by the target; the bolt is spent
@@ -904,6 +905,9 @@ internal sealed partial class Simulation
         if (target is not null)
         {
             c.LastSeenAt = CurrentSpot(target);
+            // P3b: about to shoot (no blow in reach), it may first step into cover.
+            if (!c.ActionUsed && Usable(target) is { Melee: false } shot && SeekCover(e, npc, target, shot) && (CheckEnd(e) || !npc.Conscious))
+                return;
             if (TryAttack(target) || !World.Encounters.ContainsKey(e.Id))
                 return;
         }

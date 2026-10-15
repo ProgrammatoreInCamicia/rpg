@@ -68,13 +68,15 @@ public class ShotTests
                 Assert.Equal(RejectionReason.NoLineOfFire, aim.Reason);
                 Assert.Equal(RejectionReason.NoLineOfFire, Throw(s.SaveAndReload()).Rejection);
             }
-            else if (!partly && Simulation.AimAt(map, from, at) is { Aim: { } edge })
+            else if (!partly && Simulation.AimAt(map, from, at) is { Origin: { } origin, Aim: { } edge, Blocked: var blocked })
             {
+                // The centres do not see each other, yet a point of the body is in the open from a point the attacker
+                // leans out from (review P3b): a shot from there, with the cover its five lines give.
                 partly = true;
                 Assert.True(aim.Valid, aim.Message);
-                Assert.NotEqual(CoverDegree.None, aim.Cover);
-                Assert.Equal(edge, aim.To);
-                Assert.True(SpotPlanner.LineClear(map, from, edge));
+                Assert.Equal(blocked >= 3 ? CoverDegree.ThreeQuarters : blocked == 2 ? CoverDegree.Half : CoverDegree.None, aim.Cover);
+                Assert.Equal((origin, edge), (aim.From!.Value, aim.To!.Value));
+                Assert.True(SpotPlanner.LineClear(map, origin, edge));
             }
         }
         Assert.True(whole, "no seen spot wholly behind the wall");

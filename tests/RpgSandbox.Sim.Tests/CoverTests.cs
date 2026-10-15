@@ -225,3 +225,82 @@ public class CoverTests
         throw new InvalidOperationException("No seed gives that scene.");
     }
 }
+
+/// <summary>Review P3b: the line of fire is mutual, and a fight is not kept going by a fallen foe alone.</summary>
+public class MutualFireTests
+{
+    [Fact]
+    public void In_the_living_village_a_shot_is_possible_one_way_exactly_when_it_is_the_other_way()
+    {
+        // The raid at the granary found a spot to shoot from without being shot (lines from the attacker's centre only).
+        // With five points on both bodies it cannot exist: checked on pairs of floor points all over the village.
+        var s = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
+        var map = s.Engine.World.Maps[MappedVillageScenario.Ids.Village];
+        var points = new List<Spot>();
+        for (var y = 25; y < map.Height * Spot.PerSquare; y += 37)
+        for (var x = 25; x < map.Width * Spot.PerSquare; x += 37)
+            if (map.IsWalkable(new Spot(x, y).Cell))
+                points.Add(new Spot(x, y));
+        var rng = new Random(7);
+        var checkedPairs = 0;
+        for (var i = 0; i < 1500; i++)
+        {
+            var (a, b) = (points[rng.Next(points.Count)], points[rng.Next(points.Count)]);
+            if (a.DistanceTo(b) < 36)
+                continue;
+            checkedPairs++;
+            Assert.True((Simulation.AimAt(map, a, b).Aim is null) == (Simulation.AimAt(map, b, a).Aim is null), $"{a} → {b}");
+        }
+        Assert.True(checkedPairs > 1000);
+    }
+
+    [Fact]
+    public void A_fight_whose_only_foe_in_sight_lies_dying_ends_and_the_dying_one_goes_on_with_its_death_saves()
+    {
+        // The player falls dying; its companion fights on but is out of the guard's sight behind a wall. The guard does
+        // not strike the fallen, and a fallen foe in sight keeps no fight going: the fight ends after a round.
+        var player = new ActorId("player");
+        var companion = new ActorId("passerby");
+        var foe = new ActorId("foe");
+        for (ulong seed = 1; seed <= 100; seed++)
+        {
+            var b = new ScenarioBuilder().WithSeed(seed)
+                .AddArea("a", "A").AddLocation("yard", "Cortile", "a")
+                .AddMap("a", Enumerable.Repeat(new string('Y', 16), 8).ToArray(), new Dictionary<char, string> { ['Y'] = "yard" })
+                .AddActor("player", "Paladino", "yard", isPlayer: true, sheet: Sheets.Paladin(), at: (2, 3))
+                .AddActor("foe", "Guardia", "yard", combat: "guard", at: (3, 3))
+                .AddActor("passerby", "Compagno", "yard", at: (14, 3));
+            for (var y = 0; y < 8; y++)
+                b.AddEdge("a", (12, y), (13, y), MapEdgeKind.Wall);
+            var s = SimulationSession.Create(b.Build());
+            s.AdvanceTo(TestHelpers.At(1, 12));
+            s.Execute(new AttackCommand { Actor = s.Player, Target = foe, Attack = "Spada lunga" });
+            var fight = s.Engine.World.Encounters.Values.SingleOrDefault();
+            if (fight is null || s.GetPlayerView().Combat is not { IsYourTurn: true })
+                continue;
+            fight.Order.Add(new Combatant { Actor = companion, Side = fight.Order.Single(c => c.Actor == player).Side, Initiative = 0, InitiativeBonus = 0 });
+            s.Engine.World.Actors[player].Vitality = new Vitality(11, true, 1); // the guard's next hit drops it
+            s.Execute(new EndTurnCommand { Actor = s.Player });
+            for (var i = 0; i < 12 && s.Engine.World.Actors[player].Conscious; i++)
+            {
+                if (s.GetPlayerView().Combat is { IsYourTurn: true })
+                    s.Execute(new EndTurnCommand { Actor = s.Player });
+                s.Advance(Duration.FromSeconds(1));
+            }
+            if (s.Engine.World.Actors[player].Conscious || s.Engine.World.Actors[player].Vitality.State != LifeState.Dying)
+                continue;
+            for (var i = 0; i < 30 && s.Engine.World.Encounters.Count > 0 && !s.Engine.World.Actors[player].Conscious; i++)
+                s.Advance(Duration.FromSeconds(1));
+            if (s.Engine.World.Actors[player].Conscious)
+                continue; // a natural 20 on a death save: back on its feet, the fight goes on
+
+            Assert.Empty(s.Engine.World.Encounters);
+            Assert.True(s.Engine.World.Actors[player].CurrentAction is not null || s.Engine.World.Actors[player].Vitality.State != LifeState.Dying,
+                "the dying player lies with its death saves outside the fight");
+            s.Advance(Duration.FromSeconds(30));
+            Assert.Contains(s.GetWorldView().RecentFacts, f => f.Kind == "DeathSave" || f.Description.Contains("contro la morte"));
+            return;
+        }
+        throw new InvalidOperationException("No seed gives that scene.");
+    }
+}

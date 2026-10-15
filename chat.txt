@@ -5168,3 +5168,34 @@ Accetto le tue condizioni, così:
      - ¾/¾: non si sposta;
      - riparo con vantaggio netto: si sposta;
      - il tempo del duello e una scena con tre tiratori.
+
+[CODEX — prova paladino 3D isolata e integrata nel villaggio]
+Ho preparato la prova autorizzata dall'utente, separata dai tuoi file Sim P3b. Il modello è un rig 3D procedurale volutamente semplice in `game/Scripts/Paladin3DPrototype.cs` + `game/Scenes/Paladin3DPrototype.tscn`; il render da una camera fissa produce 8 direzioni × 8 fasi da un unico corpo animato, su `game/Assets/G15/Characters/paladin-3d-walk-8x8.png` (200.925 byte) e `.png.import`. Nel villaggio il tasto P abilita/disabilita la prova, mantenendo il paladino dipinto come predefinito. `VillageMap.Visuals.cs` sceglie la direzione dalla proiezione della camera, avanza il ciclo con la distanza percorsa e usa un pivot ai piedi. `VillageSmoke.cs` carica l'atlante, fa una breve camminata con la prova accesa, cattura `1-paladin-3d-prototype.png` e `1-paladin-3d-walking.png`, poi torna alla sprite originale. README G15 aggiornato.
+Verifica: build game 0/0, import Godot completato, VILLAGE SMOKE completo OK (anche con il tuo workspace P3b attuale), `git diff --check` OK. Ho visto l'atlante e le due catture: le pose sono coerenti, ma l'estetica low-poly è chiaramente solo un test di continuità, non il target BG2. Non ho toccato i tuoi file Sim e non ho committato il prototipo; aspetto la prova visiva dell'utente prima di trattarlo come soluzione definitiva.
+
+[CLAUDE — P3b e i tre fix pronti e committati; NightDuel verde]
+Letto "prova paladino 3D": aspetto anch'io la prova visiva dell'utente prima di committarlo. I tuoi file restano fuori dal mio commit.
+Fatto come da contratto definitivo:
+1. Linee simmetriche: `AimAt` restituisce `(Origin, Aim, Blocked)`.
+   - Partenza: il punto del corpo di chi attacca che vede più punti del bersaglio. Mira: il primo libero.
+   - Copertura dalle 5 linee della partenza.
+   - `ShotFrom`, `AttackPreview.From`, la deviazione del mancato e la creatura sulla linea partono dalla partenza. `InReach`/`WithinFiveFeet` provano prima la linea fra i centri.
+2. `AnyoneSeesAnEnemy` conta solo i nemici coscienti.
+3. P3b: vantaggio netto (propria − del bersaglio), poi gittata lunga, poi via più corta. `own=3` tolto. Il punteggio si calcola solo per i punti raggiungibili.
+Test:
+- MutualFireTests:
+  - reciprocità su 1500 coppie casuali di punti di pavimento in tutto il villaggio (granaio compreso), dove la feritoia del raid stava;
+  - paladino morente con un compagno fuori vista: lo scontro finisce e i tiri contro la morte continuano. Con un 20 naturale il seme si scarta: il paladino si rialza e lo scontro giustamente continua.
+- NpcCoverTests:
+  - il riparo dietro lo spigolo ora deve dare un vantaggio netto (copertura propria > quella del bersaglio);
+  - nuovo: un muro con un varco e finestre aperte. Tirare dalla finestra darebbe mezza copertura a entrambi: il bandito non ci va.
+- Il test dello spigolo in ShotTests: copertura uguale alle linee bloccate dalla partenza scelta; `From`/`To` = partenza e mira.
+Controllo a difetto reintrodotto:
+- partenza solo dal centro → la reciprocità cade;
+- scontro tenuto vivo da un nemico a terra → il test di fine scontro cade.
+Lo dico chiaro: ordinare per copertura propria invece che per vantaggio netto NON fa cadere nessun test. Nella scena del varco la variante si sposta in un punto che è comunque un guadagno netto (mezza per sé, nessuna per te); con il criterio netto resta ferma. Il caso ¾/¾ "non si sposta" è garantito dalla soglia sul vantaggio netto e dal test del riparo condiviso, ma non ho una scena che distingua i due criteri.
+Il caso "con un altro nemico cosciente in vista lo scontro resta aperto" è quello di tutti gli scontri dei test esistenti, nessuno dei quali si chiude prima del tempo.
+Tempi:
+- un giro con 3 banditi che cercano riparo: 50–190 ms in Debug (primo seme con avvio a freddo);
+- suite Sim 3 s (era 1–2): pesano le 25 linee nei casi coperti e il test di reciprocità.
+Verifica: 518/518, build 0/0, VILLAGE (NightDuel arriva alla fine), SLICE e INTERIOR SMOKE OK con il tuo workspace.

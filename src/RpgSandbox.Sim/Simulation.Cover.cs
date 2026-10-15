@@ -10,30 +10,42 @@ internal sealed partial class Simulation
     private static readonly int[] AimOffsets = { 0, -9, 9, -18, 18 };
 
     /// <summary>
-    /// P3: where an attack from <paramref name="from"/> can strike a body centred at <paramref name="target"/>, and how
-    /// many of the 5 lines to points across that body (along its diameter square to the line of centres, −18 to +18
-    /// inches; negative to the left looking from the attacker) something solid stops. The aim is the first point with a
-    /// clear line in the order 0, −9, +9, −18, +18; null when all 5 are stopped (total cover).
+    /// P3: how an attacker centred at <paramref name="from"/> can strike a body centred at <paramref name="target"/>. Five
+    /// points on each body along the diameter square to the line of centres (0, −9, +9, −18, +18 inches; negative to the
+    /// left looking from the attacker), the same on both: the attacker leans out from the point of its body that sees most
+    /// points of the target (the first in that order on a tie), and aims at the first point it sees from there. Blocked:
+    /// the lines from that origin stopped by something solid. All null when no line from any point is clear (total
+    /// cover). Review P3b: the same points both ways, so a shot is possible one way exactly when it is the other way.
     /// </summary>
-    internal static (Spot? Aim, int Blocked) AimAt(GridMap map, Spot from, Spot target)
+    internal static (Spot? Origin, Spot? Aim, int Blocked) AimAt(GridMap map, Spot from, Spot target)
     {
         double dx = target.X - from.X, dy = target.Y - from.Y, length = Math.Sqrt(dx * dx + dy * dy);
         if (length == 0)
-            return (target, 0);
+            return (from, target, 0);
         // Left of the direction (dx, dy) on a map whose y grows downwards.
         double lx = dy / length, ly = -dx / length;
-        Spot? aim = null;
-        var blocked = 0;
+        Spot Across(Spot centre, int offset) => new((int)Math.Round(centre.X - lx * offset, MidpointRounding.AwayFromZero),
+            (int)Math.Round(centre.Y - ly * offset, MidpointRounding.AwayFromZero));
+        var targets = AimOffsets.Select(o => Across(target, o)).ToArray();
+        (Spot? Origin, Spot? Aim, int Blocked) best = (null, null, AimOffsets.Length);
         foreach (var offset in AimOffsets)
         {
-            var point = new Spot((int)Math.Round(target.X - lx * offset, MidpointRounding.AwayFromZero),
-                (int)Math.Round(target.Y - ly * offset, MidpointRounding.AwayFromZero));
-            if (SpotPlanner.LineClear(map, from, point))
-                aim ??= point;
-            else
-                blocked++;
+            var origin = Across(from, offset);
+            Spot? aim = null;
+            var blocked = 0;
+            foreach (var point in targets)
+            {
+                if (SpotPlanner.LineClear(map, origin, point))
+                    aim ??= point;
+                else
+                    blocked++;
+            }
+            if (aim is not null && (best.Aim is null || blocked < best.Blocked))
+                best = (origin, aim, blocked);
+            if (best.Blocked == 0)
+                break; // nothing better than all five
         }
-        return (aim, blocked);
+        return best;
     }
 
     /// <summary>P3: some point of the body is in the open (the first clear line is enough; for reach and threat).</summary>

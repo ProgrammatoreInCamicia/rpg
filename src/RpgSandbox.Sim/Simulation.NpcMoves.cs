@@ -103,4 +103,81 @@ internal sealed partial class Simulation
             length += vertices[i - 1].DistanceTo(vertices[i]);
         return new SpotPath(vertices, length);
     }
+
+    /// <summary>How far an NPC looks for cover, in inches, along each of the 16 directions (within its movement left).</summary>
+    private static readonly int[] CoverSteps = Enumerable.Range(1, 12).Select(k => 30 * k).ToArray();
+
+    /// <summary>
+    /// P3b: an NPC about to shoot (no blow in reach, a shot valid from here) may first step, within the movement left and
+    /// without a Dash, to a point from which the shot is still valid and it is better covered against its target (as if
+    /// the target shot back) than the target is, or from which the shot is no longer at long range. Ranked by the net
+    /// advantage (its own cover less the target's; review P3b: a shelter both share is no gain), then no long range, then
+    /// the shorter way. A way that would provoke an Opportunity Attack from an enemy it perceives is never taken. Returns
+    /// whether it moved.
+    /// </summary>
+    private bool SeekCover(Encounter e, Actor npc, Actor target, AttackProfile shot)
+    {
+        var left = MovementLeftInches(e, npc);
+        if (left <= 0)
+            return false;
+        var map = World.Maps[e.Area];
+        var from = CurrentSpot(npc)!.Value;
+        var there = CurrentSpot(target)!.Value;
+        var planner = CombatPlanner(e, npc);
+        var candidates = Enumerable.Range(0, RingPoints)
+            .SelectMany(k => CoverSteps.Where(d => d <= left).Select(d => new Spot(
+                (int)Math.Round(from.X + d * Math.Cos(k * 2 * Math.PI / RingPoints), MidpointRounding.AwayFromZero),
+                (int)Math.Round(from.Y + d * Math.Sin(k * 2 * Math.PI / RingPoints), MidpointRounding.AwayFromZero))))
+            .Where(p => map.InBounds(p.Cell) && planner.Fits(p)).Distinct().ToList();
+        var lengths = planner.LengthsTo(from, candidates);
+        var (normal, longest) = shot.Range!.Value;
+
+        // How a point would do: null if the shot would not be valid from there.
+        (int Net, bool Long)? Score(Spot p)
+        {
+            if (p.DistanceTo(there) > longest * Spot.PerFoot
+                || !Sees(map, npc, p.Cell, target, there.Cell, LightOn(map, there.Cell))
+                || AimAt(map, p, there) is not { Origin: { } origin, Aim: { } aim, Blocked: var blocked }
+                || AimAt(map, there, p) is not { Origin: { } back, Aim: { } at, Blocked: var hidden })
+                return null; // review P3b: lines are mutual, so the second never fails where the first holds
+            var own = (int)CoverOf(map, target, npc, back, at, hidden);
+            return (own - (int)CoverOf(map, npc, target, origin, aim, blocked), p.DistanceTo(there) > normal * Spot.PerFoot);
+        }
+
+        if (Score(from) is not { } here)
+            return false;
+        var best = candidates.Select((p, i) => (Spot: p, Index: i, Length: lengths[i]))
+            .Where(c => c.Length <= left) // only what it can reach is weighed
+            .Select(c => (c.Spot, c.Index, c.Length, Score: Score(c.Spot)))
+            .Where(c => c.Score is not null)
+            .Select(c => (c.Spot, c.Index, c.Length, Score: c.Score!.Value))
+            .Where(c => c.Score.Net > here.Net || here.Long && !c.Score.Long && c.Score.Net >= here.Net)
+            .OrderByDescending(c => c.Score.Net).ThenBy(c => c.Score.Long).ThenBy(c => c.Length).ThenBy(c => c.Index);
+        foreach (var c in best)
+        {
+            if (planner.Find(from, c.Spot) is not { } way || Math.Ceiling(way.Length - 1e-9) > left || Provokes(e, npc, way))
+                continue;
+            npc.LastDecision = new DecisionTrace(World.Now, "Scontro: si ripara",
+                $"Si sposta per tirare a {target.Name} più al riparo.", Array.Empty<string>());
+            WalkFreeInCombat(e, npc, way);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>P3b: walking this way would let an enemy the mover perceives make an Opportunity Attack.</summary>
+    private bool Provokes(Encounter e, Actor mover, SpotPath way)
+    {
+        var knows = Perceived(e, mover);
+        var points = InchByInch(way);
+        var standing = StandingOf(mover);
+        for (var k = 1; k < points.Count; k++)
+        {
+            var next = (points[k].Cell, points[k]);
+            if (Threats(e, mover, standing, next).Any(knows))
+                return true;
+            standing = next;
+        }
+        return false;
+    }
 }
