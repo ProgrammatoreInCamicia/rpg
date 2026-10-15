@@ -142,4 +142,58 @@ public class CombatBarrierTests
         Assert.Equal(RejectionReason.TooFar, refused.Rejection);
         Assert.Contains("servono 10 piedi", refused.Message);
     }
+
+    [Fact]
+    public void In_a_fight_a_move_opens_a_closed_door_on_the_way_as_the_free_interaction_and_a_second_one_is_a_wall()
+    {
+        var s = Fight();
+        var to = Spot.CenterOf(new GridPos(5, 2));
+        Assert.Equal(Door, s.PreviewMoveToSpot(s.Player, to).OpensDoor);
+        var moved = s.Execute(new MoveToSpotCommand { Actor = s.Player, To = to });
+        Assert.True(moved.Success, moved.Message);
+        if (!Of(s, s.Player).Conscious)
+            return; // dropped by the opportunity attack on the way
+        Assert.Equal(to, Of(s, s.Player).Spot);
+        Assert.True(Map(s).Doors[Door]);
+        Assert.False(You(s).InteractionAvailable);
+        Assert.Contains(s.GetPlayerView().RecentEvents, f => f.Kind == "DoorOpened");
+
+        // Shut behind it (that takes the action now): back through it, the interaction is spent, the door is a wall.
+        Assert.True(s.Execute(new DoorCommand { Actor = s.Player, At = Door, Open = false }).Success);
+        Assert.Null(s.PreviewMoveToSpot(s.Player, Spot.CenterOf(new GridPos(2, 3))).OpensDoor);
+        Assert.Equal(RejectionReason.Unreachable, s.Execute(new MoveToSpotCommand { Actor = s.Player, To = Spot.CenterOf(new GridPos(2, 3)) }).Rejection);
+    }
+
+    [Fact]
+    public void A_locked_door_stays_a_wall_in_a_fight_without_its_key_and_opens_on_the_way_with_it()
+    {
+        var s = Fight(door: new LockSpec("farmhouse-key", Locked: true));
+        var to = Spot.CenterOf(new GridPos(5, 2));
+        Assert.Equal(RejectionReason.Unreachable, s.Execute(new MoveToSpotCommand { Actor = s.Player, To = to }).Rejection);
+        Of(s, s.Player).Give("farmhouse-key", 1);
+        Assert.True(s.Execute(new MoveToSpotCommand { Actor = s.Player, To = to }).Success);
+        if (Of(s, s.Player).Conscious)
+            Assert.False(Map(s).BarrierOf(BarrierKey.Door(Door))!.Locked);
+    }
+
+    [Fact]
+    public void A_foe_seen_through_a_closed_window_is_reached_through_the_door_it_opens_on_the_way()
+    {
+        // The guard at (2,4) sees the player at (5,4) through the closed window, but no blow passes it: the way round is
+        // through the closed door, which it opens walking, then it strikes.
+        var s = Fight();
+        Of(s, s.Player).PlaceAt(Spot.CenterOf(new GridPos(5, 4)));
+        Of(s, Foe).PlaceAt(Spot.CenterOf(new GridPos(2, 4)));
+        Assert.True(s.Engine.SeesActor(Of(s, Foe), Of(s, s.Player)));
+        var before = s.Engine.World.Encounters.Values.Single().Log.Count;
+
+        s.Execute(new EndTurnCommand { Actor = s.Player });
+        for (var i = 0; i < 12 && s.GetPlayerView().Combat is { IsYourTurn: false }; i++)
+            s.Advance(Duration.FromSeconds(1));
+
+        Assert.True(Map(s).Doors[Door]);
+        Assert.Contains(s.GetWorldView().RecentFacts, f => f.Kind == "DoorOpened" && f.Description.StartsWith("Guardia"));
+        Assert.Contains(s.Engine.World.Encounters.Values.SingleOrDefault()?.Log.Skip(before) ?? s.Engine.World.LastFight!.Log,
+            l => l.Kind == CombatLogKind.Attack && l.Actor == Foe);
+    }
 }

@@ -5523,3 +5523,16 @@ Test:
 - l'anteprima indica la porta;
 - PNG senza la chiave: nessun cambiamento.
 Tu, client: in scontro l'anteprima può mostrare "apre la porta" con `OpensDoor`; il segno della porta cambia dopo la mossa, come già fa con `DoorOpened`.
+
+[CLAUDE — P4d pronta nella Sim]
+Come da contratto, con due differenze (nel contratto):
+- se una via incontra una seconda porta chiusa, chi cammina si ferma lì;
+- `MoveCommand` a caselle in scontro non è cambiato.
+API: `SpotMovePreview.OpensDoor`.
+Test (3 in CombatBarrierTests):
+- il giocatore apre camminando e poi la porta è un muro;
+- chiusa a chiave: senza la chiave è un muro, con la chiave si apre camminando;
+- la guardia vede attraverso una finestra chiusa, apre la porta camminando e colpisce.
+Il P1b "porta = muro" ora vale con l'interazione usata.
+Controllo a difetto reintrodotto: porte sempre muri, camminata che non apre, interazione non segnata → il test relativo cade.
+546/546. Non ho rifatto gli smoke: l'utente ha finito l'uso disponibile; li rifaccio con il tuo client P4c.

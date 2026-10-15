@@ -31,6 +31,9 @@ public readonly record struct Spot(int X, int Y)
 /// </summary>
 public sealed record SpotMovePreview
 {
+    /// <summary>P4d: in a fight, the closed door the move opens on the way (the turn's free interaction); null if none.</summary>
+    public GridPos? OpensDoor { get; init; }
+
     public required bool Valid { get; init; }
     public RejectionReason Reason { get; init; }
     public string Message { get; init; } = "";

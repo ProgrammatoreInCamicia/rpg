@@ -114,6 +114,8 @@ public class FreeCombatTests
     public void In_a_fight_a_closed_door_is_a_wall_and_the_foe_cannot_be_walked_through()
     {
         var s = Fighting();
+        // P4d: a closed door opens on the way only with the turn's free interaction; once it is used, the door is a wall.
+        s.Engine.World.Encounters.Values.Single().Order.Single(c => c.Actor == s.Player).Interacted = true;
         Assert.Equal(RejectionReason.Unreachable, Move(s, In(10, 3)).Rejection); // only through the closed door
         // Through the bandit, to the square beyond it: the way goes round it.
         var round = s.PreviewMoveToSpot(s.Player, In(4, 3));

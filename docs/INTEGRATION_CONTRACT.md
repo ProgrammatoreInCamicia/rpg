@@ -891,3 +891,13 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
   - Poi i frammenti tagliano (1d4); se fanno cadere, la caduta come in scontro.
 - **`ClearGlassCommand`:** `InCombat` (dura un minuto).
 - **I PNG** non usano ancora porte e finestre negli scontri: le porte chiuse restano muri per loro.
+
+## P4d: aprire una porta camminando in uno scontro
+
+- In uno scontro una via libera (giocatore, avvicinamento, fuga e riparo dei PNG) può attraversare una porta chiusa
+  apribile finché l'interazione gratuita del turno è libera: chi cammina la apre arrivandoci (`DoorOpened`,
+  `Interacted` = vero; con la chiave si apre anche la serratura). Nessun costo di movimento in più.
+- Con l'interazione già usata le porte chiuse sono muri. Se una via ne incontra una seconda, chi cammina si ferma lì
+  ("la porta è chiusa"). Le porte che tengono per chi cammina sono sempre muri.
+- `SpotMovePreview.OpensDoor`: la porta che la mossa aprirà.
+- Non fatto: `MoveCommand` a caselle in scontro tratta ancora le porte chiuse come muri.

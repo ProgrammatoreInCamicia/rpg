@@ -61,7 +61,8 @@ internal sealed partial class Simulation
 
     /// <summary>
     /// P1b: the planner of a move in a fight, the same for the player and NPCs (P2a): around the creatures the mover
-    /// perceives, with closed doors as walls.
+    /// perceives. P4d: a closed door may be walked through (opened on the way) while the turn's free interaction is unused;
+    /// after that closed doors are walls, and those that hold for the mover (locked without its key, stuck) always are.
     /// </summary>
     private SpotPlanner CombatPlanner(Encounter e, Actor actor)
     {
@@ -75,7 +76,8 @@ internal sealed partial class Simulation
         // incapacitated creature is crossed without the Difficult Terrain it would be on squares.
         return new SpotPlanner(map,
             others.Where(o => o.Conscious && !Allies(e, actor, o)).Select(o => CurrentSpot(o)!.Value),
-            others.Select(o => CurrentSpot(o)!.Value), closedDoorsBlock: true);
+            others.Select(o => CurrentSpot(o)!.Value), closedDoorsBlock: CombatantOf(e, actor.Id).Interacted,
+            barredDoors: BarredDoors(actor, map)); // P4d: a closed door opens on the way while the turn's interaction is free
     }
 
     /// <summary>P1b: the points of a way an inch apart, from its start (index 0) to its goal (exactly, last).</summary>
@@ -178,6 +180,17 @@ internal sealed partial class Simulation
                 stopped = "qualcuno gli sbarra la strada";
                 break;
             }
+            // P4d: a closed door on the way opens as the turn's free interaction; with it used, or one that holds, it stops here.
+            if (standing.Cell != p.Cell && map.ClosedDoorBetween(standing.Cell, p.Cell) is { } door)
+            {
+                if (me.Interacted || map.DoorHolds(door) && !Opens(actor, map)(door))
+                {
+                    stopped = "la porta è chiusa";
+                    break;
+                }
+                OpenOnTheWayInFight(actor, map, door);
+                me.Interacted = true;
+            }
             var next = (p.Cell, p);
             var threats = Threats(e, actor, standing, next).ToList();
             if (threats.Count > 0)
@@ -235,11 +248,14 @@ internal sealed partial class Simulation
         var player = World.Actors[World.Player];
         var used = e.Order.Where(c => c.ReactionUsed).Select(c => c.Actor).ToHashSet();
         var provokes = new List<SpotProvocationView>();
+        GridPos? opensDoor = null;
         var points = InchByInch(way);
         var standing = StandingOf(actor);
         for (var k = 1; k < points.Count; k++)
         {
             var next = (points[k].Cell, points[k]);
+            if (opensDoor is null && points[k - 1].Cell != points[k].Cell && World.Maps[e.Area].ClosedDoorBetween(points[k - 1].Cell, points[k].Cell) is { } door)
+                opensDoor = door; // P4d
             foreach (var foe in Threats(e, actor, standing, next).Where(f => !used.Contains(f.Id) && SeesActor(player, f)))
             {
                 used.Add(foe.Id);
@@ -250,7 +266,26 @@ internal sealed partial class Simulation
         return new SpotMovePreview
         {
             Valid = reason == RejectionReason.None, Reason = reason, Message = message, Way = way.Vertices,
-            Feet = Math.Ceiling(way.Length / Spot.PerFoot * 10 - 1e-9) / 10, FeetLeft = left, Provokes = provokes,
+            Feet = Math.Ceiling(way.Length / Spot.PerFoot * 10 - 1e-9) / 10, FeetLeft = left, Provokes = provokes, OpensDoor = opensDoor,
         };
+    }
+}
+
+// P4d: a door opened on the way in a fight.
+internal sealed partial class Simulation
+{
+    /// <summary>Opens a closed door a walker reaches in a fight (with its key, if locked): the turn's free interaction.</summary>
+    private void OpenOnTheWayInFight(Actor actor, GridMap map, GridPos door)
+    {
+        if (map.BarrierOf(BarrierKey.Door(door)) is { Holds: true } barrier)
+        {
+            barrier.Locked = false; // only a locked one it has the key of gets here
+            World.RecordFact("DoorUnlocked", $"{actor.Name} apre con la chiave la porta.", actor.Id);
+        }
+        NoteSensesChange(map);
+        map.SetDoor(door, open: true);
+        Touched(actor, map, door);
+        NoteSensesChange(map);
+        World.RecordFact("DoorOpened", $"{actor.Name} apre la porta passando.", actor.Id);
     }
 }

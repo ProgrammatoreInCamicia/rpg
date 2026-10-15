@@ -44,7 +44,8 @@ internal sealed partial class Simulation
 
         // The fallback: towards the point itself along the walls alone; stop before touching a body that cannot be
         // crossed (review P2a: never cross one to stand beyond it).
-        var open = new SpotPlanner(map, Array.Empty<Spot>(), Array.Empty<Spot>(), closedDoorsBlock: true);
+        var open = new SpotPlanner(map, Array.Empty<Spot>(), Array.Empty<Spot>(), closedDoorsBlock: CombatantOf(e, npc.Id).Interacted,
+            barredDoors: BarredDoors(npc, map)); // P4d
         if (!open.Fits(aim) || open.Find(from, aim) is not { } way || way.Length < 1)
             return null;
         var points = InchByInch(way);
