@@ -717,18 +717,24 @@ public partial class VillageSmoke : Node
 			{
 				new TargetView { Target = raider.Id, Attack = "Spada lunga", Valid = false,
 					Reason = RejectionReason.TooFar, Why = "Fuori portata" },
-				new TargetView { Target = raider.Id, Attack = "Giavellotto (lanciato)", Valid = true },
+				new TargetView { Target = raider.Id, Attack = "Giavellotto (lanciato)", Valid = true,
+					Cover = CoverDegree.Half },
 			},
 			Log = new[] { new CombatLogEntry { Round = 1, Kind = CombatLogKind.Started,
 				Text = "Il Paladino affronta il Razziatore al granaio." },
 				new CombatLogEntry { Round = 1, Kind = CombatLogKind.Initiative,
-				Text = "Iniziativa: Paladino 16, Razziatore 11." } },
+				Text = "Iniziativa: Paladino 16, Razziatore 11." },
+				new CombatLogEntry { Round = 1, Kind = CombatLogKind.Attack, Cover = CoverDegree.Half,
+				Text = "Il Paladino tira (mezza copertura)." } },
 		};
 		_map.PreviewCombatForSmoke(preview);
 		await Frames(3);
 		Capture("25-combat-hud-preview.png");
 		_map.SelectCombatantForSmoke(raider.Id);
 		await Frames(2);
+		Require(_map.CombatAttackLabelsForSmoke.Any(text => text.Contains("Giavellotto") && text.Contains("½ copertura"))
+			&& _map.CombatLogTextForSmoke.Contains("mezza copertura"),
+			"P3: the attack panel or combat log omitted the public cover degree");
 		Capture("26-combat-target-preview.png");
 		var guard = _map.View.VisibleActors.FirstOrDefault(a => a.Id == MappedVillageScenario.Ids.Guard);
 		_map.PreviewCombatForSmoke(preview with

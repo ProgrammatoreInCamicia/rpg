@@ -233,6 +233,7 @@ public partial class VillageMap
 	internal bool HasFigureSpriteForSmoke(ActorId id) => _tokens.TryGetValue(id, out var token)
 		&& token.GetNodeOrNull<Sprite2D>("Figure") is { Texture: not null };
 
+
 	internal bool AttackVisualActiveForSmoke(ActorId id) => _attackVisualUntil.GetValueOrDefault(id)
 		> Time.GetTicksMsec() / 1000.0;
 }

@@ -172,6 +172,7 @@ public partial class VillageMap
 	internal MovePreview CombatMovePreviewForSmoke(GridPos cell) => _sim.PreviewMove(_sim.Player, cell);
 	internal IReadOnlyList<string> CombatAttackLabelsForSmoke => _combatAttacks.GetChildren()
 		.OfType<Button>().Select(button => button.Text).ToArray();
+	internal string CombatLogTextForSmoke => _combatLog.Text;
 	internal bool PlayerDodgeMarkVisibleForSmoke => _tokens.TryGetValue(_view.Id, out var token)
 		&& token.GetNode<Line2D>("DodgeMark").Visible;
 
@@ -252,14 +253,29 @@ public partial class VillageMap
 		{
 			var choice = option;
 			var attack = _view.Attacks.FirstOrDefault(a => a.Name == choice.Attack);
-			var stock = attack is { Uses: not null } ? $" ({attack.Remaining ?? 0} rimasti)" : "";
-			var button = new Button { Text = choice.Valid ? choice.Attack + stock : $"{choice.Attack}{stock} · {ShortCombatReason(choice)}",
+			var stock = attack is { Uses: not null } ? $" ×{attack.Remaining ?? 0}" : "";
+			var cover = choice.Valid ? CoverLabel(choice.Cover) : "";
+			var button = new Button { Text = choice.Valid ? choice.Attack + stock + cover : $"{choice.Attack}{stock} · {ShortCombatReason(choice)}",
 				Disabled = !choice.Valid || !combat.IsYourTurn,
-				TooltipText = choice.Why ?? "" };
+				TooltipText = choice.Why ?? CoverTooltip(choice.Cover) };
 			button.Pressed += () => ExecuteCombatAttack(choice);
 			_combatAttacks.AddChild(button);
 		}
 	}
+
+	private static string CoverLabel(CoverDegree cover) => cover switch
+	{
+		CoverDegree.Half => " · ½ copertura",
+		CoverDegree.ThreeQuarters => " · ¾ copertura",
+		_ => "",
+	};
+
+	private static string CoverTooltip(CoverDegree cover) => cover switch
+	{
+		CoverDegree.Half => "Il bersaglio ha +2 alla CA per la copertura.",
+		CoverDegree.ThreeQuarters => "Il bersaglio ha +5 alla CA per la copertura.",
+		_ => "",
+	};
 
 	private static string ShortCombatReason(TargetView choice) => choice.Reason switch
 	{
