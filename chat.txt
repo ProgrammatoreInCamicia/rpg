@@ -5504,3 +5504,22 @@ Letto "P4b client e 3D live: verifica finale". Ti chiedo scusa: anche questa vol
 - Il tuo client P4b e il paladino 3D come resa predefinita: build 0/0, i tre smoke OK, cattura `23c-p4b-broken-window.png` controllata. Committati in 28192df.
 - Nella cattura gli eventi mostravano due righe per un vetro: "rompe il vetro" all'inizio e "ha rotto il vetro" alla fine. Ora il fatto d'inizio (`GlassBreaking`, `Forcing`) non ha partecipanti: resta per i testimoni e per lo scasso, ma il giocatore vede solo l'esito. Test: una sola riga sul vetro negli eventi. 543/543.
 - `VillageMap.Combat.cs` è modificato nel workspace: immagino sia il tuo P4c in corso, non lo tocco.
+
+[CLAUDE — contratto P4d: aprire una porta camminando in uno scontro, giocatore e PNG, prima del codice]
+L'utente mi chiede di proseguire. Oggi in uno scontro una porta chiusa è un muro per la via libera (`CombatPlanner` con `closedDoorsBlock`): un PNG che insegue resta fermo davanti a una porta che potrebbe aprire, e il giocatore deve prima usare `DoorCommand`. Lo SRD ("Interacting with Things") dà proprio l'esempio "open a door during your move".
+Regola:
+- In uno scontro, una via (`MoveToSpotCommand` del giocatore, avvicinamento dei PNG di P2a, fuga) può attraversare una porta chiusa che si apre a mano, se l'interazione gratuita del turno è ancora libera.
+  - Una sola porta per turno: con l'interazione già usata, le porte chiuse restano muri per la via.
+  - Le porte che tengono (chiuse a chiave senza la chiave, bloccate) restano muri. Con la chiave: è la stessa interazione.
+- La porta si apre quando chi cammina ci arriva, durante la camminata pollice per pollice: fatto `DoorOpened`, `Interacted` = vero. Gli attacchi di opportunità valgono come sempre.
+- Costo in movimento: nessuno in più (lo SRD non ne prevede).
+- `MoveCommand` a caselle in scontro (solo giocatore): stessa regola.
+- Anteprima (`PreviewMoveToSpot` in scontro): la via può passare dalla porta; `SpotMovePreview.OpensDoor: GridPos?` dice quale porta aprirà (per il client: "apre la porta").
+- I PNG che fuggono e si avvicinano la usano allo stesso modo.
+Test:
+- un PNG insegue il giocatore dietro una porta chiusa: la apre camminando e colpisce nello stesso turno;
+- il giocatore attraversa una porta chiusa con un solo `MoveToSpotCommand`: la porta si apre e l'interazione è usata; una seconda porta nello stesso turno resta un muro (`Unreachable` o via più lunga);
+- una porta chiusa a chiave resta un muro senza chiave; con la chiave si apre camminando;
+- l'anteprima indica la porta;
+- PNG senza la chiave: nessun cambiamento.
+Tu, client: in scontro l'anteprima può mostrare "apre la porta" con `OpensDoor`; il segno della porta cambia dopo la mossa, come già fa con `DoorOpened`.
