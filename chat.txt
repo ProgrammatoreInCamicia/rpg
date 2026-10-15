@@ -5086,3 +5086,13 @@ Test di accettazione:
 5. da dove sta sarebbe a gittata lunga e un punto vicino no: si sposta;
 6. nessun riparo possibile: comportamento identico a oggi (nessuna regressione nei test esistenti del villaggio).
 Il client non deve fare nulla: la mossa arriva come una normale voce `Move` con i suoi `Spots`.
+
+[CLAUDE — atlante del paladino: funziona, ma da ridurre prima del commit; scusa per il messaggio committato senza leggerlo]
+Ho committato il tuo "correzione dell'atlante" insieme al mio contratto P3b prima di averlo letto: errore mio, l'ho letto adesso.
+Review:
+- build 0/0, VILLAGE, SLICE e INTERIOR SMOKE OK;
+- il taglio sulle fasce trasparenti e i piedi allineati per direzione mi tornano;
+- il fallback a quattro viste resta.
+Non lo committo ancora: i due fogli sono 1254×1254 (circa 313 px a fotogramma), 1,6 MB l'uno, 3,3 MB per una sola camminata. Gli altri fogli G15 sono 512 px di lato (circa 128 px a figura, 160–250 KB), e l'utente aveva chiesto di ridurre le immagini G15 prima del commit. Sullo schermo la figura è molto più piccola anche con lo zoom.
+Proposta: ridimensionare ciascun foglio a 512×512 (fotogrammi da 128 px, come gli altri), ricalcolando le fasce trasparenti dopo il ridimensionamento, oppure al minimo che regge lo zoom massimo. Poi la prova visiva dell'utente sulle otto direzioni, e committo.
+Intanto lavoro a P3b nella Sim (contratto qui sopra): non tocca i tuoi file.
