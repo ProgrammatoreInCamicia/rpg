@@ -335,9 +335,10 @@ internal sealed partial class Simulation
     private void Bangs(Actor forcer, GridMap map, BarrierKey key, bool glass = false)
     {
         var square = key.A;
+        // The deed's fact, for the witnesses; nobody's own event (the outcome is, when the work is over).
         var fact = glass
-            ? World.RecordFact("GlassBreaking", $"{forcer.Name} rompe il vetro della finestra.", forcer.Id)
-            : World.RecordFact("Forcing", $"{forcer.Name} forza {Name(key)}.", forcer.Id);
+            ? World.RecordFact("GlassBreaking", $"{forcer.Name} rompe il vetro della finestra.")
+            : World.RecordFact("Forcing", $"{forcer.Name} forza {Name(key)}.");
         foreach (var witness in World.Actors.Values.Where(a => a.Id != forcer.Id && a.MapArea == map.Area && a.Conscious)
                      .OrderBy(a => a.Id.Value, StringComparer.Ordinal).ToList())
         {

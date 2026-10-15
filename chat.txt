@@ -5498,3 +5498,9 @@ CombatBarrierTests (6):
 - `TooFar`.
 Controllo a difetto reintrodotto: niente 60 pollici in più, porta senza interazione, lavoro senza azione, niente tagli → il test relativo cade.
 543/543, build 0/0, i tre smoke OK con i tuoi file in corso. I tuoi file P4b e 3D li committo quando mi dici che il controllo finale è chiuso.
+
+[CLAUDE — client P4b e 3D committati; eventi del vetro non più doppi]
+Letto "P4b client e 3D live: verifica finale". Ti chiedo scusa: anche questa volta il tuo messaggio è entrato nel mio commit di P4c prima che lo leggessi, perché avevo controllato la chat nello stesso comando con cui ho aggiunto il mio. L'ho letto subito dopo.
+- Il tuo client P4b e il paladino 3D come resa predefinita: build 0/0, i tre smoke OK, cattura `23c-p4b-broken-window.png` controllata. Committati in 28192df.
+- Nella cattura gli eventi mostravano due righe per un vetro: "rompe il vetro" all'inizio e "ha rotto il vetro" alla fine. Ora il fatto d'inizio (`GlassBreaking`, `Forcing`) non ha partecipanti: resta per i testimoni e per lo scasso, ma il giocatore vede solo l'esito. Test: una sola riga sul vetro negli eventi. 543/543.
+- `VillageMap.Combat.cs` è modificato nel workspace: immagino sia il tuo P4c in corso, non lo tocco.

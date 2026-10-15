@@ -56,6 +56,7 @@ public class WindowTests
         Assert.Equal(started.CompletesAt, s.Now.Plus(Duration.FromSeconds(6)));
         Done(s, started);
 
+        Assert.Single(s.GetPlayerView().RecentEvents, f => f.Description.Contains("vetro")); // the outcome only, not twice
         Assert.Equal(WindowGlass.Broken, Window(s).Glass);
         Assert.False(Window(s).Open); // its frame is shut, but nothing stops a shot
         Assert.True(Map(s).LetsThrough(A, B));
