@@ -17,7 +17,8 @@ public class CombatBarrierTests
     /// A yard at noon split by a wall down x = 3|4 with a door between (3,2) and (4,2) and a window between (3,4) and (4,4).
     /// The player at (3,2), a guard at (2,2) next to it: the player strikes first; the first seed where it is then its turn.
     /// </summary>
-    private static SimulationSession Fight(LockSpec? door = null, bool windowOpen = false, WindowGlass glass = WindowGlass.Intact)
+    private static SimulationSession Fight(LockSpec? door = null, bool windowOpen = false, WindowGlass glass = WindowGlass.Intact,
+        bool secondDoor = false)
     {
         for (ulong seed = 1; seed <= 300; seed++)
         {
@@ -30,6 +31,9 @@ public class CombatBarrierTests
                 b.AddEdge("a", (3, y), (4, y), y switch { 2 => MapEdgeKind.Door, 4 => MapEdgeKind.Window, _ => MapEdgeKind.Wall },
                     y == 2 ? (4, 2) : null, open: y == 4 && windowOpen, lockSpec: y == 2 ? door : null,
                     glass: y == 4 ? glass : WindowGlass.Intact);
+            if (secondDoor) // a second wall down x = 5|6 with its own door at (6,2)
+                for (var y = 0; y < 6; y++)
+                    b.AddEdge("a", (5, y), (6, y), y == 2 ? MapEdgeKind.Door : MapEdgeKind.Wall, y == 2 ? (6, 2) : null);
             var s = SimulationSession.Create(b.Build());
             s.AdvanceTo(At(1, 12));
             s.Execute(new AttackCommand { Actor = s.Player, Target = Foe, Attack = "Spada lunga" });
@@ -195,5 +199,31 @@ public class CombatBarrierTests
         Assert.Contains(s.GetWorldView().RecentFacts, f => f.Kind == "DoorOpened" && f.Description.StartsWith("Guardia"));
         Assert.Contains(s.Engine.World.Encounters.Values.SingleOrDefault()?.Log.Skip(before) ?? s.Engine.World.LastFight!.Log,
             l => l.Kind == CombatLogKind.Attack && l.Actor == Foe);
+    }
+
+    [Fact]
+    public void A_move_that_would_open_two_doors_in_one_turn_is_refused_before_it_starts_preview_included()
+    {
+        var s = Fight(secondDoor: true);
+        var beyond = Spot.CenterOf(new GridPos(7, 2));
+        var preview = s.PreviewMoveToSpot(s.Player, beyond);
+        Assert.False(preview.Valid);
+        Assert.Equal(RejectionReason.Unreachable, preview.Reason);
+        var refused = s.Execute(new MoveToSpotCommand { Actor = s.Player, To = beyond });
+        Assert.Equal(RejectionReason.Unreachable, refused.Rejection);
+        Assert.Contains("più di una porta", refused.Message);
+        Assert.True(You(s).InteractionAvailable); // nothing done
+    }
+
+    [Fact]
+    public void Unlocking_a_door_walking_through_it_with_the_key_updates_what_the_player_knows()
+    {
+        var s = Fight(door: new LockSpec("farmhouse-key", Locked: true));
+        Assert.Equal(RejectionReason.Locked, s.Execute(new DoorCommand { Actor = s.Player, At = Door, Open = true }).Rejection);
+        Assert.True(Assert.Single(s.GetPlayerView().KnownBarriers).Locked);
+        Of(s, s.Player).Give("farmhouse-key", 1);
+        Assert.True(s.Execute(new MoveToSpotCommand { Actor = s.Player, To = Spot.CenterOf(new GridPos(5, 2)) }).Success);
+        if (Of(s, s.Player).Conscious)
+            Assert.False(Assert.Single(s.GetPlayerView().KnownBarriers).Locked);
     }
 }

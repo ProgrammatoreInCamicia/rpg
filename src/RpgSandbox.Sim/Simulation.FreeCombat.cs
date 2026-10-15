@@ -54,6 +54,13 @@ internal sealed partial class Simulation
             return (RejectionReason.NoRoom, "Lì non c'è spazio per stare in piedi.", null);
         if (planner.Find(from, to) is not { } way)
             return (RejectionReason.Unreachable, "Non si può raggiungere quel punto.", null);
+        // Review P4d: one door a turn. A way that would open two is replaced by one opening none, if there is one.
+        if (ClosedDoorsOn(World.Maps[e.Area], way) > 1)
+        {
+            if (CombatPlanner(e, actor, doorsBlock: true).Find(from, to) is not { } shut)
+                return (RejectionReason.Unreachable, "Servirebbe aprire più di una porta in questo turno.", null);
+            way = shut;
+        }
         if (Math.Ceiling(way.Length - 1e-9) > left)
             return (RejectionReason.TooFar, $"Troppo lontano: servono {FeetText(way.Length)} piedi, te ne restano {FeetLeftText(left)}.", way);
         return (RejectionReason.None, $"{FeetText(way.Length)} piedi di movimento.", way);
@@ -64,7 +71,7 @@ internal sealed partial class Simulation
     /// perceives. P4d: a closed door may be walked through (opened on the way) while the turn's free interaction is unused;
     /// after that closed doors are walls, and those that hold for the mover (locked without its key, stuck) always are.
     /// </summary>
-    private SpotPlanner CombatPlanner(Encounter e, Actor actor)
+    private SpotPlanner CombatPlanner(Encounter e, Actor actor, bool doorsBlock = false)
     {
         var map = World.Maps[e.Area];
         var knows = Perceived(e, actor);
@@ -76,7 +83,7 @@ internal sealed partial class Simulation
         // incapacitated creature is crossed without the Difficult Terrain it would be on squares.
         return new SpotPlanner(map,
             others.Where(o => o.Conscious && !Allies(e, actor, o)).Select(o => CurrentSpot(o)!.Value),
-            others.Select(o => CurrentSpot(o)!.Value), closedDoorsBlock: CombatantOf(e, actor.Id).Interacted,
+            others.Select(o => CurrentSpot(o)!.Value), closedDoorsBlock: doorsBlock || CombatantOf(e, actor.Id).Interacted,
             barredDoors: BarredDoors(actor, map)); // P4d: a closed door opens on the way while the turn's interaction is free
     }
 
@@ -280,6 +287,7 @@ internal sealed partial class Simulation
         if (map.BarrierOf(BarrierKey.Door(door)) is { Holds: true } barrier)
         {
             barrier.Locked = false; // only a locked one it has the key of gets here
+            Learn(actor, map, BarrierKey.Door(door), barrier); // review P4d: the player knows it is open now
             World.RecordFact("DoorUnlocked", $"{actor.Name} apre con la chiave la porta.", actor.Id);
         }
         NoteSensesChange(map);
@@ -287,5 +295,19 @@ internal sealed partial class Simulation
         Touched(actor, map, door);
         NoteSensesChange(map);
         World.RecordFact("DoorOpened", $"{actor.Name} apre la porta passando.", actor.Id);
+    }
+}
+
+// Review P4d: how many closed doors a way goes through.
+internal sealed partial class Simulation
+{
+    private static int ClosedDoorsOn(GridMap map, SpotPath way)
+    {
+        var points = InchByInch(way);
+        var doors = new HashSet<GridPos>();
+        for (var k = 1; k < points.Count; k++)
+            if (points[k - 1].Cell != points[k].Cell && map.ClosedDoorBetween(points[k - 1].Cell, points[k].Cell) is { } door)
+                doors.Add(door);
+        return doors.Count;
     }
 }
