@@ -9,6 +9,11 @@ public partial class VillageMap
 {
 	private readonly Dictionary<string, AtlasTexture[]> _figureAtlases = new();
 	private readonly Dictionary<ActorId, int> _figureFacing = new();
+	private AtlasTexture[]? _paladin3dFrames;
+	private float _paladin3dWalkDistance;
+	private Vector2 _paladin3dDirectionTravel;
+	private int _paladin3dFacing = 1;
+	private bool _paladin3dPrototype;
 	private readonly Dictionary<ActorId, double> _attackVisualUntil = new();
 	private readonly Dictionary<ActorId, double> _hitVisualUntil = new();
 	private int _seenCombatVisuals;
@@ -161,7 +166,8 @@ public partial class VillageMap
 		_figureFacing[id] = 0;
 	}
 
-	private void UpdateFigureSprite(Node2D token, ActorId id, Vector2 previousPosition, bool moving, bool prone)
+	private void UpdateFigureSprite(Node2D token, ActorId id, Vector2 previousPosition, bool moving, bool prone,
+		MoveView? walk = null)
 	{
 		if (token.GetNodeOrNull<Sprite2D>("Figure") is not { } sprite)
 			return;
@@ -169,21 +175,124 @@ public partial class VillageMap
 		token.GetNode<Polygon2D>("Head").Visible = false;
 		token.GetNode<Polygon2D>("Prone").Visible = false;
 		var delta = token.Position - previousPosition;
-		if (moving && delta.LengthSquared() > 0.01f)
-			_figureFacing[id] = delta.Y >= 0 ? (delta.X < 0 ? 0 : 1) : (delta.X < 0 ? 2 : 3);
 		var asset = FigureAsset(id)!;
+		var prototype = id == MappedVillageScenario.Ids.Player && _paladin3dPrototype && LoadPaladin3dFrames() is { };
+		var plannedTangent = prototype && moving ? WalkTangent(walk, token.Position) : null;
+		if (plannedTangent is { } tangent)
+		{
+			_paladin3dFacing = PrototypeFacing(tangent);
+			_paladin3dDirectionTravel = Vector2.Zero;
+		}
+		if (moving && delta.LengthSquared() is > 0.01f and < 10000f)
+		{
+			_figureFacing[id] = delta.Y >= 0 ? (delta.X < 0 ? 0 : 1) : (delta.X < 0 ? 2 : 3);
+			if (prototype)
+			{
+				if (plannedTangent is null)
+				{
+					_paladin3dDirectionTravel += delta;
+					if (_paladin3dDirectionTravel.LengthSquared() >= 4f)
+					{
+						_paladin3dFacing = PrototypeFacing(_paladin3dDirectionTravel);
+						_paladin3dDirectionTravel = Vector2.Zero;
+					}
+				}
+				_paladin3dWalkDistance += delta.Length();
+			}
+		}
+		if (!moving)
+			_paladin3dDirectionTravel = Vector2.Zero;
 		var facing = _figureFacing.GetValueOrDefault(id);
-		var frame = _figureAtlases[asset][facing];
+		var frame = prototype
+			? _paladin3dFrames![_paladin3dFacing * 8 + (moving ? (int)(_paladin3dWalkDistance / 5f) % 8 : 0)]
+			: _figureAtlases[asset][facing];
 		if (sprite.Texture != frame)
 			sprite.Texture = frame;
+		sprite.Scale = Vector2.One * (prototype ? 0.32f : 50f / _figureAtlases[asset][0].GetWidth());
+		sprite.Offset = prototype ? new Vector2(0, -64) : new Vector2(0, -_figureAtlases[asset][0].GetHeight() * 0.40f);
 		var now = Time.GetTicksMsec() / 1000.0;
 		var attacking = _attackVisualUntil.GetValueOrDefault(id) > now;
 		var hit = _hitVisualUntil.GetValueOrDefault(id) > now;
-		var bob = !moving || prone ? 0f : MathF.Sin((float)(now * 19)) * 1.2f;
+		var bob = !moving || prone || prototype ? 0f : MathF.Sin((float)(now * 13)) * 0.6f;
 		sprite.Position = prone ? new Vector2(0, -5) : new Vector2(attacking ? (facing is 0 or 2 ? -3 : 3) : 0, bob);
 		sprite.RotationDegrees = prone ? -78f : attacking ? (facing is 0 or 2 ? -8f : 8f) : 0f;
 		sprite.Modulate = hit ? new Color(1f, 0.52f, 0.48f) : Colors.White;
 	}
+
+	private AtlasTexture[]? LoadPaladin3dFrames()
+	{
+		if (_paladin3dFrames is not null)
+			return _paladin3dFrames;
+		var source = GD.Load<Texture2D>("res://Assets/G15/Characters/paladin-3d-walk-8x8.png");
+		if (source is null || source.GetWidth() != 1536 || source.GetHeight() != 1536)
+			return null;
+		_paladin3dFrames = Enumerable.Range(0, 64).Select(i => new AtlasTexture
+		{
+			Atlas = source,
+			Region = new Rect2(i % 8 * 192, i / 8 * 192, 192, 192),
+			FilterClip = true,
+		}).ToArray();
+		return _paladin3dFrames;
+	}
+
+	private static Vector2? WalkTangent(MoveView? walk, Vector2 at)
+	{
+		if (walk?.Vertices is not { Count: > 1 } vertices)
+			return null;
+		var nearest = float.PositiveInfinity;
+		Vector2? tangent = null;
+		for (var i = 1; i < vertices.Count; i++)
+		{
+			var from = SpotToScreen(vertices[i - 1]);
+			var to = SpotToScreen(vertices[i]);
+			var leg = to - from;
+			if (leg.LengthSquared() < 0.01f)
+				continue;
+			var fraction = Mathf.Clamp((at - from).Dot(leg) / leg.LengthSquared(), 0f, 1f);
+			var distance = at.DistanceSquaredTo(from + leg * fraction);
+			if (distance >= nearest)
+				continue;
+			nearest = distance;
+			tangent = leg;
+		}
+		return tangent;
+	}
+
+	private static int PrototypeFacing(Vector2 travel)
+	{
+		var normalized = travel.Normalized();
+		var best = float.NegativeInfinity;
+		var facing = 0;
+		for (var row = 0; row < 8; row++)
+		{
+			var yaw = row * Mathf.Pi / 4f;
+			// The render camera is fixed at (3.6, 2.9, 4.2); these are the screen axes of its ground plane.
+			var projected = new Vector2(0.759f * Mathf.Sin(yaw) - 0.651f * Mathf.Cos(yaw),
+				0.249f * Mathf.Sin(yaw) + 0.291f * Mathf.Cos(yaw)).Normalized();
+			var score = normalized.Dot(projected);
+			if (score <= best)
+				continue;
+			best = score;
+			facing = row;
+		}
+		return facing;
+	}
+
+	private void TogglePaladin3dPrototype()
+	{
+		_paladin3dPrototype = !_paladin3dPrototype;
+		_paladin3dWalkDistance = 0;
+		_paladin3dDirectionTravel = Vector2.Zero;
+		ShowMessage(_paladin3dPrototype ? "Prova paladino 3D attiva (P per tornare alla sprite)."
+			: "Sprite originale ripristinata.");
+		PlaceTokens();
+	}
+
+	internal void TogglePaladin3dPrototypeForSmoke() => TogglePaladin3dPrototype();
+	internal bool Paladin3dLoadedForSmoke => _paladin3dFrames?.Length == 64
+		&& _tokens.TryGetValue(MappedVillageScenario.Ids.Player, out var token)
+		&& token.GetNodeOrNull<Sprite2D>("Figure") is { Texture: { } texture }
+		&& _paladin3dFrames.Contains(texture);
 
 	private void ObserveCombatVisuals()
 	{
@@ -232,7 +341,6 @@ public partial class VillageMap
 
 	internal bool HasFigureSpriteForSmoke(ActorId id) => _tokens.TryGetValue(id, out var token)
 		&& token.GetNodeOrNull<Sprite2D>("Figure") is { Texture: not null };
-
 
 	internal bool AttackVisualActiveForSmoke(ActorId id) => _attackVisualUntil.GetValueOrDefault(id)
 		> Time.GetTicksMsec() / 1000.0;

@@ -48,10 +48,19 @@ public partial class VillageSmoke : Node
 		Require(_map.HasFigureSpriteForSmoke(MappedVillageScenario.Ids.Player)
 			&& _map.HasFigureSpriteForSmoke(MappedVillageScenario.Ids.Guard),
 			"G15: directional character sprite did not load in the village");
+		_map.TogglePaladin3dPrototypeForSmoke();
+		await Frames(2);
+		Require(_map.Paladin3dLoadedForSmoke, "G15: the optional 3D paladin walk atlas did not load");
+		Capture("1-paladin-3d-prototype.png");
+		_map.TogglePaladin3dPrototypeForSmoke();
 		Capture("1-start.png");
 		// The main village, like the isolated house, accepts an exact floor point rather than snapping a click to a tile centre.
 		var exactFloor = new Spot(165, 147);
 		_map.ClickSpotForSmoke(exactFloor);
+		_map.TogglePaladin3dPrototypeForSmoke();
+		await Frames(8);
+		Capture("1-paladin-3d-walking.png");
+		_map.TogglePaladin3dPrototypeForSmoke();
 		await UntilIdle(4);
 		Require(_map.View.Spot == exactFloor
 			&& _map.FootPointOf(_map.View.Id) is { } exactFoot

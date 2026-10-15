@@ -204,6 +204,11 @@ public partial class VillageMap : Node2D
 			Stop();
 			return;
 		}
+		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.P })
+		{
+			TogglePaladin3dPrototype();
+			return;
+		}
 		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.F })
 		{
 			SetSneak(!_sneak);
@@ -831,7 +836,7 @@ public partial class VillageMap : Node2D
 			token.GetNode<Polygon2D>("Head").Visible = !prone;
 			token.GetNode<Polygon2D>("Prone").Visible = prone;
 			UpdateFigureSprite(token, figure.Id, previousPosition,
-				figure.Move is not null || _combatVisualTracks.ContainsKey(figure.Id), prone);
+				figure.Move is not null || _combatVisualTracks.ContainsKey(figure.Id), prone, figure.Move);
 			token.GetNode<Line2D>("DodgeMark").Visible = !prone && _view.Combat is { } combat
 				&& (figure.Player ? combat.You.Dodging
 					: combat.Combatants.Any(c => c.Id == figure.Id && c.Dodging));
