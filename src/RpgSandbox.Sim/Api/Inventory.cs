@@ -39,7 +39,7 @@ public sealed record GroundItemView
 }
 
 /// <summary>D1a: where a worn or wielded item is.</summary>
-public enum EquipmentSlot { Armor, Shield, MainHand }
+public enum EquipmentSlot { Armor, Shield, MainHand, OffHand }
 
 /// <summary>D1a: an item worn or wielded (it is also counted in the inventory).</summary>
 public sealed record EquippedView

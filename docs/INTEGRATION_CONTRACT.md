@@ -1001,3 +1001,10 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 - Incantesimi del giuramento, sempre preparati: dal 3 Protezione dal bene e dal male e Scudo della fede; dal 5 Aiuto (Zona di verità aspetta il dialogo).
 - Protezione dal bene e dal male: contatto, concentrazione 10 minuti; aberrazioni, celestiali, elementali, folletti, immondi e non morti attaccano il protetto con svantaggio. ADATTAMENTO: la componente materiale (acqua santa da 25 mo, consumata) non è richiesta.
 - Fatto: anche un riposo lungo interrotto dopo almeno un'ora restituisce un uso; Arma sacra solo durante uno scontro (non sul colpo d'apertura); gli effetti di Incanalare divinità compaiono in `PlayerView.Effects` come "divine-sense" e "sacred-weapon". Il tipo di creatura (celestiale, immondo, non morto…) è il `CreatureType` dello SRD del suo tipo. Salvataggio schema 37.
+
+## R4 — Lottare, spingere, due armi, azioni (SRD 5.2.1 glossario: Unarmed Strike, Grappling, Help, Hide, Search, Ready; armi: Light, Nick)
+
+- `AttackCommand.Maneuver` ("Grapple"/"Shove") con "Colpo senz'armi", `ShoveProne`; `AttackCommand.OffHand`.
+- `CombatAction`: `Escape`, `Help` (con `CombatActionCommand.Target`), `Hide`, `Search`, `Ready`. Finché la loro regola non c'è, `ActionOptionView` le dà non valide ("Non ancora disponibile").
+- `ReleaseCommand`; `EquipCommand { Item, Slot }`; `EquipmentSlot.OffHand`; `CombatSelfView.OffHandAttackAvailable`.
+- Regole come nel messaggio di contratto R4 in chat; i dettagli arrivano con ogni pezzo.

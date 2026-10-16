@@ -30,6 +30,15 @@ public sealed record AttackCommand : Command
 
     /// <summary>R3c, Sacred Weapon: with this Attack action, spend a Channel Divinity on the melee weapon used.</summary>
     public bool SacredWeapon { get; init; }
+
+    /// <summary>R4a: with the Unarmed Strike, "Grapple" or "Shove" instead of damage (SRD Unarmed Strike).</summary>
+    public string? Maneuver { get; init; }
+
+    /// <summary>R4a: a shove knocks Prone instead of pushing 5 feet away.</summary>
+    public bool ShoveProne { get; init; }
+
+    /// <summary>R4b: the extra attack of the Light property, with the weapon in the other hand.</summary>
+    public bool OffHand { get; init; }
 }
 
 /// <summary>End the actor's turn; the other turns are then resolved up to the player's next one.</summary>
@@ -46,12 +55,30 @@ public enum CombatAction
 
     /// <summary>Dodge: until the start of one's next turn, attacks against one have Disadvantage if one sees the attacker.</summary>
     Dodge,
+
+    /// <summary>R4a: a Strength (Athletics) or Dexterity (Acrobatics) check against the grapple's escape DC.</summary>
+    Escape,
+
+    /// <summary>R4c: Help an attack: the next attack roll of an ally against the enemy <see cref="CombatActionCommand.Target"/> (within 5 feet) has Advantage.</summary>
+    Help,
+
+    /// <summary>R4c: Hide: DC 15 Dexterity (Stealth), in darkness or behind three-quarters cover, out of the enemies' sight.</summary>
+    Hide,
+
+    /// <summary>R4c: Search: Wisdom (Perception) against the DC of those hidden.</summary>
+    Search,
+
+    /// <summary>R4c, ADAPTATION: Ready a melee attack against the first enemy that comes within reach.</summary>
+    Ready,
 }
 
 /// <summary>C3a: take one of the actions other than attacking, on the actor's turn in a fight. It uses the action.</summary>
 public sealed record CombatActionCommand : Command
 {
     public required CombatAction Action { get; init; }
+
+    /// <summary>R4c: the enemy the action is about (Help).</summary>
+    public ActorId? Target { get; init; }
 }
 
 /// <summary>C3a: whether an action other than attacking can be taken now, and why not.</summary>
@@ -162,6 +189,9 @@ public sealed record CombatSelfView
 
     /// <summary>R3b, SRD: one spell slot a turn; it was spent this turn.</summary>
     public bool SpellSlotSpent { get; init; }
+
+    /// <summary>R4b: the extra attack of the Light property can be made now.</summary>
+    public bool OffHandAttackAvailable { get; init; }
 
     /// <summary>SRD: one Reaction, regained at the start of one's own turn.</summary>
     public required bool ReactionAvailable { get; init; }

@@ -312,3 +312,17 @@ public sealed record ChannelDivinityCommand : Command
 {
     public required string Effect { get; init; }
 }
+
+/// <summary>R4a: lets go of the creature one grapples (no action, SRD).</summary>
+public sealed record ReleaseCommand : Command;
+
+/// <summary>
+/// R4b: takes <see cref="Item"/> (a weapon or a shield carried) in hand at <see cref="Slot"/> (MainHand, OffHand or
+/// Shield), or puts away what is there with a null item. In a fight it is the turn's free interaction (a second takes the
+/// action); outside, at once. Armor is not put on or taken off this way.
+/// </summary>
+public sealed record EquipCommand : Command
+{
+    public string? Item { get; init; }
+    public required EquipmentSlot Slot { get; init; }
+}

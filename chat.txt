@@ -5932,3 +5932,6 @@ R4c — Aiutare, Nascondersi, Cercare, Preparare (in scontro)
 API (pubblico i campi prima del codice): `AttackCommand.Maneuver`/`ShoveProne`/`OffHand`; `CombatAction.Escape`, `Help`, `Hide`, `Search`, `Ready`; `CombatActionCommand.Target`; `ReleaseCommand`; `EquipCommand`; `EquipmentSlot.OffHand`; `CombatSelfView.OffHandAttackAvailable`.
 Client (dopo R3b/R3c): manovre nel menu del colpo senz'armi, Liberarsi/Lascia andare, cambio d'arma e mano secondaria nell'inventario, le nuove azioni nella barra.
 Ordine: R4a, R4b, R4c.
+
+[CLAUDE — R4 campi API pubblicati]
+Committati senza logica (sezione R4 del contratto). Attenzione: `CombatView.Actions` ora elenca anche Escape, Help, Hide, Search e Ready, per ora non valide ("Non ancora disponibile"). Il client mostra solo quelle valide o le disabilita? Basta che non si rompa. Ora la logica di R4a.

@@ -122,12 +122,12 @@ public class CombatActionTests
     {
         var s = FirstSeed(seed => OpenedOn(seed), NextRound);
 
-        Assert.All(Fight(s).Actions, a => Assert.True(a.Valid));
-        Assert.Equal(new[] { CombatAction.Dash, CombatAction.Disengage, CombatAction.Dodge }, Fight(s).Actions.Select(a => a.Action));
+        Assert.All(Fight(s).Actions.Where(a => a.Action <= CombatAction.Dodge), a => Assert.True(a.Valid)); // R4: the others depend on the scene
+        Assert.Equal(Enum.GetValues<CombatAction>(), Fight(s).Actions.Select(a => a.Action)); // R4: Escape, Help, Hide, Search, Ready too
 
         s.Execute(new AttackCommand { Actor = s.Player, Target = Foe, Attack = "Spada lunga" });
         if (s.GetPlayerView().Combat is { } after)
-            Assert.All(after.Actions, a => Assert.Equal(RejectionReason.NoActionLeft, a.Reason));
+            Assert.All(after.Actions.Where(a => a.Action <= CombatAction.Dodge), a => Assert.Equal(RejectionReason.NoActionLeft, a.Reason));
         Assert.Equal(RejectionReason.NotInCombat, Do(SimulationSession.Create(MappedVillageScenario.CreateLivingVillage()), CombatAction.Dash).Rejection);
     }
 

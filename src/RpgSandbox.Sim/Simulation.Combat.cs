@@ -1251,6 +1251,7 @@ internal sealed partial class Simulation
     private ActionOptionView ActionOption(Encounter e, Actor actor, CombatAction action)
     {
         var (reason, why) = !Enum.IsDefined(action) ? (RejectionReason.UnknownCommand, "Azione sconosciuta.")
+            : action > CombatAction.Dodge ? (RejectionReason.UnknownCommand, "Non ancora disponibile.") // R4: until its rules are in
             : !IsTurnOf(e, actor) ? (RejectionReason.NotYourTurn, "Non è il tuo turno.")
             : CombatantOf(e, actor.Id).ActionUsed ? (RejectionReason.NoActionLeft, "Hai già usato l'azione in questo turno.")
             : (RejectionReason.None, (string?)null);
