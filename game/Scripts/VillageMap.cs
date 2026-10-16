@@ -789,7 +789,9 @@ public partial class VillageMap : Node2D
 		_stop.Text = _view.Action?.Kind == "Rest" ? "Interrompi riposo (X)" : "Fermati (X)";
 		RefreshRestUi();
 		RefreshConditionsUi();
+		RefreshMagicStatusUi();
 		RefreshClassUi();
+		RefreshSpellUi();
 		ShadeMap();
 		RefreshBuildingVisibility();
 		RefreshVisionFeather();
@@ -1352,6 +1354,7 @@ public partial class VillageMap : Node2D
 		_hudHitPoints = new Label();
 		box.AddChild(_hudHitPoints);
 		BuildConditionsUi(box);
+		BuildMagicStatusUi(box);
 		_watched = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		box.AddChild(_watched);
 
@@ -1398,6 +1401,7 @@ public partial class VillageMap : Node2D
 		utility.AddChild(restButton);
 		BuildClassUi(ui, utility);
 		BuildInventoryUi(ui, utility);
+		BuildSpellUi(ui, utility);
 		_restPanel = HudPanel(300, 720, -300, -165, bottomAnchored: true);
 		_restPanel.Visible = false;
 		_restPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.10f, 0.11f, 0.13f, 0.96f) });

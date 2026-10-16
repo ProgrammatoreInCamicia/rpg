@@ -79,6 +79,7 @@ public partial class VillageMap
 		{
 			_classPanel.Visible = false;
 			_inventoryPanel.Visible = false;
+			_spellPanel.Visible = false;
 		}
 		_hudWasInCombat = inCombat;
 		_exploreActionPanel.Visible = !inCombat && !_view.Dead;
@@ -127,6 +128,7 @@ public partial class VillageMap
 		if (_openingConfirm.Visible) { _openingConfirm.Hide(); return; }
 		if (_openingPanel.Visible) { _openingPanel.Visible = false; return; }
 		if (_classPanel.Visible) { _classPanel.Visible = false; return; }
+		if (_spellPanel.Visible) { _spellPanel.Visible = false; return; }
 		if (_inventoryPanel.Visible) { _inventoryPanel.Visible = false; return; }
 		if (_journalPanel.Visible) { ToggleJournal(); return; }
 		if (_creaturePanel.Visible) { _creaturePanel.Visible = false; return; }

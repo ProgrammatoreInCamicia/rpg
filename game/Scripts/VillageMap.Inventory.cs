@@ -18,7 +18,11 @@ public partial class VillageMap
 	private void BuildInventoryUi(CanvasLayer ui, BoxContainer sidebar)
 	{
 		_inventoryButton = new Button { Text = "Inventario" };
-		_inventoryButton.Pressed += () => _inventoryPanel.Visible = !_inventoryPanel.Visible;
+		_inventoryButton.Pressed += () =>
+		{
+			_inventoryPanel.Visible = !_inventoryPanel.Visible;
+			if (_inventoryPanel.Visible) _spellPanel.Visible = false;
+		};
 		sidebar.AddChild(_inventoryButton);
 
 		_inventoryPanel = new PanelContainer { OffsetLeft = 450, OffsetRight = 800, OffsetTop = 16,

@@ -53,6 +53,12 @@ public partial class VillageSmoke : Node
 			await ClassAndConditions();
 			return;
 		}
+		if (OS.GetCmdlineUserArgs().Contains("--r3bc-attack-only"))
+		{
+			await Frames(3);
+			await PaladinAttackFeatures();
+			return;
+		}
 		if (OS.GetCmdlineUserArgs().Contains("--p5a-only"))
 		{
 			await Frames(3);
@@ -325,6 +331,7 @@ public partial class VillageSmoke : Node
 		await NightDuel();
 		await DaylightAssault();
 		await CombatActions();
+		await PaladinAttackFeatures();
 		await InventoryPreview();
 		await InventoryCombat();
 	}
@@ -439,6 +446,45 @@ public partial class VillageSmoke : Node
 		Capture("41-c3b-inventory-preview.png");
 	}
 
+	/// <summary>R3b/R3c: the attack bar forwards both the Smite and Sacred Weapon choices to a real fight.</summary>
+	private async Task PaladinAttackFeatures()
+	{
+		var source = System.IO.Path.Combine(_outputDir, "g13-guard-joined.json");
+		var snapshot = JsonNode.Parse(File.ReadAllText(source))!.AsObject();
+		var player = snapshot["Actors"]!.AsArray().Single(a => a!["Id"]!.GetValue<string>() == MappedVillageScenario.Ids.Player.Value)!;
+		player["Experience"] = 900;
+		player["Vitality"]!["Maximum"] = 25;
+		player["Vitality"]!["Current"] = 25;
+		player["Subclass"] = "devotion";
+		var testSave = System.IO.Path.Combine(_outputDir, "r3bc-guard-fight.json");
+		File.WriteAllText(testSave, snapshot.ToJsonString());
+		_map.LoadGameFromPath(testSave);
+		await Frames(2);
+		var melee = _map.View.Combat?.Targets.FirstOrDefault(t => t.Attack == "Spada lunga" && t.Valid);
+		Require(_map.View.Combat is { IsYourTurn: true, You.ActionAvailable: true } && melee is not null,
+			$"R3bc: no melee target for the Paladin attack controls: "
+			+ $"player={_map.View.Position}, options={string.Join("; ", _map.View.Combat?.Targets.Where(t => t.Attack == "Spada lunga").Select(t => $"{t.Target}:{t.Valid}:{t.Why}") ?? Array.Empty<string>())}");
+		_map.SelectCombatantForSmoke(melee!.Target);
+		_map.PressCombatActionForSmoke(CombatAction.Help);
+		Require(_map.View.Combat is { You.ActionAvailable: false }
+			&& _map.View.Combat.Log.Any(e => e.Text.Contains("distrae")),
+			$"R4c: Aiuta did not receive the selected target from the action bar: {_map.LastMessage}");
+		_map.LoadGameFromPath(testSave);
+		await Frames(2);
+		var before = _map.View.Combat!.Log.Count;
+		_map.ArmAttackForSmoke("Spada lunga");
+		_map.SelectAttackFeaturesForSmoke(freeSmite: true, sacredWeapon: true);
+		Require(_map.ClickArmedTargetForSmoke(melee!.Target), "R3bc: the attack mode ignored the target");
+		Require(_map.View.ChannelDivinity is { Remaining: 1, Max: 2 }
+			&& _map.View.Effects.Any(e => e.Spell == "sacred-weapon"),
+			$"R3c: Arma sacra was not applied from the attack bar: {_map.LastMessage}");
+		var attack = _map.View.Combat?.Log.Skip(before).FirstOrDefault(e => e.Kind == CombatLogKind.Attack && e.Actor == _map.View.Id);
+		Require(attack is not null && (attack.Hit != true || _map.View.Spells?.FreeSmite == false),
+			$"R3b: Punizione gratuita was not carried by the attack bar: {_map.LastMessage}");
+		await Frames(2);
+		Capture("r3bc-sacred-smite.png");
+	}
+
 	/// <summary>G14: the C3a choices are usable in the village HUD, including a saved disengaged turn.</summary>
 	private async Task CombatActions()
 	{
@@ -448,7 +494,7 @@ public partial class VillageSmoke : Node
 		await Frames(2);
 		Require(_map.View.Combat is { IsYourTurn: true, You.ActionAvailable: true },
 			"G14: the loaded fight is not at the player's action");
-		Require(Enum.GetValues<CombatAction>().All(_map.CombatActionEnabledForSmoke),
+		Require(_map.View.Combat!.Actions.Where(a => a.Valid).All(a => _map.CombatActionEnabledForSmoke(a.Action)),
 			"G14: a valid combat action button is disabled");
 		var normalMove = _map.View.Combat!.You.MovementLeftFeet;
 		_map.PressCombatActionForSmoke(CombatAction.Dash);
@@ -1250,6 +1296,14 @@ public partial class VillageSmoke : Node
 			&& _map.ClassSummaryForSmoke.Contains("3/5"),
 			$"R3a: Lay On Hands did not heal from the panel: {_map.LastMessage}");
 		Capture("r3a-lay-on-hands.png");
+		Require(_map.View.Spells?.Prepared.Any(s => s.Id == "cure-wounds") == true,
+			"R3b: Cura ferite is missing from the prepared spellbook");
+		_map.CastSpellForSmoke("cure-wounds", 1, _map.View.Id);
+		Require(_map.View.HitPoints > 6 && _map.View.Spells?.Slots.Single(s => s.Level == 1).Remaining == 1
+			&& _map.SpellSummaryForSmoke.Contains("1° 1/2"),
+			$"R3b: Cura ferite did not use a slot and heal through the book: {_map.LastMessage}");
+		await Frames(2);
+		Capture("r3b-cure-wounds.png");
 
 		player["Experience"] = 300;
 		player["Vitality"]!["Maximum"] = 18; // level 2 Paladin: 11 + fixed 6 + Constitution 1
@@ -1265,6 +1319,32 @@ public partial class VillageSmoke : Node
 			$"R3a: the level choice was not applied through the UI: {_map.LastMessage}");
 		await Frames(2);
 		Capture("r3a-fighting-style.png");
+
+		player["Experience"] = 900;
+		player["Vitality"]!["Maximum"] = 25;
+		var levelThree = System.IO.Path.Combine(_outputDir, "r3c-level-three.json");
+		File.WriteAllText(levelThree, snapshot.ToJsonString());
+		_map.LoadGameFromPath(levelThree);
+		await Frames(3);
+		var oath = _map.View.PendingChoices.Single(c => c.Kind == "Subclass");
+		_map.ChooseFirstForSmoke(oath.Title);
+		Require(_map.View.Subclass == "devotion" && _map.View.ChannelDivinity is { Remaining: 2, Max: 2 },
+			$"R3c: oath choice or Channel Divinity missing: {_map.LastMessage}");
+		var preparation = _map.View.PendingChoices.Single(c => c.Kind == "PreparedSpells");
+		var preparedBefore = _map.View.Spells!.Prepared.Count;
+		_map.ChooseFirstForSmoke(preparation.Title);
+		Require(_map.View.PendingChoices.All(c => c.Kind != "PreparedSpells")
+			&& _map.View.Spells!.Prepared.Count == preparedBefore + preparation.Picks,
+			$"R3b: spell preparation did not apply through the choice panel: {_map.LastMessage}");
+		_map.UseDivineSenseForSmoke();
+		Require(_map.View.ChannelDivinity is { Remaining: 1, Max: 2 }
+			&& _map.SpellSummaryForSmoke.Contains("Incanalare: 1/2"),
+			$"R3c: Percezione divina did not use Channel Divinity from the UI: {_map.LastMessage}");
+		_map.CastSpellForSmoke("bless", 1, _map.View.Id);
+		Require(_map.View.Spells?.Concentrating == "bless" && _map.MagicStatusForSmoke.Contains("Concentrazione: Benedizione"),
+			$"R3b: concentration is not visible after casting Benedizione: {_map.LastMessage}");
+		await Frames(2);
+		Capture("r3bc-divine-concentration.png");
 	}
 
 	/// <summary>G8: the player is seen stealing, the guard catches up, and the farmer reports the theft.</summary>

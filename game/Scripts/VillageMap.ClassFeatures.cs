@@ -24,6 +24,7 @@ public partial class VillageMap
 		_classButton.Pressed += () =>
 		{
 			_classPanel.Visible = !_classPanel.Visible;
+			if (_classPanel.Visible) _spellPanel.Visible = false;
 			if (_classPanel.Visible) RebuildClassPanel();
 		};
 		main.AddChild(_classButton);

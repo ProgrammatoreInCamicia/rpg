@@ -22,6 +22,7 @@ public partial class VillageMap
 	private VBoxContainer _combatAttacks = null!;
 	private CheckBox _combatNonLethal = null!;
 	private Button _combatEndTurn = null!;
+	private Button _combatLayOnHands = null!;
 	private RichTextLabel _combatLog = null!;
 	private PanelContainer _openingPanel = null!;
 	private Label _openingTargetLabel = null!;
@@ -86,13 +87,14 @@ public partial class VillageMap
 			actionRow.AddChild(button);
 			_combatActionButtons.Add(choice, button);
 		}
-		var layOnHands = new Button { Text = "Imposizione", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		layOnHands.Pressed += () =>
+		_combatLayOnHands = new Button { Text = "Imposizione", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_combatLayOnHands.Pressed += () =>
 		{
 			_classPanel.Visible = true;
 			RebuildClassPanel();
 		};
-		actionRow.AddChild(layOnHands);
+		actionRow.AddChild(_combatLayOnHands);
+		BuildCombatSpellButtons(actionRow);
 		var attackScroll = new ScrollContainer { CustomMinimumSize = new Vector2(0, 50), Visible = false,
 			SizeFlagsVertical = Control.SizeFlags.ExpandFill };
 		box.AddChild(attackScroll);
@@ -238,10 +240,14 @@ public partial class VillageMap
 				? $"\nTiri salvezza contro la morte: {combat.You.DeathSaveSuccesses} successi, {combat.You.DeathSaveFailures} fallimenti" : "");
 		_combatHint.Text = BaseCombatHint(combat);
 		_combatEndTurn.Disabled = !combat.IsYourTurn;
+		_combatLayOnHands.Disabled = !combat.IsYourTurn || !combat.You.BonusActionAvailable
+			|| _view.LayOnHands is not { Remaining: > 0 } || _view.Dead || _view.Unconscious;
 		foreach (var (action, button) in _combatActionButtons)
 		{
 			var option = combat.Actions.FirstOrDefault(a => a.Action == action);
 			button.Disabled = option?.Valid != true;
+			button.Visible = action is CombatAction.Dash or CombatAction.Disengage or CombatAction.Dodge
+				|| option?.Valid == true;
 			button.TooltipText = option is { Valid: false } ? option.Why ?? "Azione non disponibile." : CombatActionTip(action);
 		}
 		_combatLog.Text = string.Join("\n", combat.Log.TakeLast(14).Select(e => $"R{e.Round} · {e.Text}"));
@@ -321,6 +327,11 @@ public partial class VillageMap
 		CombatAction.Dash => "Scatto",
 		CombatAction.Disengage => "Disimpegno",
 		CombatAction.Dodge => "Schivata",
+		CombatAction.Escape => "Liberarsi",
+		CombatAction.Help => "Aiuta",
+		CombatAction.Hide => "Nasconditi",
+		CombatAction.Search => "Cerca",
+		CombatAction.Ready => "Prepara",
 		_ => action.ToString(),
 	};
 
@@ -329,6 +340,11 @@ public partial class VillageMap
 		CombatAction.Dash => "Consuma l'azione: aggiunge la Velocit\u00e0 al movimento di questo turno.",
 		CombatAction.Disengage => "Consuma l'azione: muoversi non provoca attacchi di opportunit\u00e0 in questo turno.",
 		CombatAction.Dodge => "Consuma l'azione: chi attacca mentre lo vedi ha svantaggio fino al tuo prossimo turno.",
+		CombatAction.Escape => "Consuma l'azione per tentare di liberarti da una presa.",
+		CombatAction.Help => "Seleziona un nemico vicino, poi Aiuta: il prossimo attacco di un alleato contro di lui ha vantaggio.",
+		CombatAction.Hide => "Consuma l'azione per nasconderti se non ti vedono.",
+		CombatAction.Search => "Consuma l'azione per cercare creature nascoste.",
+		CombatAction.Ready => "Consuma l'azione e prepara un colpo in mischia quando un nemico entra a portata.",
 		_ => "",
 	};
 
@@ -477,15 +493,24 @@ public partial class VillageMap
 	{
 		_combatVisualTracks.Clear();
 		var result = _sim.Execute(new AttackCommand { Actor = _sim.Player, Target = target.Target,
-			Attack = target.Attack, NonLethal = _nonLethalEnabled && IsMeleeAttack(target.Attack) });
+			Attack = target.Attack, NonLethal = _nonLethalEnabled && IsMeleeAttack(target.Attack),
+			SmiteFree = _smiteChoice == -1, SmiteSlot = _smiteChoice > 0 ? _smiteChoice : null,
+			SacredWeapon = _sacredWeaponChosen });
+		if (result.Success) { _smiteChoice = 0; _sacredWeaponChosen = false; }
 		ShowMessage(result.Message);
 		Refresh();
 	}
 
 	private void ExecuteCombatAction(CombatAction action)
 	{
+		if (action == CombatAction.Help && _selectedCombatTarget is null)
+		{
+			ShowMessage("Seleziona un nemico vicino, poi premi Aiuta.");
+			return;
+		}
 		_combatVisualTracks.Clear();
-		var result = _sim.Execute(new CombatActionCommand { Actor = _sim.Player, Action = action });
+		var result = _sim.Execute(new CombatActionCommand { Actor = _sim.Player, Action = action,
+			Target = action == CombatAction.Help ? _selectedCombatTarget : null });
 		ShowMessage(result.Message);
 		Refresh();
 	}

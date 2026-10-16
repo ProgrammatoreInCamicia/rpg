@@ -12,6 +12,10 @@ public partial class VillageMap
 	private bool _attackArmed;
 	private bool _nonLethalEnabled;
 	private string _attackOptionsKey = "";
+	private readonly List<(HBoxContainer Row, OptionButton Smite, CheckBox Sacred)> _attackFeatureBars = new();
+	private int _smiteChoice;
+	private bool _sacredWeaponChosen;
+	private const int FreeSmiteMenuId = 100;
 
 	private void BuildAttackBar(BoxContainer parent)
 	{
@@ -41,6 +45,21 @@ public partial class VillageMap
 		};
 		row.AddChild(nonLethal);
 		_attackBars.Add((picker, arm, nonLethal));
+		var features = new HBoxContainer { Visible = false };
+		parent.AddChild(features);
+		var smite = new OptionButton { CustomMinimumSize = new Vector2(220, 0),
+			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		smite.ItemSelected += _ =>
+		{
+			var selected = smite.GetItemId(smite.Selected);
+			_smiteChoice = selected == FreeSmiteMenuId ? -1 : selected;
+			RefreshAttackBars();
+		};
+		features.AddChild(smite);
+		var sacred = new CheckBox { Text = "Arma sacra", TooltipText = "Consuma un uso di Incanalare divinità con l'attacco." };
+		sacred.Toggled += on => { _sacredWeaponChosen = on; RefreshAttackBars(); };
+		features.AddChild(sacred);
+		_attackFeatureBars.Add((features, smite, sacred));
 		var hint = new Label { Text = "Clicca un bersaglio. Esc annulla.",
 			AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false };
 		parent.AddChild(hint);
@@ -78,6 +97,34 @@ public partial class VillageMap
 			nonLethal.SetPressedNoSignal(_nonLethalEnabled);
 		}
 		foreach (var hint in _attackHints) hint.Visible = _attackArmed;
+		var combat = _view.Combat;
+		var melee = _armedAttack is { } chosen && IsMeleeAttack(chosen);
+		var smiteReady = combat is { IsYourTurn: true, You.BonusActionAvailable: true }
+			&& melee && _view.Spells?.Prepared.Any(s => s.Id == "divine-smite") == true;
+		var sacredReady = combat is { IsYourTurn: true, You.ActionAvailable: true }
+			&& melee && _view.ChannelDivinity is { Remaining: > 0 } && _view.Subclass == "devotion";
+		if (!smiteReady || _smiteChoice > 0 && combat!.You.SpellSlotSpent
+			|| _smiteChoice == -1 && _view.Spells?.FreeSmite != true) _smiteChoice = 0;
+		if (!sacredReady) _sacredWeaponChosen = false;
+		foreach (var (row, smite, sacred) in _attackFeatureBars)
+		{
+			row.Visible = combat is not null && (_view.Spells?.Prepared.Any(s => s.Id == "divine-smite") == true || _view.ChannelDivinity is not null);
+			smite.Clear();
+			smite.AddItem("Senza Punizione", 0);
+			if (_view.Spells?.FreeSmite == true) smite.AddItem("Punizione gratuita", FreeSmiteMenuId);
+			foreach (var slot in _view.Spells?.Slots ?? Array.Empty<SlotView>())
+			{
+				smite.AddItem($"Punizione · slot {slot.Level}° ({slot.Remaining})", slot.Level);
+				smite.SetItemDisabled(smite.ItemCount - 1, slot.Remaining == 0 || combat?.You.SpellSlotSpent == true);
+			}
+			var selectedId = _smiteChoice == -1 ? FreeSmiteMenuId : _smiteChoice;
+			var index = Enumerable.Range(0, smite.ItemCount).FirstOrDefault(i => smite.GetItemId(i) == selectedId, 0);
+			smite.Select(index);
+			smite.Disabled = !smiteReady;
+			sacred.Visible = _view.ChannelDivinity is not null;
+			sacred.Disabled = !sacredReady;
+			sacred.SetPressedNoSignal(_sacredWeaponChosen);
+		}
 	}
 
 	private bool UseArmedAttack(ActorId target)
@@ -143,6 +190,25 @@ public partial class VillageMap
 	{
 		_armedAttack = attack;
 		_attackArmed = true;
+		RefreshAttackBars();
+	}
+	internal void SelectAttackFeaturesForSmoke(bool freeSmite, bool sacredWeapon)
+	{
+		if (_view.Combat is null) throw new InvalidOperationException("Attack features need a fight");
+		var (_, smite, sacred) = _attackFeatureBars[^1];
+		if (freeSmite)
+		{
+			var free = Enumerable.Range(0, smite.ItemCount).FirstOrDefault(i => smite.GetItemId(i) == FreeSmiteMenuId, -1);
+			if (free < 0 || smite.Disabled) throw new InvalidOperationException("Free Divine Smite is unavailable in the UI");
+			smite.Select(free);
+			_smiteChoice = -1;
+		}
+		if (sacredWeapon)
+		{
+			if (sacred.Disabled) throw new InvalidOperationException("Sacred Weapon is unavailable in the UI");
+			sacred.SetPressedNoSignal(true);
+			_sacredWeaponChosen = true;
+		}
 		RefreshAttackBars();
 	}
 }
