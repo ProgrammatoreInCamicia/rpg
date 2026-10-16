@@ -39,6 +39,10 @@ public sealed record PlayerView
     /// <summary>R1: from when the next Long Rest can be taken (SRD: one in 16 hours); null if it can be now.</summary>
     public GameTime? LongRestFrom { get; init; }
 
+    /// <summary>R2: the player's conditions, and its Exhaustion level (0..6, SRD).</summary>
+    public IReadOnlyList<ConditionView> Conditions { get; init; } = Array.Empty<ConditionView>();
+    public int Exhaustion { get; init; }
+
     /// <summary>Direction the character faces in map coordinates; null in legacy all-direction scenarios.</summary>
     public GridPos? Facing { get; init; }
 
@@ -178,6 +182,9 @@ public sealed record VisibleActorView
     /// </summary>
     public BarrierRefView? AtBarrier { get; init; }
 
+    /// <summary>R2: the conditions one sees on it (Prone, Grappled, Restrained, Paralyzed, Stunned); not Poisoned, Frightened or Charmed.</summary>
+    public IReadOnlyList<ConditionView> Conditions { get; init; } = Array.Empty<ConditionView>();
+
     /// <summary>
     /// On maps: whether this actor sees the player right now (SRD: if you can see a creature, you can discern whether
     /// it can see you). Null off the maps.
@@ -282,4 +289,18 @@ public sealed record HitDiceView
 
     /// <summary>The die's faces (Paladin: 10).</summary>
     public required int Die { get; init; }
+}
+
+/// <summary>R2: the conditions of the SRD 5.2.1 Rules Glossary (Unconscious stays in the life state).</summary>
+public enum ConditionKind
+{
+    Blinded, Charmed, Deafened, Frightened, Grappled, Incapacitated, Invisible, Paralyzed, Poisoned, Prone, Restrained, Stunned,
+}
+
+/// <summary>R2: a condition on a creature: who caused it, if known, and when it ends, if at a set time.</summary>
+public sealed record ConditionView
+{
+    public required ConditionKind Kind { get; init; }
+    public ActorId? Source { get; init; }
+    public GameTime? Until { get; init; }
 }

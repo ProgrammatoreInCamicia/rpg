@@ -953,3 +953,11 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 - `PlayerView.HitPoints` e `MaxHitPoints`: i punti ferita del giocatore, anche fuori dallo scontro (richiesta di Codex).
 - Dadi Vita spesi uno alla volta, smettendo quando i punti ferita sono pieni; ogni dado vale almeno 0 (ADATTAMENTO: il minimo esatto dello SRD 2024 va riletto sul PDF).
 - Chi dorme non vede nulla anche per le regole: non è testimone, non vede chi lo colpisce.
+
+## R2 — Tiri salvezza, condizioni, sfinimento, padronanze (SRD 5.2.1)
+
+- Tiri salvezza: d20 + modificatore + competenza se competente (Paladino: Saggezza e Carisma; creature: `saves` della scheda). `CombatLogKind.Save`.
+- Condizioni (`ConditionKind`, `ConditionView` con `Source` e `Until`): `PlayerView.Conditions`; `VisibleActorView.Conditions` solo quelle visibili (Prono, Afferrato, Trattenuto, Paralizzato, Stordito). Privo di sensi resta nello stato vitale. `CombatLogKind.Condition` quando una comincia o finisce.
+- `PlayerView.Exhaustion` (0..6): −2 per livello ai tiri d20, −5 piedi per livello alla velocità, al 6 si muore; un riposo lungo toglie un livello.
+- `AttackPreview.Reasons`, `TargetView.Reasons`: perché c'è vantaggio o svantaggio, in poche parole.
+- Padronanze: tutte e 8 per chi le ha (`CombatLogKind.Mastery`).

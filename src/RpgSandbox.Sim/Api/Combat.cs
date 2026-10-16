@@ -194,6 +194,9 @@ public sealed record TargetView
 
     /// <summary>P3: the target's cover against this attack (it depends only on where the two stand).</summary>
     public CoverDegree Cover { get; init; }
+
+    /// <summary>R2: why the roll has Advantage or Disadvantage, in short words ("è prono", "avvelenato").</summary>
+    public IReadOnlyList<string> Reasons { get; init; } = Array.Empty<string>();
 }
 
 public sealed record PendingAttackView
@@ -230,6 +233,13 @@ public enum CombatLogKind
     KnockedOut,
     Died,
     Ended,
+
+    /// <summary>R2: a saving throw, its roll and outcome.</summary>
+    Save,
+
+    /// <summary>R2: a condition begins or ends; a weapon mastery takes effect.</summary>
+    Condition,
+    Mastery,
 }
 
 /// <summary>One thing the player perceived in the fight, with the dice when there are any.</summary>
@@ -320,6 +330,9 @@ public sealed record ProvocationView
 public sealed record AttackPreview
 {
     public required bool Valid { get; init; }
+
+    /// <summary>R2: why the roll has Advantage or Disadvantage, in short words.</summary>
+    public IReadOnlyList<string> Reasons { get; init; } = Array.Empty<string>();
     public RejectionReason Reason { get; init; }
     public string Message { get; init; } = "";
     public bool Advantage { get; init; }
