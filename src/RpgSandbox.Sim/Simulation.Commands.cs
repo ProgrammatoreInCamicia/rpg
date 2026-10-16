@@ -41,6 +41,7 @@ internal sealed partial class Simulation
                     ObserveCommand observe => Observe(fight, observe),
                     DoorCommand or WindowCommand or BarrierCommand => CombatBarrier(fight, actor, command), // P4c
                     LayOnHandsCommand lay => LayOnHands(lay), // R3a
+                    TorchCommand torch => UseTorch(torch), // T1: the free interaction
                     CastCommand cast => Cast(cast), // R3b
                     ChannelDivinityCommand channel => UseChannelDivinity(channel), // R3c
                     ReleaseCommand release => Release(release), // R4a

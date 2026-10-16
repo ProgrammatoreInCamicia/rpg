@@ -721,6 +721,8 @@ internal static class SaveGame
             // D1a: what it wears and wields is in its inventory and of the right kind; then its profile is derived again.
             var eq = a.Equipment ?? throw new InvalidDataException($"equipaggiamento di '{a.Id}' mancante");
             actor.Equipment = new Equipment(eq.Armor, eq.Shield, eq.MainHand, eq.OffHand);
+            if (actor.TorchLitUntil is { } burning && burning > w.Now) // T1: older saves had a lit torch beside a shield or a second weapon
+                actor.Equipment = actor.Equipment with { Shield = null, OffHand = null };
             Check(actor.Equipment.Items.All(i => actor.Carried(i) >= actor.Equipment.Items.Count(x => x == i))
                   && (eq.Armor is null || content.Item(eq.Armor)?.Armor is { Type: not ArmorType.Shield })
                   && (eq.Shield is null || content.Item(eq.Shield)?.Armor is { Type: ArmorType.Shield })

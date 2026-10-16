@@ -87,7 +87,7 @@ public static class Builds
     }
 
     public static CombatProfile Profile(ContentPack pack, string build, Equipment equipment, int? level = null,
-        CharacterChoices? choices = null)
+        CharacterChoices? choices = null, bool torchInHand = false)
     {
         var sheet = Sheet(pack, build, equipment, level, choices);
         if (!pack.Characters.TryGetValue(build, out var c))
@@ -108,7 +108,7 @@ public static class Builds
         var attacks = new List<AttackProfile>();
         if (equipment.MainHand is { } hand && pack.Items[hand].Weapon is { } weapon)
         {
-            var twoHands = equipment.Shield is null && equipment.OffHand is null && weapon.Has(WeaponProperty.Versatile);
+            var twoHands = equipment.Shield is null && equipment.OffHand is null && !torchInHand && weapon.Has(WeaponProperty.Versatile);
             var attack = AttackProfile.With(sheet, weapon, cls.Weapons.Contains(weapon.Category), twoHands,
                 masteryUnlocked: masteries.Contains(hand)) with { Requires = hand };
             attack = FightingStyle(attack, weapon, twoHands, choices?.FightingStyle);
@@ -130,6 +130,12 @@ public static class Builds
             attacks.Add(AttackProfile.With(sheet, pack.Items[thrown].Weapon!, cls.Weapons.Contains(pack.Items[thrown].Weapon!.Category),
                 thrown: true, masteryUnlocked: masteries.Contains(thrown)) with { Item = thrown, Fate = ItemFate.Thrown });
         attacks.Add(AttackProfile.Unarmed(sheet));
+        if (torchInHand) // T1, SRD Torch: a Simple Melee weapon, 1 Fire damage on a hit
+            attacks.Add(new AttackProfile
+            {
+                Name = "Torcia", AttackBonus = Abilities.Modifier(sheet.Strength) + (cls.Weapons.Contains(WeaponCategory.Simple) ? sheet.ProficiencyBonus : 0),
+                Damage = Dice.None, DamageBonus = 1, Type = DamageType.Fire, Melee = true, AbilityModifier = 0, Torch = true,
+            });
         return new CombatProfile
         {
             Name = cls.Name, MaxHitPoints = Math.Max(1, hitPoints), ArmorClass = sheet.ArmorClass,

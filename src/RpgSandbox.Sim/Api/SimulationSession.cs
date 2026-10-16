@@ -188,7 +188,7 @@ public sealed class SimulationSession
         Name = actor.Name,
         IsPlayer = actor.IsPlayer,
         Inventory = Freeze(actor.Inventory.Select(i => Stack(actor, w.Content, i.Key, i.Value))),
-        Equipment = Worn(actor, w.Content),
+        Equipment = Worn(actor, w.Content, actor.TorchLitUntil is { } until && w.Now < until),
         Coins = actor.Coins,
         Faction = actor.Faction,
         Location = actor.Location,
@@ -384,7 +384,7 @@ public sealed class SimulationSession
                 Uses = a.Item is { } item ? new ItemId(item) : null, Remaining = a.Item is { } kept ? player.Carried(kept) : null,
             })),
             Inventory = Freeze(player.Inventory.Select(i => Stack(player, w.Content, i.Key, i.Value))),
-            Equipment = Worn(player, w.Content),
+            Equipment = Worn(player, w.Content, _sim.TorchLit(player)),
             Coins = player.Coins,
             GroundItems = map is null ? Array.Empty<GroundItemView>() : Freeze(map.Ground
                 .Where(g => me is { } eye && (eye.IsAdjacentOrSame(g.Key) || _sim.CanSee(map, player, eye, g.Key)))
@@ -472,10 +472,10 @@ public sealed class SimulationSession
         new() { Item = item, Name = NameOf(content, item), Count = count, Equipped = actor.Equipment.Items.Count(i => i == item.Value) };
 
     /// <summary>D1a: what the actor wears and wields, slot by slot.</summary>
-    private static IReadOnlyList<EquippedView> Worn(Actor actor, Rules.ContentPack content) => Freeze(new[]
+    private static IReadOnlyList<EquippedView> Worn(Actor actor, Rules.ContentPack content, bool torch) => Freeze(new[]
         {
             (EquipmentSlot.Armor, actor.Equipment.Armor), (EquipmentSlot.Shield, actor.Equipment.Shield), (EquipmentSlot.MainHand, actor.Equipment.MainHand),
-            (EquipmentSlot.OffHand, actor.Equipment.OffHand),
+            (EquipmentSlot.OffHand, actor.Equipment.OffHand ?? (torch ? "torch" : null)), // T1: a lit torch in the off hand
         }.Where(s => s.Item2 is not null)
         .Select(s => new EquippedView { Slot = s.Item1, Item = new ItemId(s.Item2!), Name = NameOf(content, new ItemId(s.Item2!)) }));
 

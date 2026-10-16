@@ -18,7 +18,7 @@ internal sealed partial class Simulation
         var eq = actor.Equipment;
         if (eq.MainHand is null)
             return true;
-        if (eq.Shield is not null || eq.OffHand is not null)
+        if (eq.Shield is not null || eq.OffHand is not null || TorchLit(actor)) // T1: a lit torch fills a hand
             return false;
         return World.Content.Items.TryGetValue(eq.MainHand, out var item) && item.Weapon is { } w
                && !w.Has(WeaponProperty.TwoHanded) && !w.Has(WeaponProperty.Versatile);

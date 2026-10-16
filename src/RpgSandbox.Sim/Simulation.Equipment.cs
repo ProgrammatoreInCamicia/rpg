@@ -44,6 +44,8 @@ internal sealed partial class Simulation
             : null;
         if (why is not null)
             return CommandResult.Rejected(RejectionReason.InvalidAmount, why);
+        if (TorchLit(actor) && (command.Slot is EquipmentSlot.OffHand or EquipmentSlot.Shield && command.Item is not null || TwoHanded(next.MainHand)))
+            return CommandResult.Rejected(RejectionReason.NoFreeHand, "La torcia accesa ti occupa la mano secondaria: spegnila prima."); // T1
 
         var e = EncounterOf(actor);
         string paid = "";
@@ -52,9 +54,16 @@ internal sealed partial class Simulation
             if (!IsTurnOf(e, actor))
                 return CommandResult.Rejected(RejectionReason.NotYourTurn, "Non è il tuo turno.");
             var me = CombatantOf(e, actor.Id);
-            if (me.Interacted && me.ActionUsed)
+            if (command.Slot == EquipmentSlot.Shield) // T1, SRD: a shield takes the Utilize action to don or doff
+            {
+                if (me.ActionUsed)
+                    return CommandResult.Rejected(RejectionReason.NoActionLeft, "Imbracciare o riporre lo scudo richiede l'azione: l'hai già usata.");
+                me.ActionUsed = true;
+                paid = " (usi l'azione)";
+            }
+            else if (me.Interacted && me.ActionUsed)
                 return CommandResult.Rejected(RejectionReason.NoActionLeft, "Hai già usato l'interazione con un oggetto e l'azione in questo turno.");
-            if (me.Interacted)
+            else if (me.Interacted)
             {
                 me.ActionUsed = true;
                 paid = " (usi l'azione)";

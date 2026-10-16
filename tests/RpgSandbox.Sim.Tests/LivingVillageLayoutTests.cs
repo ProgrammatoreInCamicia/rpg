@@ -108,7 +108,7 @@ public class LivingVillageLayoutTests
 
         Walk(session, new GridPos(12, 10));
         Assert.Equal('1', session.GetPlayerView().MapVisibility![dark.Y][dark.X]);
-        Assert.True(session.Execute(new TorchCommand { Actor = session.Player, Lit = true }).Success);
+        Assert.True(session.Execute(new TorchCommand { Actor = session.Player, Lit = true, StowShield = true }).Success);
         Assert.Equal('2', session.GetPlayerView().MapVisibility![dark.Y][dark.X]);
         Assert.True(session.Execute(new TorchCommand { Actor = session.Player, Lit = false }).Success);
         Assert.Equal('1', session.GetPlayerView().MapVisibility![dark.Y][dark.X]);

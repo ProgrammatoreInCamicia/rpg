@@ -3,7 +3,7 @@ namespace RpgSandbox.Sim.Rules;
 // Weapons from the SRD 5.2.1 "Weapons" table (CC-BY-4.0, see CREDITS.md): damage, properties and mastery as printed,
 // now data (game/content/srd/items.json, D1a).
 
-public enum DamageType { Bludgeoning, Piercing, Slashing }
+public enum DamageType { Bludgeoning, Piercing, Slashing, Fire }
 
 public enum WeaponCategory { Simple, Martial }
 

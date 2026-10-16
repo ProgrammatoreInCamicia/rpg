@@ -123,6 +123,9 @@ public sealed record ClimbCommand : BarrierCommand;
 public sealed record TorchCommand : Command
 {
     public required bool Lit { get; init; }
+
+    /// <summary>T1: put the shield away first, to have the off hand free (in a fight, the Utilize action).</summary>
+    public bool StowShield { get; init; }
 }
 
 public enum RejectionReason
@@ -207,6 +210,10 @@ public enum RejectionReason
     // R3b: spells
     /// <summary>No spell slot of that level left, or a slot already spent this turn.</summary>
     NoSlot,
+
+    // T1: hands
+    /// <summary>The hand it needs is taken (a lit torch, a shield, a second weapon).</summary>
+    NoFreeHand,
 }
 
 public sealed record CommandResult

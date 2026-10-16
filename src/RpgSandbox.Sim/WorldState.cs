@@ -857,7 +857,8 @@ internal sealed class WorldState
     /// <summary>D1a: recomputes an actor's profile (and sheet, unless its own) from its build and equipment.</summary>
     public void Refresh(Actor actor)
     {
-        actor.Profile = Builds.Profile(Content, actor.Build, actor.Equipment, LevelOf(actor), actor.Choices);
+        actor.Profile = Builds.Profile(Content, actor.Build, actor.Equipment, LevelOf(actor), actor.Choices,
+            torchInHand: actor.TorchLitUntil is { } until && Now < until); // T1
         if (!actor.SheetOverride)
             actor.Sheet = Builds.Sheet(Content, actor.Build, actor.Equipment, LevelOf(actor), actor.Choices);
     }

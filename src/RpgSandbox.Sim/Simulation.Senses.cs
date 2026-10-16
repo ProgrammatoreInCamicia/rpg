@@ -1,4 +1,5 @@
 using RpgSandbox.Sim.Api;
+using RpgSandbox.Sim.Rules;
 
 namespace RpgSandbox.Sim;
 
@@ -36,25 +37,76 @@ internal sealed partial class Simulation
             NoteSensesChange(map);
     }
 
+    /// <summary>
+    /// T1, SRD Torch: a lit torch is held in the off hand, so lighting it takes that hand free (no shield, no second weapon,
+    /// no two-handed weapon); <see cref="TorchCommand.StowShield"/> (always, for an NPC) puts the shield away first. In a
+    /// fight lighting or putting it out is the turn's free interaction (a second takes the action), and doffing the shield
+    /// takes the Utilize action.
+    /// </summary>
     private CommandResult UseTorch(TorchCommand command)
     {
         if (!World.Actors.TryGetValue(command.Actor, out var actor))
             return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {command.Actor}.");
         if (TorchLit(actor) == command.Lit)
             return CommandResult.Rejected(RejectionReason.AlreadyDone, command.Lit ? "La torcia è già accesa." : "Non hai una torcia accesa.");
+        if (command.Lit && actor.Torches == 0)
+            return CommandResult.Rejected(RejectionReason.NoTorch, "Non hai torce.");
+        var stow = command.Lit && actor.Equipment.Shield is not null && (command.StowShield || !actor.IsPlayer);
+        if (command.Lit && !stow && OffHandTaken(actor) is { } taken)
+            return CommandResult.Rejected(RejectionReason.NoFreeHand, taken);
+        if (command.Lit && stow && TwoHandedInHand(actor))
+            return CommandResult.Rejected(RejectionReason.NoFreeHand, "Ti serve una mano libera: l'arma che impugni ne vuole due.");
+        if (command.Lit && stow && actor.Equipment.OffHand is not null)
+            return CommandResult.Rejected(RejectionReason.NoFreeHand, "Ti serve una mano libera: riponi la seconda arma.");
+
+        var paid = "";
+        if (EncounterOf(actor) is { } e)
+        {
+            if (!IsTurnOf(e, actor))
+                return CommandResult.Rejected(RejectionReason.NotYourTurn, "Non è il tuo turno.");
+            var me = CombatantOf(e, actor.Id);
+            var actions = (stow ? 1 : 0) + (me.Interacted ? 1 : 0); // the shield takes the action; a second interaction too
+            if (actions > 1 || actions == 1 && me.ActionUsed)
+                return CommandResult.Rejected(RejectionReason.NoActionLeft, stow
+                    ? "Riporre lo scudo richiede l'azione, e accendere l'interazione: non ti restano."
+                    : "Hai già usato l'interazione con un oggetto e l'azione in questo turno.");
+            if (actions == 1)
+            {
+                me.ActionUsed = true;
+                paid = " (usi l'azione)";
+            }
+            if (!me.Interacted)
+                me.Interacted = true;
+        }
+
         if (!command.Lit)
         {
             LightChange(actor, () => actor.TorchLitUntil = null);
+            World.Refresh(actor);
             World.RecordFact("TorchOut", $"{actor.Name} spegne la torcia.", actor.Id);
-            return new CommandResult { Message = "Spegni la torcia." };
+            return new CommandResult { Message = $"Spegni la torcia{paid}." };
         }
-        if (actor.Torches == 0)
-            return CommandResult.Rejected(RejectionReason.NoTorch, "Non hai torce.");
+        if (stow)
+            actor.Equipment = actor.Equipment with { Shield = null };
         actor.Torches--;
         LightChange(actor, () => actor.TorchLitUntil = World.Now.Plus(Tuning.TorchBurns));
-        World.RecordFact("TorchLit", $"{actor.Name} accende una torcia.", actor.Id);
-        return new CommandResult { Message = $"Accendi una torcia: brucerà per un'ora. Te ne restano {actor.Torches}." };
+        World.Refresh(actor);
+        World.RecordFact("TorchLit", stow ? $"{actor.Name} ripone lo scudo e accende una torcia." : $"{actor.Name} accende una torcia.", actor.Id);
+        return new CommandResult
+        {
+            Message = $"{(stow ? "Riponi lo scudo e accendi" : "Accendi")} una torcia: brucerà per un'ora. Te ne restano {actor.Torches}.{paid}",
+        };
     }
+
+    /// <summary>T1: why the off hand is not free for a torch (null if it is).</summary>
+    private string? OffHandTaken(Actor actor) =>
+        actor.Equipment.Shield is not null ? "Ti serve una mano libera: riponi lo scudo (o accendi riponendolo)."
+        : actor.Equipment.OffHand is not null ? "Ti serve una mano libera: riponi la seconda arma."
+        : TwoHandedInHand(actor) ? "Ti serve una mano libera: l'arma che impugni ne vuole due."
+        : null;
+
+    private bool TwoHandedInHand(Actor actor) =>
+        actor.Equipment.MainHand is { } main && World.Content.Item(main)?.Weapon is { } w && w.Has(WeaponProperty.TwoHanded);
 
     /// <summary>Light on a square from lamps and carried torches only (daylight is accounted for apart).</summary>
     private Light SourceLightOn(GridMap map, GridPos square) => map.SourceLight(square, CarriedLights(map));

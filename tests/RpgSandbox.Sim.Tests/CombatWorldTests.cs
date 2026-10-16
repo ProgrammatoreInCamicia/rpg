@@ -186,7 +186,7 @@ public class CombatWorldTests
         var s = FirstSeed(seed => { var x = Yard(seed); Attack(x, Foe); return x; }, x => x.GetPlayerView().Combat is not null);
 
         Assert.Equal(RejectionReason.InCombat, s.Execute(new WaitCommand { Actor = s.Player, Duration = Duration.FromMinutes(1) }).Rejection);
-        Assert.Equal(RejectionReason.InCombat, s.Execute(new TorchCommand { Actor = s.Player, Lit = true }).Rejection);
+        Assert.Equal(RejectionReason.NoTorch, s.Execute(new TorchCommand { Actor = s.Player, Lit = true }).Rejection); // T1: a torch is allowed in a fight; here there is none
         Assert.Equal(RejectionReason.NoActionLeft, Attack(s, Foe).Rejection);
         Assert.Equal(RejectionReason.InCombat, s.Execute(new MoveCommand { Actor = s.Player, To = new GridPos(0, 0), Stealthy = true }).Rejection);
 

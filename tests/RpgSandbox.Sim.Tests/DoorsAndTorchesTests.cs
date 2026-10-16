@@ -97,7 +97,7 @@ public class DoorsAndTorchesTests
         WalkTo(s, new GridPos(16, 7)); // the dark granary yard
         Assert.Equal('0', LightAt(s, 16, 7));
 
-        var lit = s.Execute(new TorchCommand { Actor = s.Player, Lit = true });
+        var lit = s.Execute(new TorchCommand { Actor = s.Player, Lit = true, StowShield = true });
         Assert.True(lit.Success, lit.Message);
         var view = s.GetPlayerView();
         Assert.Equal(2, view.Torches);
@@ -122,10 +122,10 @@ public class DoorsAndTorchesTests
         var s = Village();
         for (var i = 0; i < 3; i++)
         {
-            Assert.True(s.Execute(new TorchCommand { Actor = s.Player, Lit = true }).Success);
+            Assert.True(s.Execute(new TorchCommand { Actor = s.Player, Lit = true, StowShield = true }).Success);
             Assert.True(s.Execute(new TorchCommand { Actor = s.Player, Lit = false }).Success);
         }
-        Assert.Equal(RejectionReason.NoTorch, s.Execute(new TorchCommand { Actor = s.Player, Lit = true }).Rejection);
+        Assert.Equal(RejectionReason.NoTorch, s.Execute(new TorchCommand { Actor = s.Player, Lit = true, StowShield = true }).Rejection);
         Assert.Equal(RejectionReason.AlreadyDone, s.Execute(new TorchCommand { Actor = s.Player, Lit = false }).Rejection);
     }
 
@@ -145,7 +145,7 @@ public class DoorsAndTorchesTests
         var guard = s.GetPlayerView().VisibleActors.Single(a => a.Id == Guard);
         Assert.False(guard.SeesYou);
 
-        Assert.True(s.Execute(new TorchCommand { Actor = s.Player, Lit = true }).Success);
+        Assert.True(s.Execute(new TorchCommand { Actor = s.Player, Lit = true, StowShield = true }).Success);
 
         Assert.NotNull(s.GetPlayerView().Sneaking); // a torch is not noise...
         Assert.True(s.GetPlayerView().VisibleActors.Single(a => a.Id == Guard).SeesYou); // ...but light
@@ -157,7 +157,7 @@ public class DoorsAndTorchesTests
         var s = Village();
         WalkTo(s, new GridPos(8, 3));
         Door(s, open: false);
-        s.Execute(new TorchCommand { Actor = s.Player, Lit = true });
+        s.Execute(new TorchCommand { Actor = s.Player, Lit = true, StowShield = true });
 
         var loaded = s.SaveAndReload();
 

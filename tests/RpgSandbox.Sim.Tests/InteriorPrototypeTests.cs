@@ -99,7 +99,7 @@ public class InteriorPrototypeTests
     public void Torch_and_boundaries_survive_a_save_round_trip()
     {
         var s = House(hour: 2);
-        Assert.True(s.Execute(new TorchCommand { Actor = s.Player, Lit = true }).Success);
+        Assert.True(s.Execute(new TorchCommand { Actor = s.Player, Lit = true, StowShield = true }).Success);
         Assert.Equal('0', LightAt(s, InteriorPrototypeScenario.Door));
 
         var loaded = s.SaveAndReload();

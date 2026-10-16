@@ -38,6 +38,9 @@ public sealed record AttackProfile
     /// <summary>R4b: the extra attack of the Light property, with the weapon in the other hand.</summary>
     public bool OffHand { get; init; }
 
+    /// <summary>T1: a blow with the lit torch (SRD: a Simple Melee weapon, 1 Fire damage).</summary>
+    public bool Torch { get; init; }
+
     /// <summary>C3b: the item the attack needs (a javelin to throw, a bolt to shoot), by catalog id, and what becomes of it.</summary>
     public string? Item { get; init; }
 
@@ -173,6 +176,7 @@ public sealed record AttackResult
     {
         DamageType.Bludgeoning => "contundenti",
         DamageType.Piercing => "perforanti",
+        DamageType.Fire => "da fuoco",
         _ => "taglienti",
     };
 }

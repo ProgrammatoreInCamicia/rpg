@@ -540,6 +540,8 @@ internal sealed partial class Simulation
             return new(RejectionReason.NoAmmo, $"Non ne hai più: {World.Content.Item(needed)?.Name ?? needed}.");
         if (attack.Requires is { } weapon && attacker.Carried(weapon) == 0) // D1a: no weapon in hand, no attack with it
             return new(RejectionReason.NoWeapon, $"Non hai più: {World.Content.Item(weapon)?.Name ?? weapon}.");
+        if (attack.Torch && !TorchLit(attacker)) // T1
+            return new(RejectionReason.NoWeapon, "La torcia è spenta.");
         var map = World.Maps[attacker.MapArea!.Value];
         var from = CurrentSpot(attacker)!.Value;
         var to = CurrentSpot(target)!.Value;

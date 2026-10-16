@@ -141,7 +141,7 @@ public class FineClockTests
         s.AdvanceUntilCompleted(wait.Action!.Value, Duration.FromMinutes(1));
         Assert.Equal(start.Plus(Ticks(90)), s.Now);
         // A torch lit now burns its hour to the tick.
-        Assert.True(s.Execute(new TorchCommand { Actor = s.Player, Lit = true }).Success);
+        Assert.True(s.Execute(new TorchCommand { Actor = s.Player, Lit = true, StowShield = true }).Success);
         Assert.Equal(Duration.FromHours(1), s.GetPlayerView().TorchLitUntil!.Value.Since(s.Now));
     }
 

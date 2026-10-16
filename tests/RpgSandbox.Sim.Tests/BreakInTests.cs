@@ -128,7 +128,7 @@ public class BreakInTests
         var s = House(new LockSpec(Locked: true, ForceDc: 30), tools: false);
         var player = Of(s, s.Player);
         player.Torches = 1;
-        Assert.True(s.Execute(new TorchCommand { Actor = s.Player, Lit = true }).Success);
+        Assert.True(s.Execute(new TorchCommand { Actor = s.Player, Lit = true, StowShield = true }).Success);
         player.PlaceAt(Spot.CenterOf(new GridPos(4, 3)));
         for (var i = 0; i < 1800 && Of(s, Raider).CurrentAction is not BarrierAction; i++) // after its idle wait
             s.Advance(Duration.FromSeconds(1));
