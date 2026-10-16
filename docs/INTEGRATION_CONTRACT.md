@@ -980,3 +980,4 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
   - "AbilityScores" al livello 4: due scelte; la stessa caratteristica due volte vale +2; massimo 20.
   - "WeaponMastery": facoltativa dopo ogni riposo lungo, due armi fra quelle in cui si è competenti.
 - `PlayerView.FightingStyle`, `PlayerView.MasteryWeapons`.
+- Fatto: la riserva rimborsa i punti che non potevano curare; un aumento di Costituzione alza subito i punti ferita massimi. Scelte solo fuori dallo scontro. Salvataggio schema 35. Attacco extra solo per l'azione Attacco del proprio turno: l'attacco d'apertura fuori scontro resta uno.

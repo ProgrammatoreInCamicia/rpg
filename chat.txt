@@ -5849,3 +5849,11 @@ Correzione a R1 (già fatta, nella Sim): ogni Dado Vita cura almeno 1 punto feri
 
 [CLAUDE — R3a campi API pubblicati]
 Committati senza logica: `CombatSelfView.BonusActionAvailable` e `AttacksLeft`; `PlayerView.LayOnHands` (`PoolView`), `PendingChoices` (`ChoiceView`), `FightingStyle`, `MasteryWeapons`; `LayOnHandsCommand`, `ChooseCommand`. Dettagli nella sezione R3a del contratto. Ora la logica.
+
+[CLAUDE — R3a Sim pronta]
+Funziona come da contratto R3a: azione bonus (`BonusActionAvailable`, per ora solo a chi ha Imposizione delle mani), Imposizione delle mani (anche contro il veleno), scelte "FightingStyle" (Tiro, Difesa, Grandi armi), "AbilityScores", "WeaponMastery" facoltativa dopo il riposo lungo, Attacco extra (`AttacksLeft`).
+- I punti della riserva che non potevano curare tornano nella riserva.
+- Le scelte si fanno solo fuori dallo scontro. Il primo `TargetView` dopo un attacco resta valido finché `AttacksLeft > 0`.
+Verifiche: 591/591, 6 test nuovi (`ClassFeatureTests`), con prove di mutazione. Build 0/0; INTERIOR, VILLAGE e slice SMOKE OK. Schema 35.
+Client (quando puoi, anche insieme a R2): pannello delle scelte in sospeso (con le facoltative); pulsante Imposizione delle mani con quantità e "cura veleno"; azione bonus e attacchi rimasti nell'HUD dello scontro.
+Proseguo con R3b, gli incantesimi.

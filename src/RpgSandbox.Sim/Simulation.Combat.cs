@@ -79,7 +79,7 @@ internal sealed partial class Simulation
         var target = World.Actors[command.Target];
         if (EncounterOf(actor) is not { } e)
             return OpenFight(actor, target, attack!, command.NonLethal);
-        CombatantOf(e, actor.Id).ActionUsed = true;
+        TakeAttack(e, actor); // R3a: the Attack action, or one of its Extra Attacks
         var text = ResolveAttack(e, actor, target, attack!, command.NonLethal, CombatLogKind.Attack);
         CheckEnd(e);
         return new CommandResult { Message = text };
@@ -105,7 +105,7 @@ internal sealed partial class Simulation
         {
             if (!IsTurnOf(e, actor))
                 return (CommandResult.Rejected(RejectionReason.NotYourTurn, "Non è il tuo turno."), null, null);
-            if (CombatantOf(e, actor.Id).ActionUsed)
+            if (CombatantOf(e, actor.Id) is { ActionUsed: true, AttacksLeft: 0 })
                 return (CommandResult.Rejected(RejectionReason.NoActionLeft, "Hai già usato l'azione in questo turno."), null, null);
             if (EncounterOf(target) != e)
                 return (CommandResult.Rejected(RejectionReason.InCombat, $"{target.Name} non fa parte di questo scontro."), null, null);
@@ -315,6 +315,8 @@ internal sealed partial class Simulation
         c.Dodging = false; // C3a: a Dodge lasts until the start of one's next turn
         c.Interacted = false; // C3b
         c.Cleaved = false; // R2
+        c.BonusActionUsed = false; // R3a
+        c.AttacksLeft = 0;
         ConditionsAtTurnStart(e, actor); // R2: what lasts until the start of its turn ends
         c.ActionUsed = c.OpeningSpent;
         c.OpeningSpent = false;
@@ -1152,7 +1154,7 @@ internal sealed partial class Simulation
                 KnockedOut = player.Vitality.KnockedOut, DeathSaveSuccesses = player.Vitality.DeathSaveSuccesses,
                 DeathSaveFailures = player.Vitality.DeathSaveFailures,
                 MovementLeftFeet = Math.Max(0, MovementLeft(e, player)), MovementLeftInches = Math.Max(0, MovementLeftInches(e, player)), SquaresLeft = Math.Max(0, MovementLeft(e, player)) / FeetPerSquare,
-                ActionAvailable = !me.ActionUsed, InteractionAvailable = !me.Interacted, ReactionAvailable = !me.ReactionUsed, Disengaged = me.Disengaged, Dodging = me.Dodging,
+                ActionAvailable = !me.ActionUsed, InteractionAvailable = !me.Interacted, BonusActionAvailable = !me.BonusActionUsed && HasBonusAction(player), AttacksLeft = me.AttacksLeft, ReactionAvailable = !me.ReactionUsed, Disengaged = me.Disengaged, Dodging = me.Dodging,
             },
             Combatants = e.Order.Select(c => World.Actors[c.Actor]).Where(x => x.Id != player.Id && SeesActor(player, x))
                 .Select(x => new CombatantView
@@ -1167,7 +1169,7 @@ internal sealed partial class Simulation
             {
                 var check = CheckAttack(e, player, x, a, nonLethal: false);
                 var (reason, why) = !yourTurn ? (RejectionReason.NotYourTurn, "Non è il tuo turno.")
-                    : me.ActionUsed ? (RejectionReason.NoActionLeft, "Hai già usato l'azione in questo turno.")
+                    : me is { ActionUsed: true, AttacksLeft: 0 } ? (RejectionReason.NoActionLeft, "Hai già usato l'azione in questo turno.")
                     : (check.Reason, check.Why);
                 return new TargetView
                 {

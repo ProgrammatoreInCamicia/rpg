@@ -198,6 +198,15 @@ internal sealed class Actor
     /// <summary>R2: its conditions (SRD Rules Glossary), each with its source and end.</summary>
     public List<Condition> Conditions { get; } = new();
 
+    /// <summary>R3a: what the character chose as it grew (Ability Score Improvements, masteries, Fighting Style).</summary>
+    public CharacterChoices Choices { get; set; } = CharacterChoices.None;
+
+    /// <summary>R3a: Lay On Hands points spent since the last Long Rest.</summary>
+    public int LayOnHandsSpent { get; set; }
+
+    /// <summary>R3a: a Long Rest was just finished: the weapon masteries may be changed (until the next rest starts).</summary>
+    public bool MasteryChangeOpen { get; set; }
+
     /// <summary>R2, SRD Exhaustion: 0..6; each level is −2 to d20 Tests and −5 feet of Speed; at 6 it dies.</summary>
     public int Exhaustion { get; set; }
 
@@ -727,6 +736,12 @@ internal sealed class Combatant
     /// <summary>R2, Cleave: its extra attack was made this turn (once a turn).</summary>
     public bool Cleaved { get; set; }
 
+    /// <summary>R3a: the turn's Bonus Action was taken.</summary>
+    public bool BonusActionUsed { get; set; }
+
+    /// <summary>R3a, Extra Attack: attacks still to make with the Attack action taken this turn.</summary>
+    public int AttacksLeft { get; set; }
+
     /// <summary>C3b: the turn's free interaction with an object (picking something up) is used.</summary>
     public bool Interacted { get; set; }
 }
@@ -808,9 +823,9 @@ internal sealed class WorldState
     /// <summary>D1a: recomputes an actor's profile (and sheet, unless its own) from its build and equipment.</summary>
     public void Refresh(Actor actor)
     {
-        actor.Profile = Builds.Profile(Content, actor.Build, actor.Equipment, LevelOf(actor));
+        actor.Profile = Builds.Profile(Content, actor.Build, actor.Equipment, LevelOf(actor), actor.Choices);
         if (!actor.SheetOverride)
-            actor.Sheet = Builds.Sheet(Content, actor.Build, actor.Equipment, LevelOf(actor));
+            actor.Sheet = Builds.Sheet(Content, actor.Build, actor.Equipment, LevelOf(actor), actor.Choices);
     }
 
     /// <summary>C5b: a character's level, from its Experience Points; null for a creature (it has a stat block, not levels).</summary>

@@ -131,6 +131,12 @@ internal sealed class ActorDto
     public string? SlowedBy { get; set; }
     public string? Vexing { get; set; }
     public bool VexFresh { get; set; }
+    /// <summary>Schema 35 (R3a): the character's choices, Lay On Hands spent, a mastery change open after a Long Rest.</summary>
+    public List<string>? AbilityIncreases { get; set; }
+    public List<string>? Masteries { get; set; }
+    public string? FightingStyle { get; set; }
+    public int LayOnHandsSpent { get; set; }
+    public bool MasteryChangeOpen { get; set; }
     public List<string>? Defeated { get; set; }
 
     /// <summary>P1 (schema 23): the exact point where it stands, when not the centre of its square.</summary>
@@ -584,6 +590,8 @@ internal sealed class CombatantDto
     public bool Disengaged { get; set; }
     public bool Dodging { get; set; }
     public bool Cleaved { get; set; }
+    public bool BonusActionUsed { get; set; }
+    public int AttacksLeft { get; set; }
     public bool Interacted { get; set; }
 }
 

@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 34;
+    public const int SchemaVersion = 35;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -218,6 +218,8 @@ internal static class SaveGame
                 Kind = c.Kind.ToString(), Source = c.Source?.Value, Until = c.Until?.Ticks, EndsAtTurnOf = c.EndsAtTurnOf?.Value,
             }).ToList(),
             Exhaustion = a.Exhaustion, SappedBy = a.SappedBy?.Value, SlowedBy = a.SlowedBy?.Value, Vexing = a.Vexing?.Value, VexFresh = a.VexFresh,
+            AbilityIncreases = a.Choices.AbilityIncreases.Select(x => x.ToString()).ToList(), Masteries = a.Choices.Masteries?.ToList(),
+            FightingStyle = a.Choices.FightingStyle, LayOnHandsSpent = a.LayOnHandsSpent, MasteryChangeOpen = a.MasteryChangeOpen,
             Defeated = a.Defeated.Select(x => x.Value).ToList(),
             Lore = a.Lore.IsEmpty ? null : new LoreDto
             {
@@ -615,6 +617,17 @@ internal static class SaveGame
             actor.SlowedBy = a.SlowedBy is null ? null : new ActorId(a.SlowedBy);
             actor.Vexing = a.Vexing is null ? null : new ActorId(a.Vexing);
             actor.VexFresh = a.VexFresh;
+            actor.Choices = new CharacterChoices
+            {
+                AbilityIncreases = (a.AbilityIncreases ?? new()).Select(k => Enum.TryParse<Ability>(k, out var ab) && Enum.IsDefined(ab) ? ab
+                    : throw new InvalidDataException($"caratteristica sconosciuta '{k}'")).ToArray(),
+                Masteries = a.Masteries?.Select(m => Required(m, "padronanza")).ToArray(),
+                FightingStyle = a.FightingStyle is null || ClassFeatures.FightingStyles.Contains(a.FightingStyle) ? a.FightingStyle
+                    : throw new InvalidDataException($"stile di combattimento sconosciuto '{a.FightingStyle}'"),
+            };
+            Check(a.LayOnHandsSpent >= 0, $"Imposizione delle mani di '{a.Id}' non valida");
+            actor.LayOnHandsSpent = a.LayOnHandsSpent;
+            actor.MasteryChangeOpen = a.MasteryChangeOpen;
             actor.LastLongRestEnd = a.LastLongRestEnd is { } rested ? Time(rested) : null;
             actor.LastHarmAt = a.LastHarmAt is { } harmed ? Time(harmed) : null;
             Check(a.HitDiceSpent >= 0 && (w.LevelOf(actor) is { } lvl ? a.HitDiceSpent <= lvl : a.HitDiceSpent == 0), $"Dadi Vita di '{a.Id}' non validi");
@@ -1058,7 +1071,7 @@ internal static class SaveGame
             Actor = c.Actor.Value, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus,
             MovedFeet = c.MovedInches / Spot.PerFoot, MovedInches = c.MovedInches, ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
             LastSeenAt = c.LastSeenAt is { } at ? new PosDto { X = at.X, Y = at.Y } : null, JoinedInRound = c.JoinedInRound, Fleeing = c.Fleeing,
-            Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved,
+            Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved, BonusActionUsed = c.BonusActionUsed, AttacksLeft = c.AttacksLeft,
         }).ToList(),
         Log = e.Log.Select(RecordDto).ToList(),
     };
@@ -1136,7 +1149,7 @@ internal static class SaveGame
                         : c.LastSeenEnemy is { } seen ? Spot.CenterOf(new GridPos(seen.X, seen.Y)) : null,
                     JoinedInRound = c.JoinedInRound is { } joined && joined >= 1 && joined <= dto.Round ? joined
                         : c.JoinedInRound is null ? null : throw new InvalidDataException($"ingresso nello scontro di '{id}' non valido"),
-                    Fleeing = c.Fleeing, Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved,
+                    Fleeing = c.Fleeing, Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved, BonusActionUsed = c.BonusActionUsed, AttacksLeft = c.AttacksLeft,
                 });
             }
             Check(e.Order.Any(c => c.Side == 0) && e.Order.Any(c => c.Side == 1), $"scontro {dto.Id} senza due lati");

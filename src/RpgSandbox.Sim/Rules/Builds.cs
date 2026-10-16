@@ -58,7 +58,8 @@ public static class Builds
         pack.Characters.TryGetValue(build, out var character) ? character.Coins : Creature(pack, build).Coins;
 
     /// <summary>A character's sheet at <paramref name="level"/> (C5b; its definition's level if null). A creature has no level.</summary>
-    public static CharacterSheet Sheet(ContentPack pack, string build, Equipment equipment, int? level = null)
+    public static CharacterSheet Sheet(ContentPack pack, string build, Equipment equipment, int? level = null,
+        CharacterChoices? choices = null)
     {
         if (!pack.Characters.TryGetValue(build, out var c))
         {
@@ -72,20 +73,23 @@ public static class Builds
         }
         var armor = equipment.Armor is { } a ? pack.Items[a].Armor : null;
         var shield = equipment.Shield is { } s ? pack.Items[s].Armor : null;
-        var dex = Abilities.Modifier(c.Abilities.Dexterity);
-        var ac = (armor is null ? 10 + dex : armor.Base + (armor.DexMax is { } max ? Math.Min(dex, max) : dex)) + (shield?.Base ?? 0);
+        var scores = Raised(c.Abilities, choices); // R3a: Ability Score Improvements
+        var dex = Abilities.Modifier(scores.Dexterity);
+        var ac = (armor is null ? 10 + dex : armor.Base + (armor.DexMax is { } max ? Math.Min(dex, max) : dex)) + (shield?.Base ?? 0)
+                 + (armor is not null && choices?.FightingStyle == "Defense" ? 1 : 0); // R3a, SRD Defense: +1 AC in armor
         // SRD Heavy Armor: without the Strength it asks for, Speed drops by 10 feet.
-        var speed = 30 - (armor is not null && c.Abilities.Strength < armor.Strength ? 10 : 0);
-        return Scores(c.Abilities) with
+        var speed = 30 - (armor is not null && scores.Strength < armor.Strength ? 10 : 0);
+        return Scores(scores) with
         {
             Title = c.Title, ProficiencyBonus = ProficiencyBonus(level ?? c.Level), SkillProficiencies = c.Skills, SaveProficiencies = pack.Classes[c.Class].Saves,
             ArmorClass = ac, Speed = speed, StealthDisadvantage = armor?.StealthDisadvantage ?? false,
         };
     }
 
-    public static CombatProfile Profile(ContentPack pack, string build, Equipment equipment, int? level = null)
+    public static CombatProfile Profile(ContentPack pack, string build, Equipment equipment, int? level = null,
+        CharacterChoices? choices = null)
     {
-        var sheet = Sheet(pack, build, equipment, level);
+        var sheet = Sheet(pack, build, equipment, level, choices);
         if (!pack.Characters.TryGetValue(build, out var c))
         {
             var creature = Creature(pack, build);
@@ -97,7 +101,8 @@ public static class Builds
             };
         }
         var cls = pack.Classes[c.Class];
-        var con = Abilities.Modifier(c.Abilities.Constitution);
+        var con = Abilities.Modifier(sheet.Constitution);
+        var masteries = choices?.Masteries ?? c.Masteries; // R3a: changed after a Long Rest
         // SRD Hit Points: the full Hit Die at level 1, then the fixed average (half the die + 1) per level; Constitution each time.
         var hitPoints = cls.HitDie + con + ((level ?? c.Level) - 1) * HitPointsPerLevel(cls, con);
         var attacks = new List<AttackProfile>();
@@ -105,18 +110,19 @@ public static class Builds
         {
             var twoHands = equipment.Shield is null && weapon.Has(WeaponProperty.Versatile);
             var attack = AttackProfile.With(sheet, weapon, cls.Weapons.Contains(weapon.Category), twoHands,
-                masteryUnlocked: c.Masteries.Contains(hand)) with { Requires = hand };
+                masteryUnlocked: masteries.Contains(hand)) with { Requires = hand };
+            attack = FightingStyle(attack, weapon, twoHands, choices?.FightingStyle);
             attacks.Add(weapon.Ranged && weapon.Ammunition is { } ammo ? attack with { Item = ammo, Fate = ItemFate.Spent } : attack);
         }
         // Thrown weapons carried besides the one in hand: drawn and thrown as part of the attack (SRD).
         foreach (var thrown in c.Items.Select(i => i.Item).Distinct().Where(i => pack.Items[i].Weapon?.Has(WeaponProperty.Thrown) == true))
             attacks.Add(AttackProfile.With(sheet, pack.Items[thrown].Weapon!, cls.Weapons.Contains(pack.Items[thrown].Weapon!.Category),
-                thrown: true, masteryUnlocked: c.Masteries.Contains(thrown)) with { Item = thrown, Fate = ItemFate.Thrown });
+                thrown: true, masteryUnlocked: masteries.Contains(thrown)) with { Item = thrown, Fate = ItemFate.Thrown });
         attacks.Add(AttackProfile.Unarmed(sheet));
         return new CombatProfile
         {
             Name = cls.Name, MaxHitPoints = Math.Max(1, hitPoints), ArmorClass = sheet.ArmorClass,
-            InitiativeBonus = Abilities.Modifier(c.Abilities.Dexterity), Speed = sheet.Speed, Attacks = attacks,
+            InitiativeBonus = Abilities.Modifier(sheet.Dexterity), Speed = sheet.Speed, Attacks = attacks,
             MakesDeathSaves = true, Kit = Kit(pack, build), Coins = c.Coins,
         };
     }
@@ -124,6 +130,30 @@ public static class Builds
     private static CreatureDefinition Creature(ContentPack pack, string build) =>
         pack.Creatures.TryGetValue(build, out var creature) ? creature : throw new KeyNotFoundException($"nessuna creatura o personaggio '{build}'");
 
+
+    /// <summary>R3a: the scores raised by the Ability Score Improvements chosen (SRD: never above 20).</summary>
+    private static AbilityScores Raised(AbilityScores a, CharacterChoices? choices)
+    {
+        int Up(Ability ability, int score) =>
+            Math.Min(20, score + (choices?.AbilityIncreases.Count(x => x == ability) ?? 0));
+        return a with
+        {
+            Strength = Up(Ability.Strength, a.Strength), Dexterity = Up(Ability.Dexterity, a.Dexterity),
+            Constitution = Up(Ability.Constitution, a.Constitution), Intelligence = Up(Ability.Intelligence, a.Intelligence),
+            Wisdom = Up(Ability.Wisdom, a.Wisdom), Charisma = Up(Ability.Charisma, a.Charisma),
+        };
+    }
+
+    /// <summary>
+    /// R3a, SRD Fighting Style feats: Archery, +2 to attack rolls with Ranged weapons; Great Weapon Fighting, 1 and 2 on the
+    /// damage dice count as 3 with a Melee weapon held in two hands that is Two-Handed or Versatile.
+    /// </summary>
+    private static AttackProfile FightingStyle(AttackProfile attack, Weapon weapon, bool twoHands, string? style) => style switch
+    {
+        "Archery" when weapon.Ranged => attack with { AttackBonus = attack.AttackBonus + 2 },
+        "GreatWeaponFighting" when !weapon.Ranged && (weapon.Has(WeaponProperty.TwoHanded) || twoHands) => attack with { GreatWeaponFighting = true },
+        _ => attack,
+    };
     private static CharacterSheet Scores(AbilityScores a) => new()
     {
         Title = "", Strength = a.Strength, Dexterity = a.Dexterity, Constitution = a.Constitution,

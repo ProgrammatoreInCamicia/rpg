@@ -291,6 +291,10 @@ public sealed class SimulationSession
                 ? new HitDiceView { Remaining = dice.Max - player.HitDiceSpent, Max = dice.Max, Die = dice.Die } : null,
             LongRestFrom = _sim.LongRestFrom(player),
             Conditions = Freeze(_sim.ConditionsOf(player, visibleOnly: false)), Exhaustion = player.Exhaustion,
+            LayOnHands = _sim.LayOnHandsPool(player) is { } pool ? new PoolView { Remaining = pool.Remaining, Max = pool.Max } : null,
+            PendingChoices = _sim.PendingChoicesOf(player), FightingStyle = player.Choices.FightingStyle,
+            MasteryWeapons = Freeze((player.Choices.Masteries ?? (w.Content.Characters.TryGetValue(player.Build, out var definition)
+                ? definition.Masteries : Array.Empty<string>())).Select(i => new ItemId(i))),
             Move = MoveOf(player),
             Map = w.Maps.TryGetValue(area, out var areaMap) ? MapOf(areaMap, w) : null,
             MapLight = map is null ? null : Freeze(Enumerable.Range(0, map.Height).Select(y =>

@@ -43,6 +43,7 @@ internal sealed partial class Simulation
         if (!command.Long && (command.HitDice < 0 || command.HitDice > remaining))
             return CommandResult.Rejected(RejectionReason.InvalidAmount, $"Puoi spendere da 0 a {remaining} Dadi Vita.");
 
+        actor.MasteryChangeOpen = false; // R3a: the chance to change the masteries passes
         var rest = new RestAction
         {
             Id = World.AllocateActionId(), Actor = actor.Id, StartedAt = World.Now,
@@ -66,6 +67,7 @@ internal sealed partial class Simulation
             // SRD Long Rest: all lost Hit Points and all spent Hit Point Dice are regained.
             var healed = actor.Vitality.Heal(actor.Vitality.Maximum);
             actor.HitDiceSpent = 0;
+            FeaturesAfterLongRest(actor); // R3a
             if (actor.Exhaustion > 0)
                 AddExhaustion(actor, -1, "ha dormito"); // R2, SRD Exhaustion: a Long Rest takes a level away
             actor.LastLongRestEnd = World.Now;

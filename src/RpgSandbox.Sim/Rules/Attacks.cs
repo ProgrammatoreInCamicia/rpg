@@ -32,6 +32,9 @@ public sealed record AttackProfile
     /// <summary>SRD Heavy: Disadvantage when the wielder lacks Strength 13 (melee) or Dexterity 13 (ranged).</summary>
     public bool HeavyDisadvantage { get; init; }
 
+    /// <summary>R3a, Great Weapon Fighting: 1 and 2 on its damage dice count as 3.</summary>
+    public bool GreatWeaponFighting { get; init; }
+
     /// <summary>C3b: the item the attack needs (a javelin to throw, a bolt to shoot), by catalog id, and what becomes of it.</summary>
     public string? Item { get; init; }
 
@@ -196,7 +199,8 @@ internal static class Attacks
         }
 
         var count = attack.Damage.Count * (critical ? 2 : 1);
-        var dice = Enumerable.Range(0, count).Select(_ => rng.Roll(attack.Damage.Sides)).ToArray();
+        var dice = Enumerable.Range(0, count).Select(_ => rng.Roll(attack.Damage.Sides))
+            .Select(d => attack.GreatWeaponFighting && d <= 2 ? 3 : d).ToArray(); // R3a
         return new AttackResult
         {
             Attack = attack.Name, Roll = roll, TargetArmorClass = targetArmorClass, Hit = true, Critical = critical,
