@@ -2,6 +2,7 @@ using Godot;
 using RpgSandbox.Sim.Api;
 using RpgSandbox.Sim.Rules;
 using RpgSandbox.Sim.Scenarios;
+using System.Text.Json.Nodes;
 
 namespace RpgSandbox.Game;
 
@@ -40,6 +41,12 @@ public partial class VillageSmoke : Node
 	private async Task Run()
 	{
 		Require(DirAccess.MakeDirRecursiveAbsolute(_outputDir) == Error.Ok, "Cannot create screenshot directory");
+		if (OS.GetCmdlineUserArgs().Contains("--p5a-only"))
+		{
+			await Frames(3);
+			await NightFarmhouseBreakIn();
+			return;
+		}
 		await Frames(10);
 		Require(_map.View.Position == MappedVillageScenario.Ids.PlayerStart, "Player does not start at the inn");
 		Require(_map.View.Level == 1 && _map.View.Experience == 0 && _map.View.NextLevelAt == 300
@@ -286,6 +293,7 @@ public partial class VillageSmoke : Node
 		Require(!_map.OffMapPanelVisible, "The village map did not return");
 		Capture("10-village-return.png");
 		await NightRaid();
+		await NightFarmhouseBreakIn();
 		await DiscoveredTheft();
 		await DoorMemory();
 		await WindowGlassAndBars();
@@ -1028,6 +1036,83 @@ public partial class VillageSmoke : Node
 		Require(_map.SmokeWorld.Stores.Single(s => s.Id == camp).Food == 16,
 			"The stolen rations were not delivered to the camp");
 		Capture("15-raid-returned.png");
+	}
+
+	/// <summary>P5a: a hungry band chooses the pantry when it avoids the granary; the client shows the raider at the lock.</summary>
+	private async Task NightFarmhouseBreakIn()
+	{
+		var session = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
+		var lookout = new GridPos(10, 14);
+		var walk = session.Execute(new MoveCommand { Actor = session.Player, To = lookout });
+		Require(walk.Success, $"P5a: cannot reach the farmhouse lookout: {walk.Message}");
+		session.AdvanceUntilCompleted(walk.Action!.Value, Duration.FromMinutes(5));
+		Require(session.GetPlayerView().Position == lookout, "P5a: player did not reach the farmhouse lookout");
+
+		// Seed the prior report that the granary is guarded, without replaying a whole first raid in this client smoke.
+		using var initial = new MemoryStream();
+		session.Save(initial);
+		var snapshot = JsonNode.Parse(initial.ToArray())!.AsObject();
+		var bandits = snapshot["Factions"]!.AsArray().Single(f => f!["Id"]!.GetValue<string>() == MappedVillageScenario.Ids.Bandits.Value)!.AsObject();
+		bandits["AvoidUntil"]!.AsArray().Add(new JsonObject
+		{
+			["Store"] = MappedVillageScenario.Ids.GranaryStore.Value,
+			["Until"] = new GameTime(9 * 86400).Ticks,
+		});
+		var camp = snapshot["Stores"]!.AsArray().Single(s => s!["Id"]!.GetValue<string>() == MappedVillageScenario.Ids.CampStore.Value)!.AsObject();
+		camp["Contents"]!.AsArray().Single(i => i!["Item"]!.GetValue<string>() == "ration")!["Count"] = 4;
+		snapshot["RngState"] = 1UL;
+		using var seeded = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(snapshot.ToJsonString()));
+		var loaded = SimulationSession.TryLoad(seeded);
+		Require(loaded.Session is not null, $"P5a: cannot load the seeded raid: {loaded.Error}");
+		session = loaded.Session!;
+		session.FacePlayer(MappedVillageScenario.Ids.HouseDoor.X - lookout.X,
+			MappedVillageScenario.Ids.HouseDoor.Y - lookout.Y);
+
+		var raider = MappedVillageScenario.Ids.Raider;
+		var houseDoor = MappedVillageScenario.Ids.HouseDoor;
+		VisibleActorView? working = null;
+		var deadline = new GameTime(8 * 3600);
+		while (session.Now < deadline)
+		{
+			var actor = session.GetWorldView().Actors.Single(a => a.Id == raider);
+			var nearHouse = actor.Assignment?.Target == MappedVillageScenario.Ids.Pantry
+				&& actor.Position is { } at && Math.Abs(at.X - houseDoor.X) <= 5 && Math.Abs(at.Y - houseDoor.Y) <= 5;
+			if (nearHouse && session.GetPlayerView().TorchLitUntil is null)
+			{
+				var torch = session.Execute(new TorchCommand { Actor = session.Player, Lit = true });
+				Require(torch.Success, $"P5a: cannot light the lookout at {session.Now}: {torch.Message}");
+			}
+			working = session.GetPlayerView().VisibleActors.FirstOrDefault(a => a.Id == raider && a.AtBarrier is not null);
+			if (working is not null) break;
+			session.Advance(Duration.FromSeconds(nearHouse ? 10 : 60));
+		}
+		var finalRaider = session.GetWorldView().Actors.Single(a => a.Id == raider);
+		Require(working?.AtBarrier == new BarrierRefView { A = houseDoor, B = houseDoor },
+			$"P5a: no visible raider at the farmhouse lock by 08:00; time {session.Now}, raider {finalRaider.Location}/{finalRaider.Position}, assignment {finalRaider.Assignment?.Target}, decision {finalRaider.LastDecision?.Rule}, recent {string.Join(',', session.GetWorldView().RecentFacts.TakeLast(8).Select(f => f.Kind))}");
+		Require(working!.Doing is { Length: > 0 }, "P5a: the raider's lock work has no visible gesture");
+		var atDoor = System.IO.Path.Combine(_outputDir, "p5a-raider-at-farmhouse-door.json");
+		using (var stream = File.Create(atDoor)) session.Save(stream);
+		_map.SetPaused(true);
+		_map.LoadGameFromPath(atDoor);
+		_map.FocusForSmoke(houseDoor);
+		await Frames(3);
+		Require(_map.View.VisibleActors.Any(a => a.Id == raider && a.AtBarrier == working.AtBarrier),
+			"P5a: the loaded client did not see the raider working at the lock");
+		Require(_map.BarrierActivityForSmoke(working.AtBarrier!),
+			"P5a: the client did not highlight the door being picked");
+		Capture("p5a-raider-picks-farmhouse-door.png");
+
+		for (var i = 0; i < 120 && session.GetPlayerView().Doors.Single(d => d.At == houseDoor).Open != true; i++)
+			session.Advance(Duration.FromSeconds(10));
+		Require(session.GetPlayerView().Doors.Single(d => d.At == houseDoor).Open == true,
+			"P5a: the raider never opened the farmhouse door after working on it");
+		Require(session.GetWorldView().RecentFacts.Any(f => f.Kind is "LockPicked" or "Forced"),
+			"P5a: the lock did not yield to picking or forcing");
+		var opened = System.IO.Path.Combine(_outputDir, "p5a-farmhouse-door-open.json");
+		using (var stream = File.Create(opened)) session.Save(stream);
+		_map.LoadGameFromPath(opened);
+		await Frames(3);
+		Capture("p5a-farmhouse-door-open.png");
 	}
 
 	/// <summary>G8: the player is seen stealing, the guard catches up, and the farmer reports the theft.</summary>

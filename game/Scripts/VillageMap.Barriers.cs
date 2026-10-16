@@ -12,12 +12,19 @@ public partial class VillageMap
 	private Label _barrierClue = null!;
 	private readonly Dictionary<Node2D, Label> _barrierMarks = new();
 	private readonly Dictionary<Node2D, Color> _activeBarrierBase = new();
+	private readonly List<Line2D> _barrierActivityOutlines = new();
 
 	private void ClearBarrierActivity()
 	{
 		foreach (var (panel, color) in _activeBarrierBase)
 			panel.Modulate = color;
 		_activeBarrierBase.Clear();
+		foreach (var outline in _barrierActivityOutlines)
+		{
+			RemoveChild(outline);
+			outline.QueueFree();
+		}
+		_barrierActivityOutlines.Clear();
 	}
 
 	private void RefreshBarrierActivity()
@@ -32,6 +39,15 @@ public partial class VillageMap
 			_activeBarrierBase[panel] = panel.Modulate;
 			var color = panel.Modulate;
 			panel.Modulate = color.Lerp(new Color(1f, 0.78f, 0.30f, color.A), 0.55f);
+			var diamond = Diamond(0.58f);
+			var outline = new Line2D
+			{
+				Position = work.IsDoor ? CellToScreen(work.A) : CellToScreen(work.A).Lerp(CellToScreen(work.B), 0.5f),
+				Points = diamond.Append(diamond[0]).ToArray(), Width = 3f, ZIndex = 14,
+				DefaultColor = new Color(1f, 0.75f, 0.25f, 0.95f),
+			};
+			AddChild(outline);
+			_barrierActivityOutlines.Add(outline);
 		}
 	}
 
@@ -260,6 +276,6 @@ public partial class VillageMap
 	{
 		var panel = barrier.IsDoor ? _doorPanels.GetValueOrDefault(barrier.A)
 			: _windowPanels.GetValueOrDefault((barrier.A, barrier.B));
-		return panel is not null && _activeBarrierBase.ContainsKey(panel);
+		return panel is not null && _activeBarrierBase.ContainsKey(panel) && _barrierActivityOutlines.Count > 0;
 	}
 }
