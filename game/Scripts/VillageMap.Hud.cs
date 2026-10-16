@@ -137,6 +137,7 @@ public partial class VillageMap
 
 	private bool CloseHudOverlay()
 	{
+		if (_torchShieldConfirm.Visible) { _torchShieldConfirm.Hide(); return true; }
 		if (_gameMenu.Visible) { _gameMenu.Visible = false; return true; }
 		if (_attackOptionsPanel.Visible) { _attackOptionsPanel.Visible = false; return true; }
 		if (_openingConfirm.Visible) { _openingConfirm.Hide(); return true; }

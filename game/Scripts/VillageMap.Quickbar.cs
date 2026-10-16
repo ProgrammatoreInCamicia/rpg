@@ -34,6 +34,7 @@ public partial class VillageMap
 	private PanelContainer _attackOptionsPanel = null!;
 	private PanelContainer _gameMenu = null!;
 	private Button _gameMenuButton = null!;
+	private ConfirmationDialog _torchShieldConfirm = null!;
 
 	private void BuildQuickbarUi(CanvasLayer ui)
 	{
@@ -75,7 +76,7 @@ public partial class VillageMap
 		_quickOffHand = EquipmentButton(equipment, "shield", "Mano secondaria");
 		_quickOffHand.Pressed += () => SelectEquippedAttack(EquipmentSlot.OffHand);
 		_quickTorch = EquipmentButton(equipment, "torch", "Torcia (T)");
-		_quickTorch.Pressed += ToggleTorch;
+		_quickTorch.Pressed += RequestTorchToggle;
 
 		var actionArea = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		actionArea.AddThemeConstantOverride("separation", 5);
@@ -113,6 +114,10 @@ public partial class VillageMap
 		options.AddChild(heading);
 		BuildAttackBar(options);
 		BuildGameMenu(ui);
+		_torchShieldConfirm = new ConfirmationDialog { Title = "Torcia e scudo",
+			DialogText = "Per accendere la torcia devi liberare la mano secondaria. Riponi lo scudo e accendi la torcia?" };
+		_torchShieldConfirm.Confirmed += () => { _torchShieldConfirm.Hide(); UseTorch(stowShield: true); };
+		ui.AddChild(_torchShieldConfirm);
 	}
 
 	private Button EquipmentButton(BoxContainer parent, string icon, string tooltip)
@@ -192,7 +197,7 @@ public partial class VillageMap
 		var equipped = _view.Equipment.FirstOrDefault(e => e.Slot == slot);
 		if (equipped is null) { _inventoryPanel.Visible = true; return; }
 		var attack = _view.Attacks.FirstOrDefault(a => a.Name.StartsWith(equipped.Name, StringComparison.Ordinal)
-			&& IsOffHandAttack(a.Name) == (slot == EquipmentSlot.OffHand));
+			&& (equipped.Item.Value == "torch" || IsOffHandAttack(a.Name) == (slot == EquipmentSlot.OffHand)));
 		if (attack is null) { _inventoryPanel.Visible = true; return; }
 		_armedAttack = attack.Name;
 		_attackArmed = true;
@@ -203,6 +208,7 @@ public partial class VillageMap
 	private static string EquipmentIcon(string? item)
 	{
 		if (item is null) return "sword";
+		if (item == "torch") return "torch";
 		if (item.Contains("dagger", StringComparison.Ordinal)) return "dagger";
 		if (item.Contains("javelin", StringComparison.Ordinal) || item.Contains("spear", StringComparison.Ordinal)) return "spear";
 		if (item.Contains("mace", StringComparison.Ordinal) || item.Contains("club", StringComparison.Ordinal)) return "mace";
@@ -235,11 +241,18 @@ public partial class VillageMap
 		var off = _view.Equipment.FirstOrDefault(e => e.Slot is EquipmentSlot.OffHand or EquipmentSlot.Shield);
 		_quickMainHand.TooltipText = main is null ? "Mano principale libera · apri inventario" : $"Mano principale: {main.Name} · clicca per attaccare";
 		_quickOffHand.TooltipText = off is null ? "Mano secondaria libera · apri inventario" : $"{(off.Slot == EquipmentSlot.Shield ? "Scudo" : "Mano secondaria")}: {off.Name}";
-		_quickMainHand.Icon = ActionIcon(EquipmentIcon(main?.Item.Value));
-		_quickOffHand.Icon = ActionIcon(off?.Slot == EquipmentSlot.Shield ? "shield" : EquipmentIcon(off?.Item.Value));
+		_quickMainHand.Icon = main is null ? null : ActionIcon(EquipmentIcon(main.Item.Value));
+		_quickOffHand.Icon = off is null ? null : ActionIcon(off.Slot == EquipmentSlot.Shield ? "shield" : EquipmentIcon(off.Item.Value));
 		_quickTorch.Visible = _view.Torches > 0 || _view.TorchLitUntil is not null;
-		_quickTorch.Disabled = combat is not null || _view.TorchLitUntil is null && _view.Torches == 0;
-		_quickTorch.TooltipText = _view.TorchLitUntil is null ? "Accendi una torcia dall'inventario (T)" : "Spegni la torcia (T)";
+		_quickTorch.Disabled = _view.Dead || _view.TorchLitUntil is null && _view.Torches == 0;
+		_quickTorch.TooltipText = _view.TorchLitUntil is not null ? "Spegni la torcia (T)"
+			: off?.Slot == EquipmentSlot.Shield ? "Riponi lo scudo e accendi la torcia (T)"
+			: off?.Slot == EquipmentSlot.OffHand ? "Mano secondaria occupata: riponi l'arma prima di accendere la torcia"
+			: "Accendi una torcia (T)";
+		if (combat is not null)
+			_quickTorch.TooltipText += off?.Slot == EquipmentSlot.Shield && _view.TorchLitUntil is null
+				? " - costa l'azione Utilizzare e l'interazione del turno"
+				: " - usa l'interazione del turno; la seconda costa l'azione";
 		if (combat is null) { _attackOptionsPanel.Visible = false; return; }
 		_quickAttack.Disabled = !combat.IsYourTurn || !_view.Attacks.Any();
 		_quickAttack.SetPressedNoSignal(_attackArmed);
@@ -317,4 +330,12 @@ public partial class VillageMap
 	internal bool BonusQuickFilterSelectedForSmoke => _quickFilter == QuickFilter.Bonus && _quickBonusFilter.ButtonPressed;
 	internal bool ActionQuickButtonVisibleForSmoke => _quickDash.Visible;
 	internal bool BonusQuickButtonVisibleForSmoke => _quickHeal.Visible;
+	internal void RequestTorchForSmoke() => RequestTorchToggle();
+	internal bool TorchShieldPromptVisibleForSmoke => _torchShieldConfirm.Visible;
+	internal void ConfirmTorchShieldForSmoke() => _torchShieldConfirm.EmitSignal("confirmed");
+	internal bool SelectTorchFromOffHandForSmoke()
+	{
+		SelectEquippedAttack(EquipmentSlot.OffHand);
+		return _attackArmed && _armedAttack == "Torcia";
+	}
 }

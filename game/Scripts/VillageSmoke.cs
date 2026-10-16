@@ -152,7 +152,9 @@ public partial class VillageSmoke : Node
 		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false, Position = screen, GlobalPosition = screen });
 		await Frames(2);
 		Require(!_map.IsWalking && _map.QueuedOrders == 1, "A click while paused should wait in the queue, not start walking");
-		_map.ToggleTorch();
+		_map.RequestTorchForSmoke();
+		Require(_map.TorchShieldPromptVisibleForSmoke, "T1: the queued torch needs an offer to stow the shield");
+		_map.ConfirmTorchShieldForSmoke();
 		Require(_map.View.TorchLitUntil is null && _map.View.Torches == 3 && _map.QueuedOrders == 2,
 			"A torch ordered while paused must not light (nor be spent) before the resume");
 		_map.Stop(); // X while paused takes back the queued walk
@@ -161,7 +163,9 @@ public partial class VillageSmoke : Node
 		await Seconds(1.0);
 		Require(_map.View.Now == pausedAt && _map.View.Position == MappedVillageScenario.Ids.PlayerStart, "Time or position moved while paused");
 		_map.SetPaused(false);
-		Require(_map.IsWalking && _map.View.TorchLitUntil is not null && _map.View.Torches == 2 && _map.QueuedOrders == 0,
+		Require(_map.IsWalking && _map.View.TorchLitUntil is not null && _map.View.Torches == 2
+			&& _map.View.Equipment.Any(e => e.Slot == EquipmentSlot.OffHand && e.Item == new ItemId("torch"))
+			&& !_map.View.Equipment.Any(e => e.Slot == EquipmentSlot.Shield) && _map.QueuedOrders == 0,
 			"On resume the queued orders should run in order");
 		_map.ToggleTorch(); // put it out: torchlight would spoil the sneaking below
 		Require(_map.View.TorchLitUntil is null, "The torch did not go out");
@@ -469,6 +473,27 @@ public partial class VillageSmoke : Node
 		File.WriteAllText(peacefulSave, peaceful.ToJsonString());
 		_map.LoadGameFromPath(peacefulSave);
 		await Frames(2);
+		_map.RequestTorchForSmoke();
+		Require(_map.TorchShieldPromptVisibleForSmoke,
+			"T1 client: lighting a torch with a shield should offer to stow it first");
+		_map._UnhandledInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+		Require(!_map.TorchShieldPromptVisibleForSmoke,
+			"T1 client: Escape should dismiss the torch and shield choice");
+		_map.SetPaused(false);
+		_map.RequestTorchForSmoke();
+		_map.ConfirmTorchShieldForSmoke();
+		Require(_map.View.TorchLitUntil is not null
+			&& !_map.View.Equipment.Any(e => e.Slot == EquipmentSlot.Shield)
+			&& _map.View.Equipment.Any(e => e.Slot == EquipmentSlot.OffHand && e.Item == new ItemId("torch"))
+			&& _map.View.Attacks.Any(a => a.Name == "Torcia"),
+			$"T1 client: stowing the shield and lighting the torch failed: {_map.LastMessage}");
+		Require(_map.SelectTorchFromOffHandForSmoke(),
+			"T1 client: clicking the lit off-hand torch should arm the Torch attack");
+		_map._UnhandledInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+		_map.ToggleTorch();
+		Require(_map.View.TorchLitUntil is null
+			&& !_map.View.Equipment.Any(e => e.Slot == EquipmentSlot.OffHand && e.Item == new ItemId("torch")),
+			"T1 client: putting out the torch should free the off hand");
 		Require(_map.QuickbarVisibleForSmoke && _map.ExploreActionBarVisibleForSmoke,
 			"UX: the compact exploration bar is missing");
 		Require(_map.HudLogAlphaForSmoke < 0.5f, "UX: the log should be translucent at rest");
@@ -483,7 +508,6 @@ public partial class VillageSmoke : Node
 		_map._UnhandledInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
 		Require(!_map.GameMenuOpenForSmoke, "UX: Escape should close the game menu");
 		_map.OpenInventoryForSmoke();
-		_map.StowForSmoke(EquipmentSlot.Shield);
 		_map.StowForSmoke(EquipmentSlot.MainHand);
 		_map.EquipForSmoke(new ItemId("dagger"), EquipmentSlot.MainHand);
 		_map.EquipForSmoke(new ItemId("shortsword"), EquipmentSlot.OffHand);
@@ -1315,7 +1339,8 @@ public partial class VillageSmoke : Node
 				&& actor.Position is { } at && Math.Abs(at.X - houseDoor.X) <= 5 && Math.Abs(at.Y - houseDoor.Y) <= 5;
 			if (nearHouse && session.GetPlayerView().TorchLitUntil is null)
 			{
-				var torch = session.Execute(new TorchCommand { Actor = session.Player, Lit = true });
+				var torch = session.Execute(new TorchCommand { Actor = session.Player, Lit = true,
+					StowShield = true });
 				Require(torch.Success, $"P5a: cannot light the lookout at {session.Now}: {torch.Message}");
 			}
 			working = session.GetPlayerView().VisibleActors.FirstOrDefault(a => a.Id == raider && a.AtBarrier is not null);

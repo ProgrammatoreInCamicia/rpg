@@ -236,7 +236,7 @@ public partial class VillageMap : Node2D
 		}
 		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.T })
 		{
-			ToggleTorch();
+			RequestTorchToggle();
 			return;
 		}
 		if (@event is not InputEventMouseButton { Pressed: true } mouse)
@@ -298,7 +298,8 @@ public partial class VillageMap : Node2D
 
 	internal PlayerView View => _view;
 	internal void AdvanceForSmoke(GameTime to) { _sim.Advance(to.Since(_view.Now)); Refresh(); }
-	internal void TorchForSmoke() { _sim.Execute(new TorchCommand { Actor = _sim.Player, Lit = true }); Refresh(); }
+	internal void TorchForSmoke() { _sim.Execute(new TorchCommand { Actor = _sim.Player, Lit = true,
+		StowShield = true }); Refresh(); }
 	internal WorldView SmokeWorld => _sim.GetWorldView();
 	internal bool IsBusy => _running is not null;
 	internal bool IsWalking => _walking;
@@ -430,9 +431,23 @@ public partial class VillageMap : Node2D
 		Refresh();
 	});
 
-	internal void ToggleTorch() => Order("torcia", walk: false, () =>
+	private void RequestTorchToggle()
 	{
-		var result = _sim.Execute(new TorchCommand { Actor = _sim.Player, Lit = _view.TorchLitUntil is null });
+		if (_view.TorchLitUntil is null && _view.Torches > 0
+			&& _view.Equipment.Any(e => e.Slot == EquipmentSlot.Shield))
+		{
+			_torchShieldConfirm.PopupCentered();
+			return;
+		}
+		ToggleTorch();
+	}
+
+	internal void ToggleTorch() => UseTorch(stowShield: false);
+
+	private void UseTorch(bool stowShield) => Order("torcia", walk: false, () =>
+	{
+		var result = _sim.Execute(new TorchCommand { Actor = _sim.Player, Lit = _view.TorchLitUntil is null,
+			StowShield = stowShield });
 		ShowMessage(result.Message);
 		_lightKey = "";
 		Refresh();
@@ -758,7 +773,7 @@ public partial class VillageMap : Node2D
 		_torch.TooltipText = _view.TorchLitUntil is { } burnsUntil
 			? $"Ancora {Math.Max(1, burnsUntil.Since(_view.Now).Seconds / 60)} minuti."
 			: $"Torcie rimaste: {_view.Torches}.";
-		_torch.Disabled = _view.Combat is not null || _view.Dead || _view.TorchLitUntil is null && _view.Torches == 0;
+		_torch.Disabled = _view.Dead || _view.TorchLitUntil is null && _view.Torches == 0;
 		_pause.Disabled = _view.Combat is not null || _view.Dead;
 		_sneakToggle.Disabled = _view.Combat is not null || _view.Dead;
 		foreach (var door in _view.Doors)
@@ -1389,7 +1404,7 @@ public partial class VillageMap : Node2D
 		primary.AddChild(_sneakToggle);
 		_torch = new Button { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		StyleActionButton(_torch, "torch", UtilityAccent);
-		_torch.Pressed += ToggleTorch;
+		_torch.Pressed += RequestTorchToggle;
 		primary.AddChild(_torch);
 		var utility = new HBoxContainer();
 		actions.AddChild(utility);
