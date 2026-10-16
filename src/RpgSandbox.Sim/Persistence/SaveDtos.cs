@@ -131,6 +131,7 @@ internal sealed class ActorDto
     public string? SlowedBy { get; set; }
     public string? Vexing { get; set; }
     public bool VexFresh { get; set; }
+    public string? DistractedBy { get; set; }
     /// <summary>Schema 35 (R3a): the character's choices, Lay On Hands spent, a mastery change open after a Long Rest.</summary>
     public List<string>? AbilityIncreases { get; set; }
     public List<string>? Masteries { get; set; }
@@ -605,6 +606,7 @@ internal sealed class CombatantDto
     public bool SpellSlotSpent { get; set; }
     public bool AttackedWithLight { get; set; }
     public bool OffHandUsed { get; set; }
+    public bool Readied { get; set; }
     public bool Interacted { get; set; }
 }
 

@@ -14,7 +14,7 @@ internal sealed partial class Simulation
         // Anything louder than a whisper ends sneaking (SRD Hide): talking, depositing, waiting... Taking food quietly,
         // stopping, a door or a torch do not (a lit torch gives you away by its light anyway); a normal walk ends it in StartMove.
         if (result.Success && command is not (MoveCommand or MoveToSpotCommand or StopCommand or TakeFoodCommand or DoorCommand or WindowCommand or LockCommand or PickLockCommand or ClearGlassCommand or TorchCommand or PickUpCommand or DropCommand
-                or ObserveCommand)
+                or ObserveCommand or CombatActionCommand { Action: CombatAction.Hide or CombatAction.Search or CombatAction.Ready }) // R4c: quiet
             && World.Actors.TryGetValue(command.Actor, out var actor))
             actor.Sneak = null;
         return result;

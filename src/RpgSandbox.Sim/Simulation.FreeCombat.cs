@@ -214,6 +214,11 @@ internal sealed partial class Simulation
                 if (!actor.Conscious)
                     break;
             }
+            if (actor.Conscious && !ReadiedStrikes(e, actor, standing, next)) // R4c: a readied blow as it comes within reach
+            {
+                stopped = "è caduto";
+                break;
+            }
             if (!actor.Conscious)
             {
                 stopped = "è caduto";

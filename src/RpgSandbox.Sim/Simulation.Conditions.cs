@@ -14,7 +14,8 @@ internal sealed partial class Simulation
 
     /// <summary>Whether the creature has the condition now (one with a time limit has not run out).</summary>
     internal bool Has(Actor actor, ConditionKind kind) =>
-        actor.Conditions.Any(c => c.Kind == kind && (c.Until is not { } until || until > World.Now));
+        actor.Conditions.Any(c => c.Kind == kind && (c.Until is not { } until || until > World.Now)
+            && (kind != ConditionKind.Invisible || c.Source != actor.Id || actor.Sneak is not null)); // R4c: hidden while its Stealth stands
 
     /// <summary>SRD Incapacitated, also through Paralyzed and Stunned: no actions, no Reactions.</summary>
     internal bool Incapacitated(Actor actor) =>
@@ -172,6 +173,8 @@ internal sealed partial class Simulation
         Dis(Has(target, ConditionKind.Prone) && !withinFiveFeet, "è a terra, lontano");
         Dis(Has(target, ConditionKind.Invisible), "è invisibile");
         Adv(attacker.Vexing == target.Id, "lo hai messo in difficoltà");
+        Adv(target.DistractedBy is { } helper && helper != attacker.Id && EncounterOf(attacker) is { } fight
+            && World.Actors.TryGetValue(helper, out var ally) && Allies(fight, attacker, ally), "è distratto"); // R4c: Help
         Dis(ProtectedFrom(target, attacker), "è protetto dal male"); // R3c
         return (advantage, disadvantage, reasons);
     }
@@ -250,6 +253,8 @@ internal sealed partial class Simulation
                 other.SappedBy = null;
             if (other.SlowedBy == actor.Id)
                 other.SlowedBy = null;
+            if (other.DistractedBy == actor.Id)
+                other.DistractedBy = null; // R4c: Help lasts until the start of the helper's next turn
             foreach (var ending in other.Conditions.Where(c => c.EndsAtTurnOf == actor.Id).Select(c => c.Kind).ToList())
                 RemoveCondition(e, other, ending);
         }

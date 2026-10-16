@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 37;
+    public const int SchemaVersion = 38;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -217,7 +217,7 @@ internal static class SaveGame
             {
                 Kind = c.Kind.ToString(), Source = c.Source?.Value, Until = c.Until?.Ticks, EndsAtTurnOf = c.EndsAtTurnOf?.Value,
             }).ToList(),
-            Exhaustion = a.Exhaustion, SappedBy = a.SappedBy?.Value, SlowedBy = a.SlowedBy?.Value, Vexing = a.Vexing?.Value, VexFresh = a.VexFresh,
+            Exhaustion = a.Exhaustion, SappedBy = a.SappedBy?.Value, SlowedBy = a.SlowedBy?.Value, Vexing = a.Vexing?.Value, VexFresh = a.VexFresh, DistractedBy = a.DistractedBy?.Value,
             AbilityIncreases = a.Choices.AbilityIncreases.Select(x => x.ToString()).ToList(), Masteries = a.Choices.Masteries?.ToList(),
             FightingStyle = a.Choices.FightingStyle, LayOnHandsSpent = a.LayOnHandsSpent, MasteryChangeOpen = a.MasteryChangeOpen,
             SlotsSpent = a.SlotsSpent.ToList(), PreparedSpells = a.PreparedSpells.ToList(), FreeSmiteUsed = a.FreeSmiteUsed, SpellSwapOpen = a.SpellSwapOpen,
@@ -622,6 +622,7 @@ internal static class SaveGame
             actor.SlowedBy = a.SlowedBy is null ? null : new ActorId(a.SlowedBy);
             actor.Vexing = a.Vexing is null ? null : new ActorId(a.Vexing);
             actor.VexFresh = a.VexFresh;
+            actor.DistractedBy = a.DistractedBy is null ? null : new ActorId(a.DistractedBy);
             actor.Choices = new CharacterChoices
             {
                 AbilityIncreases = (a.AbilityIncreases ?? new()).Select(k => Enum.TryParse<Ability>(k, out var ab) && Enum.IsDefined(ab) ? ab
@@ -1096,7 +1097,7 @@ internal static class SaveGame
             Actor = c.Actor.Value, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus,
             MovedFeet = c.MovedInches / Spot.PerFoot, MovedInches = c.MovedInches, ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
             LastSeenAt = c.LastSeenAt is { } at ? new PosDto { X = at.X, Y = at.Y } : null, JoinedInRound = c.JoinedInRound, Fleeing = c.Fleeing,
-            Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved, BonusActionUsed = c.BonusActionUsed, AttacksLeft = c.AttacksLeft, SpellSlotSpent = c.SpellSlotSpent, AttackedWithLight = c.AttackedWithLight, OffHandUsed = c.OffHandUsed,
+            Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved, BonusActionUsed = c.BonusActionUsed, AttacksLeft = c.AttacksLeft, SpellSlotSpent = c.SpellSlotSpent, AttackedWithLight = c.AttackedWithLight, OffHandUsed = c.OffHandUsed, Readied = c.Readied,
         }).ToList(),
         Log = e.Log.Select(RecordDto).ToList(),
     };
@@ -1174,7 +1175,7 @@ internal static class SaveGame
                         : c.LastSeenEnemy is { } seen ? Spot.CenterOf(new GridPos(seen.X, seen.Y)) : null,
                     JoinedInRound = c.JoinedInRound is { } joined && joined >= 1 && joined <= dto.Round ? joined
                         : c.JoinedInRound is null ? null : throw new InvalidDataException($"ingresso nello scontro di '{id}' non valido"),
-                    Fleeing = c.Fleeing, Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved, BonusActionUsed = c.BonusActionUsed, AttacksLeft = c.AttacksLeft, SpellSlotSpent = c.SpellSlotSpent, AttackedWithLight = c.AttackedWithLight, OffHandUsed = c.OffHandUsed,
+                    Fleeing = c.Fleeing, Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved, BonusActionUsed = c.BonusActionUsed, AttacksLeft = c.AttacksLeft, SpellSlotSpent = c.SpellSlotSpent, AttackedWithLight = c.AttackedWithLight, OffHandUsed = c.OffHandUsed, Readied = c.Readied,
                 });
             }
             Check(e.Order.Any(c => c.Side == 0) && e.Order.Any(c => c.Side == 1), $"scontro {dto.Id} senza due lati");

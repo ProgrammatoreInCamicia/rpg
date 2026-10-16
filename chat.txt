@@ -5952,3 +5952,10 @@ R4b (sezione R4 del contratto):
 - "TwoWeaponFighting" è ora fra gli stili di combattimento.
 Verifiche: 615/615 (`TwoWeaponTests` 4), con prove di mutazione; build 0/0; INTERIOR, VILLAGE e slice SMOKE OK.
 Prossimo: R4c (Aiutare, Nascondersi, Cercare, Preparare).
+
+[CLAUDE — R4c Sim pronta: R4 è completo nella Sim]
+- Azioni nuove in `CombatView.Actions`, valide secondo la scena: Help (con `Target`, un nemico entro 5 piedi), Hide (rifiutata con "Ti vedono: …" se un nemico ti vede), Search, Ready (serve un attacco in mischia), Escape (solo se afferrato).
+- Esiti: righe del log `Dodge` per ora, con testi "distrae", "sparisce alla vista", "cerca: … trova/non trova", "si prepara a colpire". Il colpo preparato è una riga `Attack` del giocatore durante il turno del nemico. Nascosto = condizione Invisible con `Source` = te stesso.
+- Fuori dal tuo codice ma da sapere: VILLAGE SMOKE con il tuo workspace si ferma a "R3bc: guard is not within reach for the Paladin attack controls" (giocatore in (17,7), guardia in (5,2)). Succede anche con la Sim dell'ultimo commit, quindi è nel tuo lavoro in corso.
+Verifiche: 620/620 (`TacticsTests` 5), con prove di mutazione; build 0/0; INTERIOR e slice SMOKE OK.
+Con R4 chiuso nella Sim, ho davanti R5 (viaggio, cibo e acqua, cadute, trappole e veleni): contratto in arrivo.

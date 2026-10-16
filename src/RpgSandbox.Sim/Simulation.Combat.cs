@@ -342,6 +342,7 @@ internal sealed partial class Simulation
         c.AttacksLeft = 0;
         c.SpellSlotSpent = false; // R3b
         c.AttackedWithLight = c.OffHandUsed = false; // R4b
+        c.Readied = false; // R4c: a readied action lasts until the start of one's next turn
         ConditionsAtTurnStart(e, actor); // R2: what lasts until the start of its turn ends
         c.ActionUsed = c.OpeningSpent;
         c.OpeningSpent = false;
@@ -663,6 +664,8 @@ internal sealed partial class Simulation
         if (blessed > 0)
             spellText = $" (Benedizione +{blessed})" + spellText;
         attacker.SappedBy = null; // R2: Sap and Vex are for the next attack roll only
+        if (target.DistractedBy is { } distracter && distracter != attacker.Id)
+            target.DistractedBy = null; // R4c: Help is for one attack roll
         if (attacker.Vexing == target.Id)
             attacker.Vexing = null;
         // P2b: who struck is seen as the blow comes, before it lands (one knocked out by it still saw who did it).
@@ -1033,6 +1036,12 @@ internal sealed partial class Simulation
             me.MovedInches += feet * Spot.PerFoot * (dragging ? 2 : 1); // R4a
             Place(actor, square);
             walked.Add(square);
+            if (!ReadiedStrikes(e, actor, from, Centre(square))) // R4c
+            {
+                stopped = "è caduto";
+                from = Centre(square);
+                break;
+            }
             from = Centre(square);
         }
         // Nobody ends a move on another creature: step back to the last free square walked. ADAPTATION: the steps back
@@ -1103,6 +1112,11 @@ internal sealed partial class Simulation
                 return;
             if (TryAttack(target, tookCover) || !World.Encounters.ContainsKey(e.Id))
                 return;
+        }
+        if (target is null && !c.ActionUsed && EnemiesOf(e, npc).Any(o => Hidden(o) && CouldSee(npc, o))) // R4c: it looks for the one hiding
+        {
+            TacticalAction(e, npc, new CombatActionCommand { Actor = npc.Id, Action = CombatAction.Search });
+            return;
         }
         if (Has(npc, ConditionKind.Grappled) && !c.ActionUsed) // R4a: held and nobody in reach, it struggles free
         {
@@ -1276,6 +1290,8 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(refused.Reason, refused.Why!);
         if (command.Action == CombatAction.Escape)
             return Escape(e, actor); // R4a
+        if (command.Action > CombatAction.Escape)
+            return TacticalAction(e, actor, command); // R4c
         Act(e, actor, command.Action);
         return new CommandResult { Message = $"{actor.Name} {Verb(command.Action)}." };
     }
@@ -1284,7 +1300,6 @@ internal sealed partial class Simulation
     private ActionOptionView ActionOption(Encounter e, Actor actor, CombatAction action)
     {
         var (reason, why) = !Enum.IsDefined(action) ? (RejectionReason.UnknownCommand, "Azione sconosciuta.")
-            : action > CombatAction.Escape ? (RejectionReason.UnknownCommand, "Non ancora disponibile.") // R4: until its rules are in
             : action == CombatAction.Escape && !Has(actor, ConditionKind.Grappled) ? (RejectionReason.NotHeld, "Non sei afferrato.")
             : !IsTurnOf(e, actor) ? (RejectionReason.NotYourTurn, "Non è il tuo turno.")
             : CombatantOf(e, actor.Id).ActionUsed ? (RejectionReason.NoActionLeft, "Hai già usato l'azione in questo turno.")

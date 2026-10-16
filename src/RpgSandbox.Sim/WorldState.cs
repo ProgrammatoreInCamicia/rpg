@@ -234,6 +234,9 @@ internal sealed class Actor
     /// <summary>R2, Sap: Disadvantage on its next attack roll, until the start of this one's next turn.</summary>
     public ActorId? SappedBy { get; set; }
 
+    /// <summary>R4c, Help: who distracted it (an ally of that one has Advantage on its next attack roll against it).</summary>
+    public ActorId? DistractedBy { get; set; }
+
     /// <summary>R2, Slow: −10 feet of Speed until the start of this one's next turn.</summary>
     public ActorId? SlowedBy { get; set; }
 
@@ -769,6 +772,9 @@ internal sealed class Combatant
     /// <summary>R4b: it attacked with a Light weapon taking the Attack action this turn; and made the extra attack.</summary>
     public bool AttackedWithLight { get; set; }
     public bool OffHandUsed { get; set; }
+
+    /// <summary>R4c, Ready: a melee attack waits for the first enemy that comes within reach.</summary>
+    public bool Readied { get; set; }
 
     /// <summary>C3b: the turn's free interaction with an object (picking something up) is used.</summary>
     public bool Interacted { get; set; }
