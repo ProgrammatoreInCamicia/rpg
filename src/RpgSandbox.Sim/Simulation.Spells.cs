@@ -61,11 +61,20 @@ internal sealed partial class Simulation
                 {
                     Id = s.Id, Name = s.Name, Level = s.Level, Casting = s.Casting.ToString(), RangeFeet = s.RangeFeet,
                     Targets = s.Targets, Concentration = s.Concentration, AlwaysPrepared = always.Contains(s.Id),
+                    Description = s.Description,
                 }).ToArray(),
             Slots = SlotsMax(actor).Select((max, i) => new SlotView { Level = i + 1, Remaining = SlotsLeft(actor, i + 1), Max = max }).ToArray(),
             SaveDc = SpellSaveDc(actor), AttackBonus = SpellModifier(actor) + actor.Sheet.ProficiencyBonus,
             Concentrating = actor.Concentrating,
             FreeSmite = HasFeature(actor, ClassFeatures.Smite) && !actor.FreeSmiteUsed,
+            ClassSpells = World.Content.Spells.Values.Where(s => s.Classes.Contains(ClassOf(actor) ?? ""))
+                .OrderBy(s => s.Level).ThenBy(s => s.Id, StringComparer.Ordinal)
+                .Select(s => new SpellView
+                {
+                    Id = s.Id, Name = s.Name, Level = s.Level, Casting = s.Casting.ToString(), RangeFeet = s.RangeFeet,
+                    Targets = s.Targets, Concentration = s.Concentration, AlwaysPrepared = always.Contains(s.Id),
+                    Description = s.Description, Prepared = IsPrepared(actor, s.Id), WithinReach = s.Level <= SlotsMax(actor).Count,
+                }).ToArray(),
         };
     }
 

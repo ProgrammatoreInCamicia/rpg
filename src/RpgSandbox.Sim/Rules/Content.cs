@@ -131,7 +131,11 @@ public enum CastingTime { Action, BonusAction, AfterMeleeHit }
 /// instantaneous), Concentration, how many creatures it targets at its level, the classes that have it. Its effect is in code.
 /// </summary>
 public sealed record SpellDefinition(string Id, string Name, int Level, CastingTime Casting, int RangeFeet, int DurationMinutes,
-    bool Concentration, int Targets, IReadOnlyList<string> Classes);
+    bool Concentration, int Targets, IReadOnlyList<string> Classes)
+{
+    /// <summary>What the spell does, in Italian, after the SRD text (shown in the spellbook).</summary>
+    public string Description { get; init; } = "";
+}
 
 /// <summary>The six ability scores.</summary>
 public sealed record AbilityScores(int Strength, int Dexterity, int Constitution, int Intelligence, int Wisdom, int Charisma);
@@ -335,7 +339,10 @@ public sealed class ContentPack
         var where = $"{file}, incantesimo '{id}'";
         var spell = new SpellDefinition(id, Text(e, "name", where), Int(e, "level", where), EnumOf<CastingTime>(Field(e, "casting", where), where),
             Int(e, "range", where), Int(e, "duration", where), Field(e, "concentration", where).GetBoolean(), Int(e, "targets", where),
-            Array(e, "classes", where).Select(x => x.GetString() ?? "").ToArray());
+            Array(e, "classes", where).Select(x => x.GetString() ?? "").ToArray())
+        {
+            Description = e.TryGetProperty("description", out var description) ? description.GetString() ?? "" : "",
+        };
         if (spell.Level is < 0 or > 9 || spell.RangeFeet < 0 || spell.DurationMinutes < 0 || spell.Targets < 0)
             throw new InvalidDataException($"contenuti: {where}: livello, gittata, durata o bersagli non validi");
         return spell;

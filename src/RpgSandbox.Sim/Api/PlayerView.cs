@@ -382,6 +382,13 @@ public sealed record SpellView
 
     /// <summary>Always prepared (a class or oath feature): it does not count against the prepared spells.</summary>
     public bool AlwaysPrepared { get; init; }
+
+    /// <summary>What the spell does (from the SRD, in Italian).</summary>
+    public string Description { get; init; } = "";
+
+    /// <summary>In <see cref="SpellbookView.ClassSpells"/>: whether it is prepared, and whether its level is within the slots one has.</summary>
+    public bool Prepared { get; init; } = true;
+    public bool WithinReach { get; init; } = true;
 }
 
 /// <summary>R3b: spell slots of one level: left and in all.</summary>
@@ -405,6 +412,9 @@ public sealed record SpellbookView
 
     /// <summary>Paladin's Smite: the free Divine Smite is still there (until the next Long Rest).</summary>
     public bool FreeSmite { get; init; }
+
+    /// <summary>Every spell of the class the game has, prepared or not, to read in the spellbook.</summary>
+    public IReadOnlyList<SpellView> ClassSpells { get; init; } = Array.Empty<SpellView>();
 }
 
 /// <summary>R3b: a spell in effect on a creature: which, who cast it, until when.</summary>

@@ -1053,3 +1053,9 @@ Corretto rispetto al contratto pubblicato in chat, dopo averlo riletto sul PDF:
 - `PlayerView.KnownTraps` (`TrapView`: `At`, `Kind` Pit/Needle, `Sprung`, `Disarmed`): le trappole della mappa trovate o scattate.
 - `basic-poison` ("Veleno base", 100 mo). `ApplyPoisonCommand` avvelena l'arma in mano: fuori scontro subito, in scontro l'azione bonus. Il primo colpo perforante o tagliente con quell'arma entro 1 minuto fa 1d4 danni da veleno in più (raddoppiati sul critico). `PlayerView.WeaponPoisonedUntil`. Nuovo `DamageType.Poison`.
 - Salvataggio schema 41.
+
+## Libro degli incantesimi — descrizioni e lista della classe
+
+- `SpellView.Description`: cosa fa l'incantesimo, in italiano dal testo dello SRD (campo `"description"` in `game/content/srd/spells.json`).
+- `SpellbookView.ClassSpells`: tutti gli incantesimi della classe che il gioco ha, preparati o no. Per ciascuno, `Prepared` dice se è preparato e `WithinReach` se il suo livello rientra negli slot del personaggio.
+- La preparazione resta quella di prima: le scelte `PreparedSpells` e `SwapSpell` in `PendingChoices`, confermate con `ChooseCommand`.

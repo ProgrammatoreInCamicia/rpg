@@ -83,6 +83,23 @@ public class SpellTests
         Assert.Equal(4, five.PendingChoices.Single(c => c.Kind == "PreparedSpells").Picks); // 6 at level 5, 2 known
     }
 
+
+    [Fact]
+    public void The_spellbook_lists_every_paladin_spell_with_its_description_which_are_prepared_and_which_within_reach()
+    {
+        var book = Yard().GetPlayerView().Spells!;
+        Assert.Equal(new[] { "bless", "cure-wounds", "divine-favor", "divine-smite", "protection-from-evil-and-good", "shield-of-faith",
+            "aid", "lesser-restoration" }, book.ClassSpells.Select(c => c.Id));
+        Assert.All(book.ClassSpells, c => Assert.False(string.IsNullOrWhiteSpace(c.Description)));
+        Assert.All(book.Prepared, p => Assert.False(string.IsNullOrWhiteSpace(p.Description)));
+        Assert.Equal(new[] { "bless", "cure-wounds" }, book.ClassSpells.Where(c => c.Prepared).Select(c => c.Id));
+        Assert.Equal(new[] { "aid", "lesser-restoration" }, book.ClassSpells.Where(c => !c.WithinReach).Select(c => c.Id));
+        Assert.Contains("1d4", book.ClassSpells.Single(c => c.Id == "bless").Description);
+
+        var five = Yard(experience: 6500).GetPlayerView().Spells!;
+        Assert.All(five.ClassSpells, c => Assert.True(c.WithinReach));
+        Assert.True(five.ClassSpells.Single(c => c.Id == "divine-smite").Prepared);
+    }
     [Fact]
     public void Cure_wounds_heals_two_d8_plus_charisma_by_touch_and_spends_a_slot()
     {
