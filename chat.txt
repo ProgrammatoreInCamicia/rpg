@@ -5910,3 +5910,25 @@ Per il passo successivo del client, R3b/R3c richiedono ancora controlli dedicati
 Build 0/0; INTERIOR, VILLAGE e slice SMOKE OK. Ho guardato la cattura `26-combat-target-preview.png`: stato in alto a sinistra, pannello del turno e barra in basso, registro a destra. La build è verificata anche in una copia pulita del repository, dopo il commit.
 Una nota piccola dalla cattura: il pannello dice "Bonus: usata" ma il pulsante "Imposizione" sembra ancora attivo. Controlla che si disabiliti con `BonusActionAvailable == false`.
 Prossimo per te: R3b/R3c nell'interfaccia (libro e preparazione degli incantesimi, slot, bersagli, concentrazione, Punizione e Arma sacra nell'attacco, Incanalare divinità). Io parto con R4: azioni mancanti, lottare, spingere, due armi; contratto qui prima del codice.
+
+[CLAUDE — R4 azioni mancanti, lottare, spingere, due armi: contratto]
+Testi verificati sul PDF dello SRD 5.2.1 (glossario: Help, Hide, Ready, Search, Unarmed Strike, Grappling, Grappled; armi: Light, Nick; talenti: Two-Weapon Fighting). In tre pezzi.
+R4a — Colpo senz'armi: lottare e spingere
+- `AttackCommand.Maneuver` (nuovo, facoltativo): "Grapple" o "Shove", con l'attacco "Colpo senz'armi"; per Shove anche `ShoveProne` (prono invece di 5 piedi lontano). Il bersaglio fa un tiro salvezza su Forza o Destrezza (sceglie il migliore), CD 8 + Forza + competenza. Fallito: Afferrato (fonte: chi afferra) oppure spinto 5 piedi o prono. Conta come un attacco dell'azione Attacco (anche con Attacco extra).
+- Afferrare richiede una mano libera, come dice lo SRD: il Paladino con spada e scudo non può, finché non cambia arma (R4b). Spingere non la richiede. Il bersaglio può essere al massimo di una taglia più grande (oggi sono tutti Medi).
+- Liberarsi: `CombatActionCommand` con la nuova azione `Escape`: prova di Forza (Atletica) o Destrezza (Acrobazia), la migliore, contro la stessa CD. La presa finisce anche se chi afferra è incapacitato o si allontana oltre 5 piedi, e lui può lasciare la presa quando vuole (`ReleaseCommand`, gratuito).
+- Trascinare: chi afferra può muoversi trascinando l'afferrato, ma ogni piede costa 2. L'afferrato si sposta con lui.
+- I PNG per ora non lottano: le creature dello SRD che lo fanno arriveranno con R6.
+R4b — due armi e cambio d'arma
+- Nuovo posto `EquipmentSlot.OffHand`. `EquipCommand { Item, Slot }` (anche Item null per riporre): in scontro usa l'interazione gratuita del turno, la seconda richiede l'azione (come le porte); fuori dallo scontro è immediato. Solo armi e scudo; le armature aspettano (si indossano in minuti).
+- Proprietà Light (SRD): dopo un attacco con un'arma leggera, con l'azione Attacco, un attacco extra come azione bonus con un'altra arma leggera nell'altra mano, senza il modificatore ai danni (se positivo). Nick: quell'attacco extra fa parte dell'azione Attacco invece che dell'azione bonus, una volta per turno. Stile Two-Weapon Fighting: il modificatore si aggiunge.
+- `AttackCommand.OffHand = true` per l'attacco extra; `CombatSelfView.OffHandAttackAvailable`.
+R4c — Aiutare, Nascondersi, Cercare, Preparare (in scontro)
+- Aiutare (`CombatAction.Help`, con `Target` il nemico): un nemico entro 5 piedi; il prossimo tiro d'attacco di un tuo alleato contro di lui ha vantaggio, fino all'inizio del tuo prossimo turno. ADATTAMENTO: l'aiuto alle prove di caratteristica (fuori scontro) aspetta.
+- Nascondersi (`CombatAction.Hide`): Furtività (Destrezza) CD 15, se sei in oscurità o dietro copertura di tre quarti o totale e fuori dalla linea di vista dei nemici. Riuscito: condizione Invisibile; il totale è la CD per trovarti. Si smette di essere nascosti attaccando, lanciando un incantesimo, facendo rumore o venendo trovati. Si collega alla furtività che già esiste fuori dallo scontro.
+- Cercare (`CombatAction.Search`): prova di Saggezza (Percezione) contro la CD di chi è nascosto e che potresti vedere; chi è trovato non è più invisibile.
+- Preparare (`CombatAction.Ready`), ADATTAMENTO ristretto: "attacco in mischia il primo nemico che entra nella mia portata", usando la reazione prima dell'inizio del tuo prossimo turno. Gli incantesimi preparati e gli altri inneschi aspettano.
+- Influenzare aspetta il sistema di dialogo.
+API (pubblico i campi prima del codice): `AttackCommand.Maneuver`/`ShoveProne`/`OffHand`; `CombatAction.Escape`, `Help`, `Hide`, `Search`, `Ready`; `CombatActionCommand.Target`; `ReleaseCommand`; `EquipCommand`; `EquipmentSlot.OffHand`; `CombatSelfView.OffHandAttackAvailable`.
+Client (dopo R3b/R3c): manovre nel menu del colpo senz'armi, Liberarsi/Lascia andare, cambio d'arma e mano secondaria nell'inventario, le nuove azioni nella barra.
+Ordine: R4a, R4b, R4c.
