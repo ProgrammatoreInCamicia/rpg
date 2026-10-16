@@ -156,6 +156,10 @@ internal sealed class ActorDto
     public int WaterPints { get; set; }
     public bool DrankToday { get; set; }
     public long TravelSecondsToday { get; set; }
+    /// <summary>Schema 41 (R5c): down a pit; the weapon coated with poison, until when (ticks).</summary>
+    public bool InPit { get; set; }
+    public string? PoisonedWeapon { get; set; }
+    public long? PoisonedUntil { get; set; }
     public List<string>? Defeated { get; set; }
 
     /// <summary>P1 (schema 23): the exact point where it stands, when not the centre of its square.</summary>
@@ -211,6 +215,7 @@ internal sealed class DecisionDto
 [JsonDerivedType(typeof(MoveActionDto), "Move")]
 [JsonDerivedType(typeof(DownedActionDto), "Downed")]
 [JsonDerivedType(typeof(BarrierActionDto), "Barrier")]
+[JsonDerivedType(typeof(TrapWorkActionDto), "TrapWork")]
 [JsonDerivedType(typeof(RestActionDto), "Rest")]
 internal abstract class ActionDto
 {
@@ -400,6 +405,7 @@ internal sealed class MapDto
     public List<ExitDto> Exits { get; set; } = new();
     public List<PostDto> Posts { get; set; } = new();
     public List<GroundItemDto> Ground { get; set; } = new();
+    public List<TrapDto>? Traps { get; set; }
 
     /// <summary>P4a (schema 29): doors and windows that lock or stick, as they hold now.</summary>
     public List<BarrierDto>? Barriers { get; set; }
@@ -457,6 +463,12 @@ internal sealed class PendingRelockDto
     public int Y { get; set; }
     public long Walk { get; set; }
     public int AfterStep { get; set; }
+}
+
+internal sealed class TrapWorkActionDto : ActionDto
+{
+    public string Work { get; set; } = "";
+    public PosDto? At { get; set; }
 }
 
 internal sealed class BarrierActionDto : ActionDto
@@ -749,4 +761,15 @@ internal sealed class SpellEffectDto
     public bool Concentration { get; set; }
     public int Amount { get; set; }
     public string? Item { get; set; }
+}
+
+/// <summary>Schema 41 (R5c): a trap on a map square.</summary>
+internal sealed class TrapDto
+{
+    public int X { get; set; }
+    public int Y { get; set; }
+    public string Kind { get; set; } = "";
+    public bool Found { get; set; }
+    public bool Sprung { get; set; }
+    public bool Disarmed { get; set; }
 }

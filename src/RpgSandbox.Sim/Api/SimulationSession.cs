@@ -298,6 +298,8 @@ public sealed class SimulationSession
             Subclass = player.Choices.Subclass,
             Hunger = player.DaysWithoutFood, Water = _sim.WaterOf(player),
             TravelHoursToday = player.TravelSecondsToday / 3600.0,
+            KnownTraps = _sim.KnownTrapsOf(player), InPit = player.InPit, // R5c
+            WeaponPoisonedUntil = player.PoisonedUntil is { } poisonedUntil && poisonedUntil > _sim.World.Now ? poisonedUntil : null,
             MasteryWeapons = Freeze((player.Choices.Masteries ?? (w.Content.Characters.TryGetValue(player.Build, out var definition)
                 ? definition.Masteries : Array.Empty<string>())).Select(i => new ItemId(i))),
             Move = MoveOf(player),

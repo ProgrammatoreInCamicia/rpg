@@ -177,6 +177,7 @@ public sealed record AttackResult
         DamageType.Bludgeoning => "contundenti",
         DamageType.Piercing => "perforanti",
         DamageType.Fire => "da fuoco",
+        DamageType.Poison => "da veleno",
         _ => "taglienti",
     };
 }

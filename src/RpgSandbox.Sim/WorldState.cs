@@ -243,6 +243,11 @@ internal sealed class Actor
     /// <summary>R5b: seconds travelled today (SRD Extended Travel: beyond 8 hours, Constitution saves).</summary>
     public long TravelSecondsToday { get; set; }
 
+    /// <summary>R5c: at the bottom of a pit; the weapon coated with Basic Poison and until when.</summary>
+    public bool InPit { get; set; }
+    public string? PoisonedWeapon { get; set; }
+    public GameTime? PoisonedUntil { get; set; }
+
     /// <summary>R2, SRD Exhaustion: 0..6; each level is −2 to d20 Tests and −5 feet of Speed; at 6 it dies.</summary>
     public int Exhaustion { get; set; }
 
@@ -502,6 +507,16 @@ internal abstract class PendingAction
     public required string Description { get; init; }
     public abstract string Kind { get; }
 }
+
+/// <summary>R5c: a minute looking for traps, disarming one, or trying to climb out of a pit.</summary>
+internal sealed class TrapWorkAction : PendingAction
+{
+    public override string Kind => "TrapWork";
+    public required TrapWork Work { get; init; }
+    public GridPos? At { get; init; }
+}
+
+internal enum TrapWork { Search, Disarm, ClimbOut }
 
 internal sealed class TravelAction : PendingAction
 {
@@ -956,6 +971,9 @@ internal sealed class WorldState
         foreach (var m in scenario.Maps) // P4a
             foreach (var (at, item, count) in m.Ground)
                 world.Maps[m.Area].PutOnGround(at, new ItemId(item), count);
+        foreach (var m in scenario.Maps) // R5c
+            foreach (var (at, kind) in m.Traps)
+                world.Maps[m.Area].Traps[at] = new Trap { Kind = kind };
         return world;
     }
 

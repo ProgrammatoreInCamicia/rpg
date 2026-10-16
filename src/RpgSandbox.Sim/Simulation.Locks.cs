@@ -252,6 +252,12 @@ internal sealed partial class Simulation
                 World.RecordFact("LockPickFailed", $"{actor.Name} smette di scassinare {Name(key)}.", actor.Id);
                 return;
             }
+            if (NeedleIn(map, key) is { } needle) // R5c: a lock opened with anything but its key
+            {
+                Sting(actor, needle);
+                if (!actor.Conscious)
+                    return;
+            }
             // SRD tools: proficiency with the tool adds the Proficiency Bonus; with the skill too, Advantage.
             var sheet = actor.Sheet;
             var proficient = sheet.IsProficientWith(ThievesTools);
@@ -407,7 +413,7 @@ internal sealed partial class Simulation
     private IEnumerable<GridPos> BarredDoors(Actor actor, GridMap map)
     {
         var opens = Opens(actor, map);
-        return map.Doors.Keys.Where(d => map.DoorHolds(d) && !opens(d)).ToList();
+        return map.Doors.Keys.Where(d => map.DoorHolds(d) && !opens(d)).Concat(KnownPits(actor, map)).ToList(); // R5c: and the pits it knows
     }
 }
 

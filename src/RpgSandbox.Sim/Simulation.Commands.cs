@@ -28,6 +28,8 @@ internal sealed partial class Simulation
             if (!actor.Conscious)
                 return CommandResult.Rejected(RejectionReason.ActorBusy,
                     actor.Vitality.State == LifeState.Dead ? $"{actor.Name} è morto." : $"{actor.Name} è privo di sensi.");
+            if (actor.InPit && command is MoveCommand or MoveToSpotCommand or TravelCommand) // R5c
+                return CommandResult.Rejected(RejectionReason.InPit, "Sei in fondo a una fossa: prima risali.");
             if (EncounterOf(actor) is { } fight)
                 return command switch
                 {
@@ -46,6 +48,8 @@ internal sealed partial class Simulation
                     ChannelDivinityCommand channel => UseChannelDivinity(channel), // R3c
                     ReleaseCommand release => Release(release), // R4a
                     EquipCommand equip => Equip(equip), // R4b
+                    ClimbOutCommand => CombatClimbOut(fight, actor), // R5c
+                    ApplyPoisonCommand poison => ApplyPoison(poison),
                     _ => CommandResult.Rejected(RejectionReason.InCombat, $"{actor.Name} sta combattendo."),
                 };
         }
@@ -72,6 +76,8 @@ internal sealed partial class Simulation
         ReleaseCommand release => Release(release),
         EquipCommand equip => Equip(equip),
         DoorCommand door => UseDoor(door),
+        SearchCommand or DisarmCommand or ClimbOutCommand => StartTrapWork(command), // R5c
+        ApplyPoisonCommand poison => ApplyPoison(poison),
         WindowCommand window => UseWindow(window),
         LockCommand lockCommand => UseLock(lockCommand), // P4a
         PickLockCommand pick => StartBarrierWork(pick, BarrierWork.PickLock),
@@ -284,6 +290,9 @@ internal sealed partial class Simulation
             case BarrierAction work:
                 CompleteBarrierWork(actor, work);
                 break;
+            case TrapWorkAction trapWork:
+                CompleteTrapWork(actor, trapWork); // R5c
+                break;
             case TakeFoodAction take:
                 CompleteTake(actor, take);
                 break;
@@ -296,6 +305,7 @@ internal sealed partial class Simulation
             case MoveAction move:
                 Place(actor, move.Path[^1], move.Spots?[^1]); // contacts follow once the instant's positions are all known
                 RelockBehind(actor, World.Maps[actor.MapArea!.Value], move, reached: move.Path.Count - 1);
+                StepOnPit(actor); // R5c
                 break;
             case DownedAction:
                 CompleteDowned(actor);

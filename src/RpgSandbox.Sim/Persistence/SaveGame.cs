@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 40;
+    public const int SchemaVersion = 41;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -226,6 +226,7 @@ internal static class SaveGame
             DaysWithoutFood = a.DaysWithoutFood, HungerExhaustion = a.HungerExhaustion, ThirstExhaustion = a.ThirstExhaustion,
             WaterPints = a.WaterPints, DrankToday = a.DrankToday,
             TravelSecondsToday = a.TravelSecondsToday,
+            InPit = a.InPit, PoisonedWeapon = a.PoisonedWeapon, PoisonedUntil = a.PoisonedUntil?.Ticks,
             Effects = a.Effects.Select(f => new SpellEffectDto { Spell = f.Spell, Caster = f.Caster.Value, Until = f.Until?.Ticks, Concentration = f.Concentration, Amount = f.Amount, Item = f.Item }).ToList(),
             Defeated = a.Defeated.Select(x => x.Value).ToList(),
             Lore = a.Lore.IsEmpty ? null : new LoreDto
@@ -290,6 +291,7 @@ internal static class SaveGame
             }).ToList(),
             Exits = m.Exits.Select(e => new ExitDto { Location = e.Key.Value, X = e.Value.X, Y = e.Value.Y }).ToList(),
             Posts = m.Posts.Select(p => new PostDto { Location = p.Key.Location.Value, Kind = p.Key.Kind.ToString(), X = p.Value.X, Y = p.Value.Y }).ToList(),
+            Traps = m.Traps.Select(t => new TrapDto { X = t.Key.X, Y = t.Key.Y, Kind = t.Value.Kind.ToString(), Found = t.Value.Found, Sprung = t.Value.Sprung, Disarmed = t.Value.Disarmed }).ToList(),
             Ground = m.Ground.SelectMany(g => g.Value.Select(i => new GroundItemDto { X = g.Key.X, Y = g.Key.Y, Item = i.Key.Value, Count = i.Value })).ToList(),
         }).ToList(),
     };
@@ -396,6 +398,7 @@ internal static class SaveGame
             GuardAction ga => new GuardActionDto { Store = ga.Store.Value },
             ConfiscateAction ca => new ConfiscateActionDto { Target = ca.Target.Value, Store = ca.Store.Value },
             DownedAction => new DownedActionDto(),
+            TrapWorkAction tw => new TrapWorkActionDto { Work = tw.Work.ToString(), At = tw.At is { } twAt ? new PosDto { X = twAt.X, Y = twAt.Y } : null },
             BarrierAction b => new BarrierActionDto { Work = b.Work.ToString(), AX = b.Target.A.X, AY = b.Target.A.Y, BX = b.Target.B.X, BY = b.Target.B.Y },
             MoveAction mv => new MoveActionDto
             {
@@ -510,6 +513,13 @@ internal static class SaveGame
             foreach (var p in m.Explored ?? new())
                 Check(w.Maps[area].InBounds(new GridPos(p.X, p.Y)) && w.Maps[area].Explored.Add(new GridPos(p.X, p.Y)),
                     $"casella esplorata non valida nella mappa '{area}'");
+            foreach (var t in m.Traps ?? new()) // R5c: none before schema 41
+            {
+                var square = new GridPos(t?.X ?? -1, t?.Y ?? -1);
+                Check(t is not null && Enum.TryParse<TrapKind>(t.Kind, out var kind) && Enum.IsDefined(kind) && w.Maps[area].InBounds(square)
+                      && w.Maps[area].Traps.TryAdd(square, new Trap { Kind = kind, Found = t.Found, Sprung = t.Sprung, Disarmed = t.Disarmed }),
+                    $"trappola non valida nella mappa '{area}'");
+            }
             foreach (var g in m.Ground ?? throw new InvalidDataException($"oggetti a terra della mappa '{area}' mancanti"))
             {
                 var square = new GridPos(g?.X ?? -1, g?.Y ?? -1);
@@ -653,6 +663,8 @@ internal static class SaveGame
                 (a.DaysWithoutFood, a.HungerExhaustion, a.ThirstExhaustion, a.WaterPints, a.DrankToday);
             Check(a.TravelSecondsToday >= 0, $"viaggio di oggi di '{a.Id}' non valido");
             actor.TravelSecondsToday = a.TravelSecondsToday;
+            Check(a.PoisonedWeapon is null || w.Content.Item(a.PoisonedWeapon) is not null, $"arma avvelenata di '{a.Id}' sconosciuta");
+            (actor.InPit, actor.PoisonedWeapon, actor.PoisonedUntil) = (a.InPit, a.PoisonedWeapon, a.PoisonedUntil is { } pu ? Time(pu) : null);
             foreach (var f in a.Effects ?? new())
                 actor.Effects.Add(new SpellEffect
                 {
@@ -1042,6 +1054,12 @@ internal static class SaveGame
                 Long = r.Long, HitDice = r.HitDice,
             },
             DownedActionDto => new DownedAction { Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description },
+            TrapWorkActionDto tw => new TrapWorkAction
+            {
+                Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
+                Work = Enum.TryParse<TrapWork>(tw.Work, out var trapWork) && Enum.IsDefined(trapWork) ? trapWork : throw new InvalidDataException($"lavoro sconosciuto '{tw.Work}'"),
+                At = tw.At is { } twAt ? new GridPos(twAt.X, twAt.Y) : null,
+            },
             BarrierActionDto b => new BarrierAction
             {
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,

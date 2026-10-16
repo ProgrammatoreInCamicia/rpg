@@ -190,6 +190,12 @@ internal sealed class GridMap
     /// <summary>C3b: items lying on the squares, in reading order (only squares with something).</summary>
     public IReadOnlyDictionary<GridPos, SortedDictionary<ItemId, int>> Ground => _ground;
 
+    /// <summary>R5c: the traps on this map, by square.</summary>
+    public SortedDictionary<GridPos, Trap> Traps { get; } = new();
+
+    /// <summary>R5c: a pit one falls into here: not made safe (a sprung one is an open hole).</summary>
+    public bool PitAt(GridPos square) => Traps.TryGetValue(square, out var t) && t.Kind == TrapKind.Pit && !t.Disarmed;
+
     public int OnGround(GridPos at, ItemId item) => _ground.TryGetValue(at, out var here) && here.TryGetValue(item, out var n) ? n : 0;
 
     /// <summary>Puts (or, negative, takes) items on a walkable square; a kind that drops to none is removed.</summary>
@@ -230,7 +236,7 @@ internal sealed class GridMap
         };
     }
 
-    private bool StepOpen(GridPos from, GridPos to, bool sight, bool requireDestinationWalkable = true)
+    internal bool StepOpen(GridPos from, GridPos to, bool sight, bool requireDestinationWalkable = true)
     {
         if (!InBounds(to) || (!sight && requireDestinationWalkable && !IsWalkable(to)))
             return false;

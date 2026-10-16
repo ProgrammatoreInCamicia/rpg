@@ -33,7 +33,9 @@ internal sealed partial class Simulation
                 return CommandResult.Rejected(RejectionReason.AlreadyThere, $"{actor.Name} è già lì.");
             return StartMoveToSpot(new MoveToSpotCommand { Actor = actor.Id, To = Spot.CenterOf(from), Stealthy = command.Stealthy });
         }
-        if (map.FindPath(from, command.To, command.Stealthy ? square => SneakCost(map, square) : null, Opens(actor, map)) is not { } path)
+        var pits = KnownPits(actor, map).ToHashSet(); // R5c: a known pit is gone round where there is a way
+        if (map.FindPath(from, command.To, square => (command.Stealthy ? SneakCost(map, square) : 0) + (pits.Contains(square) ? 1000 : 0),
+                Opens(actor, map)) is not { } path)
             return CommandResult.Rejected(RejectionReason.Unreachable, "Non si può raggiungere quel punto.");
         if (command.StopNextTo)
         {
@@ -284,6 +286,11 @@ internal sealed partial class Simulation
         Place(actor, move.Path[waypoint.Step - 1], move.Spots?[waypoint.Step - 1]);
         var map = World.Maps[actor.MapArea!.Value];
         RelockBehind(actor, map, move, reached: waypoint.Step - 1);
+        if (StepOnPit(actor)) // R5c: the walk ends in the pit
+        {
+            CancelAction(actor);
+            return;
+        }
         if (map.ClosedDoorBetween(move.Path[waypoint.Step - 1], move.Path[waypoint.Step]) is { } nextDoor)
             OpenDoorOnTheWay(actor, map, nextDoor, move, crossingTo: waypoint.Step);
     }

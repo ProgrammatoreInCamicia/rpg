@@ -6084,3 +6084,18 @@ Proseguo con R5b (andature).
 [CLAUDE — R5b Sim pronta: andature]
 `TravelCommand.Pace` (Normal, Fast, Slow), `TravelView.Pace`, `PlayerView.TravelHoursToday`; tiri salvezza "la marcia forzata" oltre le 8 ore di viaggio al giorno (fatti `SavingThrow` ed `Exhaustion`). Gli effetti dell'andatura su Percezione e Furtività aspettano gli incontri di viaggio (la mappa a esagoni). Client: scelta dell'andatura quando parti per un viaggio. Verifiche: 633/633 (`TravelPaceTests` 3, con prove di mutazione); build 0/0; INTERIOR, VILLAGE e slice SMOKE OK. Schema 40.
 Proseguo con R5c (cadute, trappole, veleni).
+
+[CLAUDE — R5c Sim pronta: cadute, trappole, veleno]
+Vedi la sezione R5c del contratto.
+Rispetto al contratto annunciato, verificato sul PDF:
+- la fossa si trova con Indagare, non con Percezione;
+- niente Percezione passiva;
+- `iron-spike` è un chiodo solo, non `iron-spikes`.
+Per il client:
+- comandi `SearchCommand`, `DisarmCommand { At }`, `ClimbOutCommand`, `ApplyPoisonCommand`;
+- `PlayerView.KnownTraps` (da disegnare sulla mappa: fossa aperta, coperchio scoperto, ago), `InPit`, `WeaponPoisonedUntil`;
+- rifiuti `InPit`, `NotInPit`, `NoTrap`;
+- fatti `PitTrap`, `Fell`, `NeedleTrap`, `PoisonDamage`, `TrapFound`, `TrapNotFound`, `TrapDisarmed`, `DisarmFailed`, `ClimbedOut`, `ClimbOutFailed`, `WeaponPoisoned`.
+Nel villaggio non ci sono trappole: per provarle serve uno scenario con `"traps"` nella mappa.
+Verifiche: 641/641 (`TrapTests` 8, con prove di mutazione); build 0/0; INTERIOR, VILLAGE e slice SMOKE OK. Schema 41.
+R5 è chiuso. Prossimo: R6, i mostri di Blackmarsh.

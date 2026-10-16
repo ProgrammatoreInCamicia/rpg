@@ -76,6 +76,11 @@ public sealed record PlayerView
     /// <summary>R5b: hours travelled today (SRD Extended Travel: past 8, Constitution saves each hour).</summary>
     public double TravelHoursToday { get; init; }
 
+    /// <summary>R5c: the traps it knows of on its map; whether it is down a pit; until when its weapon is poisoned.</summary>
+    public IReadOnlyList<TrapView> KnownTraps { get; init; } = Array.Empty<TrapView>();
+    public bool InPit { get; init; }
+    public GameTime? WeaponPoisonedUntil { get; init; }
+
     /// <summary>Direction the character faces in map coordinates; null in legacy all-direction scenarios.</summary>
     public GridPos? Facing { get; init; }
 
@@ -418,3 +423,15 @@ public sealed record WaterView
     public required int Capacity { get; init; }
     public required bool DrankToday { get; init; }
 }
+
+/// <summary>R5c: a trap the player knows of: found by searching, or sprung.</summary>
+public sealed record TrapView
+{
+    public required GridPos At { get; init; }
+    public required TrapKind Kind { get; init; }
+    public required bool Sprung { get; init; }
+    public required bool Disarmed { get; init; }
+}
+
+/// <summary>R5c, SRD traps: a pit 10 feet deep under a hinged lid; a poisoned needle in a lock.</summary>
+public enum TrapKind { Pit, Needle }

@@ -177,6 +177,7 @@ internal sealed partial class Simulation
         var standing = StandingOf(actor);
         var reached = 0;
         string? stopped = null;
+        var intoPit = false;
         // P2a: where the player saw the mover, point by point as it walked (all of it, for the player's own move).
         var player = World.Actors[World.Player];
         var sightOf = new Dictionary<GridPos, bool>(); // by square: sight and light are the grid's
@@ -227,6 +228,11 @@ internal sealed partial class Simulation
             standing = next;
             reached = k;
             seen.Add(PlayerSees(p));
+            if (p.Cell != points[0].Cell && map.PitAt(p.Cell)) // R5c: onto a pit's lid, or into an open pit
+            {
+                intoPit = true;
+                break;
+            }
         }
         var forward = reached == points.Count - 1 ? (int)Math.Ceiling(way.Length - 1e-9) : reached;
         var back = reached;
@@ -235,6 +241,8 @@ internal sealed partial class Simulation
         if (back < reached && stopped is null)
             stopped = "c'è qualcuno, torna un poco indietro";
         Place(actor, points[back].Cell, points[back]);
+        if (intoPit && back == reached && StepOnPit(actor))
+            stopped = "cade in una fossa";
         me.MovedInches += forward * (dragging ? 2 : 1);
         if (dragging)
             DragAlong(e, actor, dragFrom, points[back]); // R4a

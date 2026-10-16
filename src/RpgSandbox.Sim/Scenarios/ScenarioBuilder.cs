@@ -81,6 +81,9 @@ internal sealed record MapDefinition(AreaId Area, IReadOnlyList<string> Rows, IR
 
     /// <summary>P4a: items lying on the ground at the start.</summary>
     public List<(GridPos At, string Item, int Count)> Ground { get; } = new();
+
+    /// <summary>R5c: traps at the start (a pit on open floor, a needle in a door's lock).</summary>
+    public List<(GridPos At, TrapKind Kind)> Traps { get; } = new();
     public List<MapEdgeView> Edges { get; } = new();
     public List<LocationId> IndoorZones { get; } = new();
     public List<(LocationId Location, GridPos At)> Exits { get; } = new();
@@ -265,6 +268,19 @@ public sealed class ScenarioBuilder
     }
 
     /// <summary>P4a: <paramref name="count"/> of <paramref name="item"/> lying on a square at the start.</summary>
+    /// <summary>R5c: a hidden trap: "pit" on a floor square, "needle" in the lock of the door on that square.</summary>
+    public ScenarioBuilder AddTrap(string areaId, (int X, int Y) at, string kind)
+    {
+        var parsed = kind switch
+        {
+            "pit" => TrapKind.Pit,
+            "needle" => TrapKind.Needle,
+            _ => throw new InvalidOperationException($"Unknown trap '{kind}'."),
+        };
+        MapOf(areaId, "traps").Traps.Add((new GridPos(at.X, at.Y), parsed));
+        return this;
+    }
+
     public ScenarioBuilder AddGroundItem(string areaId, (int X, int Y) at, string item, int count = 1)
     {
         MapOf(areaId, "ground items").Ground.Add((new GridPos(at.X, at.Y), item, count));
@@ -412,6 +428,15 @@ public sealed class ScenarioBuilder
                 {
                     Require(_content.Item(item) is not null && count > 0 && maps[map.Area].IsWalkable(at), $"Ground item '{item}' at {at} is unknown or not on open ground.");
                     maps[map.Area].PutOnGround(at, new ItemId(item), count);
+                }
+                foreach (var (at, kind) in map.Traps) // R5c
+                {
+                    var built = maps[map.Area];
+                    Require(kind == TrapKind.Pit ? built.IsWalkable(at) && !built.Doors.ContainsKey(at)
+                            : built.Doors.ContainsKey(at) && built.BarrierOf(BarrierKey.Door(at)) is { Locked: true },
+                        kind == TrapKind.Pit ? $"The pit at {at} is not on open floor." : $"The needle at {at} is not in a locked door.");
+                    Require(!built.Traps.ContainsKey(at), $"Two traps at {at}.");
+                    built.Traps[at] = new Trap { Kind = kind };
                 }
                 foreach (var (key, spec) in map.Locks)
                     Require(spec.Key is null || _content.Item(spec.Key) is not null, $"The key '{spec.Key}' of the {key} is not an item.");

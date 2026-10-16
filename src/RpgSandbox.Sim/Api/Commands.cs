@@ -217,6 +217,14 @@ public enum RejectionReason
     // T1: hands
     /// <summary>The hand it needs is taken (a lit torch, a shield, a second weapon).</summary>
     NoFreeHand,
+
+    // R5c: traps
+    /// <summary>At the bottom of a pit: it climbs out before it goes anywhere.</summary>
+    InPit,
+    /// <summary>Not in a pit: nothing to climb out of.</summary>
+    NotInPit,
+    /// <summary>No trap it knows of there, or one already sprung or disarmed.</summary>
+    NoTrap,
 }
 
 public sealed record CommandResult
@@ -342,3 +350,30 @@ public sealed record EquipCommand : Command
 /// Stealth), Slow (200: Advantage on Perception and Survival).
 /// </summary>
 public enum TravelPace { Normal, Fast, Slow }
+
+/// <summary>
+/// R5c: a minute spent looking for traps within 10 feet (SRD Search and Study, ADAPTATION: one minute covers both):
+/// Wisdom (Perception) DC 15 for a needle in a lock, Intelligence (Investigation) DC 15 for a pit's lid. Not in a fight.
+/// </summary>
+public sealed record SearchCommand : Command;
+
+/// <summary>
+/// R5c: a minute spent on a trap found, next to it. A pit: an iron spike wedged under its lid makes it safe. A needle:
+/// Dexterity (Sleight of Hand) DC 15, failing springs it. Not in a fight.
+/// </summary>
+public sealed record DisarmCommand : Command
+{
+    public required GridPos At { get; init; }
+}
+
+/// <summary>
+/// R5c: out of a pit: Strength (Athletics) DC 15 (ADAPTATION: the SRD pit wants climbing gear or a Climb Speed), a
+/// minute's try, or the action in a fight. On a success it stands on a free square beside the pit.
+/// </summary>
+public sealed record ClimbOutCommand : Command;
+
+/// <summary>
+/// R5c, SRD Basic Poison: a vial coats the weapon in hand (a Bonus Action in a fight); the next Piercing or Slashing hit
+/// with it within a minute deals 1d4 Poison damage more.
+/// </summary>
+public sealed record ApplyPoisonCommand : Command;

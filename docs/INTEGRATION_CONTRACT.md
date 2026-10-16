@@ -1030,3 +1030,26 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 
 - `TravelCommand.Pace` (`TravelPace`: Normal predefinita, Fast, Slow): il tempo di un percorso è a passo normale; veloce 3/4, lenta 3/2. `TravelView.Pace`. Gli effetti su Percezione, Sopravvivenza e Furtività durante il viaggio non hanno ancora nulla su cui agire (non ci sono incontri lungo i percorsi): li applicherà la mappa a esagoni.
 - Viaggio prolungato, solo il giocatore: oltre le 8 ore di viaggio di un giorno, alla fine di ogni ora in più un tiro salvezza su Costituzione CD 10 + le ore oltre le 8, o 1 livello di Sfinimento. `PlayerView.TravelHoursToday`; si azzera a mezzanotte (un viaggio a cavallo della mezzanotte conta per i due giorni). Salvataggio schema 40.
+
+## R5c — Cadute, trappole, veleno (SRD 5.2.1 Falling; Pit, Poisoned Needle; Basic Poison, Iron Spikes)
+
+Corretto rispetto al contratto pubblicato in chat, dopo averlo riletto sul PDF:
+- la fossa si scopre con Indagare (Intelligenza), non con Percezione;
+- non c'è Percezione passiva per le trappole;
+- l'oggetto è `iron-spike`, un chiodo solo (lo SRD li vende a fasci di dieci per 1 mo).
+
+- Caduta: 1d6 contundenti ogni 10 piedi (al massimo 20d6), prono se ha subito danni. Fatto `Fell`.
+- Trappole nello scenario: `AddTrap(area, (x, y), "pit" | "needle")`, oppure `"traps": [{ "at": [x, y], "kind": "pit" }]` nella mappa. La fossa sta su un pavimento libero, l'ago sulla casella di una porta chiusa a chiave.
+- Fossa (10 piedi): chi ci passa sopra cade (fatto `PitTrap`), anche da una camminata in scontro, che si ferma lì. Il coperchio resta aperto.
+  - Mentre è nella fossa (`PlayerView.InPit`), `MoveCommand`, `MoveToSpotCommand` e `TravelCommand` sono rifiutati con `RejectionReason.InPit`.
+  - `ClimbOutCommand`: Atletica CD 15 (ADATTAMENTO: lo SRD vuole attrezzatura da scalata); fuori scontro un minuto, in scontro l'azione. Riuscito, si sale su una casella libera accanto (fatti `ClimbedOut`, `ClimbOutFailed`).
+  - Chi cammina gira attorno alle fosse aperte; il giocatore anche a quelle che ha trovato.
+- Ago avvelenato: scassinare la serratura lo fa scattare (`NeedleTrap`), una volta sola (ADATTAMENTO). Tiro salvezza su Costituzione CD 11: fallito, 1d10 danni da veleno e Avvelenato per 1 ora; riuscito, metà dei danni.
+- `SearchCommand` (fuori scontro, un minuto) cerca le trappole entro 10 piedi: l'ago con Percezione CD 15, la fossa con Indagare CD 15 (ADATTAMENTO: un minuto vale le due azioni Cercare e Studiare). Fatti `TrapFound` e `TrapNotFound`.
+- `DisarmCommand { At }` (un minuto, accanto a una trappola trovata e ancora attiva):
+  - fossa: consuma un `iron-spike`;
+  - ago: Rapidità di mano CD 15; fallito, scatta.
+  - Rifiuti: `NoTrap`, `TooFar`, `NoTools`. Fatti `TrapDisarmed` e `DisarmFailed`.
+- `PlayerView.KnownTraps` (`TrapView`: `At`, `Kind` Pit/Needle, `Sprung`, `Disarmed`): le trappole della mappa trovate o scattate.
+- `basic-poison` ("Veleno base", 100 mo). `ApplyPoisonCommand` avvelena l'arma in mano: fuori scontro subito, in scontro l'azione bonus. Il primo colpo perforante o tagliente con quell'arma entro 1 minuto fa 1d4 danni da veleno in più (raddoppiati sul critico). `PlayerView.WeaponPoisonedUntil`. Nuovo `DamageType.Poison`.
+- Salvataggio schema 41.

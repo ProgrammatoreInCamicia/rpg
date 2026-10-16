@@ -36,6 +36,8 @@
     { "id": "ration", "name": "Razione", "pounds": 2, "cost": 50 },
     { "id": "arrow", "name": "Freccia", "pounds": 0.05, "cost": 5 },
     { "id": "bolt", "name": "Dardo da balestra", "pounds": 0.075, "cost": 5 },
-    { "id": "thieves-tools", "name": "Attrezzi da scasso", "pounds": 1, "cost": 2500 }
+    { "id": "thieves-tools", "name": "Attrezzi da scasso", "pounds": 1, "cost": 2500 },
+    { "id": "iron-spike", "name": "Chiodo di ferro", "pounds": 0.5, "cost": 10 },
+    { "id": "basic-poison", "name": "Veleno base", "pounds": 0, "cost": 10000 }
   ]
 }

@@ -652,6 +652,8 @@ internal sealed partial class Simulation
             ProfileOf(target).ArmorClass + cover + SpellArmorBonus(target), check.Advantage, check.Disadvantage, check.AutoCritical);
         // R3b: Divine Favor and Divine Smite add Radiant damage to a hit; the smite's slot (or free use) and Bonus Action are spent then.
         var (spellDamage, spellText) = result.Hit ? ExtraOnHit(attacker, target, attack, result.Critical, smite) : (0, "");
+        if (result.Hit && PoisonOnHit(attacker, attack, result.Critical) is { Damage: > 0 } poison) // R5c: Basic Poison
+            (spellDamage, spellText) = (spellDamage + poison.Damage, spellText + poison.Text);
         if (result.Hit && smite is { } smiteLevel)
         {
             if (smiteFree)

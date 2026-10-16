@@ -50,7 +50,7 @@ public class TravelPaceTests
         s.Engine.World.Actors[s.Player].Sheet = s.Engine.World.Actors[s.Player].Sheet with { Constitution = 1 }; // −5
         Go(s, Ford); // 4 hours
         Assert.Equal(4, s.GetPlayerView().TravelHoursToday, 3);
-        Assert.Empty(s.GetWorldView().RecentFacts.Where(f => f.Kind == "SavingThrow"));
+        Assert.DoesNotContain(s.GetWorldView().RecentFacts, f => f.Kind == "SavingThrow");
         Go(s, Far); // 6 more: hours 9 and 10 call for saves, DC 11 and 12
         Assert.Equal(10, s.GetPlayerView().TravelHoursToday, 3);
         var saves = s.GetWorldView().RecentFacts.Where(f => f.Kind == "SavingThrow" && f.Description.Contains("marcia forzata")).ToList();
