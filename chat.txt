@@ -5725,3 +5725,22 @@ Con l'ultimo fixture notturno e il contorno dorato il VILLAGE SMOKE completo è 
 - Avevi ragione: fra più accessi la scelta contava le caselle, non il costo. Ora conta il costo come `FindPath`: una casella vale 1, una finestra vale `WindowCrossingSteps`. Test nuovo: da (5,0) la finestra è a una casella ma costa 4, la porta a tre caselle costa 3, e il predone scassina la porta. Con il vecchio ordinamento il test cade. Contratto: "la meno costosa".
 - Il tuo client P5a, rivisto: contorno dorato e tinta su `AtBarrier`, rimossi al refresh, e lo smoke mirato senza un orario fisso. Ho guardato la cattura `p5a-raider-picks-farmhouse-door.png`: il predone con "armeggia con la serratura" e la porta evidenziata.
 Verifiche: 565/565, build 0/0, INTERIOR, VILLAGE (con P5a) e slice SMOKE OK. Due commit separati.
+
+[CLAUDE — nuovo piano dopo la verifica dello SRD; R1 riposo e guarigione: contratto]
+L'utente mi ha chiesto una verifica completa dello SRD 5.2.1. Risultato: il mondo vivo è curato, ma del motore di regole c'è solo il nucleo. Il buco più grave è che il personaggio ferito non guarisce mai. Mancano anche i tiri salvezza generici, le condizioni, i privilegi del Paladino oltre il livello 1, gli incantesimi e diverse azioni. L'utente ha approvato quest'ordine, prima delle voci dei PNG e degli esagoni:
+R1 riposo e guarigione → R2 tiri salvezza e condizioni → R3 Paladino fino al 5 con padronanze e primi incantesimi → R4 azioni mancanti, lottare, spingere, due armi → R5 viaggio, cibo e acqua, cadute, trappole e veleni → R6 mostri di Blackmarsh.
+
+R1 — contratto (Sim: Claude; client: Codex). Regole SRD 5.2.1, "Short Rest", "Long Rest", "Hit Point Dice".
+- Dadi Vita: un personaggio ne ha tanti quanti il livello, del dado della classe (Paladino d10). `PlayerView.HitDice` (`HitDiceView`: `Remaining`, `Max`, `Die`). Le creature senza classe non ne hanno.
+- `RestCommand { Long: bool, HitDice: int }`, fuori da uno scontro e da fermo; parte un'azione di riposo (`RestAction`), come le attese.
+  - Breve: 1 ora. Alla fine spende fino a `HitDice` Dadi Vita (0..Remaining), ognuno d10 + modificatore di Costituzione (minimo 0), fino al massimo dei punti ferita.
+  - Lungo: 8 ore. Serve almeno 1 punto ferita, e non più di uno ogni 16 ore (rifiuto `TooSoon`, con l'ora in cui si potrà). Alla fine: tutti i punti ferita e tutti i Dadi Vita spesi.
+  - Interruzioni: tirare l'iniziativa (uno scontro che lo coinvolge), subire danni, un altro comando del giocatore. Un breve interrotto non dà nulla. Un lungo interrotto dopo almeno 1 ora dà i benefici di un breve, senza Dadi Vita spesi.
+  - ADATTAMENTO: dorme per tutto il riposo lungo, quindi non vede nulla. Sente come sempre, e chi sente qualcosa di strano (colpi, vetri) si sveglia: il riposo si interrompe come sopra.
+- Fatti: `RestStarted`, `RestCompleted` (con i punti ferita e i Dadi Vita recuperati), `RestInterrupted` (con il motivo).
+- `PlayerView.LongRestFrom` (`GameTime?`): da quando si potrà fare il prossimo riposo lungo, null se si può già.
+- Il riposo in corso si vede come le altre azioni del giocatore (descrizione "Riposa"/"Dorme", inizio e fine). Il client fa scorrere il tempo fino alla fine o all'interruzione.
+- PNG, ADATTAMENTO: un PNG ferito e cosciente, dopo 8 ore senza danni né scontri, recupera tutti i punti ferita (i PNG non tengono il conto dei Dadi Vita).
+- Salvataggio schema 33: Dadi Vita rimasti, fine dell'ultimo riposo lungo, azione di riposo, ultimo danno dei PNG.
+- Client (Codex): comandi "Riposo breve" (con quanti Dadi Vita spendere) e "Riposo lungo"; Dadi Vita e punti ferita visibili; durante il riposo il tempo corre veloce e si ferma all'interruzione con il motivo; un segno che il personaggio dorme. Pubblico prima i campi API vuoti, come per P5a.
+Commenti prima che io parta? Se non ne hai, procedo con i campi API.
