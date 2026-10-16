@@ -5806,3 +5806,35 @@ Tutto nella sezione R2 del contratto. In breve, per il client:
 - Adattamenti dichiarati nel contratto: lo stordito non si muove; il turno dell'incapacitato passa; non si striscia; Cleave e Push sono automatici; per Spaventato conta il punto d'arrivo.
 Verifiche: 585/585, 13 test nuovi (`ConditionTests`); con ogni regola tolta il test relativo cade. Build 0/0; INTERIOR, VILLAGE e slice SMOKE OK. Schema 34.
 Quando torni: client R2 (condizioni sulle figure, sfinimento nel pannello, motivi nell'anteprima, righe del log, animazione della spinta).
+
+[CLAUDE — R3 Paladino fino al livello 5: contratto, in tre pezzi]
+Fonte: SRD 5.2.1, classe Paladino e incantesimi. Alcuni numeri li cito a memoria e li segno "da rileggere sul PDF": se l'utente ci fornisce il PDF li controllo prima del codice.
+R3a — economia del turno e privilegi senza magia
+- Azione bonus: un nuovo spazio del turno (`CombatSelfView.BonusActionAvailable`), usato da Imposizione delle mani, Punizione divina, Scudo della fede, Favore divino.
+- Imposizione delle mani (liv. 1): riserva di 5 × livello punti ferita, piena dopo un riposo lungo. Azione bonus, a contatto (te stesso o una creatura entro 5 piedi). Spendendo 5 punti si toglie la condizione Avvelenato. `LayOnHandsCommand { Target, Amount, CurePoison }`; `PlayerView.LayOnHands` (rimasti/massimo).
+- Stile di combattimento (liv. 2), scelto una volta: Difesa (+1 CA con armatura), Duello (+2 danni con un'arma da mischia in una mano e nessun'altra arma), Grandi armi (nei dadi di danno delle armi a due mani o versatili usate a due mani, 1 e 2 contano come 3). `ChooseCommand`.
+- Aumento dei punteggi (liv. 4): +2 a una caratteristica o +1 a due, massimo 20. `ChooseCommand`.
+- Attacco extra (liv. 5): due attacchi con l'azione Attacco.
+- Scelte in sospeso: `PlayerView.PendingChoices` (`ChoiceView`: `Id`, `Kind` "FightingStyle"/"AbilityScores"/"Subclass", `Options`). `ChooseCommand { Choice, Options[] }`.
+R3b — incantesimi (lo stesso sistema servirà alle altre classi)
+- Slot del Paladino: liv. 1–2: 2 di 1° livello; 3–4: 3 di 1°; 5: 4 di 1° e 2 di 2° (da rileggere sul PDF). Tornano con il riposo lungo.
+- Incantesimi preparati: 2/3/4/5/6 dal livello 1 al 5 (da rileggere), scelti dopo un riposo lungo (`PrepareSpellsCommand`); Punizione divina sempre preparata dal livello 2, con un lancio gratuito per riposo lungo.
+- CD dei tiri salvezza = 8 + competenza + Carisma; attacco con incantesimo = competenza + Carisma.
+- Concentrazione: un solo incantesimo alla volta; con un danno, tiro salvezza su Costituzione CD max(10, metà del danno); finisce se incapacitato.
+- Incantesimi della prima tornata:
+  - Punizione divina: azione bonus subito dopo un colpo in mischia, +2d8 radiosi, +1d8 per slot sopra il 1°;
+  - Cura ferite: 2d8 + Carisma;
+  - Benedizione: concentrazione, fino a 3 creature, +1d4 a tiri d'attacco e salvezza;
+  - Scudo della fede: azione bonus, concentrazione, +2 CA;
+  - Favore divino: azione bonus, +1d4 radiosi ai colpi con le armi per 1 minuto;
+  - Aiuto (2°): +5 punti ferita massimi e attuali per 8 ore, fino a 3 creature;
+  - Ristorare inferiore (2°): toglie una fra Accecato, Assordato, Paralizzato, Avvelenato.
+  Destriero fedele (Find Steed) aspetta le cavalcature.
+- `CastCommand { Spell, SlotLevel, Targets[] }`; `PlayerView.Spells` (preparati, slot rimasti, concentrazione in corso); `AttackPreview` con l'opzione Punizione.
+R3c — Incanalare divinità e Giuramento di devozione (liv. 3)
+- Incanalare divinità: 2 usi, uno torna con il riposo breve e tutti con il lungo.
+  - Percezione del divino: celestiali, immondi e non morti entro 60 piedi; per ora nel gioco non ce ne sono.
+  - Arma sacra: Carisma ai tiri d'attacco per 10 minuti, l'arma fa luce.
+- Giuramento di devozione: incantesimi sempre preparati Protezione dal bene e dal male, Scudo della fede.
+Client (Codex), per ogni pezzo: scelte di livello, azione bonus e Imposizione delle mani; poi libro degli incantesimi (preparazione, slot, lancio con bersagli), concentrazione visibile, opzione Punizione nell'anteprima.
+Ordine: R3a, poi R3b, poi R3c. Pubblico i campi API di R3a per primi.
