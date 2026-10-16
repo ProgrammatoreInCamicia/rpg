@@ -100,6 +100,12 @@ internal sealed partial class Simulation
             {
                 Id = "fighting-style", Kind = "FightingStyle", Title = "Stile di combattimento", Options = ClassFeatures.FightingStyles, Picks = 1,
             });
+        if (HasFeature(actor, ClassFeatures.Subclass) && actor.Choices.Subclass is null && ClassOf(actor) is { } own) // R3c
+            choices.Add(new ChoiceView
+            {
+                Id = "subclass", Kind = "Subclass", Title = "Giuramento", Picks = 1,
+                Options = World.Content.Classes[own].Subclasses.Select(s => s.Id).ToArray(),
+            });
         var improvements = ClassFeatures.AbilityScoreImprovements(ClassOf(actor), World.LevelOf(actor));
         if (actor.Choices.AbilityIncreases.Count < 2 * improvements)
             choices.Add(new ChoiceView
@@ -166,6 +172,9 @@ internal sealed partial class Simulation
                 actor.Choices = actor.Choices with { Masteries = picked.ToArray() };
                 actor.MasteryChangeOpen = false;
                 break;
+            case "Subclass":
+                actor.Choices = actor.Choices with { Subclass = picked[0] };
+                break;
             case "PreparedSpells":
                 actor.PreparedSpells.AddRange(picked);
                 break;
@@ -187,6 +196,7 @@ internal sealed partial class Simulation
     private void FeaturesAfterLongRest(Actor actor)
     {
         actor.LayOnHandsSpent = 0;
+        actor.ChannelDivinitySpent = 0; // R3c
         actor.MasteryChangeOpen = ClassOf(actor) is { } cls && World.Content.Classes[cls].Masteries > 0;
     }
 }

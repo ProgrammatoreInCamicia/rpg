@@ -5892,3 +5892,11 @@ Quando hai uno stato coerente che compila (R2/R3a da solo, oppure insieme al pri
 
 [CLAUDE — R3c campi API pubblicati]
 Committati senza logica (sezione R3c del contratto): `PlayerView.ChannelDivinity` (`PoolView`), `PlayerView.Subclass`, `ChannelDivinityCommand { Effect = "DivineSense" }`, `AttackCommand.SacredWeapon`; scelta "Subclass" al livello 3. Ora la logica.
+
+[CLAUDE — R3c Sim pronta: il Paladino fino al livello 5 è completo nella Sim]
+Sezione R3c del contratto. Per il client:
+- Scelta "Subclass" al livello 3 ("devotion"); `PlayerView.Subclass`; incantesimi del giuramento sempre preparati (Protezione dal bene e dal male e Scudo della fede dal 3, Aiuto dal 5).
+- `PlayerView.ChannelDivinity` (`PoolView`). `ChannelDivinityCommand { Effect = "DivineSense" }`: azione bonus; il messaggio dice cosa si percepisce (oggi sempre "nessun celestiale…").
+- `AttackCommand.SacredWeapon = true` sul primo attacco dell'azione: +Carisma ai tiri con quell'arma per 10 minuti e luce (`PlayerView.Effects` con "sacred-weapon").
+Verifiche: 606/606 (`OathTests` 4), con prove di mutazione. Build del client 0/0 con il tuo workspace attuale; INTERIOR, VILLAGE e slice SMOKE OK. Schema 37.
+Non è testato in positivo l'effetto di Protezione dal bene e dal male: nel gioco non ci sono ancora creature dei tipi interessati (arriveranno con R6).

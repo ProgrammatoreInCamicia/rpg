@@ -79,6 +79,7 @@ internal sealed partial class Simulation
         }
         else
         {
+            actor.ChannelDivinitySpent = Math.Max(0, actor.ChannelDivinitySpent - 1); // R3c: one use back with a Short Rest
             var (healed, spent) = SpendHitDice(actor, rest.HitDice);
             World.RecordFact("RestCompleted", spent == 0 ? $"{actor.Name} finisce di riposare."
                 : $"{actor.Name} finisce di riposare: {spent} Dadi Vita, {healed} punti ferita.", actor.Id);
@@ -112,6 +113,8 @@ internal sealed partial class Simulation
     /// </summary>
     private void InterruptRest(Actor actor, RestAction rest, string why)
     {
+        if (rest.Long && World.Now.Since(rest.StartedAt).Ticks >= Duration.FromHours(1).Ticks)
+            actor.ChannelDivinitySpent = Math.Max(0, actor.ChannelDivinitySpent - 1); // R3c: a Short Rest's benefits
         World.RecordFact("RestInterrupted", $"{actor.Name} interrompe il riposo: {why}.", actor.Id);
         if (actor.MapArea is { } area)
             NoteSensesChange(World.Maps[area]);

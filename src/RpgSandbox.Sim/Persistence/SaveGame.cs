@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 36;
+    public const int SchemaVersion = 37;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -222,7 +222,8 @@ internal static class SaveGame
             FightingStyle = a.Choices.FightingStyle, LayOnHandsSpent = a.LayOnHandsSpent, MasteryChangeOpen = a.MasteryChangeOpen,
             SlotsSpent = a.SlotsSpent.ToList(), PreparedSpells = a.PreparedSpells.ToList(), FreeSmiteUsed = a.FreeSmiteUsed, SpellSwapOpen = a.SpellSwapOpen,
             Concentrating = a.Concentrating,
-            Effects = a.Effects.Select(f => new SpellEffectDto { Spell = f.Spell, Caster = f.Caster.Value, Until = f.Until?.Ticks, Concentration = f.Concentration, Amount = f.Amount }).ToList(),
+            ChannelDivinitySpent = a.ChannelDivinitySpent, Subclass = a.Choices.Subclass,
+            Effects = a.Effects.Select(f => new SpellEffectDto { Spell = f.Spell, Caster = f.Caster.Value, Until = f.Until?.Ticks, Concentration = f.Concentration, Amount = f.Amount, Item = f.Item }).ToList(),
             Defeated = a.Defeated.Select(x => x.Value).ToList(),
             Lore = a.Lore.IsEmpty ? null : new LoreDto
             {
@@ -626,6 +627,7 @@ internal static class SaveGame
                 AbilityIncreases = (a.AbilityIncreases ?? new()).Select(k => Enum.TryParse<Ability>(k, out var ab) && Enum.IsDefined(ab) ? ab
                     : throw new InvalidDataException($"caratteristica sconosciuta '{k}'")).ToArray(),
                 Masteries = a.Masteries?.Select(m => Required(m, "padronanza")).ToArray(),
+                Subclass = a.Subclass,
                 FightingStyle = a.FightingStyle is null || ClassFeatures.FightingStyles.Contains(a.FightingStyle) ? a.FightingStyle
                     : throw new InvalidDataException($"stile di combattimento sconosciuto '{a.FightingStyle}'"),
             };
@@ -639,12 +641,15 @@ internal static class SaveGame
             actor.FreeSmiteUsed = a.FreeSmiteUsed;
             actor.SpellSwapOpen = a.SpellSwapOpen;
             actor.Concentrating = a.Concentrating;
+            Check(a.ChannelDivinitySpent >= 0, $"Incanalare divinità di '{a.Id}' non valido");
+            actor.ChannelDivinitySpent = a.ChannelDivinitySpent;
             foreach (var f in a.Effects ?? new())
                 actor.Effects.Add(new SpellEffect
                 {
-                    Spell = content.Spells.ContainsKey(f.Spell) ? f.Spell : throw new InvalidDataException($"incantesimo sconosciuto '{f.Spell}'"),
+                    Spell = content.Spells.ContainsKey(f.Spell) || f.Spell is "divine-sense" or "sacred-weapon" ? f.Spell // R3c: Channel Divinity effects
+                        : throw new InvalidDataException($"incantesimo sconosciuto '{f.Spell}'"),
                     Caster = new ActorId(Required(f.Caster, "incantatore")), Until = f.Until is { } until ? Time(until) : null,
-                    Concentration = f.Concentration, Amount = f.Amount,
+                    Concentration = f.Concentration, Amount = f.Amount, Item = f.Item,
                 });
             actor.LastLongRestEnd = a.LastLongRestEnd is { } rested ? Time(rested) : null;
             actor.LastHarmAt = a.LastHarmAt is { } harmed ? Time(harmed) : null;

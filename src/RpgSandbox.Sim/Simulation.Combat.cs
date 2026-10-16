@@ -79,9 +79,13 @@ internal sealed partial class Simulation
         var target = World.Actors[command.Target];
         if (SmiteRefused(EncounterOf(actor), actor, attack!, command.SmiteSlot, command.SmiteFree) is { } noSmite)
             return CommandResult.Rejected(RejectionReason.NoSlot, noSmite); // R3b
+        if (command.SacredWeapon && SacredWeaponRefused(EncounterOf(actor), actor, attack!) is { } noSacred)
+            return CommandResult.Rejected(RejectionReason.NoSlot, noSacred); // R3c
         if (EncounterOf(actor) is not { } e)
             return OpenFight(actor, target, attack!, command.NonLethal);
         TakeAttack(e, actor); // R3a: the Attack action, or one of its Extra Attacks
+        if (command.SacredWeapon)
+            TakeUpSacredWeapon(e, actor, attack!); // R3c: part of the Attack action
         var text = ResolveAttack(e, actor, target, attack!, command.NonLethal, CombatLogKind.Attack,
             smite: command.SmiteFree ? 1 : command.SmiteSlot, smiteFree: command.SmiteFree);
         CheckEnd(e);
@@ -623,7 +627,8 @@ internal sealed partial class Simulation
         var check = CheckAttack(e, attacker, target, attack, nonLethal);
         var cover = CoverBonus(check.Cover); // P3: cover raises the AC to beat
         var blessed = BlessRoll(attacker); // R3b: Bless, 1d4 more
-        var result = Attacks.Roll(World.Rng, attack with { AttackBonus = attack.AttackBonus + ExhaustionPenalty(attacker) + blessed }, // R2
+        var result = Attacks.Roll(World.Rng, attack with { AttackBonus = attack.AttackBonus + ExhaustionPenalty(attacker) + blessed
+                + SacredWeaponBonus(attacker, attack) }, // R2, R3b, R3c
             ProfileOf(target).ArmorClass + cover + SpellArmorBonus(target), check.Advantage, check.Disadvantage, check.AutoCritical);
         // R3b: Divine Favor and Divine Smite add Radiant damage to a hit; the smite's slot (or free use) and Bonus Action are spent then.
         var (spellDamage, spellText) = result.Hit ? ExtraOnHit(attacker, target, attack, result.Critical, smite) : (0, "");

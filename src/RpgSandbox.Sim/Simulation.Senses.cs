@@ -21,7 +21,7 @@ internal sealed partial class Simulation
     /// <summary>Torches burning on this map, each on its bearer's square (SRD Torch: Bright 20 ft, Dim 20 ft more).</summary>
     private List<LightSource> CarriedLights(GridMap map) =>
         World.Actors.Values
-            .Where(a => a.MapArea == map.Area && TorchLit(a) && CurrentPosition(a) is not null)
+            .Where(a => a.MapArea == map.Area && (TorchLit(a) || HasEffect(a, "sacred-weapon")) && CurrentPosition(a) is not null) // R3c: Sacred Weapon, Bright 20 ft and Dim 20 ft too
             .Select(a => new LightSource(CurrentPosition(a)!.Value, Tuning.TorchBrightFeet, Tuning.TorchDimFeet))
             .ToList();
 

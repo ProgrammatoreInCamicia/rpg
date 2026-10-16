@@ -42,6 +42,7 @@ internal sealed partial class Simulation
                     DoorCommand or WindowCommand or BarrierCommand => CombatBarrier(fight, actor, command), // P4c
                     LayOnHandsCommand lay => LayOnHands(lay), // R3a
                     CastCommand cast => Cast(cast), // R3b
+                    ChannelDivinityCommand channel => UseChannelDivinity(channel), // R3c
                     _ => CommandResult.Rejected(RejectionReason.InCombat, $"{actor.Name} sta combattendo."),
                 };
         }
@@ -64,6 +65,7 @@ internal sealed partial class Simulation
         LayOnHandsCommand lay => LayOnHands(lay),
         ChooseCommand choose => Choose(choose),
         CastCommand cast => Cast(cast),
+        ChannelDivinityCommand channel => UseChannelDivinity(channel),
         DoorCommand door => UseDoor(door),
         WindowCommand window => UseWindow(window),
         LockCommand lockCommand => UseLock(lockCommand), // P4a

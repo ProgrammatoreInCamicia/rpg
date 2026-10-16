@@ -10,6 +10,9 @@ public sealed record CharacterChoices
     public IReadOnlyList<string>? Masteries { get; init; }
     public string? FightingStyle { get; init; }
 
+    /// <summary>R3c: the subclass chosen at level 3.</summary>
+    public string? Subclass { get; init; }
+
     public static readonly CharacterChoices None = new();
 }
 

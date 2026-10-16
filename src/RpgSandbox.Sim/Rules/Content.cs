@@ -106,12 +106,21 @@ public sealed record ClassDefinition(string Id, string Name, int HitDie, IReadOn
 
     /// <summary>R3b: how the class casts spells; null if it does not.</summary>
     public SpellcastingDefinition? Spellcasting { get; init; }
+
+    /// <summary>R3c: Channel Divinity uses by class level (0: none yet).</summary>
+    public IReadOnlyList<int> ChannelDivinity { get; init; } = Array.Empty<int>();
+
+    /// <summary>R3c: the subclasses of the class in the game.</summary>
+    public IReadOnlyList<SubclassDefinition> Subclasses { get; init; } = Array.Empty<SubclassDefinition>();
 }
 
 /// <summary>
 /// R3b: a class's spellcasting (SRD class features table): its ability, how many spells it prepares and its spell slots by
 /// spell level, for each class level from 1.
 /// </summary>
+/// <summary>R3c: a subclass and the spells it always has prepared from a class level on (an oath's spells).</summary>
+public sealed record SubclassDefinition(string Id, string Name, IReadOnlyList<(int Level, IReadOnlyList<string> Spells)> Spells);
+
 public sealed record SpellcastingDefinition(Ability Ability, IReadOnlyList<int> Prepared, IReadOnlyList<IReadOnlyList<int>> Slots);
 
 /// <summary>R3b: how a spell is cast: with the Magic action, a Bonus Action, or the Bonus Action right after a melee hit.</summary>
@@ -256,6 +265,8 @@ public sealed class ContentPack
                 throw new InvalidDataException($"contenuti: '{build}' è di un tipo sconosciuto '{kind}'");
         foreach (var (who, spell) in characters.Values.SelectMany(c => c.Spells.Select(s => (c.Id, s))).Where(x => !spells.ContainsKey(x.s)))
             throw new InvalidDataException($"contenuti: '{who}' prepara un incantesimo sconosciuto '{spell}'");
+        foreach (var spell in classes.Values.SelectMany(c => c.Subclasses).SelectMany(s => s.Spells).SelectMany(l => l.Spells).Where(s => !spells.ContainsKey(s)))
+            throw new InvalidDataException($"contenuti: un giuramento prepara un incantesimo sconosciuto '{spell}'");
         foreach (var dup in creatures.Keys.Intersect(characters.Keys))
             throw new InvalidDataException($"contenuti: '{dup}' è sia una creatura sia un personaggio");
 
@@ -342,6 +353,10 @@ public sealed class ContentPack
             Spellcasting = e.TryGetProperty("spellcasting", out var sc) ? new SpellcastingDefinition(EnumOf<Ability>(Field(sc, "ability", where), where),
                 Array(sc, "prepared", where).Select(x => x.GetInt32()).ToArray(),
                 Array(sc, "slots", where).Select(l => (IReadOnlyList<int>)l.EnumerateArray().Select(x => x.GetInt32()).ToArray()).ToArray()) : null,
+            ChannelDivinity = e.TryGetProperty("channelDivinity", out var cd) ? cd.EnumerateArray().Select(x => x.GetInt32()).ToArray() : System.Array.Empty<int>(),
+            Subclasses = e.TryGetProperty("subclasses", out var subs) ? subs.EnumerateArray().Select(s => new SubclassDefinition(Text(s, "id", where), Text(s, "name", where),
+                Array(s, "spells", where).Select(l => (Int(l, "level", where), (IReadOnlyList<string>)Array(l, "spells", where).Select(x => x.GetString() ?? "").ToArray())).ToArray())).ToArray()
+                : System.Array.Empty<SubclassDefinition>(),
         };
     }
 

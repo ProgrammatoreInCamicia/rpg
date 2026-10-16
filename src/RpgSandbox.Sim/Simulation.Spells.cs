@@ -37,6 +37,8 @@ internal sealed partial class Simulation
     {
         if (HasFeature(actor, ClassFeatures.Smite))
             yield return "divine-smite";
+        foreach (var spell in OathSpells(actor)) // R3c
+            yield return spell;
     }
 
     private bool IsPrepared(Actor actor, string spell) => actor.PreparedSpells.Contains(spell) || AlwaysPrepared(actor).Contains(spell);
@@ -300,7 +302,7 @@ internal sealed partial class Simulation
         if (HasEffect(attacker, "divine-favor") && (attack.Requires is not null || attack.Item is not null))
             Roll(1, 4, "Favore divino");
         if (smiteSlot is { } slot)
-            Roll(2 + (slot - 1) + (World.Content.KindOf(target.Build).Id is "fiend" or "undead" ? 1 : 0), 8, "Punizione divina");
+            Roll(2 + (slot - 1) + (World.Content.KindOf(target.Build).Type is CreatureType.Fiend or CreatureType.Undead ? 1 : 0), 8, "Punizione divina");
         return (total, parts.Count == 0 ? "" : " + " + string.Join(" + ", parts));
     }
 

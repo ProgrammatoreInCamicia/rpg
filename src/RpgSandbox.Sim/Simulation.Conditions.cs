@@ -37,6 +37,8 @@ internal sealed partial class Simulation
     internal void AddCondition(Encounter? e, Actor actor, ConditionKind kind, Actor? source = null, GameTime? until = null,
         ActorId? endsAtTurnOf = null)
     {
+        if (kind is ConditionKind.Charmed or ConditionKind.Frightened && ProtectedFrom(actor, source))
+            return; // R3c, Protection from Evil and Good
         actor.Conditions.RemoveAll(c => c.Kind == kind);
         actor.Conditions.Add(new Condition { Kind = kind, Source = source?.Id, Until = until, EndsAtTurnOf = endsAtTurnOf });
         var words = $"{actor.Name} è {ConditionName(kind)}";
@@ -168,6 +170,7 @@ internal sealed partial class Simulation
         Dis(Has(target, ConditionKind.Prone) && !withinFiveFeet, "è a terra, lontano");
         Dis(Has(target, ConditionKind.Invisible), "è invisibile");
         Adv(attacker.Vexing == target.Id, "lo hai messo in difficoltà");
+        Dis(ProtectedFrom(target, attacker), "è protetto dal male"); // R3c
         return (advantage, disadvantage, reasons);
     }
 

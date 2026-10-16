@@ -225,6 +225,9 @@ internal sealed class Actor
     /// <summary>R3b: spells in effect on it.</summary>
     public List<SpellEffect> Effects { get; } = new();
 
+    /// <summary>R3c: Channel Divinity uses spent; one back with a Short Rest, all with a Long Rest.</summary>
+    public int ChannelDivinitySpent { get; set; }
+
     /// <summary>R2, SRD Exhaustion: 0..6; each level is −2 to d20 Tests and −5 feet of Speed; at 6 it dies.</summary>
     public int Exhaustion { get; set; }
 
@@ -980,4 +983,7 @@ internal sealed class SpellEffect
     public GameTime? Until { get; init; }
     public bool Concentration { get; init; }
     public int Amount { get; init; }
+
+    /// <summary>R3c: the item it is on (Sacred Weapon's weapon).</summary>
+    public string? Item { get; init; }
 }

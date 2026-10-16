@@ -144,6 +144,9 @@ internal sealed class ActorDto
     public bool SpellSwapOpen { get; set; }
     public string? Concentrating { get; set; }
     public List<SpellEffectDto>? Effects { get; set; }
+    /// <summary>Schema 37 (R3c): Channel Divinity spent, the subclass.</summary>
+    public int ChannelDivinitySpent { get; set; }
+    public string? Subclass { get; set; }
     public List<string>? Defeated { get; set; }
 
     /// <summary>P1 (schema 23): the exact point where it stands, when not the centre of its square.</summary>
@@ -731,4 +734,5 @@ internal sealed class SpellEffectDto
     public long? Until { get; set; }
     public bool Concentration { get; set; }
     public int Amount { get; set; }
+    public string? Item { get; set; }
 }
