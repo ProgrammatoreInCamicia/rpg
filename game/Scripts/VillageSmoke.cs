@@ -47,6 +47,12 @@ public partial class VillageSmoke : Node
 			await RestAndHealing();
 			return;
 		}
+		if (OS.GetCmdlineUserArgs().Contains("--r2r3a-only"))
+		{
+			await Frames(3);
+			await ClassAndConditions();
+			return;
+		}
 		if (OS.GetCmdlineUserArgs().Contains("--p5a-only"))
 		{
 			await Frames(3);
@@ -58,6 +64,14 @@ public partial class VillageSmoke : Node
 		Require(_map.View.Level == 1 && _map.View.Experience == 0 && _map.View.NextLevelAt == 300
 			&& _map.LevelExperienceTextForSmoke.Contains("Livello 1 · Esperienza 0 / 300"),
 			"C5b: the player level and experience are not shown from the typed view");
+		_map._UnhandledInput(new InputEventKey { Keycode = Key.I, Pressed = true });
+		Require(_map.InventoryOpenForSmoke, "UX: I did not open the inventory");
+		_map._UnhandledInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+		Require(!_map.InventoryOpenForSmoke, "UX: Escape did not close the inventory");
+		_map.ArmAttackForSmoke("Spada lunga");
+		Require(_map.AttackModeForSmoke, "UX: the attack mode did not arm");
+		_map._UnhandledInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+		Require(!_map.AttackModeForSmoke, "UX: Escape did not cancel the attack mode");
 		Require(_map.HasFigureSpriteForSmoke(MappedVillageScenario.Ids.Player)
 			&& _map.HasFigureSpriteForSmoke(MappedVillageScenario.Ids.Guard),
 			"G15: directional character sprite did not load in the village");
@@ -301,6 +315,7 @@ public partial class VillageSmoke : Node
 		await NightRaid();
 		await NightFarmhouseBreakIn();
 		await RestAndHealing();
+		await ClassAndConditions();
 		await DiscoveredTheft();
 		await DoorMemory();
 		await WindowGlassAndBars();
@@ -685,6 +700,7 @@ public partial class VillageSmoke : Node
 			&& _map.View.Now == beforeLoad.Now, "G11: loading mid-turn changed combat resources or time");
 
 		var woundedCaptured = false;
+		var usedArmedAttack = false;
 		var highestRound = _map.View.Combat!.Round;
 		for (var i = 0; i < 12 && _map.View.Combat is not null && !_map.View.Dead; i++)
 		{
@@ -701,7 +717,16 @@ public partial class VillageSmoke : Node
 			{
 				var attack = fight.Targets.FirstOrDefault(t => t.Target == raider && t.Valid);
 				if (attack is not null)
-					_map.AttackCombatTargetForSmoke(attack);
+				{
+					if (!usedArmedAttack)
+					{
+						_map.ArmAttackForSmoke(attack.Attack);
+						Require(_map.ClickArmedTargetForSmoke(raider) && !_map.AttackModeForSmoke,
+							"UX: armed attack did not strike the selected combat target");
+						usedArmedAttack = true;
+					}
+					else _map.AttackCombatTargetForSmoke(attack);
+				}
 				else if (fight.Reachable.Count > 0)
 					_map.MoveTo(fight.Reachable[0].At);
 			}
@@ -719,6 +744,7 @@ public partial class VillageSmoke : Node
 		Require(highestRound >= 2 && _map.View.Now > beforeLoad.Now,
 			"G11: the client did not advance time between combat rounds");
 		Require(woundedCaptured, "G11: no screenshot of a wounded raider");
+		Require(usedArmedAttack, "UX: the duel never used the armed attack control");
 		Require(_map.View.Experience == beforeLoad.Experience + 25
 			&& _map.LevelExperienceTextForSmoke.Contains("Esperienza 25 / 300"),
 			"C5b: defeating the raider did not update the experience shown in the HUD");
@@ -761,16 +787,22 @@ public partial class VillageSmoke : Node
 				new TargetView { Target = raider.Id, Attack = "Spada lunga", Valid = false,
 					Reason = RejectionReason.TooFar, Why = "Fuori portata" },
 				new TargetView { Target = raider.Id, Attack = "Giavellotto (lanciato)", Valid = true,
-					Cover = CoverDegree.Half },
+					Cover = CoverDegree.Half, Disadvantage = true, Reasons = new[] { "gittata lunga" } },
 			},
 			Log = new[] { new CombatLogEntry { Round = 1, Kind = CombatLogKind.Started,
 				Text = "Il Paladino affronta il Razziatore al granaio." },
 				new CombatLogEntry { Round = 1, Kind = CombatLogKind.Initiative,
 				Text = "Iniziativa: Paladino 16, Razziatore 11." },
 				new CombatLogEntry { Round = 1, Kind = CombatLogKind.Attack, Cover = CoverDegree.Half,
-				Text = "Il Paladino tira (mezza copertura)." } },
+					Text = "Il Paladino tira (mezza copertura)." },
+				new CombatLogEntry { Round = 1, Kind = CombatLogKind.Save,
+					Text = "Il Razziatore supera il tiro salvezza su Costituzione." },
+				new CombatLogEntry { Round = 1, Kind = CombatLogKind.Mastery,
+					Text = "La spinta lo allontana di 10 piedi." } },
 		};
 		_map.PreviewCombatForSmoke(preview);
+		Require(!_map.ExploreActionBarVisibleForSmoke && _map.CombatActionBarVisibleForSmoke,
+			"UX: exploration controls stayed over the combat action bar");
 		await Frames(3);
 		Capture("25-combat-hud-preview.png");
 		_map.SelectCombatantForSmoke(raider.Id);
@@ -778,6 +810,11 @@ public partial class VillageSmoke : Node
 		Require(_map.CombatAttackLabelsForSmoke.Any(text => text.Contains("Giavellotto") && text.Contains("½ copertura"))
 			&& _map.CombatLogTextForSmoke.Contains("mezza copertura"),
 			"P3: the attack panel or combat log omitted the public cover degree");
+		Require(_map.CombatAttackLabelsForSmoke.Any(text => text.Contains("gittata lunga"))
+			&& _map.CombatLogTextForSmoke.Contains("tiro salvezza")
+			&& _map.CombatLogTextForSmoke.Contains("spinta")
+			&& _map.HudLogForSmoke.Contains("tiro salvezza"),
+			"R2: attack reasons, saving throws or mastery lines are missing from combat HUD");
 		Capture("26-combat-target-preview.png");
 		var guard = _map.View.VisibleActors.FirstOrDefault(a => a.Id == MappedVillageScenario.Ids.Guard);
 		_map.PreviewCombatForSmoke(preview with
@@ -1183,6 +1220,51 @@ public partial class VillageSmoke : Node
 		_map.Stop();
 		Require(_map.View.Action is null && _map.EventText.Contains("interrompe il riposo"),
 			$"R1: Stop did not interrupt the rest: {_map.LastMessage}");
+	}
+
+	/// <summary>R2/R3a: visible status, Lay On Hands and an actual level choice through the HUD.</summary>
+	private async Task ClassAndConditions()
+	{
+		var session = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
+		using var initial = new MemoryStream();
+		session.Save(initial);
+		var snapshot = JsonNode.Parse(initial.ToArray())!.AsObject();
+		var player = snapshot["Actors"]!.AsArray().Single(a => a!["Id"]!.GetValue<string>() == MappedVillageScenario.Ids.Player.Value)!;
+		player["Vitality"]!["Current"] = 4;
+		var wounded = System.IO.Path.Combine(_outputDir, "r3a-wounded.json");
+		File.WriteAllText(wounded, snapshot.ToJsonString());
+		_map.LoadGameFromPath(wounded);
+		await Frames(3);
+		_map.SetPaused(true);
+		_map.PreviewConditionsForSmoke(new[] { new ConditionView { Kind = ConditionKind.Poisoned } }, 2,
+			MappedVillageScenario.Ids.Guard, new[] { new ConditionView { Kind = ConditionKind.Prone } });
+		Require(_map.ConditionsTextForSmoke.Contains("Avvelenato")
+			&& _map.ConditionsTextForSmoke.Contains("Sfinimento: 2/6")
+			&& _map.FigureLabelForSmoke(MappedVillageScenario.Ids.Guard).Contains("Prono"),
+			"R2: conditions or exhaustion are missing from the player and figure HUD");
+		await Frames(2);
+		Capture("r2-conditions.png");
+		_map.SetPaused(false);
+		_map.LayOnHandsSelfForSmoke(2);
+		Require(_map.View.HitPoints == 6 && _map.View.LayOnHands is { Remaining: 3, Max: 5 }
+			&& _map.ClassSummaryForSmoke.Contains("3/5"),
+			$"R3a: Lay On Hands did not heal from the panel: {_map.LastMessage}");
+		Capture("r3a-lay-on-hands.png");
+
+		player["Experience"] = 300;
+		player["Vitality"]!["Maximum"] = 18; // level 2 Paladin: 11 + fixed 6 + Constitution 1
+		var levelTwo = System.IO.Path.Combine(_outputDir, "r3a-level-two.json");
+		File.WriteAllText(levelTwo, snapshot.ToJsonString());
+		_map.LoadGameFromPath(levelTwo);
+		await Frames(3);
+		Require(_map.View.PendingChoices.Any(c => c.Kind == "FightingStyle"),
+			$"R3a: Fighting Style choice missing on level two (level {_map.View.Level}; {_map.LastMessage})");
+		_map.ChooseFirstForSmoke("Stile di combattimento");
+		Require(_map.View.FightingStyle == "Archery"
+			&& _map.View.PendingChoices.All(c => c.Kind != "FightingStyle"),
+			$"R3a: the level choice was not applied through the UI: {_map.LastMessage}");
+		await Frames(2);
+		Capture("r3a-fighting-style.png");
 	}
 
 	/// <summary>G8: the player is seen stealing, the guard catches up, and the farmer reports the theft.</summary>

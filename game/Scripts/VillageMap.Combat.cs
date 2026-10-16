@@ -9,6 +9,7 @@ namespace RpgSandbox.Game;
 public partial class VillageMap
 {
 	private Node2D _combatOverlay = null!;
+	private PanelContainer _combatTopPanel = null!;
 	private PanelContainer _combatPanel = null!;
 	private Label _combatHeader = null!;
 	private Label _combatOrder = null!;
@@ -40,32 +41,41 @@ public partial class VillageMap
 		_combatOverlay = new Node2D { ZIndex = -4, Visible = false };
 		AddChild(_combatOverlay);
 
-		_combatPanel = new PanelContainer { OffsetLeft = 900, OffsetRight = 1264, OffsetTop = 16,
-			OffsetBottom = 690, Visible = false };
+		_combatTopPanel = HudPanel(370, 930, 16, 112);
+		_combatTopPanel.Visible = false;
+		_combatTopPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.10f, 0.11f, 0.13f, 0.91f) });
+		ui.AddChild(_combatTopPanel);
+		var top = new VBoxContainer();
+		top.AddThemeConstantOverride("separation", 2);
+		_combatTopPanel.AddChild(top);
+		_combatPanel = HudPanel(208, 930, -273, -16, bottomAnchored: true);
+		_combatPanel.Visible = false;
 		_combatPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.10f, 0.11f, 0.13f, 0.94f) });
 		ui.AddChild(_combatPanel);
 		var box = new VBoxContainer();
-		box.AddThemeConstantOverride("separation", 8);
+		box.AddThemeConstantOverride("separation", 3);
 		_combatPanel.AddChild(box);
 		_combatHeader = new Label();
-		_combatHeader.AddThemeFontSizeOverride("font_size", 20);
-		box.AddChild(_combatHeader);
+		_combatHeader.AddThemeFontSizeOverride("font_size", 17);
+		top.AddChild(_combatHeader);
 		_combatOrder = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
-		box.AddChild(_combatOrder);
+		top.AddChild(_combatOrder);
 		_combatRoster = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		_combatRoster.AddThemeFontSizeOverride("font_size", 12);
-		box.AddChild(_combatRoster);
+		top.AddChild(_combatRoster);
 		_combatChange = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		_combatChange.AddThemeFontSizeOverride("font_size", 12);
-		box.AddChild(_combatChange);
+		top.AddChild(_combatChange);
 		_combatSelf = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		box.AddChild(_combatSelf);
 		_combatHint = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		box.AddChild(_combatHint);
-		_combatTarget = new Label { Text = "Clicca su un avversario per scegliere un attacco." };
+		_combatTarget = new Label { Text = "Clicca su un avversario per scegliere un attacco.",
+			AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		box.AddChild(_combatTarget);
-		_combatNonLethal = new CheckBox { Text = "Tramortisci (solo mischia)" };
+		_combatNonLethal = new CheckBox { Text = "Tramortisci (solo mischia)", Visible = false };
 		box.AddChild(_combatNonLethal);
+		BuildAttackBar(box);
 		var actionRow = new HBoxContainer();
 		box.AddChild(actionRow);
 		foreach (var action in Enum.GetValues<CombatAction>())
@@ -76,14 +86,22 @@ public partial class VillageMap
 			actionRow.AddChild(button);
 			_combatActionButtons.Add(choice, button);
 		}
-		_combatAttacks = new VBoxContainer();
-		box.AddChild(_combatAttacks);
+		var layOnHands = new Button { Text = "Imposizione", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		layOnHands.Pressed += () =>
+		{
+			_classPanel.Visible = true;
+			RebuildClassPanel();
+		};
+		actionRow.AddChild(layOnHands);
+		var attackScroll = new ScrollContainer { CustomMinimumSize = new Vector2(0, 50), Visible = false,
+			SizeFlagsVertical = Control.SizeFlags.ExpandFill };
+		box.AddChild(attackScroll);
+		_combatAttacks = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		attackScroll.AddChild(_combatAttacks);
 		_combatEndTurn = new Button { Text = "Fine turno" };
 		_combatEndTurn.Pressed += EndCombatTurn;
 		box.AddChild(_combatEndTurn);
-		box.AddChild(new Label { Text = "Registro dello scontro" });
-		_combatLog = new RichTextLabel { BbcodeEnabled = false, ScrollFollowing = true,
-			SizeFlagsVertical = Control.SizeFlags.ExpandFill, CustomMinimumSize = new Vector2(0, 135) };
+		_combatLog = new RichTextLabel { BbcodeEnabled = false, Visible = false };
 		box.AddChild(_combatLog);
 
 		_openingPanel = new PanelContainer { OffsetLeft = 900, OffsetRight = 1264, OffsetTop = 100,
@@ -137,6 +155,8 @@ public partial class VillageMap
 		_sneakToggle.Disabled = true;
 		_torch.Disabled = true;
 		RefreshCombatUi();
+		RefreshAttackBars();
+		RefreshHud();
 	}
 
 	internal void SelectCombatantForSmoke(ActorId actor) => SelectCombatant(actor);
@@ -182,6 +202,7 @@ public partial class VillageMap
 			return;
 		var combat = _view.Combat;
 		_combatPanel.Visible = combat is not null && !_view.Dead;
+		_combatTopPanel.Visible = combat is not null && !_view.Dead;
 		_combatOverlay.Visible = combat is not null && !_view.Dead;
 		_deathPanel.Visible = _view.Dead;
 		if (combat is null)
@@ -199,6 +220,7 @@ public partial class VillageMap
 		_combatRoster.Text = combat.Combatants.Count == 0 ? "Nessun altro combattente in vista."
 			: "In vista: " + string.Join(" · ", combat.Combatants.Select(c =>
 				$"{c.Name} ({(c.Side == CombatSide.Ally ? "alleato" : "avversario")}, {c.Condition}"
+					+ ConditionsText(_view.VisibleActors.FirstOrDefault(a => a.Id == c.Id)?.Conditions ?? Array.Empty<ConditionView>())
 					+ (c.Dodging ? ", in schivata" : "") + ")"));
 		_combatChange.Text = combat.Log.LastOrDefault(e => e.Kind is CombatLogKind.Joined or CombatLogKind.Fled) is { } change
 			? $"Ingresso/fuga: {change.Text}" : "";
@@ -207,6 +229,8 @@ public partial class VillageMap
 				? $"\nMovimento: {Math.Floor(combat.You.MovementLeftInches / (double)Spot.PerFoot * 10) / 10:0.0} piedi"
 				: $"\nMovimento: {combat.You.MovementLeftFeet} piedi ({combat.You.SquaresLeft} caselle)")
 			+ $" · Azione: {(combat.You.ActionAvailable ? "pronta" : "usata")}"
+			+ $" · Bonus: {(combat.You.BonusActionAvailable ? "pronta" : "usata")}"
+			+ (combat.You.AttacksLeft > 0 ? $" · Attacchi rimasti: {combat.You.AttacksLeft}" : "")
 			+ $" · Reazione: {(combat.You.ReactionAvailable ? "pronta" : "usata")}"
 			+ (combat.You.Disengaged ? "\nDisimpegnato: il movimento non provoca attacchi di opportunit\u00e0." : "")
 			+ (combat.You.Dodging ? "\nIn schivata: gli attacchi che vedi arrivare hanno svantaggio." : "")
@@ -245,7 +269,8 @@ public partial class VillageMap
 			_combatNonLethal.ButtonPressed = false;
 			return;
 		}
-		_combatTarget.Text = $"{enemy.Name} · {enemy.Condition}";
+		_combatTarget.Text = $"{enemy.Name} · {enemy.Condition}"
+			+ ConditionsText(_view.VisibleActors.FirstOrDefault(a => a.Id == enemy.Id)?.Conditions ?? Array.Empty<ConditionView>());
 		_combatNonLethal.Disabled = !combat.Targets.Any(t => t.Target == target && t.Valid && IsMeleeAttack(t.Attack));
 		if (_combatNonLethal.Disabled)
 			_combatNonLethal.ButtonPressed = false;
@@ -255,9 +280,12 @@ public partial class VillageMap
 			var attack = _view.Attacks.FirstOrDefault(a => a.Name == choice.Attack);
 			var stock = attack is { Uses: not null } ? $" ×{attack.Remaining ?? 0}" : "";
 			var cover = choice.Valid ? CoverLabel(choice.Cover) : "";
-			var button = new Button { Text = choice.Valid ? choice.Attack + stock + cover : $"{choice.Attack}{stock} · {ShortCombatReason(choice)}",
+			var reasons = choice.Reasons.Count > 0 ? $" ({string.Join(", ", choice.Reasons)})" : "";
+			var button = new Button { Text = choice.Valid ? choice.Attack + stock + cover + reasons : $"{choice.Attack}{stock} · {ShortCombatReason(choice)}",
 				Disabled = !choice.Valid || !combat.IsYourTurn,
-				TooltipText = choice.Why ?? CoverTooltip(choice.Cover) };
+				TooltipText = string.Join("\n", new[] { choice.Why, CoverTooltip(choice.Cover),
+					choice.Reasons.Count > 0 ? "Vantaggio/svantaggio: " + string.Join(", ", choice.Reasons) : null }
+					.Where(s => !string.IsNullOrWhiteSpace(s))) };
 			button.Pressed += () => ExecuteCombatAttack(choice);
 			_combatAttacks.AddChild(button);
 		}
@@ -382,7 +410,12 @@ public partial class VillageMap
 		var point = GetGlobalTransformWithCanvas().AffineInverse() * mouse.Position;
 		if (mouse.ButtonIndex == MouseButton.Left && PersonAt(point) is { } person)
 		{
-			SelectCombatant(person);
+			if (!UseArmedAttack(person)) SelectCombatant(person);
+			return true;
+		}
+		if (mouse.ButtonIndex == MouseButton.Left && _attackArmed)
+		{
+			ShowMessage("Scegli un bersaglio per l'attacco. Esc annulla.");
 			return true;
 		}
 		if (DoorAt(point) is { } door && (mouse.ButtonIndex == MouseButton.Right
@@ -444,7 +477,7 @@ public partial class VillageMap
 	{
 		_combatVisualTracks.Clear();
 		var result = _sim.Execute(new AttackCommand { Actor = _sim.Player, Target = target.Target,
-			Attack = target.Attack, NonLethal = _combatNonLethal.ButtonPressed && IsMeleeAttack(target.Attack) });
+			Attack = target.Attack, NonLethal = _nonLethalEnabled && IsMeleeAttack(target.Attack) });
 		ShowMessage(result.Message);
 		Refresh();
 	}
@@ -500,6 +533,14 @@ public partial class VillageMap
 		_openingNonLethal.Disabled = !IsMeleeAttack(attack);
 		if (_openingNonLethal.Disabled)
 			_openingNonLethal.ButtonPressed = false;
+		if (_openingTarget is { } target && attack.Length > 0)
+		{
+			var preview = _sim.PreviewAttack(_sim.Player, target, attack);
+			var name = _view.VisibleActors.FirstOrDefault(a => a.Id == target)?.Name ?? "questa persona";
+			_openingTargetLabel.Text = $"Attacca {name}?"
+				+ (preview.Reasons.Count > 0 ? $"\nVantaggio/svantaggio: {string.Join(", ", preview.Reasons)}" : "")
+				+ (preview.Valid ? "" : $"\n{preview.Message}");
+		}
 	}
 
 	private void AskOpeningAttack()

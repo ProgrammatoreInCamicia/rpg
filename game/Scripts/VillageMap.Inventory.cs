@@ -15,7 +15,7 @@ public partial class VillageMap
 	private readonly Dictionary<GridPos, Node2D> _groundMarks = new();
 	private string _inventoryKey = "";
 
-	private void BuildInventoryUi(CanvasLayer ui, VBoxContainer sidebar)
+	private void BuildInventoryUi(CanvasLayer ui, BoxContainer sidebar)
 	{
 		_inventoryButton = new Button { Text = "Inventario" };
 		_inventoryButton.Pressed += () => _inventoryPanel.Visible = !_inventoryPanel.Visible;

@@ -408,6 +408,8 @@ public partial class VillageMap
 		{
 			if (entry.Kind == CombatLogKind.Move && entry.Actor is { } mover && mover != _view.Id)
 				lastNpcMoves[mover] = entry;
+			if (entry.Kind == CombatLogKind.Mastery && entry.Spots.Count >= 2 && entry.Target is { } pushed)
+				StartCombatVisual(pushed, entry.Spots);
 			if (entry.Kind is not (CombatLogKind.Attack or CombatLogKind.OpportunityAttack))
 				continue;
 			if (entry.Actor is { } attacker)
