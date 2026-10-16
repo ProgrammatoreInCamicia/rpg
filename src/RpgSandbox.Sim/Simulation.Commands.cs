@@ -44,6 +44,7 @@ internal sealed partial class Simulation
                     CastCommand cast => Cast(cast), // R3b
                     ChannelDivinityCommand channel => UseChannelDivinity(channel), // R3c
                     ReleaseCommand release => Release(release), // R4a
+                    EquipCommand equip => Equip(equip), // R4b
                     _ => CommandResult.Rejected(RejectionReason.InCombat, $"{actor.Name} sta combattendo."),
                 };
         }
@@ -68,6 +69,7 @@ internal sealed partial class Simulation
         CastCommand cast => Cast(cast),
         ChannelDivinityCommand channel => UseChannelDivinity(channel),
         ReleaseCommand release => Release(release),
+        EquipCommand equip => Equip(equip),
         DoorCommand door => UseDoor(door),
         WindowCommand window => UseWindow(window),
         LockCommand lockCommand => UseLock(lockCommand), // P4a

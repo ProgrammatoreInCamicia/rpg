@@ -93,7 +93,13 @@ internal sealed partial class Simulation
         }
         if (EncounterOf(actor) is not { } e)
             return OpenFight(actor, target, attack!, command.NonLethal);
-        TakeAttack(e, actor); // R3a: the Attack action, or one of its Extra Attacks
+        if (attack!.OffHand != command.OffHand || command.OffHand && OffHandRefused(e, actor, attack) is not null) // R4b
+            return CommandResult.Rejected(RejectionReason.NoActionLeft, command.OffHand
+                ? OffHandRefused(e, actor, attack) ?? "Non è l'arma della mano secondaria." : "Quell'arma attacca solo come attacco extra (mano secondaria).");
+        if (command.OffHand)
+            TakeOffHandAttack(e, actor, attack);
+        else
+            TakeAttack(e, actor, attack); // R3a: the Attack action, or one of its Extra Attacks
         if (command.SacredWeapon)
             TakeUpSacredWeapon(e, actor, attack!); // R3c: part of the Attack action
         var text = ResolveAttack(e, actor, target, attack!, command.NonLethal, CombatLogKind.Attack,
@@ -122,7 +128,7 @@ internal sealed partial class Simulation
         {
             if (!IsTurnOf(e, actor))
                 return (CommandResult.Rejected(RejectionReason.NotYourTurn, "Non è il tuo turno."), null, null);
-            if (CombatantOf(e, actor.Id) is { ActionUsed: true, AttacksLeft: 0 })
+            if (!attack.OffHand && CombatantOf(e, actor.Id) is { ActionUsed: true, AttacksLeft: 0 }) // R4b: the extra attack comes after
                 return (CommandResult.Rejected(RejectionReason.NoActionLeft, "Hai già usato l'azione in questo turno."), null, null);
             if (EncounterOf(target) != e)
                 return (CommandResult.Rejected(RejectionReason.InCombat, $"{target.Name} non fa parte di questo scontro."), null, null);
@@ -335,6 +341,7 @@ internal sealed partial class Simulation
         c.BonusActionUsed = false; // R3a
         c.AttacksLeft = 0;
         c.SpellSlotSpent = false; // R3b
+        c.AttackedWithLight = c.OffHandUsed = false; // R4b
         ConditionsAtTurnStart(e, actor); // R2: what lasts until the start of its turn ends
         c.ActionUsed = c.OpeningSpent;
         c.OpeningSpent = false;
@@ -1070,7 +1077,7 @@ internal sealed partial class Simulation
 
         AttackProfile? Usable(Actor target) =>
             ProfileOf(npc).Attacks.Where(a => a.Melee).Concat(ProfileOf(npc).Attacks.Where(a => !a.Melee))
-                .FirstOrDefault(a => CheckAttack(e, npc, target, a, nonLethal: false).Valid && !KeepsLastWeapon(npc, a));
+                .FirstOrDefault(a => !a.OffHand && CheckAttack(e, npc, target, a, nonLethal: false).Valid && !KeepsLastWeapon(npc, a));
 
         bool TryAttack(Actor target, bool tookCover = false)
         {
@@ -1202,7 +1209,8 @@ internal sealed partial class Simulation
                 KnockedOut = player.Vitality.KnockedOut, DeathSaveSuccesses = player.Vitality.DeathSaveSuccesses,
                 DeathSaveFailures = player.Vitality.DeathSaveFailures,
                 MovementLeftFeet = Math.Max(0, MovementLeft(e, player)), MovementLeftInches = Math.Max(0, MovementLeftInches(e, player)), SquaresLeft = Math.Max(0, MovementLeft(e, player)) / FeetPerSquare,
-                ActionAvailable = !me.ActionUsed, InteractionAvailable = !me.Interacted, BonusActionAvailable = !me.BonusActionUsed && HasBonusAction(player), AttacksLeft = me.AttacksLeft, SpellSlotSpent = me.SpellSlotSpent, ReactionAvailable = !me.ReactionUsed, Disengaged = me.Disengaged, Dodging = me.Dodging,
+                ActionAvailable = !me.ActionUsed, InteractionAvailable = !me.Interacted, BonusActionAvailable = !me.BonusActionUsed && HasBonusAction(player), AttacksLeft = me.AttacksLeft, SpellSlotSpent = me.SpellSlotSpent,
+                OffHandAttackAvailable = ProfileOf(player).Attacks.Any(a => a.OffHand && OffHandRefused(e, player, a) is null), ReactionAvailable = !me.ReactionUsed, Disengaged = me.Disengaged, Dodging = me.Dodging,
             },
             Combatants = e.Order.Select(c => World.Actors[c.Actor]).Where(x => x.Id != player.Id && SeesActor(player, x))
                 .Select(x => new CombatantView
@@ -1217,6 +1225,7 @@ internal sealed partial class Simulation
             {
                 var check = CheckAttack(e, player, x, a, nonLethal: false);
                 var (reason, why) = !yourTurn ? (RejectionReason.NotYourTurn, "Non è il tuo turno.")
+                    : a.OffHand ? (OffHandRefused(e, player, a) is { } noExtra ? (RejectionReason.NoActionLeft, noExtra) : (check.Reason, check.Why)) // R4b
                     : me is { ActionUsed: true, AttacksLeft: 0 } ? (RejectionReason.NoActionLeft, "Hai già usato l'azione in questo turno.")
                     : (check.Reason, check.Why);
                 return new TargetView
@@ -1323,7 +1332,8 @@ internal sealed partial class Simulation
         if (actor.Carried(item) > 0 || !actor.Equipment.Items.Contains(item))
             return;
         var e = actor.Equipment;
-        actor.Equipment = new Equipment(e.Armor == item ? null : e.Armor, e.Shield == item ? null : e.Shield, e.MainHand == item ? null : e.MainHand);
+        actor.Equipment = new Equipment(e.Armor == item ? null : e.Armor, e.Shield == item ? null : e.Shield, e.MainHand == item ? null : e.MainHand,
+            e.OffHand == item ? null : e.OffHand);
         World.Refresh(actor);
     }
 }

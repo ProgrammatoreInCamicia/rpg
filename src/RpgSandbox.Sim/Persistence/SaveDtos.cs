@@ -603,6 +603,8 @@ internal sealed class CombatantDto
     public bool BonusActionUsed { get; set; }
     public int AttacksLeft { get; set; }
     public bool SpellSlotSpent { get; set; }
+    public bool AttackedWithLight { get; set; }
+    public bool OffHandUsed { get; set; }
     public bool Interacted { get; set; }
 }
 
@@ -671,6 +673,7 @@ internal sealed class EquipmentDto
     public string? Armor { get; set; }
     public string? Shield { get; set; }
     public string? MainHand { get; set; }
+    public string? OffHand { get; set; }
 }
 
 /// <summary>D1a: the content pack the game is played with, carried whole (with its identity) so the save stands alone.</summary>

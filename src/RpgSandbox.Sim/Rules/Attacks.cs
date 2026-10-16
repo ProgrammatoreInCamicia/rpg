@@ -35,6 +35,9 @@ public sealed record AttackProfile
     /// <summary>R3a, Great Weapon Fighting: 1 and 2 on its damage dice count as 3.</summary>
     public bool GreatWeaponFighting { get; init; }
 
+    /// <summary>R4b: the extra attack of the Light property, with the weapon in the other hand.</summary>
+    public bool OffHand { get; init; }
+
     /// <summary>C3b: the item the attack needs (a javelin to throw, a bolt to shoot), by catalog id, and what becomes of it.</summary>
     public string? Item { get; init; }
 

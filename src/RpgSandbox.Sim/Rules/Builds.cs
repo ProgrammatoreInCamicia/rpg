@@ -108,11 +108,22 @@ public static class Builds
         var attacks = new List<AttackProfile>();
         if (equipment.MainHand is { } hand && pack.Items[hand].Weapon is { } weapon)
         {
-            var twoHands = equipment.Shield is null && weapon.Has(WeaponProperty.Versatile);
+            var twoHands = equipment.Shield is null && equipment.OffHand is null && weapon.Has(WeaponProperty.Versatile);
             var attack = AttackProfile.With(sheet, weapon, cls.Weapons.Contains(weapon.Category), twoHands,
                 masteryUnlocked: masteries.Contains(hand)) with { Requires = hand };
             attack = FightingStyle(attack, weapon, twoHands, choices?.FightingStyle);
             attacks.Add(weapon.Ranged && weapon.Ammunition is { } ammo ? attack with { Item = ammo, Fate = ItemFate.Spent } : attack);
+        }
+        // R4b, SRD Light: a Light weapon in the other hand makes the extra attack; its damage leaves out a positive
+        // ability modifier, unless the Two-Weapon Fighting style.
+        if (equipment.OffHand is { } off && pack.Items[off].Weapon is { } second && second.Has(WeaponProperty.Light))
+        {
+            var extra = AttackProfile.With(sheet, second, cls.Weapons.Contains(second.Category), masteryUnlocked: masteries.Contains(off));
+            attacks.Add(extra with
+            {
+                Name = $"{second.Name} (mano secondaria)", Requires = off, OffHand = true,
+                DamageBonus = choices?.FightingStyle == "TwoWeaponFighting" ? extra.DamageBonus : Math.Min(0, extra.DamageBonus),
+            });
         }
         // Thrown weapons carried besides the one in hand: drawn and thrown as part of the attack (SRD).
         foreach (var thrown in c.Items.Select(i => i.Item).Distinct().Where(i => pack.Items[i].Weapon?.Has(WeaponProperty.Thrown) == true))

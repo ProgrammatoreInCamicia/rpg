@@ -22,8 +22,8 @@ public static class ClassFeatures
     public const string LayOnHands = "LayOnHands", FightingStyle = "FightingStyle", Smite = "PaladinsSmite",
         ChannelDivinity = "ChannelDivinity", Subclass = "Subclass", ExtraAttack = "ExtraAttack";
 
-    /// <summary>The Fighting Style feats of the SRD that work in the game (Two-Weapon Fighting comes with two weapons).</summary>
-    public static readonly IReadOnlyList<string> FightingStyles = new[] { "Archery", "Defense", "GreatWeaponFighting" };
+    /// <summary>The Fighting Style feats of the SRD (p. 87–88).</summary>
+    public static readonly IReadOnlyList<string> FightingStyles = new[] { "Archery", "Defense", "GreatWeaponFighting", "TwoWeaponFighting" };
 
     private static readonly IReadOnlyDictionary<string, int> PaladinLevels = new Dictionary<string, int>
     {

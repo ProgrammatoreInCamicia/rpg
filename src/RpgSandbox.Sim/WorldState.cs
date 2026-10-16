@@ -766,6 +766,10 @@ internal sealed class Combatant
     /// <summary>R3b, SRD: one spell slot a turn; it was spent this turn.</summary>
     public bool SpellSlotSpent { get; set; }
 
+    /// <summary>R4b: it attacked with a Light weapon taking the Attack action this turn; and made the extra attack.</summary>
+    public bool AttackedWithLight { get; set; }
+    public bool OffHandUsed { get; set; }
+
     /// <summary>C3b: the turn's free interaction with an object (picking something up) is used.</summary>
     public bool Interacted { get; set; }
 }

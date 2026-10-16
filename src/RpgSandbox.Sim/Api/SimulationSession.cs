@@ -475,6 +475,7 @@ public sealed class SimulationSession
     private static IReadOnlyList<EquippedView> Worn(Actor actor, Rules.ContentPack content) => Freeze(new[]
         {
             (EquipmentSlot.Armor, actor.Equipment.Armor), (EquipmentSlot.Shield, actor.Equipment.Shield), (EquipmentSlot.MainHand, actor.Equipment.MainHand),
+            (EquipmentSlot.OffHand, actor.Equipment.OffHand),
         }.Where(s => s.Item2 is not null)
         .Select(s => new EquippedView { Slot = s.Item1, Item = new ItemId(s.Item2!), Name = NameOf(content, new ItemId(s.Item2!)) }));
 

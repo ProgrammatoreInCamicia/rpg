@@ -40,7 +40,7 @@ public class ClassFeatureTests
         Assert.Empty(s.GetPlayerView().PendingChoices);
         s = Yard(experience: 300);
         var choice = s.GetPlayerView().PendingChoices.Single(c => c.Kind == "FightingStyle"); // R3b: a third spell to prepare too
-        Assert.Equal(new[] { "Archery", "Defense", "GreatWeaponFighting" }, choice.Options);
+        Assert.Equal(new[] { "Archery", "Defense", "GreatWeaponFighting", "TwoWeaponFighting" }, choice.Options);
         Assert.Equal(RejectionReason.InvalidAmount, s.Execute(new ChooseCommand { Actor = s.Player, Choice = choice.Id, Options = new[] { "Dueling" } }).Rejection);
 
         var ac = Me(s).Profile.ArmorClass;

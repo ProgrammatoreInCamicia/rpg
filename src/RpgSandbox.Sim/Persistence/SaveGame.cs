@@ -208,7 +208,7 @@ internal static class SaveGame
             Knowledge = a.Knowledge.Select(ToDto).ToList(),
             ActedOn = a.ActedOn.Select(o => o.Value).ToList(),
             Build = a.Build, SheetOverride = a.SheetOverride,
-            Equipment = new EquipmentDto { Armor = a.Equipment.Armor, Shield = a.Equipment.Shield, MainHand = a.Equipment.MainHand },
+            Equipment = new EquipmentDto { Armor = a.Equipment.Armor, Shield = a.Equipment.Shield, MainHand = a.Equipment.MainHand, OffHand = a.Equipment.OffHand },
             Vitality = ToDto(a.Vitality.Snapshot()),
             FoughtWith = a.FoughtWith.Select(f => f.Value).ToList(),
             Experience = a.Experience,
@@ -719,11 +719,12 @@ internal static class SaveGame
             }
             // D1a: what it wears and wields is in its inventory and of the right kind; then its profile is derived again.
             var eq = a.Equipment ?? throw new InvalidDataException($"equipaggiamento di '{a.Id}' mancante");
-            actor.Equipment = new Equipment(eq.Armor, eq.Shield, eq.MainHand);
+            actor.Equipment = new Equipment(eq.Armor, eq.Shield, eq.MainHand, eq.OffHand);
             Check(actor.Equipment.Items.All(i => actor.Carried(i) >= actor.Equipment.Items.Count(x => x == i))
                   && (eq.Armor is null || content.Item(eq.Armor)?.Armor is { Type: not ArmorType.Shield })
                   && (eq.Shield is null || content.Item(eq.Shield)?.Armor is { Type: ArmorType.Shield })
-                  && (eq.MainHand is null || content.Item(eq.MainHand)?.Weapon is not null), $"equipaggiamento di '{a.Id}' non valido");
+                  && (eq.MainHand is null || content.Item(eq.MainHand)?.Weapon is not null)
+                  && (eq.OffHand is null || content.Item(eq.OffHand)?.Weapon is not null && eq.Shield is null), $"equipaggiamento di '{a.Id}' non valido");
             w.Refresh(actor);
             if (actor.SheetOverride)
                 actor.Sheet = FromDto(a.Sheet!);
@@ -1095,7 +1096,7 @@ internal static class SaveGame
             Actor = c.Actor.Value, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus,
             MovedFeet = c.MovedInches / Spot.PerFoot, MovedInches = c.MovedInches, ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
             LastSeenAt = c.LastSeenAt is { } at ? new PosDto { X = at.X, Y = at.Y } : null, JoinedInRound = c.JoinedInRound, Fleeing = c.Fleeing,
-            Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved, BonusActionUsed = c.BonusActionUsed, AttacksLeft = c.AttacksLeft, SpellSlotSpent = c.SpellSlotSpent,
+            Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved, BonusActionUsed = c.BonusActionUsed, AttacksLeft = c.AttacksLeft, SpellSlotSpent = c.SpellSlotSpent, AttackedWithLight = c.AttackedWithLight, OffHandUsed = c.OffHandUsed,
         }).ToList(),
         Log = e.Log.Select(RecordDto).ToList(),
     };
@@ -1173,7 +1174,7 @@ internal static class SaveGame
                         : c.LastSeenEnemy is { } seen ? Spot.CenterOf(new GridPos(seen.X, seen.Y)) : null,
                     JoinedInRound = c.JoinedInRound is { } joined && joined >= 1 && joined <= dto.Round ? joined
                         : c.JoinedInRound is null ? null : throw new InvalidDataException($"ingresso nello scontro di '{id}' non valido"),
-                    Fleeing = c.Fleeing, Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved, BonusActionUsed = c.BonusActionUsed, AttacksLeft = c.AttacksLeft, SpellSlotSpent = c.SpellSlotSpent,
+                    Fleeing = c.Fleeing, Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved, BonusActionUsed = c.BonusActionUsed, AttacksLeft = c.AttacksLeft, SpellSlotSpent = c.SpellSlotSpent, AttackedWithLight = c.AttackedWithLight, OffHandUsed = c.OffHandUsed,
                 });
             }
             Check(e.Order.Any(c => c.Side == 0) && e.Order.Any(c => c.Side == 1), $"scontro {dto.Id} senza due lati");

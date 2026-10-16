@@ -13,12 +13,14 @@ internal sealed partial class Simulation
     private bool HasFeature(Actor actor, string feature) => ClassFeatures.Has(ClassOf(actor), World.LevelOf(actor), feature);
 
     /// <summary>Whether it has anything to spend a Bonus Action on (SRD: only if a rule gives it one).</summary>
-    private bool HasBonusAction(Actor actor) => HasFeature(actor, ClassFeatures.LayOnHands);
+    private bool HasBonusAction(Actor actor) => HasFeature(actor, ClassFeatures.LayOnHands) || ProfileOf(actor).Attacks.Any(a => a.OffHand);
 
     /// <summary>R3a, SRD Extra Attack: the first attack takes the action and leaves the others of the Attack action.</summary>
-    private void TakeAttack(Encounter e, Actor actor)
+    private void TakeAttack(Encounter e, Actor actor, AttackProfile? attack = null)
     {
         var c = CombatantOf(e, actor.Id);
+        if (attack is not null && LightWeapon(attack))
+            c.AttackedWithLight = true; // R4b: the Light property's extra attack may follow
         if (!c.ActionUsed)
         {
             c.ActionUsed = true;
