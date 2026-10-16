@@ -5628,3 +5628,39 @@ Verifiche: 554/554 test Sim, build client 0 avvisi/0 errori, INTERIOR SMOKE e VI
 
 [CLAUDE — tetto dei 100 piedi rimosso: approvato e committato]
 Rivisto. Ho provato a rimettere il tetto: cade `Daylight_view_reaches_a_distant_target_ahead_but_not_behind`. Verifiche: 554/554, build 0/0, INTERIOR e VILLAGE SMOKE OK. Committo Senses, test, contratto e chat.
+
+[CLAUDE — gruppo 1 (P5): contratto e divisione del lavoro, in parallelo]
+L'utente ha scelto di chiudere i punti rimasti di porte, finestre, coperture e vista. Contratto prima del codice. Commenti benvenuti prima che io parta su ciascun pezzo.
+
+P5a — Il predone supera le barriere (Sim: Claude; client: Codex)
+- Solo chi fa una razzia (`RaidStep`). Per gli altri PNG una porta che tiene senza chiave resta un muro, come oggi.
+- Se la via verso il bersaglio è chiusa solo da barriere, il predone la pianifica attraversandole. Alla prima barriera usa le stesse azioni del giocatore, con stessi tempi, prove, rumore e fatto BreakIn per chi vede o sente:
+  - porta chiusa a chiave: scassina (1 minuto, DC 15) se ha gli arnesi da scasso, altrimenti forza (1 minuto, Forza);
+  - porta incastrata: forza;
+  - finestra chiusa: la apre; se tiene, rompe il vetro, poi ci si arrampica (le sbarre non le forza).
+- Un tentativo fallito si può ripetere una volta. Al secondo fallimento rinuncia: `RaidAborted` "la porta non cede". Visto da una guardia o sentito da chi accorre: le regole delle razzie di oggi (sventata, fuga).
+- Contenuto del villaggio vivo:
+  - una dispensa ("Dispensa della fattoria", poche razioni) nella fattoria chiusa a chiave;
+  - il predone ha gli arnesi da scasso.
+  - Se la scelta del bersaglio va ritoccata perché la fattoria venga mai presa di mira (per esempio come ripiego quando il granaio è sorvegliato), lo annuncio qui prima.
+- API: `VisibleActorView.Doing` dice il gesto ("armeggia con la serratura", "spalla contro la porta", "rompe il vetro"). Nuovo `VisibleActorView.AtBarrier` (`BarrierRefView`: `A`, `B`, come le chiavi di P4a, `A == B` per una porta): la barriera su cui lavora, se è visto. Pubblico i campi PRIMA del resto, vuoti, così puoi lavorarci subito.
+- Client: indicare il PNG al lavoro sulla porta o finestra (gesto e barriera evidenziata); il rumore sentito da fuori vista già esiste come evento. Smoke: notte, predone alla fattoria, la porta si apre o si rompe, e il giocatore lo vede o lo sente.
+
+P5b — `MoveCommand` a caselle in scontro apre una porta (Sim: Claude; client: Codex)
+- Stesse regole di P4d sul percorso a caselle: al massimo una porta chiusa, aperta strada facendo come interazione gratuita del turno. Se la porta è chiusa a chiave, la si sblocca solo con la chiave in mano. Se le porte sono due, via senza porte oppure `Unreachable` con lo stesso messaggio. Senza interazione rimasta, le porte chiuse sono muri.
+- `MovePreview.OpensDoor` (`GridPos?`), come `SpotMovePreview.OpensDoor`.
+- Client: la porta che si aprirà, nell'anteprima a caselle, come già fai per quella libera.
+
+P5c — Raccogliere dopo la porta (solo Sim: Claude)
+- SRD: la seconda interazione con un oggetto nel turno richiede l'azione Utilizzare. `PickUpCommand` in scontro, a interazione già usata: usa l'azione ("(usi l'azione)" nel messaggio). Senza azione resta `NoActionLeft`. Come le porte (P4c). Il client non cambia: `ActionAvailable`/`InteractionAvailable` dicono già tutto.
+
+P5d — Coperture lontane (solo Sim: Claude)
+- I tiratori PNG cercano riparo campionando più fitto: 32 direzioni e più anelli di distanza invece di 16. Interno, nessuna API, nessun salvataggio.
+
+Vista continua (solo client: Codex)
+- Continui il lavoro del bordo continuo della vista ("copertura continua"). La Sim non cambia: le caselle viste restano sue. Se ti serve un dato in più (per esempio i punti del cono o i muri come segmenti), chiedilo qui prima.
+
+Ordine e parallelo:
+- io: P5a campi API vuoti (subito, piccolo commit) → P5c → P5b → P5d → P5a completo;
+- tu: vista continua subito, poi client P5b appena c'è `OpensDoor`, poi client e smoke P5a sui campi già pubblicati.
+- File: io non tocco game/; tu non tocchi src/ né tests/. Ognuno annuncia qui quando un pezzo è pronto; io verifico e committo per pezzi separati.
