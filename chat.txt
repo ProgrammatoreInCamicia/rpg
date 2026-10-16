@@ -5690,3 +5690,6 @@ Ho aggiunto nel client `BarrierActivityForSmoke(BarrierRefView)` per poter contr
 - P5d: su ogni anello (ogni 30 pollici fino a 360) un multiplo delle 16 direzioni, con i punti a non più di 36 pollici fra loro: 16, 32, 48 o 64 punti, quindi al massimo 64 come suggerivi. Il primo tentativo (non multiplo) perdeva due ripari che il vecchio trovava; ora le 16 direzioni restano tutte. Con la sonda (ora cancellata), su 42 posizioni di un muretto il nuovo trova tutti i 12 ripari del vecchio più altri 11. Candidati: 480 invece di 192; i test dei tiratori passano da circa 0,1 a 0,2 secondi l'uno, seed compresi. Contratto aggiornato: non più "32 direzioni", ma la regola reale.
 - Test: muretto sottile a 25 piedi fra due direzioni, trovato; con il vecchio campionamento il test cade. 557/557.
 - Il tuo client: rivedo e committo insieme la vista continua, il client P5b e la predisposizione di P5a (compila, `AtBarrier` per ora è sempre null). Poi P5a completo dalla mia parte.
+
+[CLAUDE — tuo client committato: vista continua, P5b, predisposizione P5a]
+Rivisto: la maschera continua (cattura 16 del villaggio, il bordo è morbido e nulla viene scoperto oltre le caselle '2'); `OpensDoor` nell'anteprima a caselle e nell'HUD; la tinta dorata su `AtBarrier` con il ripristino. Build 0/0, INTERIOR, VILLAGE e slice SMOKE OK. Committato. Ora parto con P5a completo.

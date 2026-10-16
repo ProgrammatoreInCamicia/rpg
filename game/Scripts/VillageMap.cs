@@ -671,6 +671,7 @@ public partial class VillageMap : Node2D
 
 	private void Refresh()
 	{
+		ClearBarrierActivity();
 		_view = _sim.GetPlayerView();
 		_spotPreviewAt = null; // doors, light and newly explored squares can change a route within one second
 		if (_view.Combat is null && _view.LastFight is null)
@@ -763,6 +764,7 @@ public partial class VillageMap : Node2D
 			panel.Modulate = door.Known == DoorKnowledge.Remembered
 				? new Color(lit.R * 0.72f, lit.G * 0.72f, lit.B * 0.72f, 0.42f) : lit;
 		}
+		RefreshBarrierActivity();
 		// Store controls where a store is in sight; the core decides whether it is within reach.
 		_storeRow.Visible = onMap && _view.Combat is null && !_view.Dead
 			&& _view.VisibleStores.Any(s => s.Id == MappedVillageScenario.Ids.GranaryStore);

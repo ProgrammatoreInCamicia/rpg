@@ -318,6 +318,9 @@ public partial class VillageMap
 		var points = new[] { from }.Concat(preview.Path.Select(CellToScreen)).ToArray();
 		_combatOverlay.AddChild(new Line2D { Points = points, Width = 4f,
 			DefaultColor = preview.Provokes.Count > 0 ? new Color(1f, 0.40f, 0.22f) : new Color(1f, 0.85f, 0.22f) });
+		if (preview.OpensDoor is { } door)
+			_combatOverlay.AddChild(new Polygon2D { Polygon = Diamond(0.34f), Position = CellToScreen(door),
+				Color = new Color(1f, 0.75f, 0.25f, 0.82f) });
 	}
 
 	private void ClearCombatOverlay()
@@ -343,6 +346,7 @@ public partial class VillageMap
 			? _sim.PreviewMove(_sim.Player, cell) : null;
 		if (_hoveredMove is { Valid: true } preview)
 			_combatHint.Text = $"Percorso: {preview.TotalFeet} piedi"
+				+ (preview.OpensDoor is null ? "" : " · apre la porta")
 				+ (preview.Provokes.Count == 0 ? " · nessun attacco di opportunità noto."
 					: $" · Attacco di opportunità da {string.Join(", ", preview.Provokes.Select(p => p.Name))}!");
 		else

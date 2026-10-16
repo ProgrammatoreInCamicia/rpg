@@ -11,6 +11,29 @@ public partial class VillageMap
 	private Label _barrierTitle = null!;
 	private Label _barrierClue = null!;
 	private readonly Dictionary<Node2D, Label> _barrierMarks = new();
+	private readonly Dictionary<Node2D, Color> _activeBarrierBase = new();
+
+	private void ClearBarrierActivity()
+	{
+		foreach (var (panel, color) in _activeBarrierBase)
+			panel.Modulate = color;
+		_activeBarrierBase.Clear();
+	}
+
+	private void RefreshBarrierActivity()
+	{
+		foreach (var actor in _view.VisibleActors)
+		{
+			if (actor.AtBarrier is not { } work) continue;
+			Node2D? panel = work.IsDoor
+				? _doorPanels.GetValueOrDefault(work.A)
+				: _windowPanels.GetValueOrDefault((work.A, work.B));
+			if (panel is null || !panel.Visible || _activeBarrierBase.ContainsKey(panel)) continue;
+			_activeBarrierBase[panel] = panel.Modulate;
+			var color = panel.Modulate;
+			panel.Modulate = color.Lerp(new Color(1f, 0.78f, 0.30f, color.A), 0.55f);
+		}
+	}
 
 	private void BuildBarrierUi(CanvasLayer ui)
 	{
@@ -233,4 +256,10 @@ public partial class VillageMap
 	internal void CloseBarrierMenuForSmoke() => _barrierMenu.Visible = false;
 	internal string? BarrierMarkForSmoke(GridPos at) => _doorPanels.TryGetValue(at, out var panel)
 		? _barrierMarks.TryGetValue(panel, out var mark) && mark.Visible ? mark.Text : null : null;
+	internal bool BarrierActivityForSmoke(BarrierRefView barrier)
+	{
+		var panel = barrier.IsDoor ? _doorPanels.GetValueOrDefault(barrier.A)
+			: _windowPanels.GetValueOrDefault((barrier.A, barrier.B));
+		return panel is not null && _activeBarrierBase.ContainsKey(panel);
+	}
 }
