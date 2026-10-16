@@ -133,7 +133,7 @@ internal sealed partial class Simulation
                      .OrderBy(a => a.Id.Value, StringComparer.Ordinal).ToList())
         {
             var seesKiller = SeesActor(witness, killer);
-            var seesVictim = SeesActor(witness, victim) || (CurrentPosition(witness) is { } eye && CanSee(World.Maps[e.Area], eye, square));
+            var seesVictim = SeesActor(witness, victim) || (CurrentPosition(witness) is { } eye && CanSee(World.Maps[e.Area], witness, eye, square));
             if (!seesKiller && !seesVictim)
                 continue;
             var deed = NewDeed(witness, DeedKind.Killing, e, fact);

@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 30;
+    public const int SchemaVersion = 31;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -186,6 +186,7 @@ internal static class SaveGame
             Cargo = a.Cargo.Select(c => new CargoDto { Store = c.Store.Value, Amount = c.Amount }).ToList(),
             Position = a.Position is { } p ? new PosDto { X = p.X, Y = p.Y } : null,
             Spot = a.ExactSpot is { } exact ? new PosDto { X = exact.X, Y = exact.Y } : null,
+            Facing = a.Facing is { } facing ? new PosDto { X = facing.X, Y = facing.Y } : null,
             MapArea = a.MapArea?.Value,
             Sneak = a.Sneak,
             Inventory = a.Inventory.Select(i => new ItemCountDto { Item = i.Key.Value, Count = i.Value }).ToList(),
@@ -558,6 +559,7 @@ internal static class SaveGame
                     : null,
                 Vigil = a.Vigil is { } v ? new Vigil { Store = new StoreId(v.Store), Until = Time(v.Until) } : null,
                 Position = a.Position is { } ap ? new GridPos(ap.X, ap.Y) : null,
+                Facing = a.Facing is { } direction ? new GridPos(direction.X, direction.Y) : null,
                 MapArea = a.MapArea is null ? null : new AreaId(a.MapArea),
                 Sneak = a.Sneak,
                 Coins = a.Coins,
@@ -575,6 +577,8 @@ internal static class SaveGame
                 Check(d.Version >= 23 && actor.Position is { } square && new Spot(exact.X, exact.Y).Cell == square, $"punto esatto di '{a.Id}' fuori dalla sua casella");
                 actor.PlaceAt(new Spot(exact.X, exact.Y));
             }
+            Check(actor.Facing is not { } facing || a.IsPlayer && (facing.X != 0 || facing.Y != 0),
+                $"direzione dello sguardo di '{a.Id}' non valida");
             // C5b: before schema 22 a character had the points of its definition's level, and nobody had defeated anyone.
             Check(d.Version < 22 || a.Experience is not null && a.Defeated is not null, $"esperienza di '{a.Id}' mancante");
             actor.Experience = a.Experience

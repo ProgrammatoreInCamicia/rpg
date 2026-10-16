@@ -264,18 +264,22 @@ internal sealed class GridMap
 
     /// <summary>
     /// Light cast on a square by the map's sources (SRD: Bright Light within the first radius, Dim Light for the
-    /// additional one), from the fixed sources and any <paramref name="carried"/> ones (torches). Distances are counted in
-    /// 5-ft squares; walls and closed doors stop light like sight, so it only leaks out through openings.
+    /// additional one), from the fixed sources and any <paramref name="carried"/> ones (torches). Radii are measured
+    /// between square centres in feet, so their footprint is round rather than a square of diagonal grid steps.
+    /// Walls and closed doors stop light like sight, so it only leaks out through openings.
     /// </summary>
     public Light SourceLight(GridPos square, IEnumerable<LightSource>? carried = null)
     {
         var best = Light.Dark;
         foreach (var source in carried is null ? Lights : Lights.Concat(carried))
         {
-            var feet = source.At.StepsTo(square) * 5;
-            if (feet > source.BrightFeet + source.DimFeet || !HasLineOfSight(source.At, square))
+            var dx = (source.At.X - square.X) * 5L;
+            var dy = (source.At.Y - square.Y) * 5L;
+            var feetSquared = dx * dx + dy * dy;
+            var reach = (long)source.BrightFeet + source.DimFeet;
+            if (feetSquared > reach * reach || !HasLineOfSight(source.At, square))
                 continue;
-            var level = feet <= source.BrightFeet ? Light.Bright : Light.Dim;
+            var level = feetSquared <= (long)source.BrightFeet * source.BrightFeet ? Light.Bright : Light.Dim;
             if (level > best)
                 best = level;
         }

@@ -124,6 +124,8 @@ internal sealed class ActorDto
 
     /// <summary>P1 (schema 23): the exact point where it stands, when not the centre of its square.</summary>
     public PosDto? Spot { get; set; }
+    /// <summary>Schema 31: direction of the player's gaze, in map coordinates.</summary>
+    public PosDto? Facing { get; set; }
 }
 
 internal sealed class StoreDto

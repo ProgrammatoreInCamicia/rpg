@@ -118,7 +118,7 @@ internal sealed partial class Simulation
     internal AttackPreview PreviewAttack(ActorId actorId, ActorId targetId, string attackName, bool nonLethal)
     {
         var player = World.Actors[World.Player];
-        bool Shown(Actor a) => a.IsPlayer || SeesActor(player, a);
+        bool Shown(Actor a) => a.IsPlayer || SeesActor(player, a, ignoreFacing: EncounterOf(player) is null);
         var (rejected, _, check) = GateAttack(actorId, targetId, attackName, nonLethal);
         var actor = World.Actors.GetValueOrDefault(actorId);
         var target = World.Actors.GetValueOrDefault(targetId);
@@ -146,7 +146,7 @@ internal sealed partial class Simulation
         if (!check.Valid)
             return CommandResult.Rejected(check.Reason, check.Why!);
 
-        var expects = SeesActor(target, actor) && HoldsHostile(target, actor);
+        var expects = SeesActor(target, actor, ignoreFacing: true) && HoldsHostile(target, actor);
         CancelAction(actor);
         CancelAction(target);
         actor.FoughtWith.Add(target.Id);
@@ -165,7 +165,11 @@ internal sealed partial class Simulation
                 Actor = new ActorId(roll.Id), Side = roll.Id == actor.Id.Value ? 0 : 1,
                 Initiative = roll.Roll.Total, InitiativeBonus = roll.Bonus, OpeningSpent = !expects && roll.Id == actor.Id.Value,
             });
+        var map = World.Maps[e.Area];
+        NoteSensesChange(map);
         World.Encounters.Add(e.Id, e);
+        NoteSensesChange(map);
+        RememberDoors();
         Record(e, CombatLogKind.Started, actor, target,
             (a, t) => expects ? $"{a} attacca {t}, che se lo aspettava: scontro!" : $"{a} attacca {t} di sorpresa!");
         var started = World.RecordFact("CombatStarted", $"{actor.Name} attacca {target.Name}{(expects ? "" : " di sorpresa")}.",
@@ -415,7 +419,11 @@ internal sealed partial class Simulation
         World.RecordFact("CombatEnded", why, actors.Where(a => a.IsPlayer || actors.Any(o => o.IsPlayer && SeesActor(o, a)))
             .Select(a => a.Id).ToArray());
         World.Scheduler.RemoveRound(e.Id);
+        var map = World.Maps[e.Area];
+        NoteSensesChange(map);
         World.Encounters.Remove(e.Id);
+        NoteSensesChange(map);
+        RememberDoors();
         foreach (var actor in actors.Where(a => !a.Conscious && a.Vitality.State != LifeState.Dead))
             BeginDowned(actor);
         DecideForFreeNpcs(); // the others go back to their lives at once
@@ -477,7 +485,7 @@ internal sealed partial class Simulation
             return new(RejectionReason.NotHostile, $"{target.Name} è dalla tua parte.");
         if (target.Vitality.State == LifeState.Dead)
             return new(RejectionReason.AlreadyDone, $"{target.Name} è già morto.");
-        if (!SeesActor(attacker, target))
+        if (!SeesActor(attacker, target, ignoreFacing: e is null))
             return new(RejectionReason.NotVisible, $"Non vedi {target.Name}.");
         if (attack.Item is { } needed && attacker.Carried(needed) == 0) // C3b
             return new(RejectionReason.NoAmmo, $"Non ne hai più: {World.Content.Item(needed)?.Name ?? needed}.");
@@ -507,14 +515,15 @@ internal sealed partial class Simulation
                 return new(RejectionReason.NoLineOfFire, $"Non hai un tiro libero verso {target.Name}.");
             longRange = inches > normal * Spot.PerFoot;
             var threats = e is null ? new[] { target } : EnemiesOf(e, attacker);
-            var closeCombat = threats.Any(foe => foe.Conscious && CurrentSpot(foe) is { } p && WithinFiveFeet(map, p, from) && SeesActor(foe, attacker));
+            var closeCombat = threats.Any(foe => foe.Conscious && CurrentSpot(foe) is { } p && WithinFiveFeet(map, p, from)
+                && SeesActor(foe, attacker, ignoreFacing: e is null));
             disadvantage = longRange || closeCombat;
         }
         // C3a, SRD Dodge: attacks against a dodging target that sees the attacker have Disadvantage.
         if (e?.Order.FirstOrDefault(c => c.Actor == target.Id) is { Dodging: true } && target.Conscious && SeesActor(target, attacker))
             disadvantage = true;
         return new(RejectionReason.None, null,
-            Advantage: !SeesActor(target, attacker), // also an unconscious target: it sees nothing
+            Advantage: !SeesActor(target, attacker, ignoreFacing: e is null), // also an unconscious target: it sees nothing
             Disadvantage: disadvantage, LongRange: longRange,
             AutoCritical: target.Vitality.Unconscious && WithinFiveFeet(map, from, to),
             Cover: CoverOf(map, attacker, target, origin!.Value, aim!.Value, blocked), Aim: aim, Origin: origin);
@@ -793,7 +802,8 @@ internal sealed partial class Simulation
                 || MeleeAttack(foe) is not { } attack || CurrentPosition(foe) is null)
                 continue;
             var at = StandingOf(foe);
-            if (InReach(map, at, attack, from) && !InReach(map, at, attack, to) && Sees(map, foe, at.Cell, mover, from.Cell, LightOn(map, from.Cell)))
+            if (InReach(map, at, attack, from) && !InReach(map, at, attack, to)
+                && Sees(map, foe, at.Cell, mover, from.Cell, LightOn(map, from.Cell), atSpot: from.At))
                 yield return foe;
         }
     }

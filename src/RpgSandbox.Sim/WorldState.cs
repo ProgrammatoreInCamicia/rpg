@@ -68,6 +68,9 @@ internal sealed class Actor
     /// <summary>P1: where the actor stands on its map: its exact point, or the centre of its square.</summary>
     public Spot? Spot => ExactSpot ?? (_position is { } p ? Api.Spot.CenterOf(p) : null);
 
+    /// <summary>Player-controlled gaze in map coordinates; null keeps legacy all-direction sight.</summary>
+    public GridPos? Facing { get; set; }
+
     /// <summary>P1: stands at <paramref name="spot"/>, in the square it lies in.</summary>
     public void PlaceAt(Spot spot)
     {

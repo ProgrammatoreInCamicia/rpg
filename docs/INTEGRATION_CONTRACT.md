@@ -198,7 +198,7 @@ Da decidere con l'utente e con Codex. I candidati sono il combattimento a turni,
 Vale solo per le Aree mappate; altrove restano le regole per Luogo descritte sopra.
 
 - **Linea di vista**: retta di Bresenham tra i centri delle caselle. La bloccano i muri e i passaggi diagonali stretti tra due muri. È simmetrica: basta che uno dei due versi sia libero. I depositi non bloccano la vista.
-- **Luce di una casella** (T6b-bis): la migliore fra la luce del giorno e le **sorgenti di luce** della mappa (SRD 5.2.1: Lamp luce piena 15 ft + fioca per altri 30; Torch 20+20; Candle 5+5). La distanza si conta in caselle da 5 ft e la luce è fermata dai muri come la vista: esce dalla Locanda solo dalla porta. Il flag `Lit` dei Luoghi vale solo per le Aree senza mappa. **Si vede** chi è in linea di vista e su una casella con almeno luce fioca, a qualunque distanza.
+- **Luce di una casella** (T6b-bis): la migliore fra la luce del giorno e le **sorgenti di luce** della mappa (SRD 5.2.1: Lamp luce piena 15 ft + fioca per altri 30; Torch 20+20; Candle 5+5). La distanza radiale usa i centri delle caselle da 5 ft e la luce è fermata dai muri come la vista: esce dalla Locanda solo dalla porta. Il flag `Lit` dei Luoghi vale solo per le Aree senza mappa. **Si vede** chi è in linea di vista e su una casella con almeno luce fioca, entro l'eventuale campo visivo dell'osservatore.
 - **Udito**: il suono percorre le caselle aggirando i muri e si sente entro **6 caselle** (30 piedi, valore di bilanciamento).
 - **Furti sulle mappe**: possono notarli tutti gli attori della stessa mappa.
   - Vista: linea di vista sul ladro e luce della sua casella, considerando la luce migliore nel tratto osservato; in luce fioca Percezione passiva −5.
@@ -900,4 +900,16 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 - Con l'interazione già usata le porte chiuse sono muri. Se una via ne incontra una seconda, chi cammina si ferma lì
   ("la porta è chiusa"). Le porte che tengono per chi cammina sono sempre muri.
 - `SpotMovePreview.OpensDoor`: la porta che la mossa aprirà.
+- Una mossa apre al massimo una porta: se la via ne aprirebbe due, si cerca una via che non ne apra nessuna; se non
+  c'è, `Unreachable` ("Servirebbe aprire più di una porta in questo turno."), anteprima compresa. Aprire con la chiave
+  camminando aggiorna ciò che il giocatore sa della serratura.
 - Non fatto: `MoveCommand` a caselle in scontro tratta ancora le porte chiuse come muri.
+
+## Vista direzionale del giocatore (prova grafica)
+
+- Nel villaggio e nel prototipo degli interni il client abilita `Facing` del giocatore. La direzione segue ogni tratto di cammino; clic destro su terreno vuoto la cambia subito, senza avanzare il tempo. `PlayerView.Facing` restituisce la direzione e `SimulationSession.FacePlayer(x, y)` permette di impostarla (`(0, 0)` è rifiutato).
+- Fuori dallo scontro la vista del giocatore sulle mappe copre 160° davanti a lui e un raggio euclideo massimo di 100 piedi. Entro 90 pollici resta la consapevolezza periferica in tutte le direzioni. Il cono vale per esplorazione, personaggi, oggetti a terra, porte e testimonianza dei furti. Girarsi aggiorna immediatamente l'esplorazione e la prova di vista di un furto in corso.
+- Durante uno scontro il giocatore vede a 360° e senza limite di distanza visiva, come i PNG. Vale anche per vantaggio dell'attaccante non visto, attacchi di opportunità, Schivata, bersagli, log e iniziativa. Un tiro d'apertura e la sua anteprima controllano la vista senza cono e senza limite, così un'arma può usare la propria gittata lunga. L'inizio e la fine dello scontro aggiornano subito esplorazione ed evidenza dei furti.
+- Muri e luce mantengono le loro regole in entrambi gli stati: guardare verso una casella buia o dietro un muro non la rende visibile. Gli altri PNG, con `Facing = null`, conservano la vista omnidirezionale; le aree senza mappa conservano le regole di Luogo.
+- Il client sfuma il confine *all'interno* delle caselle visibili. Il controllo delle caselle resta alla Sim; la sfumatura non scopre stanze, personaggi o oggetti oltre il limite. È ancora una resa a caselle, non una visibilità geometrica continua al pixel.
+- Salvataggio schema 31: `Facing` del giocatore è opzionale nei vecchi salvataggi e viene abilitato dal client al caricamento. Dopo il salvataggio conserva la direzione. Le sorgenti di luce usano distanza euclidea, così la loro impronta è circolare.

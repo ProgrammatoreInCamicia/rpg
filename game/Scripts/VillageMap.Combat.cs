@@ -356,8 +356,8 @@ public partial class VillageMap
 			? $"\nAttacco iniziale in attesa: {opening.Attack}." : "";
 		return (combat.IsYourTurn
 			? _freeMovementEnabled
-				? "Passa il mouse sul pavimento per vedere il percorso; clicca per muoverti."
-				: "Passa il mouse su una casella verde per vedere il percorso; clicca per muoverti."
+				? "Passa il mouse sul pavimento per vedere il percorso; clicca per muoverti. Clic destro su porte e finestre per interagire."
+				: "Passa il mouse su una casella verde per vedere il percorso; clicca per muoverti. Clic destro su porte e finestre per interagire."
 			: "Attendi il tuo turno.") + pending;
 	}
 
@@ -372,17 +372,29 @@ public partial class VillageMap
 
 	private bool HandleCombatInput(InputEvent @event)
 	{
-		if (@event is not InputEventMouseButton { ButtonIndex: MouseButton.Left, Pressed: true } mouse)
+		if (@event is not InputEventMouseButton { Pressed: true } mouse
+			|| mouse.ButtonIndex is not (MouseButton.Left or MouseButton.Right))
 			return @event is InputEventKey { Keycode: Key.Space or Key.X or Key.F or Key.T };
 		var point = GetGlobalTransformWithCanvas().AffineInverse() * mouse.Position;
-		if (PersonAt(point) is { } person)
+		if (mouse.ButtonIndex == MouseButton.Left && PersonAt(point) is { } person)
 		{
 			SelectCombatant(person);
 			return true;
 		}
-		if (WindowAt(point) is not null)
+		if (DoorAt(point) is { } door && (mouse.ButtonIndex == MouseButton.Right
+			|| _view.Doors.FirstOrDefault(d => d.At == door)?.Open == false))
 		{
-			ShowMessage("Non puoi usare una finestra durante uno scontro.");
+			OpenDoorMenu(door);
+			return true;
+		}
+		if (WindowAt(point) is { } window)
+		{
+			OpenWindowMenu(window);
+			return true;
+		}
+		if (mouse.ButtonIndex == MouseButton.Right)
+		{
+			FaceToward(point);
 			return true;
 		}
 		if (GroundItemAt(ScreenToCell(point)) is { } item)

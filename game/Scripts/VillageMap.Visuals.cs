@@ -151,6 +151,15 @@ public partial class VillageMap
 			Position = GetGlobalTransformWithCanvas() * at });
 	}
 
+	internal void RightClickWindowForSmoke(GridPos a, GridPos b)
+	{
+		var panel = _windowPanels[(a, b)];
+		var glass = panel.GetNode<Polygon2D>("Glass").Polygon;
+		var at = panel.Position + glass.Aggregate(Vector2.Zero, (sum, point) => sum + point) / glass.Length;
+		_UnhandledInput(new InputEventMouseButton { ButtonIndex = MouseButton.Right, Pressed = true,
+			Position = GetGlobalTransformWithCanvas() * at });
+	}
+
 	internal bool WindowPanelOpenForSmoke(GridPos a, GridPos b) =>
 		_windowPanels[(a, b)].GetNode<Line2D>("OpenSash").Visible;
 	internal bool WindowShardsForSmoke(GridPos a, GridPos b) =>

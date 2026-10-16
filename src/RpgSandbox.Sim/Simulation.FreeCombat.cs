@@ -177,7 +177,7 @@ internal sealed partial class Simulation
         var sightOf = new Dictionary<GridPos, bool>(); // by square: sight and light are the grid's
         bool PlayerSees(Spot p) => actor.IsPlayer || (sightOf.TryGetValue(p.Cell, out var s) ? s
             : sightOf[p.Cell] = player.MapArea == map.Area && CurrentPosition(player) is { } eye
-                                && Sees(map, player, eye, actor, p.Cell, LightOn(map, p.Cell)));
+                                && Sees(map, player, eye, actor, p.Cell, LightOn(map, p.Cell), atSpot: p));
         var seen = new List<bool> { PlayerSees(points[0]) };
         for (var k = 1; k < points.Count; k++)
         {

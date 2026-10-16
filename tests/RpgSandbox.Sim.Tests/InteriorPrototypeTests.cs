@@ -24,6 +24,25 @@ public class InteriorPrototypeTests
     }
 
     [Fact]
+    public void Player_gaze_is_a_round_forward_cone_and_survives_save_load()
+    {
+        var s = House();
+        var ahead = new GridPos(9, 2);
+        var behind = new GridPos(9, 6);
+        s.FacePlayer(0, -1);
+        Assert.Equal('2', s.GetPlayerView().MapVisibility![ahead.Y][ahead.X]);
+        Assert.NotEqual('2', s.GetPlayerView().MapVisibility![behind.Y][behind.X]);
+
+        s.FacePlayer(0, 1);
+        Assert.Equal('2', s.GetPlayerView().MapVisibility![behind.Y][behind.X]);
+        Assert.Equal('1', s.GetPlayerView().MapVisibility![ahead.Y][ahead.X]);
+
+        var loaded = s.SaveAndReload();
+        Assert.Equal(new GridPos(0, 1), loaded.GetPlayerView().Facing);
+        Assert.Equal('2', loaded.GetPlayerView().MapVisibility![behind.Y][behind.X]);
+    }
+
+    [Fact]
     public void Daylight_indoors_follows_the_door_as_it_opens_and_shuts_again_after_being_looked_up()
     {
         // Daylight and sight are remembered per map (village speed-up): opening or shutting a door must forget them.

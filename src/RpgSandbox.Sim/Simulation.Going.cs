@@ -187,13 +187,13 @@ internal sealed partial class Simulation
     // ---------------------------------------------------------------- T6c-4: contacts with people on maps
 
     /// <summary>Whether <paramref name="watcher"/> sees <paramref name="target"/> right now, both on the same map (F3 rules).</summary>
-    internal bool SeesActor(Actor watcher, Actor target)
+    internal bool SeesActor(Actor watcher, Actor target, bool ignoreFacing = false)
     {
         if (watcher.MapArea is not { } area || target.MapArea != area
             || CurrentPosition(watcher) is not { } eye || CurrentPosition(target) is not { } there)
             return false;
         var map = World.Maps[area];
-        return Sees(map, watcher, eye, target, there, LightOn(map, there));
+        return Sees(map, watcher, eye, target, there, LightOn(map, there), ignoreFacing);
     }
 
     /// <summary>

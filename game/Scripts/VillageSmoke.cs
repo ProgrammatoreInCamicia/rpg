@@ -166,13 +166,14 @@ public partial class VillageSmoke : Node
 
 		// At night the inn lamp spills out of the door; the granary yard stays dark.
 		var light = _map.View.MapLight!;
-		Require(light[3][8] == '1' && light[6][17] == '0', "Lamplight should reach the road by the door, not the granary yard");
+		Require(light[6][17] == '0', "The granary yard should remain dark");
 
 		// From the road in front of the door the guard is in sight: a real click on her figure (not on her square)
 		// walks up to her and opens the conversation.
 		var guard = MappedVillageScenario.Ids.Guard;
 		_map.MoveTo(new GridPos(8, 3));
 		await UntilIdle(40);
+		Require(_map.View.MapLight![3][8] == '1', "Lamplight should reach the road by the inn door");
 		Require(_map.View.VisibleActors.Any(a => a.Id == guard), "The guard should be visible through the door");
 		Require(_map.View.PeopleHere.All(p => p.Id != guard), "The guard should not be next to you yet");
 		await Frames(3);
@@ -288,6 +289,7 @@ public partial class VillageSmoke : Node
 		await DiscoveredTheft();
 		await DoorMemory();
 		await WindowGlassAndBars();
+		await CombatWindowAction();
 		await CombatHudPreview();
 		await DeedJournalPreview();
 		await NightDuel();
@@ -496,9 +498,11 @@ public partial class VillageSmoke : Node
 		if (_map.View.Combat is { IsYourTurn: true })
 			_map.EndCombatTurnForSmoke();
 		await Frames(3);
+		Require(_map.SmokeWorld.RecentFacts.Any(f => f.Kind == "JoinedFight" && f.Description.StartsWith("Guardia")),
+			"G13: the guard did not join the fight after witnessing the assault");
 		var fight = _map.View.Combat;
 		Require(fight is not null && fight.Order.Any(c => c.Actor == guard),
-			"G13: the guard did not join the fight after seeing the assault");
+			"G13: the 360-degree combat view did not reveal the guard in the initiative order");
 		Require(fight!.Log.Any(e => e.Kind == CombatLogKind.Joined && e.Actor == guard),
 			"G13: the guard's arrival is missing from the combat log");
 		Capture("35-g13-guard-joins.png");
@@ -778,6 +782,20 @@ public partial class VillageSmoke : Node
 		});
 		await Frames(2);
 		Capture("32-g12-multiple-combatants-preview.png");
+		var windowA = new GridPos(3, 0);
+		var windowB = new GridPos(3, 1);
+		_map.PreviewCombatForSmoke(preview with { You = preview.You with { InteractionAvailable = true } });
+		_map.OpenWindowMenuForSmoke(windowA, windowB);
+		Require(_map.BarrierActionsForSmoke.Contains("Apri (gratis)")
+			&& _map.BarrierActionsForSmoke.Any(x => x == "Rompi il vetro (usa l'azione, rumoroso)"),
+			"P4c: the combat window menu did not show free interaction and the Utilize action");
+		_map.PreviewCombatForSmoke(preview with { You = preview.You with { InteractionAvailable = false, ActionAvailable = false } });
+		_map.OpenWindowMenuForSmoke(windowA, windowB);
+		Require(_map.BarrierActionsForSmoke.Contains("Apri (usa l'azione)")
+			&& !_map.BarrierActionEnabledForSmoke("Apri (usa l'azione)")
+			&& !_map.BarrierActionEnabledForSmoke("Rompi il vetro (usa l'azione, rumoroso)"),
+			"P4c: spent combat resources did not disable window actions");
+		_map.CloseBarrierMenuForSmoke();
 	}
 
 	/// <summary>G9: frame an unknown farmhouse door, then the player's stale memory after it opens unseen.</summary>
@@ -888,6 +906,45 @@ public partial class VillageSmoke : Node
 		_map.FocusForSmoke(null);
 	}
 
+	/// <summary>P4c: the combat window button reaches the actual Sim command and spends the action.</summary>
+	private async Task CombatWindowAction()
+	{
+		var a = new GridPos(3, 0);
+		var b = new GridPos(3, 1);
+		var session = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
+		var move = session.Execute(new MoveCommand { Actor = session.Player, To = b });
+		Require(move.Success, "P4c: cannot approach the inn window");
+		session.AdvanceUntilCompleted(move.Action!.Value, Duration.FromMinutes(5));
+		move = session.Execute(new MoveCommand { Actor = MappedVillageScenario.Ids.Guard, To = new GridPos(4, 1) });
+		Require(move.Success, "P4c: cannot position the guard by the window");
+		session.AdvanceUntilCompleted(move.Action!.Value, Duration.FromMinutes(5));
+		var attack = session.Execute(new AttackCommand { Actor = session.Player, Target = MappedVillageScenario.Ids.Guard,
+			Attack = "Colpo senz'armi", NonLethal = true });
+		Require(attack.Success && session.GetPlayerView().Combat is not null,
+			$"P4c: cannot start a fight by the window: {attack.Message}");
+		if (session.GetPlayerView().Combat is { IsYourTurn: true })
+			session.Execute(new EndTurnCommand { Actor = session.Player });
+		for (var i = 0; i < 12 && session.GetPlayerView().Combat is { IsYourTurn: false }; i++)
+			session.Advance(Duration.FromSeconds(1));
+		Require(session.GetPlayerView().Combat is { IsYourTurn: true, You.ActionAvailable: true },
+			"P4c: no playable turn by the window");
+		var combatSave = System.IO.Path.Combine(_outputDir, "window-combat.json");
+		using (var stream = File.Create(combatSave)) session.Save(stream);
+		_map.LoadGameFromPath(combatSave);
+		_map.RightClickWindowForSmoke(a, b);
+		var label = "Rompi il vetro (usa l'azione, rumoroso)";
+		Require(_map.BarrierMenuVisibleForSmoke && _map.BarrierActionEnabledForSmoke(label),
+			"P4c: right-click did not open the combat window menu");
+		await Frames(2);
+		Capture("23d-p4c-combat-window-menu.png");
+		_map.PressBarrierActionForSmoke(label);
+		Require(_map.View.Map!.Edges.Single(e => e.A == a && e.B == b).Glass == WindowGlass.Broken
+			&& _map.View.Combat is { You.ActionAvailable: false },
+			$"P4c: the combat menu did not break glass and spend the action: {_map.LastMessage}");
+		await Frames(2);
+		Capture("23d-p4c-combat-window.png");
+	}
+
 	/// <summary>G6: show the raid through the actual village view, with a reproducible saved world at each long gap.</summary>
 	private async Task NightRaid()
 	{
@@ -939,12 +996,16 @@ public partial class VillageSmoke : Node
 		session.Advance(new GameTime(19 * 3600 + 31 * 60).Since(session.Now));
 		Require(session.GetWorldView().Stores.Single(s => s.Id == granary).Food == 40,
 			"The raid should still be in progress before the three-minute theft finishes");
+		var access = MappedVillageScenario.Ids.GranaryAccess;
+		session.FacePlayer(access.X - lookout.X, access.Y - lookout.Y);
 		var atGranary = System.IO.Path.Combine(_outputDir, "raid-at-granary.json");
 		using (var stream = File.Create(atGranary)) session.Save(stream);
 		_map.LoadGameFromPath(atGranary);
 		await Frames(3);
 		Require(_map.SmokeWorld.Actors.Single(a => a.Id == raider).Position == MappedVillageScenario.Ids.GranaryAccess,
 			"The raider did not reach the declared granary access");
+		var raiderAtGranary = _map.SmokeWorld.Actors.Single(a => a.Id == raider).Position!.Value;
+		_map.FaceForSmoke(raiderAtGranary.X - lookout.X, raiderAtGranary.Y - lookout.Y);
 		Require(_map.View.VisibleActors.Any(a => a.Id == raider),
 			"The player cannot see the raider at the granary in the dusk fixture");
 		Capture("13-raid-at-granary.png");

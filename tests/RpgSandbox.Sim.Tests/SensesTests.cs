@@ -217,6 +217,18 @@ public class SensesTests
     }
 
     [Fact]
+    public void Light_radius_is_round_even_when_diagonal_grid_steps_are_short()
+    {
+        var map = new GridMap(new AreaId("a"), Enumerable.Repeat("....................", 20).ToArray(),
+            new Dictionary<char, LocationId>(), Array.Empty<GridPos>(),
+            new[] { new LightSource(new GridPos(0, 0), 15, 30) });
+
+        Assert.Equal(Light.Bright, map.SourceLight(new GridPos(3, 0))); // 15 ft
+        Assert.Equal(Light.Dim, map.SourceLight(new GridPos(3, 3)));    // about 21 ft
+        Assert.Equal(Light.Dark, map.SourceLight(new GridPos(9, 9)));  // about 64 ft, not 45
+    }
+
+    [Fact]
     public void Lamplight_leaks_out_of_the_inn_door_only_and_fades_along_the_road()
     {
         var s = SimulationSession.Create(MappedVillageScenario.Create());

@@ -102,7 +102,9 @@ public partial class VillageMap : Node2D
 		_sim = SimulationSession.Create(interior ? InteriorPrototypeScenario.Create() : ScenarioFile.Load("living-village"));
 		if (interior)
 			_sim.Advance(Duration.FromHours(13)); // the playable scene opens in daylight; the smoke also checks night
+		_sim.FacePlayer(1, 1); // starts looking into the village, towards the guard and the road
 		_view = _sim.GetPlayerView();
+		SyncFigureFacing(_view.Facing);
 
 		BuildMap();
 		BuildUi();
@@ -185,6 +187,7 @@ public partial class VillageMap : Node2D
 		}
 		UpdateShotVisuals();
 		PlaceTokens();
+		UpdateBuildingOcclusion((float)delta);
 		UpdateCombatHover();
 	}
 
@@ -237,6 +240,8 @@ public partial class VillageMap : Node2D
 				OpenDoorMenu(door);
 			else if (WindowAt(point) is { } window)
 				OpenWindowMenu(window);
+			else
+				FaceToward(point);
 			return;
 		}
 		switch (mouse.ButtonIndex)
@@ -633,6 +638,9 @@ public partial class VillageMap : Node2D
 			return;
 		}
 		_sim = result.Session!;
+		if (_sim.GetPlayerView().Facing is null)
+			_sim.FacePlayer(1, 1); // saves made before directional vision
+		SyncFigureFacing(_sim.GetPlayerView().Facing);
 		_peopleKey = "";
 		_lightKey = "";
 		_journalOpen = false;
@@ -683,6 +691,7 @@ public partial class VillageMap : Node2D
 		var onMap = _view.Map is not null && _view.Position is not null;
 		_floor.Visible = onMap;
 		_sorted.Visible = onMap;
+		_roofs.Visible = onMap;
 		_offMapPanel.Visible = !onMap;
 		if (!onMap)
 		{
@@ -744,10 +753,13 @@ public partial class VillageMap : Node2D
 		_watched.Text = hidden + (watchers.Count > 0 ? $"Ti vede: {string.Join(", ", watchers)}." : _view.VisibleActors.Count > 0 ? "Nessuno di quelli che vedi ti vede." : "");
 		_stop.Disabled = !_walking;
 		ShadeMap();
+		RefreshBuildingVisibility();
+		RefreshVisionFeather();
 		foreach (var door in _view.Doors)
 		{
 			var panel = _doorPanels[door.At];
-			var lit = Shade(door.At);
+			var lit = Shade(_view.Map?.Edges.FirstOrDefault(e => e.DoorAt == door.At) is { } edge
+				? FacadeShadeCell(edge) : door.At);
 			panel.Modulate = door.Known == DoorKnowledge.Remembered
 				? new Color(lit.R * 0.72f, lit.G * 0.72f, lit.B * 0.72f, 0.42f) : lit;
 		}
@@ -1068,6 +1080,8 @@ public partial class VillageMap : Node2D
 		AddChild(_floor);
 		_sorted = new Node2D { YSortEnabled = true };
 		AddChild(_sorted);
+		BuildRoofLayer();
+		BuildVisionFeather();
 		LoadGroundTextures();
 
 		for (var y = 0; y < map.Height; y++)
@@ -1094,6 +1108,7 @@ public partial class VillageMap : Node2D
 				var wall = MakeBlock(cell, Wall, WallHeight, _stoneWallTexture);
 				_sorted.AddChild(wall);
 				_lit[cell] = wall; // the floor under a wall is hidden anyway
+				RegisterBlockOccluder(wall);
 			}
 		}
 
@@ -1118,7 +1133,8 @@ public partial class VillageMap : Node2D
 			_sorted.AddChild(panel);
 			if (edge.Kind is MapEdgeKind.Window or MapEdgeKind.Door)
 				AddBarrierMark(panel, edge.Kind == MapEdgeKind.Window ? 17f : WallHeight);
-			_edgeLit.Add((edge.B, panel));
+			_edgeLit.Add((FacadeShadeCell(edge), panel));
+			RegisterBuildingEdge(edge, panel);
 			if (edge.Kind == MapEdgeKind.Window)
 				_windowPanels[(edge.A, edge.B)] = panel;
 			if (edge.DoorAt is { } at)

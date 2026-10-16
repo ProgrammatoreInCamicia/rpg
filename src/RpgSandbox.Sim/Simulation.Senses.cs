@@ -110,7 +110,8 @@ internal sealed partial class Simulation
     {
         foreach (var other in World.Actors.Values.Where(a => a.Id != thief.Id).OrderBy(a => a.Id.Value, StringComparer.Ordinal))
         {
-            var inSight = other.MapArea == map.Area && CurrentPosition(other) is { } from && map.HasLineOfSight(from, square);
+            var inSight = other.MapArea == map.Area && CurrentPosition(other) is { } from
+                && map.HasLineOfSight(from, square) && InFacing(other, CurrentSpot(other) ?? Spot.CenterOf(from), Spot.CenterOf(square));
             take.Sight.TryGetValue(other.Id, out var spans);
             var open = spans is { Count: > 0 } && spans[^1].To is null;
             if (inSight && !open)
@@ -162,9 +163,38 @@ internal sealed partial class Simulation
 
     private static Light Max(Light a, Light b) => a > b ? a : b;
 
+    /// <summary>The player may turn without spending time. Turning updates sight evidence and exploration immediately.</summary>
+    internal void FacePlayer(GridPos direction)
+    {
+        var player = World.Actors[World.Player];
+        var map = MapOf(player);
+        if (map is not null) NoteSensesChange(map);
+        player.Facing = direction;
+        if (map is not null)
+        {
+            NoteSensesChange(map);
+            RememberDoors();
+        }
+    }
+
+    /// <summary>Near the body there is peripheral awareness; farther away, a round 100-ft range and 160-degree cone.</summary>
+    internal bool InFacing(Actor watcher, Spot eye, Spot target, bool ignoreFacing = false)
+    {
+        if (ignoreFacing || EncounterOf(watcher) is not null || watcher.Facing is not { } direction) return true;
+        var dx = target.X - (long)eye.X;
+        var dy = target.Y - (long)eye.Y;
+        var distanceSquared = dx * dx + dy * dy;
+        if (distanceSquared <= 90L * 90) return true; // adjacent floor remains apparent, including behind the body
+        if (distanceSquared > 20L * Spot.PerSquare * 20L * Spot.PerSquare) return false;
+        var dot = direction.X * dx + direction.Y * dy;
+        var facingSquared = (long)direction.X * direction.X + (long)direction.Y * direction.Y;
+        return dot > 0 && (double)dot * dot >= distanceSquared * (double)facingSquared * 0.03015369; // cos(80°)^2
+    }
+
     /// <summary>Whether <paramref name="watcher"/> can see what stands on <paramref name="square"/> right now.</summary>
-    internal bool CanSee(GridMap map, GridPos watcher, GridPos square) =>
-        map.HasLineOfSight(watcher, square) && LightOn(map, square) >= Light.Dim;
+    internal bool CanSee(GridMap map, Actor watcher, GridPos from, GridPos square) =>
+        map.HasLineOfSight(from, square) && LightOn(map, square) >= Light.Dim
+        && InFacing(watcher, CurrentSpot(watcher) ?? Spot.CenterOf(from), Spot.CenterOf(square));
 
     internal static bool WithinEarshot(GridMap map, GridPos listener, GridPos source) =>
         map.SoundSteps(listener, source, Tuning.HearingRadius) is not null;
@@ -175,8 +205,14 @@ internal sealed partial class Simulation
     /// sneaking target is seen only with Passive Perception at Disadvantage (−5) reaching its Stealth total; in bright
     /// light anyone in line of sight is seen.
     /// </summary>
-    internal static bool Sees(GridMap map, Actor watcher, GridPos from, Actor target, GridPos at, Light light) =>
-        watcher.Conscious && map.HasLineOfSight(from, at) && light switch // C2: the fallen see nothing
+    internal bool Sees(GridMap map, Actor watcher, GridPos from, Actor target, GridPos at, Light light,
+        bool ignoreFacing = false, Spot? fromSpot = null, Spot? atSpot = null) =>
+        watcher.Conscious && map.HasLineOfSight(from, at)
+        && InFacing(watcher,
+            fromSpot ?? (CurrentSpot(watcher) is { } eye && eye.Cell == from ? eye : Spot.CenterOf(from)),
+            atSpot ?? (CurrentSpot(target) is { } there && there.Cell == at ? there : Spot.CenterOf(at)),
+            ignoreFacing)
+        && light switch // C2: the fallen see nothing
         {
             Light.Bright => true,
             Light.Dim => target.Sneak is not { } dc || watcher.Sheet.PassivePerception(disadvantage: true) >= dc,
@@ -230,7 +266,7 @@ internal sealed partial class Simulation
     /// <summary>A door is seen from next to it, or in line of sight with at least dim light on it.</summary>
     internal bool SeesDoor(Actor actor, GridMap map, GridPos door) =>
         actor.MapArea == map.Area && CurrentPosition(actor) is { } eye
-        && (eye.IsAdjacentOrSame(door) || (map.HasLineOfSight(eye, door) && LightOn(map, door) >= Light.Dim));
+        && (eye.IsAdjacentOrSame(door) || CanSee(map, actor, eye, door));
 
     /// <summary>The player remembers the doors it sees now, as they are now. Called at processed instants and after commands only.</summary>
     internal void RememberDoors()
@@ -243,7 +279,7 @@ internal sealed partial class Simulation
                 player.DoorMemory[new DoorKey(area, at)] = new RememberedDoor(open, World.Now);
         // The explored floor is remembered here, with the doors, never when a view is read.
         if (map.UsesExploration && player.Conscious && CurrentPosition(player) is { } eye)
-            map.Explored.UnionWith(SquaresSeen(map, eye, onlyUnexplored: true).ToList());
+            map.Explored.UnionWith(SquaresSeen(map, player, eye, onlyUnexplored: true).ToList());
     }
 
     /// <summary>
@@ -251,7 +287,7 @@ internal sealed partial class Simulation
     /// immediately surrounding floor can be made out; a wall still blocks it. This affects only map exploration:
     /// recognising actors and objects continues to use <see cref="CanSee"/> and its light requirement.
     /// </summary>
-    internal IEnumerable<GridPos> SquaresSeen(GridMap map, GridPos eye, bool onlyUnexplored = false)
+    internal IEnumerable<GridPos> SquaresSeen(GridMap map, Actor watcher, GridPos eye, bool onlyUnexplored = false)
     {
         var daylight = Perception.DaylightAt(World.Now);
         var torches = CarriedLights(map);
@@ -262,6 +298,8 @@ internal sealed partial class Simulation
             if (onlyUnexplored && map.Explored.Contains(square))
                 continue;
             if (!map.HasLineOfSight(eye, square))
+                continue;
+            if (!InFacing(watcher, CurrentSpot(watcher) ?? Spot.CenterOf(eye), Spot.CenterOf(square)))
                 continue;
             if (Math.Max(Math.Abs(x - eye.X), Math.Abs(y - eye.Y)) <= 1
                 || Max(map.DaylightOn(square, daylight), map.SourceLight(square, torches)) >= Light.Dim)

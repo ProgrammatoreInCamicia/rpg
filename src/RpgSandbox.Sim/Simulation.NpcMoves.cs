@@ -137,7 +137,7 @@ internal sealed partial class Simulation
         (int Net, bool Long)? Score(Spot p)
         {
             if (p.DistanceTo(there) > longest * Spot.PerFoot
-                || !Sees(map, npc, p.Cell, target, there.Cell, LightOn(map, there.Cell))
+                || !Sees(map, npc, p.Cell, target, there.Cell, LightOn(map, there.Cell), fromSpot: p)
                 || AimAt(map, p, there) is not { Origin: { } origin, Aim: { } aim, Blocked: var blocked }
                 || AimAt(map, there, p) is not { Origin: { } back, Aim: { } at, Blocked: var hidden })
                 return null; // review P3b: lines are mutual, so the second never fails where the first holds

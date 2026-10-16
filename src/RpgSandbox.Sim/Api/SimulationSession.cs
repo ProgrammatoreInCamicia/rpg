@@ -29,6 +29,13 @@ public sealed class SimulationSession
     public GameTime Now => World.Now;
     public ActorId Player => World.Player;
 
+    /// <summary>Turn the player's gaze without advancing time; movement then keeps it aligned with the walk.</summary>
+    public void FacePlayer(int x, int y)
+    {
+        if (x == 0 && y == 0) throw new ArgumentException("La direzione dello sguardo non può essere nulla.");
+        _sim.FacePlayer(new GridPos(x, y));
+    }
+
     /// <summary>Validates and starts the action requested by <paramref name="command"/>. Never advances time.</summary>
     public CommandResult Execute(Command command)
     {
@@ -237,7 +244,7 @@ public sealed class SimulationSession
         // On a map (T6b) seeing takes line of sight and light on the other's square, at any distance.
         var map = player.MapArea is { } mapArea ? w.Maps[mapArea] : null;
         var me = PositionOf(player, w);
-        bool SeenOnMap(GridPos square) => player.Conscious && map is not null && me is { } eye && _sim.CanSee(map, eye, square);
+        bool SeenOnMap(GridPos square) => player.Conscious && map is not null && me is { } eye && _sim.CanSee(map, player, eye, square);
         bool Visible(Actor a) => map is not null && me is not null
             ? a.MapArea == map.Area && PositionOf(a, w) is { } there && SeenOnMap(there)
             : VisibleByPlace(a);
@@ -264,7 +271,7 @@ public sealed class SimulationSession
 
         // Read only: what is seen now is computed, what was explored is remembered by the simulation (RememberDoors).
         var seenNow = map is { UsesExploration: true } && me is { } eyeSquare && player.Conscious
-            ? _sim.SquaresSeen(map, eyeSquare).ToHashSet() : new HashSet<GridPos>();
+            ? _sim.SquaresSeen(map, player, eyeSquare).ToHashSet() : new HashSet<GridPos>();
         var visibility = map is { UsesExploration: true } && me is not null
             ? Freeze(Enumerable.Range(0, map.Height).Select(y => new string(Enumerable.Range(0, map.Width).Select(x =>
                 seenNow.Contains(new GridPos(x, y)) ? '2' : map.Explored.Contains(new GridPos(x, y)) ? '1' : '0').ToArray())))
@@ -278,6 +285,7 @@ public sealed class SimulationSession
             Food = player.Food,
             Position = PositionOf(player, w),
             Spot = SpotOf(player, w),
+            Facing = player.Facing,
             Move = MoveOf(player),
             Map = w.Maps.TryGetValue(area, out var areaMap) ? MapOf(areaMap, w) : null,
             MapLight = map is null ? null : Freeze(Enumerable.Range(0, map.Height).Select(y =>
@@ -324,7 +332,7 @@ public sealed class SimulationSession
                 Spot = SpotOf(x, w),
                 Move = MoveOf(x),
                 SeesYou = map is not null && me is { } mine && PositionOf(x, w) is { } theirs
-                    ? Simulation.Sees(map, x, theirs, player, mine, _sim.LightOn(map, mine))
+                    ? _sim.Sees(map, x, theirs, player, mine, _sim.LightOn(map, mine))
                     : null,
                 Torch = _sim.TorchLit(x),
                 Condition = x.Vitality.Describe(),
@@ -365,7 +373,7 @@ public sealed class SimulationSession
             Equipment = Worn(player, w.Content),
             Coins = player.Coins,
             GroundItems = map is null ? Array.Empty<GroundItemView>() : Freeze(map.Ground
-                .Where(g => me is { } eye && (eye.IsAdjacentOrSame(g.Key) || _sim.CanSee(map, eye, g.Key)))
+                .Where(g => me is { } eye && (eye.IsAdjacentOrSame(g.Key) || _sim.CanSee(map, player, eye, g.Key)))
                 .SelectMany(g => g.Value.Select(i => new GroundItemView { At = g.Key, Item = i.Key, Name = NameOf(w.Content, i.Key), Count = i.Value }))),
             PeopleHere = Freeze(present.Select(p => new PersonView
             {
@@ -425,6 +433,7 @@ public sealed class SimulationSession
             Area = map.Area, Width = map.Width, Height = map.Height,
             Rows = Freeze(rows.Select(r => new string(r))),
             Zones = new SortedDictionary<char, LocationId>(map.Zones.ToDictionary(z => z.Key, z => z.Value)).AsReadOnly(),
+            IndoorZones = Freeze(map.IndoorZones.OrderBy(z => z.Value, StringComparer.Ordinal)),
             Edges = Freeze(map.Edges.OrderBy(e => e.A.Y).ThenBy(e => e.A.X).ThenBy(e => e.B.Y).ThenBy(e => e.B.X)),
             Exits = Freeze(map.Exits.Select(e => new ExitView
             {

@@ -30,6 +30,9 @@ public partial class InteriorSmoke : Node
 			await UntilIdle();
 			_map.SetPaused(true);
 			Require(_map.View.MapVisibility![3][6] == '2', "window does not reveal the first room");
+			Require(!_map.RoofVisibleForSmoke(new GridPos(6, 3))
+				&& _map.RoofVisibleForSmoke(new GridPos(4, 4)),
+				"the roof did not cut away only the part seen through the window");
 			Capture("day-window.png");
 			var window = _map.View.Map!.Edges.Single(e => e.Kind == MapEdgeKind.Window);
 			Require(window.Open == false && !_map.WindowPanelOpenForSmoke(window.A, window.B),
@@ -55,6 +58,25 @@ public partial class InteriorSmoke : Node
 			Require(_map.View.Doors.Single(d => d.At == InteriorPrototypeScenario.Door).Open == true,
 				"walking through the edge door did not open it");
 			Capture("day-inside.png");
+			// Once the room has been explored, stepping outside and shutting the door must
+			// restore the facade. Remembered floor and internal partitions stay concealed.
+			_map.SetPaused(false);
+			_map.MoveTo(new GridPos(8, 4));
+			await UntilIdle();
+			_map.ClickDoor(InteriorPrototypeScenario.Door);
+			await Frames(2);
+			_map.SetPaused(true);
+			Require(_map.View.Doors.Single(d => d.At == InteriorPrototypeScenario.Door).Open == false,
+				"the outside click did not shut the house door");
+			Require(_map.View.MapVisibility![4][6] == '1' && _map.RoofVisibleForSmoke(new GridPos(6, 4)),
+				"the explored room remained visible from outside behind a closed door");
+			Require(!_map.InteriorEdgeVisibleForSmoke(new GridPos(5, 3), new GridPos(6, 3)),
+				"an internal partition leaked through the roof");
+			Capture("day-outside-after-visit.png");
+			_map.SetPaused(false);
+			_map.MoveTo(new GridPos(6, 4));
+			await UntilIdle();
+			_map.SetPaused(true);
 			var exact = new Spot(396, 276); // six inches off the centre of the room's (6,4) square
 			Require(VillageMap.SpotAtScreenForSmoke(VillageMap.ScreenPointOf(exact)) == exact,
 				"the isometric spot projection did not round-trip");

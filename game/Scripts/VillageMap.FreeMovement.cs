@@ -77,6 +77,7 @@ public partial class VillageMap
 				: new Color(1f, 0.45f, 0.35f, 0.85f);
 			_spotHint.Text = known && _view.Combat is not null
 				? $"{preview.Feet:0.0} / {Math.Floor(preview.FeetLeft * 10 + 1e-9) / 10:0.0} piedi"
+					+ (preview.OpensDoor is null ? "" : " · apre la porta")
 					+ (affordable ? "" : " · troppo lontano")
 					+ (preview.Provokes.Count == 0 ? "" : $" · reazione: {string.Join(", ", preview.Provokes.Select(p => p.Name))}")
 				: known ? $"{preview.Feet:0.0} piedi · {preview.Ticks / (double)GameTime.TicksPerSecond:0.0} s"

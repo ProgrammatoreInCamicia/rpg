@@ -29,6 +29,9 @@ public sealed record PlayerView
     public Spot? Spot { get; init; }
     public MoveView? Move { get; init; }
 
+    /// <summary>Direction the character faces in map coordinates; null in legacy all-direction scenarios.</summary>
+    public GridPos? Facing { get; init; }
+
     /// <summary>The map of the player's area, if it has one (common knowledge, like the place names).</summary>
     public MapView? Map { get; init; }
 

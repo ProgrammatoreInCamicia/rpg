@@ -333,6 +333,9 @@ public sealed record MapView
     public required IReadOnlyList<string> Rows { get; init; }
     public required IReadOnlyDictionary<char, LocationId> Zones { get; init; }
 
+    /// <summary>Zones whose floor is inside a building; presentation can cover rooms outside the current sight.</summary>
+    public IReadOnlyList<LocationId> IndoorZones { get; init; } = Array.Empty<LocationId>();
+
     /// <summary>Thin walls, windows and doors between squares. Door state is in PlayerView.Doors.</summary>
     public IReadOnlyList<MapEdgeView> Edges { get; init; } = Array.Empty<MapEdgeView>();
 

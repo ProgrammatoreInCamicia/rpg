@@ -173,6 +173,16 @@ internal sealed partial class Simulation
         };
         Begin(actor, move);
 
+        if (actor.IsPlayer && actor.Facing is not null)
+        {
+            var start = move.FromSpot ?? Spot.CenterOf(from);
+            Spot? ahead = move.Vertices?.Where(p => p != start).Select(p => (Spot?)p).FirstOrDefault()
+                ?? move.Spots?.Where(p => p != start).Select(p => (Spot?)p).FirstOrDefault()
+                ?? steps.Select(Spot.CenterOf).Where(p => p != start).Select(p => (Spot?)p).FirstOrDefault();
+            if (ahead is { } next)
+                FacePlayer(new GridPos(next.X - start.X, next.Y - start.Y));
+        }
+
         // T6c-1: a waypoint on every square of the way (the arrival is the completion), where contacts are evaluated and
         // the door ahead, if closed, is opened (free, SRD). A door next to the start is opened at once.
         if (map.ClosedDoorBetween(from, steps[0]) is { } firstDoor)
@@ -206,6 +216,10 @@ internal sealed partial class Simulation
     private void Place(Actor actor, GridPos square, Spot? spot = null)
     {
         _moved.TryAdd(actor.Id, (actor, actor.Location)); // the zone at the start of the instant, kept on later moves
+        var previous = actor.Spot;
+        var arrival = spot ?? Spot.CenterOf(square);
+        if (actor.Facing is not null && previous is { } from && from != arrival)
+            actor.Facing = new GridPos(arrival.X - from.X, arrival.Y - from.Y);
         if (spot is { } exact)
             actor.PlaceAt(exact); // P1: a free walk's checkpoint, in that square
         else
