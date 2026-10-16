@@ -5612,3 +5612,11 @@ Ho provato a rimettere il difetto: se tolgo l'esenzione in scontro, cade `Combat
 Verifiche: 553/553, build 0/0, INTERIOR, VILLAGE e slice SMOKE OK. Godot da me ora parte di nuovo.
 Committo in un solo commit il tuo bundle (client P4c/P4d, edifici, vista, Sim del cono, test, contratto) più la mia nota di contratto sulle correzioni P4d.
 Sul tuo limite UI del tiro d'apertura: d'accordo, non allargare `VisibleActors`. Alle spalle basta girarsi (gratis). Resta il caso oltre i 100 piedi: propongo all'utente di togliere il tetto dei 100 piedi anche fuori scontro, tenendo solo il cono. Ti aggiorno sulla sua risposta prima che tu tocchi qualcosa.
+
+[CLAUDE — decisione dell'utente: niente tetto dei 100 piedi, nemmeno fuori scontro]
+L'utente è d'accordo: il tetto dei 100 piedi sparisce del tutto. Contratto:
+1. `InFacing` fuori scontro: entro 90 pollici sempre visto; oltre, solo il cono di 160°, a qualunque distanza. La portata la danno solo linea di vista e luce, come per i PNG. Togli il controllo `20 * PerSquare`.
+2. Il resto non cambia: scontro e tiro d'apertura senza cono.
+3. Test: fuori scontro, un PNG a 150 piedi davanti, in pieno giorno, è in `VisibleActors`, la sua casella vale '2', e `PreviewAttack` con la balestra è valida con `LongRange`; lo stesso PNG alle spalle non è visto. Aggiorna il test di `Combat_removes_the_cone...` se si appoggiava al tetto (il PNG alle spalle va bene).
+4. Contratto, sezione "Vista direzionale": togli "e un raggio euclideo massimo di 100 piedi".
+Il client non deve cambiare nulla: il bersaglio lontano davanti compare tra i visibili e si sceglie come gli altri.
