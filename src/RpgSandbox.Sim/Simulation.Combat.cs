@@ -147,8 +147,9 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(check.Reason, check.Why!);
 
         var expects = SeesActor(target, actor, ignoreFacing: true) && HoldsHostile(target, actor);
-        CancelAction(actor);
-        CancelAction(target);
+        CancelAction(actor, "inizia uno scontro"); // R1: a rest stops when initiative is rolled
+        CancelAction(target, "inizia uno scontro");
+        actor.LastHarmAt = target.LastHarmAt = World.Now;
         actor.FoughtWith.Add(target.Id);
         target.FoughtWith.Add(actor.Id);
 
@@ -413,6 +414,8 @@ internal sealed partial class Simulation
     private void EndEncounter(Encounter e, string why)
     {
         var actors = e.Order.Select(c => World.Actors[c.Actor]).ToList();
+        foreach (var fought in actors)
+            fought.LastHarmAt = World.Now; // R1: an NPC's 8 hours of recovery start from the end of the fight
         Record(e, CombatLogKind.Ended, null, null, (_, _) => why);
         if (actors.Any(a => a.IsPlayer)) // P2b: its last lines stay readable once it is over
             World.LastFight = new LastFight(e.Area, e.Log.ToList());
@@ -585,6 +588,7 @@ internal sealed partial class Simulation
         var sawAttacker = attacker.IsPlayer || SeesActor(player, attacker);
         var sawTarget = target.IsPlayer || SeesActor(player, target);
         var outcome = target.Vitality.TakeDamage(result.Damage, result.Critical, knockOut: nonLethal && attack.Melee);
+        Harmed(target, "è ferito"); // R1
         // P2b: a shot flies straight from the attacker to its impact: the target if it hits, past it if it misses.
         var map = World.Maps[e.Area];
         Spot? shotFrom = attack.Melee ? null : check.Origin ?? CurrentSpot(attacker), shotTo = null; // P3: from where it leans out

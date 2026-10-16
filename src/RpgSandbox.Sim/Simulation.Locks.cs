@@ -311,6 +311,7 @@ internal sealed partial class Simulation
             return;
         var cut = World.Rng.Roll(4);
         actor.Vitality.TakeDamage(cut, critical: false);
+        Harmed(actor, "si taglia"); // R1
         World.RecordFact("CutByGlass", $"{actor.Name} si taglia sui vetri rotti: {cut} danni taglienti.", actor.Id);
         if (!actor.Conscious)
             BeginDowned(actor);
@@ -345,6 +346,8 @@ internal sealed partial class Simulation
             var sees = SeesActor(witness, forcer);
             if (!sees && (CurrentPosition(witness) is not { } ear || !WithinEarshot(map, ear, square)))
                 continue;
+            if (witness.IsPlayer && Asleep(witness))
+                CancelAction(witness, glass ? "lo svegliano vetri infranti" : "lo svegliano dei colpi"); // R1: a noise wakes it
             if (witness.IsPlayer)
             {
                 if (!sees)
@@ -499,6 +502,7 @@ internal sealed partial class Simulation
         {
             var cut = World.Rng.Roll(4);
             var outcome = actor.Vitality.TakeDamage(cut, critical: false);
+            Harmed(actor, "si taglia"); // R1
             World.RecordFact("CutByGlass", $"{actor.Name} si taglia sui vetri rotti: {cut} danni taglienti.", actor.Id);
             if (!actor.Conscious)
                 Fell(e, actor, null, outcome);

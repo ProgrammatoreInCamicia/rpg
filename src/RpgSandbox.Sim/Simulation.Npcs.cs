@@ -19,6 +19,7 @@ internal sealed partial class Simulation
 
     private void Decide(Actor npc)
     {
+        RecoverNpc(npc); // R1
         var inputs = new List<string>
         {
             $"Luogo: {(npc.Location is { } here ? World.Locations[here].Name : npc.MapArea is not null ? "per strada" : "in viaggio")}",

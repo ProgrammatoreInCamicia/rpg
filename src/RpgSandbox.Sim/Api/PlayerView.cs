@@ -29,6 +29,10 @@ public sealed record PlayerView
     public Spot? Spot { get; init; }
     public MoveView? Move { get; init; }
 
+    /// <summary>R1: the player's own Hit Points, now and at most (as <see cref="CombatSelfView"/> in a fight).</summary>
+    public int HitPoints { get; init; }
+    public int MaxHitPoints { get; init; }
+
     /// <summary>R1: the character's Hit Point Dice; null for a creature without a class.</summary>
     public HitDiceView? HitDice { get; init; }
 

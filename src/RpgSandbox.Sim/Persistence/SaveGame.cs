@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 32;
+    public const int SchemaVersion = 33;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -212,6 +212,7 @@ internal static class SaveGame
             Vitality = ToDto(a.Vitality.Snapshot()),
             FoughtWith = a.FoughtWith.Select(f => f.Value).ToList(),
             Experience = a.Experience,
+            HitDiceSpent = a.HitDiceSpent, LastLongRestEnd = a.LastLongRestEnd?.Ticks, LastHarmAt = a.LastHarmAt?.Ticks,
             Defeated = a.Defeated.Select(x => x.Value).ToList(),
             Lore = a.Lore.IsEmpty ? null : new LoreDto
             {
@@ -370,6 +371,7 @@ internal static class SaveGame
                 }).ToList(),
             },
             WaitAction wa => new WaitActionDto { Interruptible = wa.Interruptible },
+            RestAction ra => new RestActionDto { Long = ra.Long, HitDice = ra.HitDice },
             ReportAction rep => new ReportActionDto { Recipient = rep.Recipient.Value, Observation = rep.Observation.Value },
             GuardAction ga => new GuardActionDto { Store = ga.Store.Value },
             ConfiscateAction ca => new ConfiscateActionDto { Target = ca.Target.Value, Store = ca.Store.Value },
@@ -590,6 +592,10 @@ internal static class SaveGame
                 ?? (content.Characters.TryGetValue(actor.Build, out var character) ? Builds.ExperienceFor(character.Level) : 0);
             Check(actor.Experience >= 0 && (content.Characters.ContainsKey(actor.Build) || actor.Experience == 0)
                   && (a.IsPlayer || a.Defeated is not { Count: > 0 }), $"esperienza di '{a.Id}' non valida");
+            actor.HitDiceSpent = a.HitDiceSpent;
+            actor.LastLongRestEnd = a.LastLongRestEnd is { } rested ? Time(rested) : null;
+            actor.LastHarmAt = a.LastHarmAt is { } harmed ? Time(harmed) : null;
+            Check(a.HitDiceSpent >= 0 && (w.LevelOf(actor) is { } lvl ? a.HitDiceSpent <= lvl : a.HitDiceSpent == 0), $"Dadi Vita di '{a.Id}' non validi");
             foreach (var foe in a.Defeated ?? new())
                 Check(actor.Defeated.Add(new ActorId(Required(foe, "creatura sconfitta"))), $"creatura sconfitta ripetuta per '{a.Id}'");
             if (a.Lore is { } lore) // C5a: the player's only
@@ -952,6 +958,11 @@ internal static class SaveGame
             {
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
                 Interruptible = wait.Interruptible,
+            },
+            RestActionDto r => new RestAction
+            {
+                Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
+                Long = r.Long, HitDice = r.HitDice,
             },
             DownedActionDto => new DownedAction { Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description },
             BarrierActionDto b => new BarrierAction

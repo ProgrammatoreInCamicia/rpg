@@ -286,6 +286,10 @@ public sealed class SimulationSession
             Position = PositionOf(player, w),
             Spot = SpotOf(player, w),
             Facing = player.Facing,
+            HitPoints = player.Vitality.Current, MaxHitPoints = player.Vitality.Maximum,
+            HitDice = _sim.HitDiceOf(player) is { } dice
+                ? new HitDiceView { Remaining = dice.Max - player.HitDiceSpent, Max = dice.Max, Die = dice.Die } : null,
+            LongRestFrom = _sim.LongRestFrom(player),
             Move = MoveOf(player),
             Map = w.Maps.TryGetValue(area, out var areaMap) ? MapOf(areaMap, w) : null,
             MapLight = map is null ? null : Freeze(Enumerable.Range(0, map.Height).Select(y =>

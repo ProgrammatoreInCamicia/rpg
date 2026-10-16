@@ -120,6 +120,10 @@ internal sealed class ActorDto
 
     /// <summary>C5b (schema 22): Experience Points, and (the player only) the creatures it was rewarded for defeating.</summary>
     public long? Experience { get; set; }
+    /// <summary>Schema 33 (R1): Hit Point Dice spent, the end of the last Long Rest, the last damage or fight.</summary>
+    public int HitDiceSpent { get; set; }
+    public long? LastLongRestEnd { get; set; }
+    public long? LastHarmAt { get; set; }
     public List<string>? Defeated { get; set; }
 
     /// <summary>P1 (schema 23): the exact point where it stands, when not the centre of its square.</summary>
@@ -175,6 +179,7 @@ internal sealed class DecisionDto
 [JsonDerivedType(typeof(MoveActionDto), "Move")]
 [JsonDerivedType(typeof(DownedActionDto), "Downed")]
 [JsonDerivedType(typeof(BarrierActionDto), "Barrier")]
+[JsonDerivedType(typeof(RestActionDto), "Rest")]
 internal abstract class ActionDto
 {
     public long Id { get; set; }
@@ -203,6 +208,12 @@ internal sealed class TakeFoodActionDto : ActionDto
     public List<string> SeenAtStart { get; set; } = new();
     public List<LightChangeDto> SourceLightLog { get; set; } = new();
     public List<SightDto> Sight { get; set; } = new();
+}
+
+internal sealed class RestActionDto : ActionDto
+{
+    public bool Long { get; set; }
+    public int HitDice { get; set; }
 }
 
 internal sealed class WaitActionDto : ActionDto

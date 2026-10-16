@@ -110,7 +110,7 @@ internal sealed partial class Simulation
     {
         foreach (var other in World.Actors.Values.Where(a => a.Id != thief.Id).OrderBy(a => a.Id.Value, StringComparer.Ordinal))
         {
-            var inSight = other.MapArea == map.Area && CurrentPosition(other) is { } from
+            var inSight = other.MapArea == map.Area && !Asleep(other) && CurrentPosition(other) is { } from
                 && map.HasLineOfSight(from, square) && InFacing(other, CurrentSpot(other) ?? Spot.CenterOf(from), Spot.CenterOf(square));
             take.Sight.TryGetValue(other.Id, out var spans);
             var open = spans is { Count: > 0 } && spans[^1].To is null;
@@ -192,7 +192,7 @@ internal sealed partial class Simulation
 
     /// <summary>Whether <paramref name="watcher"/> can see what stands on <paramref name="square"/> right now.</summary>
     internal bool CanSee(GridMap map, Actor watcher, GridPos from, GridPos square) =>
-        map.HasLineOfSight(from, square) && LightOn(map, square) >= Light.Dim
+        !Asleep(watcher) && map.HasLineOfSight(from, square) && LightOn(map, square) >= Light.Dim
         && InFacing(watcher, CurrentSpot(watcher) ?? Spot.CenterOf(from), Spot.CenterOf(square));
 
     internal static bool WithinEarshot(GridMap map, GridPos listener, GridPos source) =>
@@ -206,7 +206,7 @@ internal sealed partial class Simulation
     /// </summary>
     internal bool Sees(GridMap map, Actor watcher, GridPos from, Actor target, GridPos at, Light light,
         bool ignoreFacing = false, Spot? fromSpot = null, Spot? atSpot = null) =>
-        watcher.Conscious && map.HasLineOfSight(from, at)
+        watcher.Conscious && !Asleep(watcher) && map.HasLineOfSight(from, at) // R1: asleep, it sees nothing
         && InFacing(watcher,
             fromSpot ?? (CurrentSpot(watcher) is { } eye && eye.Cell == from ? eye : Spot.CenterOf(from)),
             atSpot ?? (CurrentSpot(target) is { } there && there.Cell == at ? there : Spot.CenterOf(at)),
@@ -264,7 +264,7 @@ internal sealed partial class Simulation
 
     /// <summary>A door is seen from next to it, or in line of sight with at least dim light on it.</summary>
     internal bool SeesDoor(Actor actor, GridMap map, GridPos door) =>
-        actor.MapArea == map.Area && CurrentPosition(actor) is { } eye
+        actor.MapArea == map.Area && !Asleep(actor) && CurrentPosition(actor) is { } eye
         && (eye.IsAdjacentOrSame(door) || CanSee(map, actor, eye, door));
 
     /// <summary>The player remembers the doors it sees now, as they are now. Called at processed instants and after commands only.</summary>
@@ -288,6 +288,8 @@ internal sealed partial class Simulation
     /// </summary>
     internal IEnumerable<GridPos> SquaresSeen(GridMap map, Actor watcher, GridPos eye, bool onlyUnexplored = false)
     {
+        if (Asleep(watcher))
+            yield break; // R1
         var daylight = Perception.DaylightAt(World.Now);
         var torches = CarriedLights(map);
         for (var y = 0; y < map.Height; y++)

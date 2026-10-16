@@ -60,7 +60,8 @@ internal sealed partial class Simulation
     /// </summary>
     private void JoinFight(Encounter e, Actor npc, int side)
     {
-        CancelAction(npc);
+        CancelAction(npc, "inizia uno scontro");
+        npc.LastHarmAt = World.Now;
         var roll = Initiative.Roll(World.Rng, npc.Id.Value, ProfileOf(npc).InitiativeBonus);
         var joiner = new Combatant
         {

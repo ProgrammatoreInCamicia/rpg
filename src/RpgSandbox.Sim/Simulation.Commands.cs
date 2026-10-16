@@ -58,6 +58,7 @@ internal sealed partial class Simulation
         MoveCommand move => StartMove(move),
         MoveToSpotCommand spot => StartMoveToSpot(spot),
         StopCommand stop => Stop(stop),
+        RestCommand rest => StartRest(rest),
         DoorCommand door => UseDoor(door),
         WindowCommand window => UseWindow(window),
         LockCommand lockCommand => UseLock(lockCommand), // P4a
@@ -283,6 +284,9 @@ internal sealed partial class Simulation
                 break;
             case DownedAction:
                 CompleteDowned(actor);
+                break;
+            case RestAction rest:
+                CompleteRest(actor, rest);
                 break;
             case GuardAction:
             case WaitAction:
@@ -578,12 +582,14 @@ internal sealed partial class Simulation
     }
 
     /// <summary>Stops the actor's action without completing it, and removes its deadline: nothing is left behind.</summary>
-    internal void CancelAction(Actor actor)
+    internal void CancelAction(Actor actor, string? why = null)
     {
         if (actor.CurrentAction is not { } action)
             return;
         World.Scheduler.Remove(action.Id);
         actor.CurrentAction = null;
+        if (action is RestAction rest)
+            InterruptRest(actor, rest, why ?? "interrotto"); // R1
         // A walker stops on the last square it reached.
         if (action is MoveAction move)
             Reach(actor, move.PositionAt(World.Now), move.SpotAt(World.Now));

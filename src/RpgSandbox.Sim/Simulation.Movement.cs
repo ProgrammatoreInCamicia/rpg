@@ -199,6 +199,11 @@ internal sealed partial class Simulation
     {
         if (!World.Actors.TryGetValue(command.Actor, out var actor))
             return CommandResult.Rejected(RejectionReason.ActorNotFound, $"Attore sconosciuto: {command.Actor}.");
+        if (actor.CurrentAction is RestAction)
+        {
+            CancelAction(actor, "si alza"); // R1
+            return new CommandResult { Message = $"{actor.Name} smette di riposare." };
+        }
         if (actor.CurrentAction is not MoveAction)
             return CommandResult.Rejected(RejectionReason.NotMoving, $"{actor.Name} non sta camminando.");
         CancelAction(actor);

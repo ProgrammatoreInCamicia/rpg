@@ -186,6 +186,15 @@ internal sealed class Actor
     /// </summary>
     public long Experience { get; set; }
 
+    /// <summary>R1: Hit Point Dice spent (a character has as many as its level); back with a Long Rest.</summary>
+    public int HitDiceSpent { get; set; }
+
+    /// <summary>R1: when its last Long Rest ended (SRD: 16 hours before the next).</summary>
+    public GameTime? LastLongRestEnd { get; set; }
+
+    /// <summary>R1: when it last took damage or was in a fight (an NPC heals after 8 hours without either).</summary>
+    public GameTime? LastHarmAt { get; set; }
+
     /// <summary>C5b, the player only: the creatures it has already been rewarded for defeating (each one counts once).</summary>
     public SortedSet<ActorId> Defeated { get; } = new(Comparer<ActorId>.Create((a, b) => string.CompareOrdinal(a.Value, b.Value)));
 
@@ -609,6 +618,16 @@ internal sealed class MoveAction : PendingAction
 
     private static Spot Lerp(Spot a, Spot b, double f) =>
         new((int)Math.Round(a.X + (b.X - a.X) * f, MidpointRounding.AwayFromZero), (int)Math.Round(a.Y + (b.Y - a.Y) * f, MidpointRounding.AwayFromZero));
+}
+
+/// <summary>R1, SRD Short Rest (1 hour) and Long Rest (8 hours, asleep): see Simulation.Rest.</summary>
+internal sealed class RestAction : PendingAction
+{
+    public override string Kind => "Rest";
+    public required bool Long { get; init; }
+
+    /// <summary>A Short Rest: the Hit Point Dice to spend at its end.</summary>
+    public int HitDice { get; init; }
 }
 
 internal sealed class WaitAction : PendingAction
