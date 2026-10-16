@@ -25,6 +25,8 @@ internal sealed partial class Simulation
             if (faction.Policy is not null)
                 EvaluateFactionPolicy(faction);
         }
+        World.Scheduler.Schedule(NextMidnight(World.Now), new DayEnds()); // R5a
+        TakeWater(World.Actors[World.Player]);
         DecideForFreeNpcs();
         RememberDoors(); // what the player sees from where it starts (T6c-5)
     }
@@ -110,6 +112,9 @@ internal sealed partial class Simulation
                         break;
                     case ExpireEffects:
                         ExpireSpellEffects(); // R3b
+                        break;
+                    case DayEnds:
+                        EndOfDay(); // R5a
                         break;
                 }
             }

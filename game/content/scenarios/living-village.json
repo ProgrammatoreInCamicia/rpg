@@ -7,7 +7,7 @@
       { "id": "forest", "name": "Bosco" }
     ],
     "locations": [
-      { "id": "inn", "name": "Locanda", "area": "village" },
+      { "id": "inn", "name": "Locanda", "area": "village", "water": true },
       { "id": "granary", "name": "Granaio", "area": "village" },
       { "id": "farmer_house", "name": "Casa del contadino", "area": "village" },
       { "id": "forest_road", "name": "Strada per il bosco", "area": "village" },

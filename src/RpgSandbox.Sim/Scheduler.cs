@@ -23,6 +23,9 @@ internal sealed record CombatRound(long Encounter) : ScheduledJob;
 /// <summary>R3b: spells whose duration ran out end now.</summary>
 internal sealed record ExpireEffects : ScheduledJob;
 
+/// <summary>R5a: the end of a day (midnight): eating and drinking are reckoned.</summary>
+internal sealed record DayEnds : ScheduledJob;
+
 /// <summary>
 /// Explicit deadlines ordered by (due time, scheduling sequence). Simulation time jumps from one
 /// deadline to the next instead of stepping second by second. Ties resolve in scheduling order.
@@ -60,6 +63,9 @@ internal sealed class Scheduler
 
     /// <summary>C2: removes the next round of a fight that ended.</summary>
     public void RemoveRound(long encounter) => _entries.RemoveWhere(e => e.Job is CombatRound r && r.Encounter == encounter);
+
+    /// <summary>R5a: whether a job of this kind is waiting.</summary>
+    public bool Has<T>() where T : ScheduledJob => _entries.Any(e => e.Job is T);
 
     public GameTime? NextDue =>_entries.Count == 0 ? null : _entries.Min.Due;
 

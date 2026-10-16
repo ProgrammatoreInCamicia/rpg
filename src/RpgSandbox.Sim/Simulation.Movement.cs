@@ -237,6 +237,7 @@ internal sealed partial class Simulation
         else
             actor.Position = square;
         actor.Location = World.Maps[actor.MapArea!.Value].ZoneAt(square);
+        TakeWater(actor); // R5a
     }
 
     /// <summary>Places an actor and evaluates the contacts at once (moves outside the per-instant phases, e.g. a stop).</summary>

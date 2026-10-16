@@ -67,6 +67,12 @@ public sealed record PlayerView
     /// <summary>R3c: the subclass chosen ("devotion"), if any.</summary>
     public string? Subclass { get; init; }
 
+    /// <summary>R5a: whole days without food (SRD Malnutrition: from the 5th, a level of Exhaustion a day).</summary>
+    public int Hunger { get; init; }
+
+    /// <summary>R5a: the water carried and whether today's need is met (SRD Dehydration).</summary>
+    public WaterView? Water { get; init; }
+
     /// <summary>Direction the character faces in map coordinates; null in legacy all-direction scenarios.</summary>
     public GridPos? Facing { get; init; }
 
@@ -400,4 +406,12 @@ public sealed record EffectView
     public required string Name { get; init; }
     public required ActorId Caster { get; init; }
     public GameTime? Until { get; init; }
+}
+
+/// <summary>R5a: pints of water in the waterskins (4 each), how many they hold, and whether it drank enough today (8 pints).</summary>
+public sealed record WaterView
+{
+    public required int Pints { get; init; }
+    public required int Capacity { get; init; }
+    public required bool DrankToday { get; init; }
 }

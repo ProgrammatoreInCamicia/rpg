@@ -46,6 +46,7 @@ internal sealed class LocationDto
     public string Name { get; set; } = "";
     public string Area { get; set; } = "";
     public bool Lit { get; set; }
+    public bool Water { get; set; }
 }
 
 internal sealed class RouteDto
@@ -148,6 +149,12 @@ internal sealed class ActorDto
     /// <summary>Schema 37 (R3c): Channel Divinity spent, the subclass.</summary>
     public int ChannelDivinitySpent { get; set; }
     public string? Subclass { get; set; }
+    /// <summary>Schema 39 (R5a): hunger and thirst.</summary>
+    public int DaysWithoutFood { get; set; }
+    public int HungerExhaustion { get; set; }
+    public int ThirstExhaustion { get; set; }
+    public int WaterPints { get; set; }
+    public bool DrankToday { get; set; }
     public List<string>? Defeated { get; set; }
 
     /// <summary>P1 (schema 23): the exact point where it stands, when not the centre of its square.</summary>

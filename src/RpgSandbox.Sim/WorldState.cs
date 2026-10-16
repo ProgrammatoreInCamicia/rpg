@@ -21,6 +21,9 @@ internal sealed class Location
 
     /// <summary>Indoors with lamps: never darker than dim light at night.</summary>
     public bool Lit { get; init; }
+
+    /// <summary>R5a: there is water to drink (a well, an inn): who is here drinks and fills its waterskins.</summary>
+    public bool Water { get; init; }
 }
 
 internal sealed class Actor
@@ -227,6 +230,15 @@ internal sealed class Actor
 
     /// <summary>R3c: Channel Divinity uses spent; one back with a Short Rest, all with a Long Rest.</summary>
     public int ChannelDivinitySpent { get; set; }
+
+    /// <summary>R5a: whole days ended without food; Exhaustion levels owed to hunger and to thirst (not taken away by a Long Rest).</summary>
+    public int DaysWithoutFood { get; set; }
+    public int HungerExhaustion { get; set; }
+    public int ThirstExhaustion { get; set; }
+
+    /// <summary>R5a: pints of water in its waterskins; whether it drank enough today (8 pints, or a day at a place with water).</summary>
+    public int WaterPints { get; set; }
+    public bool DrankToday { get; set; }
 
     /// <summary>R2, SRD Exhaustion: 0..6; each level is −2 to d20 Tests and −5 feet of Speed; at 6 it dies.</summary>
     public int Exhaustion { get; set; }
@@ -890,7 +902,7 @@ internal sealed class WorldState
         foreach (var a in scenario.Areas)
             world.Areas.Add(a.Id, new Area { Id = a.Id, Name = a.Name });
         foreach (var l in scenario.Locations)
-            world.Locations.Add(l.Id, new Location { Id = l.Id, Name = l.Name, Area = l.Area, Lit = l.Lit });
+            world.Locations.Add(l.Id, new Location { Id = l.Id, Name = l.Name, Area = l.Area, Lit = l.Lit, Water = l.Water });
         foreach (var r in scenario.Routes)
         {
             world.Routes.Add((r.A, r.B), r.TravelTime);

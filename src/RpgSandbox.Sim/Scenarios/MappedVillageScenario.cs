@@ -118,6 +118,7 @@ public static class MappedVillageScenario
             .AddLocation(Ids.FarmerHouse.Value, "Casa del contadino", Ids.Village.Value)
             .AddLocation(Ids.ForestRoad.Value, "Strada per il bosco", Ids.Village.Value)
             .AddLocation(Ids.BanditCamp.Value, "Campo dei banditi", Ids.Forest.Value)
+            .AddWater(Ids.Inn.Value) // R5a: one drinks and fills its waterskins at the inn
             .AddRoute(Ids.ForestRoad.Value, Ids.BanditCamp.Value, Duration.FromMinutes(30))
             .AddMap(Ids.Village.Value, LivingMap, new Dictionary<char, string>
             {

@@ -105,7 +105,7 @@ public class PlayerTheftTests
         s.AdvanceTo(At(2, 12));
 
         var view = s.GetWorldView();
-        Assert.Equal(15, s.GetPlayerView().Food);
+        Assert.Equal(15 - 1, s.GetPlayerView().Food); // R5a: one ration eaten at midnight
         Assert.All(view.Actors, a => Assert.DoesNotContain(a.Knowledge, o => o.Thief == Player));
         Assert.Empty(view.Actor(Guard).Claims);
     }

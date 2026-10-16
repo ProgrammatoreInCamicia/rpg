@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 38;
+    public const int SchemaVersion = 39;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -139,7 +139,7 @@ internal static class SaveGame
         RngAlgorithm = SplitMix64.Algorithm,
         RngState = w.Rng.State,
         Areas = w.Areas.Values.Select(a => new AreaDto { Id = a.Id.Value, Name = a.Name }).ToList(),
-        Locations = w.Locations.Values.Select(l => new LocationDto { Id = l.Id.Value, Name = l.Name, Area = l.Area.Value, Lit = l.Lit }).ToList(),
+        Locations = w.Locations.Values.Select(l => new LocationDto { Id = l.Id.Value, Name = l.Name, Area = l.Area.Value, Lit = l.Lit, Water = l.Water }).ToList(),
         Routes = w.Routes.Select(r => new RouteDto { From = r.Key.From.Value, To = r.Key.To.Value, Seconds = r.Value.Ticks }).ToList(),
         Factions = w.Factions.Values.Select(f => new FactionDto
         {
@@ -223,6 +223,8 @@ internal static class SaveGame
             SlotsSpent = a.SlotsSpent.ToList(), PreparedSpells = a.PreparedSpells.ToList(), FreeSmiteUsed = a.FreeSmiteUsed, SpellSwapOpen = a.SpellSwapOpen,
             Concentrating = a.Concentrating,
             ChannelDivinitySpent = a.ChannelDivinitySpent, Subclass = a.Choices.Subclass,
+            DaysWithoutFood = a.DaysWithoutFood, HungerExhaustion = a.HungerExhaustion, ThirstExhaustion = a.ThirstExhaustion,
+            WaterPints = a.WaterPints, DrankToday = a.DrankToday,
             Effects = a.Effects.Select(f => new SpellEffectDto { Spell = f.Spell, Caster = f.Caster.Value, Until = f.Until?.Ticks, Concentration = f.Concentration, Amount = f.Amount, Item = f.Item }).ToList(),
             Defeated = a.Defeated.Select(x => x.Value).ToList(),
             Lore = a.Lore.IsEmpty ? null : new LoreDto
@@ -260,6 +262,7 @@ internal static class SaveGame
                 EvaluateFaction => "EvaluateFaction",
                 CombatRound => "CombatRound",
                 ExpireEffects => "ExpireEffects",
+                DayEnds => "DayEnds",
                 _ => throw new InvalidOperationException($"Unknown job {e.Job}"),
             },
             Action = e.Job switch { CompleteAction c => c.Action.Value, MoveWaypoint w => w.Action.Value, _ => (long?)null },
@@ -428,7 +431,7 @@ internal static class SaveGame
         foreach (var l in d.Locations)
         {
             Check(w.Areas.ContainsKey(new AreaId(l.Area)), $"luogo '{l.Id}' in area sconosciuta");
-            AddUnique(w.Locations, new LocationId(l.Id), new Location { Id = new LocationId(l.Id), Name = l.Name, Area = new AreaId(l.Area), Lit = l.Lit }, "luogo");
+            AddUnique(w.Locations, new LocationId(l.Id), new Location { Id = new LocationId(l.Id), Name = l.Name, Area = new AreaId(l.Area), Lit = l.Lit, Water = l.Water }, "luogo");
         }
         foreach (var r in d.Routes)
         {
@@ -644,6 +647,9 @@ internal static class SaveGame
             actor.Concentrating = a.Concentrating;
             Check(a.ChannelDivinitySpent >= 0, $"Incanalare divinità di '{a.Id}' non valido");
             actor.ChannelDivinitySpent = a.ChannelDivinitySpent;
+            Check(a.DaysWithoutFood >= 0 && a.HungerExhaustion >= 0 && a.ThirstExhaustion >= 0 && a.WaterPints >= 0, $"fame o sete di '{a.Id}' non valide");
+            (actor.DaysWithoutFood, actor.HungerExhaustion, actor.ThirstExhaustion, actor.WaterPints, actor.DrankToday) =
+                (a.DaysWithoutFood, a.HungerExhaustion, a.ThirstExhaustion, a.WaterPints, a.DrankToday);
             foreach (var f in a.Effects ?? new())
                 actor.Effects.Add(new SpellEffect
                 {
@@ -776,12 +782,15 @@ internal static class SaveGame
             "EvaluateFaction" => new EvaluateFaction(ExistingFaction(w, e.Faction)),
             "CombatRound" => new CombatRound(e.Encounter ?? throw new InvalidDataException("scontro mancante")),
             "ExpireEffects" => new ExpireEffects(),
+            "DayEnds" => new DayEnds(),
             _ => throw new InvalidDataException($"lavoro sconosciuto '{e.Job}'"),
         })).ToList();
         // Everything due at or before Now was processed before saving.
         foreach (var entry in entries)
             Check(entry.Due > w.Now, "scadenza non futura");
         w.Scheduler = Scheduler.Restore(entries, d.NextSequence);
+        if (!w.Scheduler.Has<DayEnds>()) // R5a: saves from before schema 39 had no day to end
+            w.Scheduler.Schedule(GameTime.Start.Plus(Duration.FromDays(w.Now.Day + 1)), new DayEnds());
 
         // Periodic faction jobs are not optional: without them consumption and raids would silently stop.
         foreach (var faction in w.Factions.Values)

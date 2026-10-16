@@ -48,7 +48,7 @@ public sealed class Scenario
 }
 
 internal sealed record AreaDefinition(AreaId Id, string Name);
-internal sealed record LocationDefinition(LocationId Id, string Name, AreaId Area, bool Lit);
+internal sealed record LocationDefinition(LocationId Id, string Name, AreaId Area, bool Lit, bool Water = false);
 internal sealed record RouteDefinition(LocationId A, LocationId B, Duration TravelTime);
 internal sealed record ActorDefinition(
     ActorId Id, string Name, LocationId Location, bool IsPlayer, int Food, FactionId? Faction, WorkShift? Shift,
@@ -127,6 +127,16 @@ public sealed class ScenarioBuilder
     public ScenarioBuilder AddLocation(string id, string name, string areaId, bool lit = false)
     {
         _locations.Add(new LocationDefinition(new LocationId(id), name, new AreaId(areaId), lit));
+        return this;
+    }
+
+    /// <summary>R5a: a place with water to drink (a well, an inn).</summary>
+    public ScenarioBuilder AddWater(string locationId)
+    {
+        var at = _locations.FindIndex(l => l.Id.Value == locationId);
+        if (at < 0)
+            throw new InvalidOperationException($"Unknown location '{locationId}' for water.");
+        _locations[at] = _locations[at] with { Water = true };
         return this;
     }
 

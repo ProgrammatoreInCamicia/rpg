@@ -296,6 +296,7 @@ public sealed class SimulationSession
             Spells = _sim.SpellbookOf(player), Effects = Freeze(_sim.EffectsOn(player)),
             ChannelDivinity = _sim.ChannelDivinityPool(player) is { } channel ? new PoolView { Remaining = channel.Remaining, Max = channel.Max } : null,
             Subclass = player.Choices.Subclass,
+            Hunger = player.DaysWithoutFood, Water = _sim.WaterOf(player),
             MasteryWeapons = Freeze((player.Choices.Masteries ?? (w.Content.Characters.TryGetValue(player.Build, out var definition)
                 ? definition.Masteries : Array.Empty<string>())).Select(i => new ItemId(i))),
             Move = MoveOf(player),

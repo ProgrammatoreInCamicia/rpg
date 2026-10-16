@@ -32,6 +32,7 @@
     { "id": "shield", "name": "Scudo", "pounds": 6, "cost": 1000,
       "armor": { "type": "Shield", "base": 2 } },
     { "id": "torch", "name": "Torcia", "pounds": 1, "cost": 1 },
+    { "id": "waterskin", "name": "Otre", "pounds": 5, "cost": 20 },
     { "id": "ration", "name": "Razione", "pounds": 2, "cost": 50 },
     { "id": "arrow", "name": "Freccia", "pounds": 0.05, "cost": 5 },
     { "id": "bolt", "name": "Dardo da balestra", "pounds": 0.075, "cost": 5 },

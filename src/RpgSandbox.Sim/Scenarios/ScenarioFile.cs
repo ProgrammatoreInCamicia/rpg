@@ -26,7 +26,11 @@ public static class ScenarioFile
         foreach (var a in r.Objects(s, "areas"))
             b.AddArea(r.Text(a, "id"), r.Text(a, "name"));
         foreach (var l in r.Objects(s, "locations"))
+        {
             b.AddLocation(r.Text(l, "id"), r.Text(l, "name"), r.Text(l, "area"), r.OptBool(l, "lit") ?? false);
+            if (r.OptBool(l, "water") == true)
+                b.AddWater(r.Text(l, "id")); // R5a
+        }
         foreach (var route in r.Objects(s, "routes"))
             b.AddRoute(r.Text(route, "from"), r.Text(route, "to"), Duration.FromMinutes(r.Int(route, "minutes")));
         foreach (var m in r.Objects(s, "maps"))

@@ -39,6 +39,7 @@ public static class SliceScenario
             .AddLocation(Ids.Inn.Value, "Locanda", Ids.Village.Value, lit: true)
             .AddLocation(Ids.Granary.Value, "Granaio", Ids.Village.Value)
             .AddLocation(Ids.BanditCamp.Value, "Campo dei banditi", Ids.Forest.Value)
+            .AddWater(Ids.Inn.Value).AddWater(Ids.Granary.Value) // R5a: the village well serves both
             .AddRoute(Ids.Inn.Value, Ids.Granary.Value, Duration.FromMinutes(5))
             .AddRoute(Ids.Granary.Value, Ids.BanditCamp.Value, Duration.FromMinutes(30))
             .AddFaction(Ids.VillageFaction.Value, "Villaggio", homeStoreId: Ids.GranaryStore.Value, authorityId: Ids.Guard.Value)

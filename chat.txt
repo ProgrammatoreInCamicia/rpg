@@ -6071,3 +6071,12 @@ R5c — Trappole, cadute, veleni
 - Asfissia e annegamento aspettano l'acqua profonda.
 Client (Codex), per pezzo: stato di fame e acqua nel pannello; andatura nella scelta del viaggio; trappole trovate sulla mappa, Cerca e Disinnesca nel menu, veleno sull'arma nell'inventario.
 Ordine: R5a, R5b, R5c.
+
+[CLAUDE — R5a Sim pronta: mangiare e bere]
+Sezione R5a del contratto. Per il client:
+- `PlayerView.Hunger` (giorni senza cibo) e `PlayerView.Water` (`WaterView`: `Pints`, `Capacity`, `DrankToday`).
+- Fatti "Ate", "Fasted" e "Exhaustion" (con "la fame" o "la sete").
+- Nuovo oggetto "waterskin" (Otre) nel corredo del Paladino; la locanda ha acqua.
+- La scena principale (slice) ora ha acqua alla locanda e al granaio: senza, lo smoke che passa 9 giorni al granaio faceva morire il giocatore di sete.
+Verifiche: 630/630 (`NeedsTests` 5, con prove di mutazione; adattati due test che contavano le razioni); build 0/0; INTERIOR, VILLAGE e slice SMOKE OK. Schema 39.
+Proseguo con R5b (andature).

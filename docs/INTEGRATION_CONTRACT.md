@@ -1018,3 +1018,10 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 - In scontro accendere o spegnere è l'interazione gratuita del turno (la seconda costa l'azione); riporre lo scudo costa l'azione. `EquipCommand` sullo scudo in scontro costa sempre l'azione (correzione di R4b).
 - Con la torcia accesa: `PlayerView.Equipment` ha `OffHand` = "torch"; attacco "Torcia" (`AttackProfile.Torch`, mischia, Forza + competenza, 1 danno `Fire`); una versatile è a una mano; `EquipCommand` verso la mano secondaria, lo scudo o un'arma a due mani: `NoFreeHand`; afferrare non ha mani libere con un'arma in mano.
 - Vecchi salvataggi: una torcia accesa con scudo o seconda arma si carica con questi riposti.
+
+## R5a — Mangiare e bere (SRD 5.2.1 Malnutrition, Dehydration; Rations, Waterskin)
+
+- Solo il giocatore. A mezzanotte mangia da solo una razione, se ne ha (ADATTAMENTO: una razione è il cibo di un giorno). Dalla fine del 5° giorno intero a digiuno, 1 livello di Sfinimento al giorno. `PlayerView.Hunger` = giorni senza cibo. Fatti `Ate`, `Fasted`.
+- Acqua: 8 pinte al giorno. Nuovo oggetto `waterskin` ("Otre", 4 pinte, 2 ma); il Paladino ne ha uno nel suo corredo. In un luogo con acqua (`Location.Water`; nello scenario `AddWater` o `"water": true`; locanda del villaggio vivo, locanda e granaio della scena principale) beve e riempie gli otri. Altrimenti, a mezzanotte, beve dagli otri: con meno di 4 pinte, 1 livello di Sfinimento. `PlayerView.Water` (`WaterView`: `Pints`, `Capacity`, `DrankToday`).
+- I livelli dovuti a fame o sete non scendono con il riposo lungo finché non si mangia, o non si beve, quanto serve per un giorno intero.
+- Nuovo lavoro di scheduler `DayEnds` (mezzanotte). Salvataggio schema 39; i vecchi salvataggi ricevono il lavoro al caricamento.

@@ -60,9 +60,12 @@ public class RaidTests
 
         s.AdvanceTo(At(3, 23, 59));
 
-        // Three upkeeps of 6, never short: day 1 14->8 (+8 raid), day 2 16->10, day 3 10->4 (+8 raid).
+        // Three upkeeps of 6, never short: day 1 14->8 (+8 raid), day 2 16->10, day 3 10->4 (+8 raid). R5a: the player eats a ration
+        // at each midnight passed (two, by day 3 at 23:59).
+        var eaten = s.GetWorldView().RecentFacts.Count(f => f.Kind == "Ate");
         var view = s.GetWorldView();
-        Assert.Equal(initial - 3 * 6, view.TotalFood());
+        Assert.Equal(initial - 3 * 6 - eaten, view.TotalFood());
+        Assert.Equal(2, eaten);
         Assert.Equal(40 - 16, view.Store(GranaryStore).Food);
         Assert.Equal(12, view.Store(CampStore).Food);
     }

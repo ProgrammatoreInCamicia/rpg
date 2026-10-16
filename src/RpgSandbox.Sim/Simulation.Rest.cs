@@ -72,7 +72,7 @@ internal sealed partial class Simulation
             actor.HitDiceSpent = 0;
             FeaturesAfterLongRest(actor); // R3a
             SpellsAfterLongRest(actor); // R3b
-            if (actor.Exhaustion > 0)
+            if (RestEases(actor)) // R5a: not the levels owed to hunger or thirst
                 AddExhaustion(actor, -1, "ha dormito"); // R2, SRD Exhaustion: a Long Rest takes a level away
             actor.LastLongRestEnd = World.Now;
             World.RecordFact("RestCompleted", $"{actor.Name} si sveglia riposato: recupera {healed} punti ferita.", actor.Id);

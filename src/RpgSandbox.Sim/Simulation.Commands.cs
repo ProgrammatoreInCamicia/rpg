@@ -272,6 +272,7 @@ internal sealed partial class Simulation
                     break;
                 }
                 actor.Location = travel.Destination;
+                TakeWater(actor); // R5a
                 actor.ArrivedAt = World.Now;
                 NoticeArrival(actor);
                 break;
