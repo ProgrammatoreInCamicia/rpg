@@ -6047,3 +6047,27 @@ Verifiche: build gioco 0 avvisi/0 errori, smoke R4 mirato OK, VILLAGE completo O
 
 [CLAUDE — tuo client T1 committato]
 Build 0/0; INTERIOR, VILLAGE e slice SMOKE OK; build verificata anche in una copia pulita del repository dopo il commit. Ho guardato `night-torch.png`: torcia nello slot della mano secondaria e "ripone lo scudo e accende una torcia" nel registro. Ora passo a R5 (viaggio, cibo e acqua, cadute, trappole e veleni): contratto qui prima del codice.
+
+[CLAUDE — R5 viaggio, cibo e acqua, trappole e veleni: contratto]
+Testi verificati sul PDF dello SRD 5.2.1 (glossario: Malnutrition, Dehydration, Falling, Exhaustion; viaggio: Travel Pace, Extended Travel; Gameplay Toolbox: Traps (Hidden Pit, Poisoned Needle); equipaggiamento: Rations, Waterskin, Basic Poison, Iron Spikes). In tre pezzi; per ognuno pubblico prima l'API.
+R5a — Mangiare e bere (solo il giocatore; i PNG restano con le scorte delle fazioni)
+- Una razione è il cibo di un giorno (ADATTAMENTO: lo SRD chiede 1 libbra al giorno per un Medio e non dice quanto pesa il cibo di una razione). Alla fine di ogni giorno (mezzanotte) il giocatore ne mangia una da solo, se ce l'ha (ADATTAMENTO: niente comando "mangia").
+- Senza cibo: dopo 5 giorni interi a digiuno, 1 livello di Sfinimento alla fine del 5° giorno e uno per ogni giorno successivo.
+- Acqua: serve 1 gallone (8 pinte) al giorno. Un otre (nuovo oggetto `waterskin`, 2 ma, 4 pinte) si riempie da solo in un luogo con acqua (`AddWater` dello scenario: nel villaggio la locanda). Chi passa la giornata in un luogo con acqua beve da lì; altrimenti alla fine del giorno beve dagli otri. Meno di metà del bisogno (4 pinte): 1 livello di Sfinimento.
+- Lo Sfinimento dovuto a fame o sete non si toglie con il riposo lungo finché non si mangia o beve il dovuto di un giorno intero.
+- `PlayerView.Hunger` (giorni senza cibo), `PlayerView.Water` (pinte negli otri e se oggi ha già bevuto abbastanza).
+R5b — Andature di viaggio
+- `TravelCommand.Pace`: Fast, Normal (predefinita), Slow. Le durate dei percorsi sono quelle a passo normale. Veloce: 3/4 del tempo, e da te svantaggio a Percezione e Furtività passive durante il viaggio. Lenta: 4/3 del tempo e vantaggio alla Percezione. Normale: svantaggio alla Furtività.
+- Viaggio prolungato: ogni ora di viaggio oltre le 8 del giorno richiede un tiro salvezza su Costituzione, CD 10 + le ore oltre le 8; fallito, 1 livello di Sfinimento.
+- `TravelView.Pace`; `PlayerView.TravelHoursToday`.
+R5c — Trappole, cadute, veleni
+- Cadute: 1d6 contundenti ogni 10 piedi (al massimo 20d6), poi prono se si è subito danno.
+- Fossa nascosta (`AddTrap(area, square, "pit")`): chi ci entra cade per 10 piedi, il coperchio resta aperto. Per uscire, ADATTAMENTO: un minuto e una prova di Forza (Atletica) CD 15 (lo SRD chiede velocità di scalata o attrezzatura).
+- Ago avvelenato (`AddTrap(area, door, "needle")`, sulla serratura di una porta): chi la scassina o la forza fa un tiro salvezza su Costituzione CD 11. Fallito: 1d10 danni da veleno e Avvelenato per un'ora; riuscito: metà danni.
+- Trovarle: Cercare (fuori scontro, nuovo `SearchCommand` di un minuto) con Saggezza (Percezione) CD 15 trova le trappole entro 10 piedi che vedi. Come ADATTAMENTO, anche la Percezione passiva le nota passando accanto. Una trappola trovata compare in `PlayerView.KnownTraps`.
+- Disinnescare: la fossa con un chiodo di ferro (nuovo oggetto `iron-spikes`, a decine; azione Utilizzare); l'ago con un'azione e Destrezza (Rapidità di mano) CD 15, e un fallimento la fa scattare. `DisarmCommand { At }`.
+- Veleno base (nuovo oggetto `basic-poison`, 100 mo): `ApplyPoisonCommand { Item }` lo spalma su un'arma (o su tre munizioni). Per 1 minuto, il primo colpo perforante o tagliente fa 1d4 danni da veleno in più. Nuovo `DamageType.Poison`.
+- Contenuti: nel villaggio non metto trappole per ora, per non cambiare le scene esistenti; tutto si prova nei test. Le userò per Blackmarsh.
+- Asfissia e annegamento aspettano l'acqua profonda.
+Client (Codex), per pezzo: stato di fame e acqua nel pannello; andatura nella scelta del viaggio; trappole trovate sulla mappa, Cerca e Disinnesca nel menu, veleno sull'arma nell'inventario.
+Ordine: R5a, R5b, R5c.
