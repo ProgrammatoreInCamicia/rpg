@@ -164,6 +164,8 @@ internal sealed partial class Simulation
     private (int Inches, string? Stopped) WalkFreeInCombat(Encounter e, Actor actor, SpotPath way)
     {
         StandUp(e, actor); // R2
+        var dragFrom = CurrentSpot(actor)!.Value; // R4a
+        var dragging = Dragging(actor);
         var me = CombatantOf(e, actor.Id);
         var map = World.Maps[e.Area];
         actor.Sneak = null;
@@ -228,7 +230,9 @@ internal sealed partial class Simulation
         if (back < reached && stopped is null)
             stopped = "c'è qualcuno, torna un poco indietro";
         Place(actor, points[back].Cell, points[back]);
-        me.MovedInches += forward;
+        me.MovedInches += forward * (dragging ? 2 : 1);
+        if (dragging)
+            DragAlong(e, actor, dragFrom, points[back]); // R4a
         EvaluateContacts();
         var (i0, i1) = SeenStretch(seen, back);
         var trail = i0 < 0 ? new List<GridPos>() : points.Skip(i0).Take(i1 - i0 + 1).Select(p => p.Cell).Aggregate(new List<GridPos>(), (cells, c) =>

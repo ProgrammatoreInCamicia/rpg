@@ -137,11 +137,11 @@ public sealed record SpellDefinition(string Id, string Name, int Level, CastingT
 public sealed record AbilityScores(int Strength, int Dexterity, int Constitution, int Intelligence, int Wisdom, int Charisma);
 
 /// <summary>What one wears and wields (by item id): armor, shield, the weapon in hand. Each must be carried.</summary>
-public sealed record Equipment(string? Armor = null, string? Shield = null, string? MainHand = null)
+public sealed record Equipment(string? Armor = null, string? Shield = null, string? MainHand = null, string? OffHand = null)
 {
     public static readonly Equipment None = new();
 
-    public IEnumerable<string> Items => new[] { Armor, Shield, MainHand }.OfType<string>();
+    public IEnumerable<string> Items => new[] { Armor, Shield, MainHand, OffHand }.OfType<string>();
 }
 
 /// <summary>A pack of contents: loaded from data files, validated, with its identity (id, version, hash) and its texts.</summary>

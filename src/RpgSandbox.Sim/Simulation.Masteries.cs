@@ -51,7 +51,7 @@ internal sealed partial class Simulation
     }
 
     /// <summary>SRD Push: the target goes straight away from the attacker, up to 10 feet, while there is room (no Opportunity Attacks).</summary>
-    private void Push(Encounter e, Actor attacker, Actor target)
+    private void Push(Encounter e, Actor attacker, Actor target, int inches = PushInches)
     {
         var map = World.Maps[e.Area];
         var from = CurrentSpot(attacker)!.Value;
@@ -64,7 +64,7 @@ internal sealed partial class Simulation
             .Select(o => CurrentSpot(o)!.Value).ToList();
         var room = new SpotPlanner(map, others, others, closedDoorsBlock: true);
         Spot? landed = null;
-        for (var k = 6; k <= PushInches; k += 6)
+        for (var k = 6; k <= inches; k += 6)
         {
             var p = new Spot((int)Math.Round(start.X + (start.X - from.X) * k / length, MidpointRounding.AwayFromZero),
                 (int)Math.Round(start.Y + (start.Y - from.Y) * k / length, MidpointRounding.AwayFromZero));
@@ -76,6 +76,7 @@ internal sealed partial class Simulation
             return;
         Place(target, to.Cell, to);
         EvaluateContacts();
+        CheckGrapples(); // R4a: pushed out of a grip
         Record(e, CombatLogKind.Mastery, attacker, target, (a, t) => $"{a} spinge indietro {t} di {FeetText(start.DistanceTo(to))} piedi.",
             spots: new[] { start, to });
     }

@@ -81,6 +81,16 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(RejectionReason.NoSlot, noSmite); // R3b
         if (command.SacredWeapon && SacredWeaponRefused(EncounterOf(actor), actor, attack!) is { } noSacred)
             return CommandResult.Rejected(RejectionReason.NoSlot, noSacred); // R3c
+        if (command.Maneuver is { } maneuver)
+        {
+            if (ManeuverRefused(EncounterOf(actor), actor, target, attack!, maneuver) is { } noManeuver)
+                return CommandResult.Rejected(RejectionReason.UnknownAttack, noManeuver); // R4a
+            var fight = EncounterOf(actor)!;
+            TakeAttack(fight, actor);
+            var done = ResolveManeuver(fight, actor, target, maneuver, command.ShoveProne);
+            CheckEnd(fight);
+            return new CommandResult { Message = done };
+        }
         if (EncounterOf(actor) is not { } e)
             return OpenFight(actor, target, attack!, command.NonLethal);
         TakeAttack(e, actor); // R3a: the Attack action, or one of its Extra Attacks
@@ -736,9 +746,12 @@ internal sealed partial class Simulation
     private int MovementLeft(Encounter e, Actor actor) => (int)Math.Floor(MovementLeftInches(e, actor) / (double)Spot.PerFoot);
 
     /// <summary>P1b: inches of movement left this turn.</summary>
-    private int MovementLeftInches(Encounter e, Actor actor) =>
-        CombatSpeed(actor) * Spot.PerFoot * (1 + CombatantOf(e, actor.Id).Dashes) - CombatantOf(e, actor.Id).MovedInches // C3a: Dash adds Speed
-        - (Has(actor, ConditionKind.Prone) ? CombatSpeed(actor) * Spot.PerFoot / 2 : 0); // R2: standing up first costs half the Speed
+    private int MovementLeftInches(Encounter e, Actor actor)
+    {
+        var left = CombatSpeed(actor) * Spot.PerFoot * (1 + CombatantOf(e, actor.Id).Dashes) - CombatantOf(e, actor.Id).MovedInches // C3a: Dash adds Speed
+                   - (Has(actor, ConditionKind.Prone) ? CombatSpeed(actor) * Spot.PerFoot / 2 : 0); // R2: standing up first costs half the Speed
+        return Dragging(actor) ? left / 2 : left; // R4a: dragging, every foot costs 2
+    }
 
     /// <summary>R2: the Speed in a fight, after conditions, Exhaustion and Slow.</summary>
     private int CombatSpeed(Actor actor) => SpeedNow(actor, ProfileOf(actor).Speed);
@@ -965,6 +978,8 @@ internal sealed partial class Simulation
         var map = World.Maps[e.Area];
         StandUp(e, actor); // R2
         var budget = CombatSpeed(actor) * (1 + me.Dashes); // C3a: a Dash counts
+        var dragFrom = CurrentSpot(actor)!.Value; // R4a
+        var dragging = Dragging(actor);
         var everyone = CreaturesOn(map, actor, _ => true);
         actor.Sneak = null;
         var start = CurrentPosition(actor)!.Value;
@@ -980,7 +995,7 @@ internal sealed partial class Simulation
                 stopped = "qualcuno gli sbarra la strada";
                 break;
             }
-            if (me.MovedInches + feet * Spot.PerFoot > budget * Spot.PerFoot)
+            if (me.MovedInches + feet * Spot.PerFoot * (dragging ? 2 : 1) > budget * Spot.PerFoot)
             {
                 stopped = "il passo costa più del previsto";
                 break;
@@ -1008,7 +1023,7 @@ internal sealed partial class Simulation
                 stopped = "è caduto";
                 break;
             }
-            me.MovedInches += feet * Spot.PerFoot;
+            me.MovedInches += feet * Spot.PerFoot * (dragging ? 2 : 1); // R4a
             Place(actor, square);
             walked.Add(square);
             from = Centre(square);
@@ -1026,6 +1041,8 @@ internal sealed partial class Simulation
             trail.Add(to);
             back++;
         }
+        if (dragging)
+            DragAlong(e, actor, dragFrom, CurrentSpot(actor)!.Value); // R4a
         EvaluateContacts();
         var why = back > 0 ? $"c'è qualcuno, torna indietro di {back} {(back == 1 ? "casella" : "caselle")}"
             : stopped;
@@ -1079,6 +1096,11 @@ internal sealed partial class Simulation
                 return;
             if (TryAttack(target, tookCover) || !World.Encounters.ContainsKey(e.Id))
                 return;
+        }
+        if (Has(npc, ConditionKind.Grappled) && !c.ActionUsed) // R4a: held and nobody in reach, it struggles free
+        {
+            Escape(e, npc);
+            return;
         }
         // P2a: on exact points, by the same planning and walk as the player's free moves.
         var aim = target is not null ? CurrentSpot(target) : c.LastSeenAt;
@@ -1243,6 +1265,8 @@ internal sealed partial class Simulation
     {
         if (ActionOption(e, actor, command.Action) is { Valid: false } refused)
             return CommandResult.Rejected(refused.Reason, refused.Why!);
+        if (command.Action == CombatAction.Escape)
+            return Escape(e, actor); // R4a
         Act(e, actor, command.Action);
         return new CommandResult { Message = $"{actor.Name} {Verb(command.Action)}." };
     }
@@ -1251,7 +1275,8 @@ internal sealed partial class Simulation
     private ActionOptionView ActionOption(Encounter e, Actor actor, CombatAction action)
     {
         var (reason, why) = !Enum.IsDefined(action) ? (RejectionReason.UnknownCommand, "Azione sconosciuta.")
-            : action > CombatAction.Dodge ? (RejectionReason.UnknownCommand, "Non ancora disponibile.") // R4: until its rules are in
+            : action > CombatAction.Escape ? (RejectionReason.UnknownCommand, "Non ancora disponibile.") // R4: until its rules are in
+            : action == CombatAction.Escape && !Has(actor, ConditionKind.Grappled) ? (RejectionReason.NotHeld, "Non sei afferrato.")
             : !IsTurnOf(e, actor) ? (RejectionReason.NotYourTurn, "Non è il tuo turno.")
             : CombatantOf(e, actor.Id).ActionUsed ? (RejectionReason.NoActionLeft, "Hai già usato l'azione in questo turno.")
             : (RejectionReason.None, (string?)null);

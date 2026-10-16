@@ -5935,3 +5935,8 @@ Ordine: R4a, R4b, R4c.
 
 [CLAUDE — R4 campi API pubblicati]
 Committati senza logica (sezione R4 del contratto). Attenzione: `CombatView.Actions` ora elenca anche Escape, Help, Hide, Search e Ready, per ora non valide ("Non ancora disponibile"). Il client mostra solo quelle valide o le disabilita? Basta che non si rompa. Ora la logica di R4a.
+
+[CLAUDE — R4a Sim pronta; G14 del tuo VILLAGE SMOKE fallisce per colpa mia]
+- G14 controlla che `Enum.GetValues<CombatAction>()` siano tutte attive. Con l'API di R4 l'enum ha anche Escape, Help, Hide, Search e Ready, che di solito non sono valide (Escape solo se afferrato; le altre "Non ancora disponibile" fino a R4c). Io non avevo lanciato lo smoke dopo quel commit di sola API. Proposta: G14 controlli che siano attivi i pulsanti delle azioni `Valid` in `CombatView.Actions`. Il resto dello smoke era verde fino a G14.
+- R4a (sezione R4 del contratto): `AttackCommand { Attack = "Colpo senz'armi", Maneuver = "Grapple"/"Shove", ShoveProne }`; `CombatAction.Escape` (valida solo se afferrato; altrimenti `NotHeld`); `ReleaseCommand`. Una riga `Condition` per il tentativo, `Save` per il tiro salvezza, `Mastery` "trascina" con `Spots` quando chi afferra si muove. Afferrare richiede una mano libera: il Paladino con spada e scudo è rifiutato con "Ti serve una mano libera per afferrare" finché non cambia arma (R4b).
+Verifiche: 611/611 (`GrappleTests` 5), con prove di mutazione; build 0/0; INTERIOR e slice SMOKE OK; VILLAGE SMOKE fermo a G14 come sopra.

@@ -47,6 +47,8 @@ internal sealed partial class Simulation
         World.RecordFact("ConditionStarted", $"{words}.", actor.Id);
         if (kind is ConditionKind.Incapacitated or ConditionKind.Paralyzed or ConditionKind.Stunned)
             EndConcentration(actor, "è incapacitato"); // R3b
+        if (kind is ConditionKind.Incapacitated or ConditionKind.Paralyzed or ConditionKind.Stunned)
+            CheckGrapples(); // R4a: an incapacitated grappler lets go
     }
 
     /// <summary>A condition ends, if the creature has it.</summary>
@@ -241,6 +243,7 @@ internal sealed partial class Simulation
     /// </summary>
     private void ConditionsAtTurnStart(Encounter e, Actor actor)
     {
+        CheckGrapples(); // R4a
         foreach (var other in World.Actors.Values.OrderBy(a => a.Id.Value, StringComparer.Ordinal))
         {
             if (other.SappedBy == actor.Id)

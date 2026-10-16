@@ -10,6 +10,7 @@ public enum Skill
 {
     Athletics, Insight, Intimidation, Medicine, Perception, Persuasion, Religion, SleightOfHand, Stealth,
     Arcana, History, Investigation, Nature, // C5a: the Intelligence skills of the Study action
+    Acrobatics, AnimalHandling, Deception, Performance, Survival, // R4: the rest of the SRD's 18
 }
 
 public static class Abilities
@@ -21,9 +22,9 @@ public static class Abilities
     public static Ability Of(Skill skill) => skill switch
     {
         Skill.Athletics => Ability.Strength,
-        Skill.SleightOfHand or Skill.Stealth => Ability.Dexterity,
-        Skill.Insight or Skill.Medicine or Skill.Perception => Ability.Wisdom,
-        Skill.Intimidation or Skill.Persuasion => Ability.Charisma,
+        Skill.SleightOfHand or Skill.Stealth or Skill.Acrobatics => Ability.Dexterity,
+        Skill.Insight or Skill.Medicine or Skill.Perception or Skill.AnimalHandling or Skill.Survival => Ability.Wisdom,
+        Skill.Intimidation or Skill.Persuasion or Skill.Deception or Skill.Performance => Ability.Charisma,
         Skill.Religion or Skill.Arcana or Skill.History or Skill.Investigation or Skill.Nature => Ability.Intelligence,
         _ => throw new ArgumentOutOfRangeException(nameof(skill)),
     };
