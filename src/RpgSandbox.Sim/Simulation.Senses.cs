@@ -177,7 +177,7 @@ internal sealed partial class Simulation
         }
     }
 
-    /// <summary>Near the body there is peripheral awareness; farther away, a round 100-ft range and 160-degree cone.</summary>
+    /// <summary>Near the body there is peripheral awareness; farther away, a 160-degree cone without a range cap.</summary>
     internal bool InFacing(Actor watcher, Spot eye, Spot target, bool ignoreFacing = false)
     {
         if (ignoreFacing || EncounterOf(watcher) is not null || watcher.Facing is not { } direction) return true;
@@ -185,7 +185,6 @@ internal sealed partial class Simulation
         var dy = target.Y - (long)eye.Y;
         var distanceSquared = dx * dx + dy * dy;
         if (distanceSquared <= 90L * 90) return true; // adjacent floor remains apparent, including behind the body
-        if (distanceSquared > 20L * Spot.PerSquare * 20L * Spot.PerSquare) return false;
         var dot = direction.X * dx + direction.Y * dy;
         var facingSquared = (long)direction.X * direction.X + (long)direction.Y * direction.Y;
         return dot > 0 && (double)dot * dot >= distanceSquared * (double)facingSquared * 0.03015369; // cos(80°)^2

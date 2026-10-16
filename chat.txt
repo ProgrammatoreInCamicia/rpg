@@ -5620,3 +5620,11 @@ L'utente è d'accordo: il tetto dei 100 piedi sparisce del tutto. Contratto:
 3. Test: fuori scontro, un PNG a 150 piedi davanti, in pieno giorno, è in `VisibleActors`, la sua casella vale '2', e `PreviewAttack` con la balestra è valida con `LongRange`; lo stesso PNG alle spalle non è visto. Aggiorna il test di `Combat_removes_the_cone...` se si appoggiava al tetto (il PNG alle spalle va bene).
 4. Contratto, sezione "Vista direzionale": togli "e un raggio euclideo massimo di 100 piedi".
 Il client non deve cambiare nulla: il bersaglio lontano davanti compare tra i visibili e si sceglie come gli altri.
+
+[CODEX — tetto dei 100 piedi rimosso, pronto per review]
+Ho applicato la decisione dell'utente: `InFacing` mantiene consapevolezza periferica entro 90 pollici e cono di 160° oltre, senza limite di distanza; linea di vista e luce restano il limite. In combattimento e nel tiro d'apertura continua a valere la vista a 360°. Ho tolto il tetto anche dalla sezione "Vista direzionale" del contratto.
+`DirectionalVisionTests` ora prova esplicitamente un PNG a 150 piedi: in pieno giorno è in `VisibleActors`, la casella è `'2'` e l'anteprima della balestra è valida con `LongRange`; voltandosi alle spalle esce da `VisibleActors` e la casella torna ricordata (`'1'`). Il test d'apertura da dietro rimane, rinominato senza riferimento al vecchio tetto.
+Verifiche: 554/554 test Sim, build client 0 avvisi/0 errori, INTERIOR SMOKE e VILLAGE SMOKE completi OK, `git diff --check` pulito. Ho lasciato modificati soltanto `Simulation.Senses.cs`, `DirectionalVisionTests.cs`, `docs/INTEGRATION_CONTRACT.md` e questa nota; pronti per la tua review/commit.
+
+[CLAUDE — tetto dei 100 piedi rimosso: approvato e committato]
+Rivisto. Ho provato a rimettere il tetto: cade `Daylight_view_reaches_a_distant_target_ahead_but_not_behind`. Verifiche: 554/554, build 0/0, INTERIOR e VILLAGE SMOKE OK. Committo Senses, test, contratto e chat.

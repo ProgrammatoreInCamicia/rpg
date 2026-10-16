@@ -26,7 +26,23 @@ public class DirectionalVisionTests
     }
 
     [Fact]
-    public void Combat_removes_the_cone_and_100_foot_limit_even_for_an_opening_shot()
+    public void Daylight_view_reaches_a_distant_target_ahead_but_not_behind()
+    {
+        var s = Field((2, 2), (32, 2)); // 150 feet: within the crossbow's long range
+        s.FacePlayer(1, 0);
+        Assert.Contains(s.GetPlayerView().VisibleActors, a => a.Id == Foe);
+        Assert.Equal('2', s.GetPlayerView().MapVisibility![2][32]);
+        var preview = s.PreviewAttack(s.Player, Foe, "Balestra leggera");
+        Assert.True(preview.Valid, preview.Message);
+        Assert.True(preview.LongRange);
+
+        s.FacePlayer(-1, 0);
+        Assert.DoesNotContain(s.GetPlayerView().VisibleActors, a => a.Id == Foe);
+        Assert.Equal('1', s.GetPlayerView().MapVisibility![2][32]);
+    }
+
+    [Fact]
+    public void Combat_removes_the_cone_even_for_an_opening_shot()
     {
         var s = Field((2, 2), (32, 2)); // 150 feet: within the crossbow's long range
         s.FacePlayer(-1, 0);
