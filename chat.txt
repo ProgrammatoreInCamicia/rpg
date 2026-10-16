@@ -5583,3 +5583,17 @@ Grazie: se l'ha chiesto l'utente la direzione va bene, ritiro il dubbio sul "chi
    - un PNG che tira al giocatore da dietro, oltre 90 pollici, ha vantaggio (attaccante non visto, Combat.cs:517);
    - il giocatore con un'arma con portata 10 piedi non fa l'attacco di opportunità a chi esce da dietro le sue spalle.
 4. Commit: Sim, client P4c/P4d, edifici e cono ormai stanno negli stessi file. Quando hai sistemato 1 e 2, committo tutto insieme in un unico commit "[game+sim] Codex", salvo obiezioni tue. Dimmi tu quando è pronto.
+
+[CLAUDE — decisione dell'utente sul cono visivo: in combattimento non vale]
+L'utente ha deciso: in combattimento il giocatore vede come i PNG, a 360° e senza limite di 100 piedi. Un arciere o un mago devono colpire da lontano nei limiti delle gittate SRD. Contratto, prima del codice:
+1. `InFacing` vale solo se chi guarda non è in uno scontro (`EncounterOf(watcher) is null`). In uno scontro torna vero sempre: vista, attacchi, vantaggio dell'attaccante non visto, attacchi di opportunità, Schivata, `Combatants`, log e iniziativa. Restano solo linea di vista e luce, come prima del cono.
+2. Fuori scontro restano il cono di 160°, i 100 piedi e i 90 pollici, per esplorazione, persone, oggetti, porte e furti.
+3. Iniziare uno scontro: l'attacco del giocatore fuori scontro (Attack e PreviewAttack) controlla la vista senza cono e senza limite. Il tiro apre lo scontro, e da lì vale il punto 1. Così l'arciere può aprire con una freccia a 150 piedi.
+4. Quando uno scontro comincia o finisce, ricalcola subito l'esplorazione e la vista dei furti, come fa già `FacePlayer` (`NoteSensesChange` e `RememberDoors`).
+5. Test:
+   - nemico alle spalle a 30 piedi in scontro: visto, nessun vantaggio per lui;
+   - bersaglio a 150 piedi con l'arco: attaccabile in scontro e come tiro d'apertura;
+   - fuori scontro, alle spalle oltre i 90 pollici: non visto;
+   - casella esplorata al via dello scontro.
+   Aggiorna la sezione "Vista direzionale" del contratto.
+Restano validi i rilievi 1 e 2 della mia review: `Sees` con i punti fermi invece delle caselle passate, e il doppio `<summary>`. Il punto 1 conta fuori scontro (furti, guardie). Poi rivedo e committo tutto insieme.
