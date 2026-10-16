@@ -300,6 +300,9 @@ public sealed record MovePreview
 
     /// <summary>Opportunity attacks the move would provoke, by threats the player knows of.</summary>
     public IReadOnlyList<ProvocationView> Provokes { get; init; } = Array.Empty<ProvocationView>();
+
+    /// <summary>P5b: the closed door the move opens on the way (the turn's free interaction), as <see cref="SpotMovePreview.OpensDoor"/>.</summary>
+    public GridPos? OpensDoor { get; init; }
 }
 
 public sealed record ProvocationView

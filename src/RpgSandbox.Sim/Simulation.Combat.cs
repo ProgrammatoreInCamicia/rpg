@@ -220,8 +220,8 @@ internal sealed partial class Simulation
         var left = MovementLeft(e, actor);
         if (left <= 0)
             return CommandResult.Rejected(RejectionReason.NoMovementLeft, "Non ti resta movimento in questo turno.");
-        if (PlanCombatMove(e, actor, command.To, command.StopNextTo) is not { } plan)
-            return CommandResult.Rejected(RejectionReason.Unreachable, "Non si può raggiungere quel punto.");
+        if (PlanCombatMove(e, actor, command.To, command.StopNextTo, out var twoDoors) is not { } plan)
+            return CommandResult.Rejected(RejectionReason.Unreachable, twoDoors ? TwoDoors : "Non si può raggiungere quel punto.");
         if (plan.Path.Count == 0)
             return CommandResult.Rejected(RejectionReason.AlreadyThere, $"{actor.Name} è già lì.");
         if (plan.Feet > left)
@@ -243,8 +243,8 @@ internal sealed partial class Simulation
             return new MovePreview { Valid = false, Reason = RejectionReason.NotInCombat, Message = "Non stai combattendo." };
         if (!IsTurnOf(e, actor))
             return new MovePreview { Valid = false, Reason = RejectionReason.NotYourTurn, Message = "Non è il tuo turno." };
-        if (PlanCombatMove(e, actor, to, stopNextTo: false) is not { } plan)
-            return new MovePreview { Valid = false, Reason = RejectionReason.Unreachable, Message = "Non si può raggiungere quel punto." };
+        if (PlanCombatMove(e, actor, to, stopNextTo: false, out var twoDoors) is not { } plan)
+            return new MovePreview { Valid = false, Reason = RejectionReason.Unreachable, Message = twoDoors ? TwoDoors : "Non si può raggiungere quel punto." };
         var left = MovementLeft(e, actor);
         var (reason, message) = plan.Path.Count == 0 ? (RejectionReason.AlreadyThere, "Sei già lì.")
             : plan.Feet > left ? (RejectionReason.TooFar, $"Troppo lontano: servono {plan.Feet} piedi, te ne restano {left}.")
@@ -267,7 +267,7 @@ internal sealed partial class Simulation
         return new MovePreview
         {
             Valid = reason == RejectionReason.None, Reason = reason, Message = message,
-            Path = plan.Path, CostFeet = plan.Cost, TotalFeet = plan.Feet, Provokes = provokes,
+            Path = plan.Path, CostFeet = plan.Cost, TotalFeet = plan.Feet, Provokes = provokes, OpensDoor = plan.OpensDoor,
         };
     }
 
@@ -655,7 +655,11 @@ internal sealed partial class Simulation
 
     // ---------------------------------------------------------------- movement
 
-    private sealed record CombatPlan(IReadOnlyList<GridPos> Path, IReadOnlyList<int> Cost, int Feet);
+    private sealed record CombatPlan(IReadOnlyList<GridPos> Path, IReadOnlyList<int> Cost, int Feet)
+    {
+        /// <summary>P5b: the closed door the move opens on the way, as the turn's free interaction.</summary>
+        public GridPos? OpensDoor { get; init; }
+    }
 
     /// <summary>Whole feet of movement left this turn (P1b: rounded down from the inches left).</summary>
     private int MovementLeft(Encounter e, Actor actor) => (int)Math.Floor(MovementLeftInches(e, actor) / (double)Spot.PerFoot);
@@ -672,13 +676,50 @@ internal sealed partial class Simulation
     private Func<Actor, bool> Perceived(Encounter e, Actor mover) => a => SeesActor(mover, a);
 
     /// <summary>
+    /// P5b: as P4d for free moves, one closed door may be opened on the way while the turn's free interaction is unused
+    /// (one that holds only with the mover's key). A way through two is replaced by one through none, if there is one;
+    /// otherwise <paramref name="twoDoors"/> says why there is no plan.
+    /// </summary>
+    private CombatPlan? PlanCombatMove(Encounter e, Actor mover, GridPos to, bool stopNextTo, out bool twoDoors,
+        Func<GridPos, bool>? endOk = null)
+    {
+        twoDoors = false;
+        var map = World.Maps[e.Area];
+        var opens = Opens(mover, map);
+        Func<GridPos, bool>? doorOk = CombatantOf(e, mover.Id).Interacted ? null : door => !map.DoorHolds(door) || opens(door);
+        var plan = PlanCombatMoveThrough(e, mover, to, stopNextTo, endOk, doorOk);
+        if (plan is null || doorOk is null)
+            return plan;
+        var doors = DoorsOnGridWay(map, CurrentPosition(mover)!.Value, plan.Path);
+        if (doors.Count <= 1)
+            return plan with { OpensDoor = doors.Count == 1 ? doors[0] : null };
+        var shut = PlanCombatMoveThrough(e, mover, to, stopNextTo, endOk, doorOk: null);
+        twoDoors = shut is null;
+        return shut;
+    }
+
+    /// <summary>The closed doors a way on squares goes through, in order.</summary>
+    private static List<GridPos> DoorsOnGridWay(GridMap map, GridPos from, IReadOnlyList<GridPos> path)
+    {
+        var doors = new List<GridPos>();
+        foreach (var square in path)
+        {
+            if (map.ClosedDoorBetween(from, square) is { } door && !doors.Contains(door))
+                doors.Add(door);
+            from = square;
+        }
+        return doors;
+    }
+
+    /// <summary>
     /// The cheapest way to <paramref name="to"/> (or, with <paramref name="stopNextTo"/>, to a square next to it) by the
     /// SRD rules, around the creatures the mover perceives: 5 feet a square, diagonals included, no cutting corners;
-    /// closed doors block (opening them is C3); an ally's space can be crossed, an incapacitated creature's space is
+    /// closed doors block, but those <paramref name="doorOk"/> lets be opened on the way (P5b); an ally's space can be crossed, an incapacitated creature's space is
     /// Difficult Terrain, any other creature blocks; nobody ends on another creature. Null when there is no way. The
     /// movement left is not checked here. P1b: <paramref name="endOk"/>, if given, also judges the squares one may stop on.
     /// </summary>
-    private CombatPlan? PlanCombatMove(Encounter e, Actor mover, GridPos to, bool stopNextTo, Func<GridPos, bool>? endOk = null)
+    private CombatPlan? PlanCombatMoveThrough(Encounter e, Actor mover, GridPos to, bool stopNextTo, Func<GridPos, bool>? endOk,
+        Func<GridPos, bool>? doorOk)
     {
         var map = World.Maps[e.Area];
         var from = CurrentPosition(mover)!.Value;
@@ -687,7 +728,7 @@ internal sealed partial class Simulation
             return here; // already there
         var knows = Perceived(e, mover);
         var occupants = OccupantsOf(map, mover, knows);
-        var reach = CombatReach(e, mover, map, from, to, knows);
+        var reach = CombatReach(e, mover, map, from, to, knows, doorOk: doorOk);
         var ends = stopNextTo
             ? reach.Keys.Where(p => p.StepsTo(to) == 1 && OpenDiagonal(map, p, to) && (endOk?.Invoke(p) ?? true))
             : reach.Keys.Where(p => p == to);
@@ -732,7 +773,7 @@ internal sealed partial class Simulation
 
     /// <summary>Dijkstra over feet from <paramref name="from"/>; ties go to the path closest to the straight line to <paramref name="aim"/>.</summary>
     private Dictionary<GridPos, (int Feet, long Drift, GridPos Prev)> CombatReach(Encounter e, Actor mover, GridMap map, GridPos from,
-        GridPos aim, Func<Actor, bool> knows, int? maxFeet = null)
+        GridPos aim, Func<Actor, bool> knows, int? maxFeet = null, Func<GridPos, bool>? doorOk = null)
     {
         long Drift(GridPos p) => Math.Abs((long)(aim.X - from.X) * (p.Y - from.Y) - (long)(aim.Y - from.Y) * (p.X - from.X));
         var others = CreaturesOn(map, mover, knows);
@@ -747,8 +788,10 @@ internal sealed partial class Simulation
             foreach (var (dx, dy) in Steps)
             {
                 var next = new GridPos(here.X + dx, here.Y + dy);
-                if (!map.IsWalkable(next) || map.IsClosedDoor(next) || !map.DiagonalOpen(here, next))
+                if (!map.IsWalkable(next) || !map.DiagonalOpen(here, next))
                     continue;
+                if (map.ClosedDoorBetween(here, next) is { } door && doorOk?.Invoke(door) != true)
+                    continue; // P5b: a closed door is crossed only where it may be opened on the way
                 var (cost, blocked) = EnterCost(e, mover, others[next]);
                 if (blocked)
                     continue;
@@ -782,10 +825,26 @@ internal sealed partial class Simulation
         var from = CurrentPosition(actor)!.Value;
         var knows = Perceived(e, actor);
         var occupants = OccupantsOf(map, actor, knows);
-        return CombatReach(e, actor, map, from, from, knows, left)
+        var reach = CombatReach(e, actor, map, from, from, knows, left).ToDictionary(r => r.Key, r => r.Value.Feet);
+        // P5b: beyond a closed door too, while the turn's interaction is free, where the way opens only that one (the cheaper of the two ways, as the move plans it).
+        if (!CombatantOf(e, actor.Id).Interacted)
+        {
+            var opens = Opens(actor, map);
+            var through = CombatReach(e, actor, map, from, from, knows, left, door => !map.DoorHolds(door) || opens(door));
+            foreach (var (square, way) in through.Where(r => !reach.TryGetValue(r.Key, out var shut) || r.Value.Feet < shut))
+            {
+                var path = new List<GridPos>();
+                for (var p = square; p != from; p = through[p].Prev)
+                    path.Add(p);
+                path.Reverse();
+                if (DoorsOnGridWay(map, from, path).Count <= 1)
+                    reach[square] = way.Feet;
+            }
+        }
+        return reach
             .Where(r => !occupants.Contains(r.Key))
             .OrderBy(r => r.Key.Y).ThenBy(r => r.Key.X)
-            .Select(r => new ReachableSquareView { At = r.Key, CostFeet = r.Value.Feet })
+            .Select(r => new ReachableSquareView { At = r.Key, CostFeet = r.Value })
             .ToArray();
     }
 
@@ -840,6 +899,17 @@ internal sealed partial class Simulation
             {
                 stopped = "il passo costa più del previsto";
                 break;
+            }
+            // P5b: a closed door on the way opens as the turn's free interaction; with it used, or one that holds, it stops here.
+            if (map.ClosedDoorBetween(from.Cell, square) is { } door)
+            {
+                if (me.Interacted || map.DoorHolds(door) && !Opens(actor, map)(door))
+                {
+                    stopped = "la porta è chiusa";
+                    break;
+                }
+                OpenOnTheWayInFight(actor, map, door);
+                me.Interacted = true;
             }
             foreach (var foe in Threats(e, actor, from, Centre(square)).ToList())
             {

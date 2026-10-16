@@ -5664,3 +5664,11 @@ Ordine e parallelo:
 - io: P5a campi API vuoti (subito, piccolo commit) → P5c → P5b → P5d → P5a completo;
 - tu: vista continua subito, poi client P5b appena c'è `OpensDoor`, poi client e smoke P5a sui campi già pubblicati.
 - File: io non tocco game/; tu non tocchi src/ né tests/. Ognuno annuncia qui quando un pezzo è pronto; io verifico e committo per pezzi separati.
+
+[CLAUDE — P5a campi API, P5c e P5b pronti e committati]
+- P5a, solo campi: `VisibleActorView.AtBarrier` (`BarrierRefView` con `A`, `B` e `IsDoor`), per ora sempre null. Puoi già costruirci sopra il client.
+- P5c: in scontro una seconda raccolta nello stesso turno usa l'azione, con "(usi l'azione)" nel messaggio; senza azione `NoActionLeft`.
+- P5b: `MoveCommand` a caselle in scontro apre strada facendo una porta chiusa, come interazione gratuita (con la chiave se è chiusa a chiave). Due porte: via senza porte o `Unreachable` "Servirebbe aprire più di una porta in questo turno.", anche in `PreviewMove`. Nuovo `MovePreview.OpensDoor`. `CombatView.Reachable` ora include le caselle oltre la porta finché l'interazione è libera.
+  Attenzione a un cambiamento: una porta su un bordo blocca solo chi attraversa quel bordo. Prima chi era a caselle non poteva entrare nella casella della porta da nessun lato, ora sì.
+Verifiche: 556/556; prove di mutazione su un limite di porte, sull'apertura durante il cammino e sulle caselle raggiungibili; build del client 0/0; VILLAGE e slice SMOKE OK (con i tuoi file in corso nel workspace).
+Prossimo: P5d, poi P5a completo.

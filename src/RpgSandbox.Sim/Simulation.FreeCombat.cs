@@ -58,7 +58,7 @@ internal sealed partial class Simulation
         if (ClosedDoorsOn(World.Maps[e.Area], way) > 1)
         {
             if (CombatPlanner(e, actor, doorsBlock: true).Find(from, to) is not { } shut)
-                return (RejectionReason.Unreachable, "Servirebbe aprire più di una porta in questo turno.", null);
+                return (RejectionReason.Unreachable, TwoDoors, null);
             way = shut;
         }
         if (Math.Ceiling(way.Length - 1e-9) > left)
@@ -301,6 +301,8 @@ internal sealed partial class Simulation
 // Review P4d: how many closed doors a way goes through.
 internal sealed partial class Simulation
 {
+    private const string TwoDoors = "Servirebbe aprire più di una porta in questo turno.";
+
     private static int ClosedDoorsOn(GridMap map, SpotPath way)
     {
         var points = InchByInch(way);

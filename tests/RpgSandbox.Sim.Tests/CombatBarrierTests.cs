@@ -226,4 +226,54 @@ public class CombatBarrierTests
         if (Of(s, s.Player).Conscious)
             Assert.False(Assert.Single(s.GetPlayerView().KnownBarriers).Locked);
     }
+
+    [Fact]
+    public void A_move_on_squares_opens_a_closed_door_on_the_way_as_the_free_interaction_and_a_second_one_is_a_wall()
+    {
+        var s = Fight();
+        var to = new GridPos(5, 2);
+        Assert.Contains(s.GetPlayerView().Combat!.Reachable, r => r.At == to);
+        var preview = s.PreviewMove(s.Player, to);
+        Assert.True(preview.Valid, preview.Message);
+        Assert.Equal(Door, preview.OpensDoor);
+        var moved = s.Execute(new MoveCommand { Actor = s.Player, To = to });
+        Assert.True(moved.Success, moved.Message);
+        if (!Of(s, s.Player).Conscious)
+            return; // dropped by the opportunity attack on the way
+        Assert.Equal(to, s.GetPlayerView().Position);
+        Assert.True(Map(s).Doors[Door]);
+        Assert.False(You(s).InteractionAvailable);
+        Assert.Contains(s.GetPlayerView().RecentEvents, f => f.Kind == "DoorOpened");
+
+        // Shut behind it (that takes the action now): the interaction is spent, the door is a wall again.
+        Assert.True(s.Execute(new DoorCommand { Actor = s.Player, At = Door, Open = false }).Success);
+        var back = new GridPos(2, 3);
+        Assert.DoesNotContain(s.GetPlayerView().Combat!.Reachable, r => r.At == back);
+        Assert.Equal(RejectionReason.Unreachable, s.PreviewMove(s.Player, back).Reason);
+        Assert.Equal(RejectionReason.Unreachable, s.Execute(new MoveCommand { Actor = s.Player, To = back }).Rejection);
+    }
+
+    [Fact]
+    public void On_squares_a_locked_door_is_a_wall_without_its_key_and_two_doors_in_a_turn_are_refused()
+    {
+        var s = Fight(door: new LockSpec("farmhouse-key", Locked: true));
+        var to = new GridPos(5, 2);
+        Assert.DoesNotContain(s.GetPlayerView().Combat!.Reachable, r => r.At == to);
+        Assert.Equal(RejectionReason.Unreachable, s.Execute(new MoveCommand { Actor = s.Player, To = to }).Rejection);
+        Of(s, s.Player).Give("farmhouse-key", 1);
+        Assert.True(s.Execute(new MoveCommand { Actor = s.Player, To = to }).Success);
+        if (Of(s, s.Player).Conscious)
+            Assert.False(Map(s).BarrierOf(BarrierKey.Door(Door))!.Locked);
+
+        var two = Fight(secondDoor: true);
+        var beyond = new GridPos(7, 2);
+        Assert.DoesNotContain(two.GetPlayerView().Combat!.Reachable, r => r.At == beyond);
+        var preview = two.PreviewMove(two.Player, beyond);
+        Assert.Equal(RejectionReason.Unreachable, preview.Reason);
+        Assert.Contains("più di una porta", preview.Message);
+        var refused = two.Execute(new MoveCommand { Actor = two.Player, To = beyond });
+        Assert.Equal(RejectionReason.Unreachable, refused.Rejection);
+        Assert.Contains("più di una porta", refused.Message);
+        Assert.True(two.GetPlayerView().Combat!.You.InteractionAvailable); // nothing done
+    }
 }

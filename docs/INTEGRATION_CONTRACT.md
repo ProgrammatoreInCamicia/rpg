@@ -903,7 +903,7 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 - Una mossa apre al massimo una porta: se la via ne aprirebbe due, si cerca una via che non ne apra nessuna; se non
   c'è, `Unreachable` ("Servirebbe aprire più di una porta in questo turno."), anteprima compresa. Aprire con la chiave
   camminando aggiorna ciò che il giocatore sa della serratura.
-- Non fatto: `MoveCommand` a caselle in scontro tratta ancora le porte chiuse come muri.
+- Fatto in P5b: anche `MoveCommand` a caselle in scontro apre la porta strada facendo.
 
 ## Vista direzionale del giocatore (prova grafica)
 
@@ -926,7 +926,8 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 - `VisibleActorView.AtBarrier` (`BarrierRefView`: `A`, `B`; `A == B` per una porta): la porta o finestra su cui lavora, se il giocatore lo vede. `Doing` dice il gesto.
 
 ### P5b — `MoveCommand` a caselle in scontro
-- Come P4d: al massimo una porta chiusa aperta strada facendo come interazione gratuita del turno. `MovePreview.OpensDoor`.
+- Come P4d: al massimo una porta chiusa aperta strada facendo come interazione gratuita del turno; una porta che tiene solo con la chiave in mano. Due porte: via senza porte, altrimenti `Unreachable` ("Servirebbe aprire più di una porta in questo turno."), anteprima compresa. `MovePreview.OpensDoor`.
+- `CombatView.Reachable` comprende le caselle oltre una porta chiusa finché l'interazione è libera (con il costo della via più breve fra le due). Le porte su un bordo bloccano solo chi le attraversa: la casella della porta è libera da ogni altro lato.
 
 ### P5c — Raccogliere dopo la porta
 - In scontro, `PickUpCommand` con l'interazione gratuita già usata richiede l'azione (SRD, Utilizzare): "(usi l'azione)". Senza azione: `NoActionLeft`.
