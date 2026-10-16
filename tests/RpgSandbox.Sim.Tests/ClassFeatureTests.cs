@@ -39,8 +39,7 @@ public class ClassFeatureTests
         var s = Yard();
         Assert.Empty(s.GetPlayerView().PendingChoices);
         s = Yard(experience: 300);
-        var choice = Assert.Single(s.GetPlayerView().PendingChoices);
-        Assert.Equal("FightingStyle", choice.Kind);
+        var choice = s.GetPlayerView().PendingChoices.Single(c => c.Kind == "FightingStyle"); // R3b: a third spell to prepare too
         Assert.Equal(new[] { "Archery", "Defense", "GreatWeaponFighting" }, choice.Options);
         Assert.Equal(RejectionReason.InvalidAmount, s.Execute(new ChooseCommand { Actor = s.Player, Choice = choice.Id, Options = new[] { "Dueling" } }).Rejection);
 
@@ -48,7 +47,7 @@ public class ClassFeatureTests
         Assert.True(s.Execute(new ChooseCommand { Actor = s.Player, Choice = choice.Id, Options = new[] { "Defense" } }).Success);
         Assert.Equal(ac + 1, Me(s).Profile.ArmorClass);
         Assert.Equal("Defense", s.GetPlayerView().FightingStyle);
-        Assert.Empty(s.GetPlayerView().PendingChoices);
+        Assert.DoesNotContain(s.GetPlayerView().PendingChoices, c => c.Kind == "FightingStyle");
     }
 
     [Fact]
@@ -155,11 +154,11 @@ public class ClassFeatureTests
         Assert.Equal(new[] { new ItemId("longsword"), new ItemId("javelin") }, s.GetPlayerView().MasteryWeapons);
         var rest = s.Execute(new RestCommand { Actor = s.Player, Long = true });
         s.AdvanceUntilCompleted(rest.Action!.Value, Duration.FromHours(9));
-        var choice = Assert.Single(s.GetPlayerView().PendingChoices);
+        var choice = s.GetPlayerView().PendingChoices.Single(c => c.Kind == "WeaponMastery");
         Assert.True(choice.Optional);
         Assert.True(s.Execute(new ChooseCommand { Actor = s.Player, Choice = choice.Id, Options = new[] { "greatsword", "javelin" } }).Success);
         Assert.Null(Me(s).Profile.Attacks.Single(a => a.Name == Sword).Mastery); // no more Sap with the longsword
-        Assert.Empty(s.GetPlayerView().PendingChoices);
+        Assert.DoesNotContain(s.GetPlayerView().PendingChoices, c => c.Kind == "WeaponMastery");
 
         var loaded = s.SaveAndReload();
         Assert.Equal(s.SaveToString(), loaded.SaveToString());

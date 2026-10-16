@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 35;
+    public const int SchemaVersion = 36;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -220,6 +220,9 @@ internal static class SaveGame
             Exhaustion = a.Exhaustion, SappedBy = a.SappedBy?.Value, SlowedBy = a.SlowedBy?.Value, Vexing = a.Vexing?.Value, VexFresh = a.VexFresh,
             AbilityIncreases = a.Choices.AbilityIncreases.Select(x => x.ToString()).ToList(), Masteries = a.Choices.Masteries?.ToList(),
             FightingStyle = a.Choices.FightingStyle, LayOnHandsSpent = a.LayOnHandsSpent, MasteryChangeOpen = a.MasteryChangeOpen,
+            SlotsSpent = a.SlotsSpent.ToList(), PreparedSpells = a.PreparedSpells.ToList(), FreeSmiteUsed = a.FreeSmiteUsed, SpellSwapOpen = a.SpellSwapOpen,
+            Concentrating = a.Concentrating,
+            Effects = a.Effects.Select(f => new SpellEffectDto { Spell = f.Spell, Caster = f.Caster.Value, Until = f.Until?.Ticks, Concentration = f.Concentration, Amount = f.Amount }).ToList(),
             Defeated = a.Defeated.Select(x => x.Value).ToList(),
             Lore = a.Lore.IsEmpty ? null : new LoreDto
             {
@@ -255,6 +258,7 @@ internal static class SaveGame
                 FactionUpkeep => "FactionUpkeep",
                 EvaluateFaction => "EvaluateFaction",
                 CombatRound => "CombatRound",
+                ExpireEffects => "ExpireEffects",
                 _ => throw new InvalidOperationException($"Unknown job {e.Job}"),
             },
             Action = e.Job switch { CompleteAction c => c.Action.Value, MoveWaypoint w => w.Action.Value, _ => (long?)null },
@@ -628,6 +632,20 @@ internal static class SaveGame
             Check(a.LayOnHandsSpent >= 0, $"Imposizione delle mani di '{a.Id}' non valida");
             actor.LayOnHandsSpent = a.LayOnHandsSpent;
             actor.MasteryChangeOpen = a.MasteryChangeOpen;
+            actor.SlotsSpent.AddRange(a.SlotsSpent ?? new());
+            Check(actor.SlotsSpent.All(n => n >= 0), $"slot di '{a.Id}' non validi");
+            foreach (var spell in a.PreparedSpells ?? new())
+                actor.PreparedSpells.Add(content.Spells.ContainsKey(spell) ? spell : throw new InvalidDataException($"incantesimo sconosciuto '{spell}'"));
+            actor.FreeSmiteUsed = a.FreeSmiteUsed;
+            actor.SpellSwapOpen = a.SpellSwapOpen;
+            actor.Concentrating = a.Concentrating;
+            foreach (var f in a.Effects ?? new())
+                actor.Effects.Add(new SpellEffect
+                {
+                    Spell = content.Spells.ContainsKey(f.Spell) ? f.Spell : throw new InvalidDataException($"incantesimo sconosciuto '{f.Spell}'"),
+                    Caster = new ActorId(Required(f.Caster, "incantatore")), Until = f.Until is { } until ? Time(until) : null,
+                    Concentration = f.Concentration, Amount = f.Amount,
+                });
             actor.LastLongRestEnd = a.LastLongRestEnd is { } rested ? Time(rested) : null;
             actor.LastHarmAt = a.LastHarmAt is { } harmed ? Time(harmed) : null;
             Check(a.HitDiceSpent >= 0 && (w.LevelOf(actor) is { } lvl ? a.HitDiceSpent <= lvl : a.HitDiceSpent == 0), $"Dadi Vita di '{a.Id}' non validi");
@@ -704,7 +722,7 @@ internal static class SaveGame
             w.Refresh(actor);
             if (actor.SheetOverride)
                 actor.Sheet = FromDto(a.Sheet!);
-            Check(actor.Vitality.MakesDeathSaves == actor.Profile.MakesDeathSaves && actor.Vitality.Maximum == actor.Profile.MaxHitPoints,
+            Check(actor.Vitality.MakesDeathSaves == actor.Profile.MakesDeathSaves && actor.Vitality.Maximum == actor.Profile.MaxHitPoints + actor.Effects.Where(f => f.Spell == "aid").Sum(f => f.Amount), // R3b: Aid
                 $"punti ferita di '{a.Id}' incoerenti con il suo profilo");
             ValidateActor(w, actor);
             AddUnique(w.Actors, actor.Id, actor, "attore");
@@ -748,6 +766,7 @@ internal static class SaveGame
             "FactionUpkeep" => new FactionUpkeep(ExistingFaction(w, e.Faction)),
             "EvaluateFaction" => new EvaluateFaction(ExistingFaction(w, e.Faction)),
             "CombatRound" => new CombatRound(e.Encounter ?? throw new InvalidDataException("scontro mancante")),
+            "ExpireEffects" => new ExpireEffects(),
             _ => throw new InvalidDataException($"lavoro sconosciuto '{e.Job}'"),
         })).ToList();
         // Everything due at or before Now was processed before saving.
@@ -1071,7 +1090,7 @@ internal static class SaveGame
             Actor = c.Actor.Value, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus,
             MovedFeet = c.MovedInches / Spot.PerFoot, MovedInches = c.MovedInches, ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
             LastSeenAt = c.LastSeenAt is { } at ? new PosDto { X = at.X, Y = at.Y } : null, JoinedInRound = c.JoinedInRound, Fleeing = c.Fleeing,
-            Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved, BonusActionUsed = c.BonusActionUsed, AttacksLeft = c.AttacksLeft,
+            Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved, BonusActionUsed = c.BonusActionUsed, AttacksLeft = c.AttacksLeft, SpellSlotSpent = c.SpellSlotSpent,
         }).ToList(),
         Log = e.Log.Select(RecordDto).ToList(),
     };
@@ -1149,7 +1168,7 @@ internal static class SaveGame
                         : c.LastSeenEnemy is { } seen ? Spot.CenterOf(new GridPos(seen.X, seen.Y)) : null,
                     JoinedInRound = c.JoinedInRound is { } joined && joined >= 1 && joined <= dto.Round ? joined
                         : c.JoinedInRound is null ? null : throw new InvalidDataException($"ingresso nello scontro di '{id}' non valido"),
-                    Fleeing = c.Fleeing, Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved, BonusActionUsed = c.BonusActionUsed, AttacksLeft = c.AttacksLeft,
+                    Fleeing = c.Fleeing, Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved, BonusActionUsed = c.BonusActionUsed, AttacksLeft = c.AttacksLeft, SpellSlotSpent = c.SpellSlotSpent,
                 });
             }
             Check(e.Order.Any(c => c.Side == 0) && e.Order.Any(c => c.Side == 1), $"scontro {dto.Id} senza due lati");

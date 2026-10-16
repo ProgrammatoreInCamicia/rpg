@@ -256,6 +256,9 @@ public enum CombatLogKind
     /// <summary>R2: a condition begins or ends; a weapon mastery takes effect.</summary>
     Condition,
     Mastery,
+
+    /// <summary>R3b: a spell is cast, or Concentration is lost.</summary>
+    Spell,
 }
 
 /// <summary>One thing the player perceived in the fight, with the dice when there are any.</summary>

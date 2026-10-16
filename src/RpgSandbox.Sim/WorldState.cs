@@ -207,6 +207,24 @@ internal sealed class Actor
     /// <summary>R3a: a Long Rest was just finished: the weapon masteries may be changed (until the next rest starts).</summary>
     public bool MasteryChangeOpen { get; set; }
 
+    /// <summary>R3b: spell slots spent, by spell level (index 0: level 1); back with a Long Rest.</summary>
+    public List<int> SlotsSpent { get; } = new();
+
+    /// <summary>R3b: the spells prepared (those always prepared by a feature are not listed).</summary>
+    public List<string> PreparedSpells { get; } = new();
+
+    /// <summary>R3b, Paladin's Smite: the free Divine Smite was used since the last Long Rest.</summary>
+    public bool FreeSmiteUsed { get; set; }
+
+    /// <summary>R3b: a Long Rest was just finished: one prepared spell may be replaced (until the next rest starts).</summary>
+    public bool SpellSwapOpen { get; set; }
+
+    /// <summary>R3b: the spell it is concentrating on.</summary>
+    public string? Concentrating { get; set; }
+
+    /// <summary>R3b: spells in effect on it.</summary>
+    public List<SpellEffect> Effects { get; } = new();
+
     /// <summary>R2, SRD Exhaustion: 0..6; each level is −2 to d20 Tests and −5 feet of Speed; at 6 it dies.</summary>
     public int Exhaustion { get; set; }
 
@@ -742,6 +760,9 @@ internal sealed class Combatant
     /// <summary>R3a, Extra Attack: attacks still to make with the Attack action taken this turn.</summary>
     public int AttacksLeft { get; set; }
 
+    /// <summary>R3b, SRD: one spell slot a turn; it was spent this turn.</summary>
+    public bool SpellSlotSpent { get; set; }
+
     /// <summary>C3b: the turn's free interaction with an object (picking something up) is used.</summary>
     public bool Interacted { get; set; }
 }
@@ -892,6 +913,8 @@ internal sealed class WorldState
             string? Kept(string? item) => item is not null && actor.Carried(item) > 0 ? item : null;
             actor.Equipment = new Equipment(Kept(worn.Armor), Kept(worn.Shield), Kept(worn.MainHand));
             world.Refresh(world.Actors[a.Id]);
+            if (world.Content.Characters.TryGetValue(a.Build, out var definition)) // R3b: the spells it starts with prepared
+                actor.PreparedSpells.AddRange(definition.Spells);
             world.Actors[a.Id].Vitality = world.Actors[a.Id].Profile.NewVitality();
         }
         foreach (var s in scenario.Stores)
@@ -947,4 +970,14 @@ internal sealed class Condition
     public ActorId? Source { get; init; }
     public GameTime? Until { get; init; }
     public ActorId? EndsAtTurnOf { get; init; }
+}
+
+/// <summary>R3b: a spell in effect on a creature: who cast it, until when, whether it hangs on the caster's Concentration, and its amount (Aid's Hit Points).</summary>
+internal sealed class SpellEffect
+{
+    public required string Spell { get; init; }
+    public required ActorId Caster { get; init; }
+    public GameTime? Until { get; init; }
+    public bool Concentration { get; init; }
+    public int Amount { get; init; }
 }

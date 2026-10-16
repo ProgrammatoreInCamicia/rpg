@@ -77,10 +77,13 @@ internal sealed partial class Simulation
             return rejected;
         var actor = World.Actors[command.Actor];
         var target = World.Actors[command.Target];
+        if (SmiteRefused(EncounterOf(actor), actor, attack!, command.SmiteSlot, command.SmiteFree) is { } noSmite)
+            return CommandResult.Rejected(RejectionReason.NoSlot, noSmite); // R3b
         if (EncounterOf(actor) is not { } e)
             return OpenFight(actor, target, attack!, command.NonLethal);
         TakeAttack(e, actor); // R3a: the Attack action, or one of its Extra Attacks
-        var text = ResolveAttack(e, actor, target, attack!, command.NonLethal, CombatLogKind.Attack);
+        var text = ResolveAttack(e, actor, target, attack!, command.NonLethal, CombatLogKind.Attack,
+            smite: command.SmiteFree ? 1 : command.SmiteSlot, smiteFree: command.SmiteFree);
         CheckEnd(e);
         return new CommandResult { Message = text };
     }
@@ -317,6 +320,7 @@ internal sealed partial class Simulation
         c.Cleaved = false; // R2
         c.BonusActionUsed = false; // R3a
         c.AttacksLeft = 0;
+        c.SpellSlotSpent = false; // R3b
         ConditionsAtTurnStart(e, actor); // R2: what lasts until the start of its turn ends
         c.ActionUsed = c.OpeningSpent;
         c.OpeningSpent = false;
@@ -613,12 +617,29 @@ internal sealed partial class Simulation
     private static (GridPos Cell, Spot At) Centre(GridPos square) => (square, Spot.CenterOf(square));
 
     /// <summary>Rolls the attack and applies the damage. Returns the line for the dice log.</summary>
-    private string ResolveAttack(Encounter e, Actor attacker, Actor target, AttackProfile attack, bool nonLethal, CombatLogKind kind)
+    private string ResolveAttack(Encounter e, Actor attacker, Actor target, AttackProfile attack, bool nonLethal, CombatLogKind kind,
+        int? smite = null, bool smiteFree = false)
     {
         var check = CheckAttack(e, attacker, target, attack, nonLethal);
         var cover = CoverBonus(check.Cover); // P3: cover raises the AC to beat
-        var result = Attacks.Roll(World.Rng, attack with { AttackBonus = attack.AttackBonus + ExhaustionPenalty(attacker) }, // R2
-            ProfileOf(target).ArmorClass + cover, check.Advantage, check.Disadvantage, check.AutoCritical);
+        var blessed = BlessRoll(attacker); // R3b: Bless, 1d4 more
+        var result = Attacks.Roll(World.Rng, attack with { AttackBonus = attack.AttackBonus + ExhaustionPenalty(attacker) + blessed }, // R2
+            ProfileOf(target).ArmorClass + cover + SpellArmorBonus(target), check.Advantage, check.Disadvantage, check.AutoCritical);
+        // R3b: Divine Favor and Divine Smite add Radiant damage to a hit; the smite's slot (or free use) and Bonus Action are spent then.
+        var (spellDamage, spellText) = result.Hit ? ExtraOnHit(attacker, target, attack, result.Critical, smite) : (0, "");
+        if (result.Hit && smite is { } smiteLevel)
+        {
+            if (smiteFree)
+                attacker.FreeSmiteUsed = true;
+            else
+            {
+                SpendSlot(attacker, smiteLevel);
+                CombatantOf(e, attacker.Id).SpellSlotSpent = true;
+            }
+            CombatantOf(e, attacker.Id).BonusActionUsed = true;
+        }
+        if (blessed > 0)
+            spellText = $" (Benedizione +{blessed})" + spellText;
         attacker.SappedBy = null; // R2: Sap and Vex are for the next attack roll only
         if (attacker.Vexing == target.Id)
             attacker.Vexing = null;
@@ -626,8 +647,8 @@ internal sealed partial class Simulation
         var player = World.Actors[World.Player];
         var sawAttacker = attacker.IsPlayer || SeesActor(player, attacker);
         var sawTarget = target.IsPlayer || SeesActor(player, target);
-        var outcome = target.Vitality.TakeDamage(result.Damage, result.Critical, knockOut: nonLethal && attack.Melee);
-        Harmed(target, "è ferito"); // R1
+        var outcome = target.Vitality.TakeDamage(result.Damage + spellDamage, result.Critical, knockOut: nonLethal && attack.Melee);
+        Harmed(target, "è ferito", result.Damage + spellDamage); // R1, R3b: Concentration
         // P2b: a shot flies straight from the attacker to its impact: the target if it hits, past it if it misses.
         var map = World.Maps[e.Area];
         Spot? shotFrom = attack.Melee ? null : check.Origin ?? CurrentSpot(attacker), shotTo = null; // P3: from where it leans out
@@ -651,17 +672,17 @@ internal sealed partial class Simulation
         var extraSeen = sawTarget ? extra : extra[..^CoverText(check.Cover).Length];
         // C5a: the player reads it from its side of the GM screen.
         var seen = result.DescribeFor(attacker.IsPlayer ? AttackPerspective.Attacker : target.IsPlayer ? AttackPerspective.Target : AttackPerspective.Witness);
-        Record(e, kind, attacker, target, (a, t) => $"{a} {how} {t}{extra}. {result.Describe()}.", result.Roll,
-            attack: attack.Name, armorClass: result.TargetArmorClass, hit: result.Hit, critical: result.Critical, damage: result.Damage,
-            playerText: (a, t) => $"{a} {how} {t}{extraSeen}. {seen}.", shotFrom: shotFrom, shotTo: shotTo, sawMover: sawAttacker, cover: check.Cover);
-        var blow = World.RecordFact("Attack", $"{attacker.Name} {how} {target.Name}: {result.Describe()}.",
-            $"{attacker.Name} {how} {target.Name}: {seen}.", Participants(attacker, target));
+        Record(e, kind, attacker, target, (a, t) => $"{a} {how} {t}{extra}. {result.Describe()}{spellText}.", result.Roll,
+            attack: attack.Name, armorClass: result.TargetArmorClass, hit: result.Hit, critical: result.Critical, damage: result.Damage + spellDamage,
+            playerText: (a, t) => $"{a} {how} {t}{extraSeen}. {seen}{spellText}.", shotFrom: shotFrom, shotTo: shotTo, sawMover: sawAttacker, cover: check.Cover);
+        var blow = World.RecordFact("Attack", $"{attacker.Name} {how} {target.Name}: {result.Describe()}{spellText}.",
+            $"{attacker.Name} {how} {target.Name}: {seen}{spellText}.", Participants(attacker, target));
         LearnFrom(attacker, target, attack, result, cover); // C5a
         WitnessFight(e, attacker, target, opening: false, blow);
         Fell(e, target, attacker, outcome);
         if (World.Encounters.ContainsKey(e.Id))
             ApplyMastery(e, attacker, target, attack, result); // R2
-        return $"{attacker.Name} {how} {target.Name}{extra}. {seen}.";
+        return $"{attacker.Name} {how} {target.Name}{extra}. {seen}{spellText}.";
     }
 
     /// <summary>Records a creature dropping (down, knocked out, killed).</summary>
@@ -1154,7 +1175,7 @@ internal sealed partial class Simulation
                 KnockedOut = player.Vitality.KnockedOut, DeathSaveSuccesses = player.Vitality.DeathSaveSuccesses,
                 DeathSaveFailures = player.Vitality.DeathSaveFailures,
                 MovementLeftFeet = Math.Max(0, MovementLeft(e, player)), MovementLeftInches = Math.Max(0, MovementLeftInches(e, player)), SquaresLeft = Math.Max(0, MovementLeft(e, player)) / FeetPerSquare,
-                ActionAvailable = !me.ActionUsed, InteractionAvailable = !me.Interacted, BonusActionAvailable = !me.BonusActionUsed && HasBonusAction(player), AttacksLeft = me.AttacksLeft, ReactionAvailable = !me.ReactionUsed, Disengaged = me.Disengaged, Dodging = me.Dodging,
+                ActionAvailable = !me.ActionUsed, InteractionAvailable = !me.Interacted, BonusActionAvailable = !me.BonusActionUsed && HasBonusAction(player), AttacksLeft = me.AttacksLeft, SpellSlotSpent = me.SpellSlotSpent, ReactionAvailable = !me.ReactionUsed, Disengaged = me.Disengaged, Dodging = me.Dodging,
             },
             Combatants = e.Order.Select(c => World.Actors[c.Actor]).Where(x => x.Id != player.Id && SeesActor(player, x))
                 .Select(x => new CombatantView
@@ -1201,7 +1222,9 @@ internal sealed partial class Simulation
                 Attack = r.Attack, D20 = r.Actor == player.Id ? r.D20 : Array.Empty<int>(), Kept = r.Actor == player.Id ? r.Kept : null,
                 Bonus = r.Actor == player.Id ? r.Bonus : null, Total = r.Actor == player.Id ? r.Total : null, ArmorClass = null, Hit = r.Hit,
                 Critical = r.Critical, Damage = r.Actor == player.Id || r.Target == player.Id ? r.Damage : null,
-                Path = r.PlayerSawActor ? r.Path : Array.Empty<GridPos>(), Spots = r.PlayerSawActor ? r.Spots : Array.Empty<Spot>(),
+                Path = r.PlayerSawActor ? r.Path : Array.Empty<GridPos>(),
+                // Review R2: a push moves the target, so its points are shown only if the player saw the target.
+                Spots = (r.Kind == CombatLogKind.Mastery ? r.PlayerSawTarget : r.PlayerSawActor) ? r.Spots : Array.Empty<Spot>(),
                 // P2b: the shot's origin only if the player saw who shot, its impact only if it saw the target.
                 ShotFrom = r.PlayerSawActor ? r.ShotFrom : null, ShotTo = r.PlayerSawTarget ? r.ShotTo : null,
                 Cover = r.PlayerSawTarget ? r.Cover : CoverDegree.None, Text = r.PlayerText!, // P3: the cover only if the target was seen

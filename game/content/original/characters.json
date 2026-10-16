@@ -6,6 +6,6 @@
       "skills": ["Athletics", "Insight", "Persuasion", "Religion"],
       "equipment": { "armor": "chain-mail", "shield": "shield", "mainHand": "longsword" },
       "items": [["javelin", 6]], "coins": 900,
-      "masteries": ["longsword", "javelin"] }
+      "masteries": ["longsword", "javelin"], "spells": ["bless", "cure-wounds"] }
   ]
 }

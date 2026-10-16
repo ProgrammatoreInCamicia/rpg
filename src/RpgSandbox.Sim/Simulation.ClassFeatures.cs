@@ -107,6 +107,20 @@ internal sealed partial class Simulation
                 Id = $"ability-scores-{actor.Choices.AbilityIncreases.Count / 2 + 1}", Kind = "AbilityScores", Title = "Aumento dei punteggi",
                 Options = Enum.GetNames<Ability>(), Picks = 2,
             });
+        var missing = PreparedMax(actor) - actor.PreparedSpells.Count; // R3b
+        var preparable = PreparableSpells(actor).Where(s => !actor.PreparedSpells.Contains(s)).ToArray();
+        if (missing > 0 && preparable.Length > 0)
+            choices.Add(new ChoiceView
+            {
+                Id = "prepared-spells", Kind = "PreparedSpells", Title = "Incantesimi preparati", Options = preparable,
+                Picks = Math.Min(missing, preparable.Length),
+            });
+        else if (actor.SpellSwapOpen && actor.PreparedSpells.Count > 0 && preparable.Length > 0)
+            choices.Add(new ChoiceView
+            {
+                Id = "swap-spell", Kind = "SwapSpell", Title = "Cambia un incantesimo preparato (prima quello da togliere)", Optional = true,
+                Options = actor.PreparedSpells.Concat(preparable).ToArray(), Picks = 2,
+            });
         if (actor.MasteryChangeOpen && ClassOf(actor) is { } cls && World.Content.Classes[cls].Masteries > 0)
             choices.Add(new ChoiceView
             {
@@ -151,6 +165,15 @@ internal sealed partial class Simulation
             case "WeaponMastery":
                 actor.Choices = actor.Choices with { Masteries = picked.ToArray() };
                 actor.MasteryChangeOpen = false;
+                break;
+            case "PreparedSpells":
+                actor.PreparedSpells.AddRange(picked);
+                break;
+            case "SwapSpell":
+                if (!actor.PreparedSpells.Contains(picked[0]) || actor.PreparedSpells.Contains(picked[1]))
+                    return CommandResult.Rejected(RejectionReason.InvalidAmount, "Prima un incantesimo preparato, poi uno nuovo.");
+                actor.PreparedSpells[actor.PreparedSpells.IndexOf(picked[0])] = picked[1];
+                actor.SpellSwapOpen = false;
                 break;
         }
         var oldMaximum = actor.Profile.MaxHitPoints;

@@ -203,6 +203,10 @@ public enum RejectionReason
     // R1: rests
     /// <summary>A Long Rest less than 16 hours after the end of the last one (SRD).</summary>
     TooSoon,
+
+    // R3b: spells
+    /// <summary>No spell slot of that level left, or a slot already spent this turn.</summary>
+    NoSlot,
 }
 
 public sealed record CommandResult

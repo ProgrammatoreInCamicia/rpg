@@ -291,4 +291,36 @@ public class ConditionTests
         Assert.Contains("paura", closer.Message);
         Assert.True(s.Execute(new MoveToSpotCommand { Actor = s.Player, To = Spot.CenterOf(new GridPos(0, 2)) }).Success);
     }
+
+    [Fact]
+    public void Who_caused_a_condition_shows_only_if_the_player_sees_them_and_a_push_shows_where_the_seen_target_went()
+    {
+        var s = Fight();
+        s.Engine.AddCondition(E(s), Me(s), ConditionKind.Grappled, Of(s, Foe));
+        Assert.Equal(Foe, Assert.Single(s.GetPlayerView().Conditions).Source);
+        s.Engine.AddCondition(E(s), Of(s, Foe), ConditionKind.Invisible);
+        Assert.Null(Assert.Single(s.GetPlayerView().Conditions, c => c.Kind == ConditionKind.Grappled).Source); // review R2
+
+        // An unseen guard pushes the player: the player still sees where it was pushed (review R2).
+        var p = SimulationSession.Create(new ScenarioBuilder().WithSeed(1)
+            .AddArea("a", "A").AddLocation("yard", "Cortile", "a")
+            .AddMap("a", Enumerable.Repeat("YYYYYYYYYY", 6).ToArray(), new Dictionary<char, string> { ['Y'] = "yard" })
+            .AddActor("player", "Paladino", "yard", isPlayer: true, at: (3, 2))
+            .AddActor("foe", "Guardia", "yard", combat: "guard", at: (4, 2))
+            .Build());
+        p.AdvanceTo(At(1, 12));
+        p.Engine.AddCondition(null, Of(p, Foe), ConditionKind.Invisible);
+        Of(p, Foe).Profile = Of(p, Foe).Profile with
+        {
+            Attacks = Of(p, Foe).Profile.Attacks.Select(a => a with { Mastery = WeaponMastery.Push, AttackBonus = 30 }).ToArray(),
+        };
+        Me(p).Vitality.RaiseMaximum(100);
+        Me(p).Vitality.Heal(100);
+        NoNaturalOne(p);
+        Assert.True(p.Execute(new AttackCommand { Actor = Foe, Target = p.Player, Attack = "Lancia" }).Success);
+        var push = p.GetPlayerView().Combat!.Log.SingleOrDefault(l => l.Kind == CombatLogKind.Mastery && l.Text.Contains("spinge"));
+        Assert.NotNull(push);
+        Assert.Null(push!.Actor); // who pushed stays unknown
+        Assert.Equal(2, push.Spots.Count);
+    }
 }

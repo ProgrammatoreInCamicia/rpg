@@ -290,9 +290,10 @@ public sealed class SimulationSession
             HitDice = _sim.HitDiceOf(player) is { } dice
                 ? new HitDiceView { Remaining = dice.Max - player.HitDiceSpent, Max = dice.Max, Die = dice.Die } : null,
             LongRestFrom = _sim.LongRestFrom(player),
-            Conditions = Freeze(_sim.ConditionsOf(player, visibleOnly: false)), Exhaustion = player.Exhaustion,
+            Conditions = Freeze(_sim.ConditionsOf(player, visibleOnly: false, player)), Exhaustion = player.Exhaustion,
             LayOnHands = _sim.LayOnHandsPool(player) is { } pool ? new PoolView { Remaining = pool.Remaining, Max = pool.Max } : null,
             PendingChoices = _sim.PendingChoicesOf(player), FightingStyle = player.Choices.FightingStyle,
+            Spells = _sim.SpellbookOf(player), Effects = Freeze(_sim.EffectsOn(player)),
             MasteryWeapons = Freeze((player.Choices.Masteries ?? (w.Content.Characters.TryGetValue(player.Build, out var definition)
                 ? definition.Masteries : Array.Empty<string>())).Select(i => new ItemId(i))),
             Move = MoveOf(player),
@@ -338,7 +339,7 @@ public sealed class SimulationSession
                     : null,
                 Doing = map is not null || (player.Location is { } here && x.Location == here) ? OutwardDoing(x, w) : null,
                 AtBarrier = x.CurrentAction is BarrierAction work ? new BarrierRefView { A = work.Target.A, B = work.Target.B } : null,
-                Conditions = Freeze(_sim.ConditionsOf(x, visibleOnly: true)),
+                Conditions = Freeze(_sim.ConditionsOf(x, visibleOnly: true, player)),
                 Position = PositionOf(x, w),
                 Spot = SpotOf(x, w),
                 Move = MoveOf(x),

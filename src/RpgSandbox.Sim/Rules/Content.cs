@@ -92,6 +92,9 @@ public sealed record CharacterDefinition
 
     /// <summary>The weapons (by item id) whose mastery the character has unlocked.</summary>
     public required IReadOnlyList<string> Masteries { get; init; }
+
+    /// <summary>R3b: the spells it starts with prepared (SRD: chosen at level 1).</summary>
+    public IReadOnlyList<string> Spells { get; init; } = Array.Empty<string>();
 }
 
 /// <summary>SRD class core traits the rules use so far.</summary>
@@ -251,6 +254,8 @@ public sealed class ContentPack
         foreach (var (build, kind) in creatures.Select(c => (c.Key, c.Value.Kind)).Concat(characters.Select(c => (c.Key, c.Value.Kind))))
             if (!kinds.ContainsKey(kind))
                 throw new InvalidDataException($"contenuti: '{build}' è di un tipo sconosciuto '{kind}'");
+        foreach (var (who, spell) in characters.Values.SelectMany(c => c.Spells.Select(s => (c.Id, s))).Where(x => !spells.ContainsKey(x.s)))
+            throw new InvalidDataException($"contenuti: '{who}' prepara un incantesimo sconosciuto '{spell}'");
         foreach (var dup in creatures.Keys.Intersect(characters.Keys))
             throw new InvalidDataException($"contenuti: '{dup}' è sia una creatura sia un personaggio");
 
@@ -426,6 +431,7 @@ public sealed class ContentPack
             Skills = Array(e, "skills", where).Select(x => EnumOf<Skill>(x, where)).ToArray(), Equipment = equipment,
             Items = Stacks(e, items, where), Coins = e.TryGetProperty("coins", out var c) ? c.GetInt64() : 0,
             Masteries = Array(e, "masteries", where).Select(x => KnownItem(x.GetString(), items, where)).ToArray(),
+            Spells = e.TryGetProperty("spells", out var spells) ? spells.EnumerateArray().Select(x => x.GetString() ?? "").ToArray() : System.Array.Empty<string>(),
             Kind = Text(e, "kind", where),
         };
     }

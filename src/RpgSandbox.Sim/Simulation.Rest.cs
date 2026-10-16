@@ -44,6 +44,9 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(RejectionReason.InvalidAmount, $"Puoi spendere da 0 a {remaining} Dadi Vita.");
 
         actor.MasteryChangeOpen = false; // R3a: the chance to change the masteries passes
+        actor.SpellSwapOpen = false;
+        if (command.Long)
+            EndConcentration(actor, "si addormenta"); // SRD: asleep, it is Unconscious
         var rest = new RestAction
         {
             Id = World.AllocateActionId(), Actor = actor.Id, StartedAt = World.Now,
@@ -68,6 +71,7 @@ internal sealed partial class Simulation
             var healed = actor.Vitality.Heal(actor.Vitality.Maximum);
             actor.HitDiceSpent = 0;
             FeaturesAfterLongRest(actor); // R3a
+            SpellsAfterLongRest(actor); // R3b
             if (actor.Exhaustion > 0)
                 AddExhaustion(actor, -1, "ha dormito"); // R2, SRD Exhaustion: a Long Rest takes a level away
             actor.LastLongRestEnd = World.Now;
@@ -114,11 +118,12 @@ internal sealed partial class Simulation
     }
 
     /// <summary>R1: it took damage or was in a fight: a rest stops, and an NPC's recovery starts over.</summary>
-    private void Harmed(Actor actor, string why)
+    private void Harmed(Actor actor, string why, int damage = 0)
     {
         actor.LastHarmAt = World.Now;
         if (actor.CurrentAction is RestAction)
             CancelAction(actor, why);
+        ConcentrationAfterHarm(actor, damage); // R3b
     }
 
     /// <summary>R1, ADAPTATION: a wounded, conscious NPC that went 8 hours without damage or fights has healed.</summary>

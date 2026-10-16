@@ -108,6 +108,9 @@ internal sealed partial class Simulation
                     case CombatRound round:
                         StartRound(round.Encounter);
                         break;
+                    case ExpireEffects:
+                        ExpireSpellEffects(); // R3b
+                        break;
                 }
             }
 

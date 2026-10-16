@@ -20,11 +20,18 @@ internal sealed partial class Simulation
     internal bool Incapacitated(Actor actor) =>
         Has(actor, ConditionKind.Incapacitated) || Has(actor, ConditionKind.Paralyzed) || Has(actor, ConditionKind.Stunned);
 
-    /// <summary>The conditions in force now, for the views.</summary>
-    internal IEnumerable<ConditionView> ConditionsOf(Actor actor, bool visibleOnly) =>
+    /// <summary>
+    /// The conditions in force now, as <paramref name="viewer"/> knows them: its own and those it sees on others; who caused
+    /// one only if that is the viewer itself or someone it sees (review R2: the source is "if known").
+    /// </summary>
+    internal IEnumerable<ConditionView> ConditionsOf(Actor actor, bool visibleOnly, Actor viewer) =>
         actor.Conditions
             .Where(c => (c.Until is not { } until || until > World.Now) && (!visibleOnly || VisibleConditions.Contains(c.Kind)))
-            .Select(c => new ConditionView { Kind = c.Kind, Source = c.Source, Until = c.Until });
+            .Select(c => new ConditionView
+            {
+                Kind = c.Kind, Until = c.Until,
+                Source = c.Source is { } source && (source == viewer.Id || World.Actors.TryGetValue(source, out var who) && SeesActor(viewer, who)) ? source : null,
+            });
 
     /// <summary>A condition begins (a second one of the same kind replaces the first): a log line in a fight, and a fact.</summary>
     internal void AddCondition(Encounter? e, Actor actor, ConditionKind kind, Actor? source = null, GameTime? until = null,
@@ -36,6 +43,8 @@ internal sealed partial class Simulation
         if (e is not null)
             Record(e, CombatLogKind.Condition, actor, source, (a, _) => $"{a} è {ConditionName(kind)}.");
         World.RecordFact("ConditionStarted", $"{words}.", actor.Id);
+        if (kind is ConditionKind.Incapacitated or ConditionKind.Paralyzed or ConditionKind.Stunned)
+            EndConcentration(actor, "è incapacitato"); // R3b
     }
 
     /// <summary>A condition ends, if the creature has it.</summary>
@@ -99,7 +108,7 @@ internal sealed partial class Simulation
             return false;
         }
         var disadvantage = ability == Ability.Dexterity && Has(actor, ConditionKind.Restrained);
-        var roll = D20.Roll(World.Rng, actor.Sheet.SaveBonus(ability) + ExhaustionPenalty(actor), disadvantage: disadvantage);
+        var roll = D20.Roll(World.Rng, actor.Sheet.SaveBonus(ability) + ExhaustionPenalty(actor) + BlessRoll(actor), disadvantage: disadvantage); // R3b: Bless
         var success = roll.Total >= dc;
         var text = $"tiro salvezza su {name} contro {against}: {roll.Describe()}, {(success ? "riuscito" : "fallito")}";
         if (e is not null)

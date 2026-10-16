@@ -137,6 +137,13 @@ internal sealed class ActorDto
     public string? FightingStyle { get; set; }
     public int LayOnHandsSpent { get; set; }
     public bool MasteryChangeOpen { get; set; }
+    /// <summary>Schema 36 (R3b): spell slots spent, prepared spells, the free smite, the swap after a rest, Concentration, effects.</summary>
+    public List<int>? SlotsSpent { get; set; }
+    public List<string>? PreparedSpells { get; set; }
+    public bool FreeSmiteUsed { get; set; }
+    public bool SpellSwapOpen { get; set; }
+    public string? Concentrating { get; set; }
+    public List<SpellEffectDto>? Effects { get; set; }
     public List<string>? Defeated { get; set; }
 
     /// <summary>P1 (schema 23): the exact point where it stands, when not the centre of its square.</summary>
@@ -592,6 +599,7 @@ internal sealed class CombatantDto
     public bool Cleaved { get; set; }
     public bool BonusActionUsed { get; set; }
     public int AttacksLeft { get; set; }
+    public bool SpellSlotSpent { get; set; }
     public bool Interacted { get; set; }
 }
 
@@ -714,4 +722,13 @@ internal sealed class ConditionDto
     public string? Source { get; set; }
     public long? Until { get; set; }
     public string? EndsAtTurnOf { get; set; }
+}
+
+internal sealed class SpellEffectDto
+{
+    public string Spell { get; set; } = "";
+    public string Caster { get; set; } = "";
+    public long? Until { get; set; }
+    public bool Concentration { get; set; }
+    public int Amount { get; set; }
 }

@@ -20,6 +20,9 @@ internal sealed record EvaluateFaction(FactionId Faction) : ScheduledJob;
 /// <summary>C2: the next round of a fight begins (6 seconds after the previous one).</summary>
 internal sealed record CombatRound(long Encounter) : ScheduledJob;
 
+/// <summary>R3b: spells whose duration ran out end now.</summary>
+internal sealed record ExpireEffects : ScheduledJob;
+
 /// <summary>
 /// Explicit deadlines ordered by (due time, scheduling sequence). Simulation time jumps from one
 /// deadline to the next instead of stepping second by second. Ties resolve in scheduling order.

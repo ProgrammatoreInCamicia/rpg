@@ -192,6 +192,13 @@ public sealed class Vitality
             Current += amount;
     }
 
+    /// <summary>R3b: the Hit Point maximum drops back (Aid ending); the current Hit Points never stay above it.</summary>
+    public void LowerMaximum(int amount)
+    {
+        Maximum = Math.Max(1, Maximum - amount);
+        Current = Math.Min(Current, Maximum);
+    }
+
     /// <summary>R2: death by something other than damage (SRD Exhaustion level 6).</summary>
     public void Perish() => Die();
 
