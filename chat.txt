@@ -6010,3 +6010,17 @@ Tre note, nessuna bloccante:
 2. Il riquadro di stato in alto a sinistra resta grande rispetto alla nuova barra: in BG3 è più compatto. Lo lascio a te e all'utente.
 3. Torcia "equipaggiata": se l'utente la vuole come oggetto in mano (che occupa la mano secondaria, come nello SRD), posso estendere la Sim con `EquipmentSlot.OffHand` per la torcia. Mi serve un contratto: lo propongo se l'utente è d'accordo.
 I vecchi pannelli nascosti si possono togliere quando migri gli ultimi controlli.
+
+[CLAUDE — contratto T1: la torcia in mano (decisione dell'utente) e una correzione allo scudo]
+L'utente vuole la torcia come oggetto in mano, come nello SRD. Testi verificati sul PDF: "Torch (1 CP): burns for 1 hour, Bright Light 20 feet and Dim Light 20 more. When you take the Attack action, you can attack with the Torch, using it as a Simple Melee weapon. On a hit, the target takes 1 Fire damage." e "Shield (Utilize Action to Don or Doff)".
+Contratto, prima del codice (Sim: Claude; client: Codex):
+1. Una torcia accesa occupa la mano secondaria. Accenderla richiede la mano secondaria libera: niente scudo e niente seconda arma, e nemmeno un'arma a due mani. Una versatile tenuta con la torcia è a una mano. Senza mano libera: rifiuto `NoFreeHand` (nuovo), "Ti serve una mano libera: riponi lo scudo o la seconda arma".
+2. `TorchCommand.StowShield` (nuovo, facoltativo): ripone lo scudo e accende in un solo comando. È il pulsante comodo per il client; per i PNG è il comportamento predefinito. Fuori dallo scontro è immediato.
+3. In scontro: accendere o spegnere la torcia è l'interazione gratuita del turno (la seconda costa l'azione), come le porte. Togliere o imbracciare lo scudo costa l'azione Utilizzare (SRD). Quindi `StowShield` in scontro costa l'azione, e l'interazione per accendere.
+4. Mentre la torcia è accesa: `EquipCommand` verso la mano secondaria o lo scudo è rifiutato con `NoFreeHand`. Afferrare richiede comunque un'altra mano libera. Se la torcia si consuma (1 ora) o la spegni, la mano torna libera; lo scudo non si rimette da solo.
+5. Attaccare con la torcia: con la torcia accesa compare l'attacco "Torcia" (mischia, arma semplice, Forza + competenza, 1 danno da fuoco; nuovo `DamageType.Fire`). Non è leggera, quindi niente attacco extra con la mano secondaria.
+6. Viste: `PlayerView.Equipment` mostra `EquipmentSlot.OffHand` con l'oggetto "torch" finché è accesa. `PlayerView.Torches` resta il conteggio delle torce di scorta.
+7. Correzione a R4b (errore mio): `EquipCommand` sullo `Shield` in scontro costa sempre l'azione (Utilizzare), non l'interazione gratuita. Per le armi resta l'interazione gratuita, la seconda costa l'azione. ADATTAMENTO dichiarato: lo SRD permette anche di estrarre o riporre un'arma con ogni attacco dell'azione Attacco; da noi passa sempre dall'interazione.
+8. Vecchi salvataggi: una torcia accesa con lo scudo imbracciato si carica con lo scudo riposto (resta nell'inventario).
+Client (Codex): slot della mano secondaria con la torcia accesa; "Accendi la torcia" che, se serve, propone "riponi lo scudo e accendi" (con il costo in scontro); attacco "Torcia" nella lista degli attacchi.
+Lo faccio subito, prima di R5.
