@@ -938,3 +938,15 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 
 ### P5d — Coperture lontane
 - I tiratori PNG cercano riparo con più punti per anello (gli anelli restano ogni 30 pollici): su ogni anello un multiplo delle 16 direzioni di prima (che restano tutte), con i punti a non più di 36 pollici (la larghezza di un corpo). Trovano tutti i ripari di prima e anche quelli sottili e lontani fra due direzioni. Nessuna API.
+
+## R1 — Riposo e guarigione (SRD 5.2.1 Short Rest, Long Rest, Hit Point Dice)
+
+- `PlayerView.HitDice` (`HitDiceView`: `Remaining`, `Max`, `Die`): tanti quanti il livello, del dado della classe (Paladino d10); null per le creature senza classe.
+- `RestCommand { Long, HitDice }`, fuori da uno scontro e da fermo. Parte un'azione `Kind = "Rest"` (`PlayerView.Action`, descrizione "Riposa" o "Dorme").
+  - Breve: 1 ora; alla fine spende fino a `HitDice` Dadi Vita (da 0 ai rimasti), ognuno dado + modificatore di Costituzione (minimo 0), fino al massimo.
+  - Lungo: 8 ore; serve almeno 1 punto ferita e non più di uno ogni 16 ore (`TooSoon`); alla fine tutti i punti ferita e tutti i Dadi Vita. `PlayerView.LongRestFrom`: da quando si potrà, null se si può già.
+  - Interruzioni: uno scontro che lo coinvolge, un danno subito, `StopCommand`. Il breve interrotto non dà nulla; il lungo interrotto dopo almeno 1 ora dà i benefici del breve, senza Dadi Vita.
+  - ADATTAMENTO: nel riposo lungo dorme e non vede nulla; un rumore sentito (colpi, vetri) lo sveglia e interrompe il riposo.
+- Fatti: `RestStarted`, `RestCompleted`, `RestInterrupted` (con il motivo).
+- PNG, ADATTAMENTO: un PNG ferito e cosciente, dopo 8 ore senza danni né scontri, recupera tutti i punti ferita.
+- Salvataggio schema 33.

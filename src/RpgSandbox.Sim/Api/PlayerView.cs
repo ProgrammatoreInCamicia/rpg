@@ -29,6 +29,12 @@ public sealed record PlayerView
     public Spot? Spot { get; init; }
     public MoveView? Move { get; init; }
 
+    /// <summary>R1: the character's Hit Point Dice; null for a creature without a class.</summary>
+    public HitDiceView? HitDice { get; init; }
+
+    /// <summary>R1: from when the next Long Rest can be taken (SRD: one in 16 hours); null if it can be now.</summary>
+    public GameTime? LongRestFrom { get; init; }
+
     /// <summary>Direction the character faces in map coordinates; null in legacy all-direction scenarios.</summary>
     public GridPos? Facing { get; init; }
 
@@ -262,4 +268,14 @@ public sealed record BarrierRefView
     public required GridPos A { get; init; }
     public required GridPos B { get; init; }
     public bool IsDoor => A == B;
+}
+
+/// <summary>R1, SRD Hit Point Dice: as many as the character's level, of its class's die; spent on Short Rests.</summary>
+public sealed record HitDiceView
+{
+    public required int Remaining { get; init; }
+    public required int Max { get; init; }
+
+    /// <summary>The die's faces (Paladin: 10).</summary>
+    public required int Die { get; init; }
 }

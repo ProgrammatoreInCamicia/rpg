@@ -199,6 +199,10 @@ public enum RejectionReason
     /// <summary>A closed window with its glass whole: nobody climbs through.</summary>
     Closed,
     Barred,
+
+    // R1: rests
+    /// <summary>A Long Rest less than 16 hours after the end of the last one (SRD).</summary>
+    TooSoon,
 }
 
 public sealed record CommandResult
@@ -256,4 +260,15 @@ public sealed record MoveToSpotCommand : Command
 
     /// <summary>Sneak, as with <see cref="MoveCommand.Stealthy"/> (Slow pace; this prototype does not seek the dark).</summary>
     public bool Stealthy { get; init; }
+}
+
+/// <summary>
+/// R1, SRD Short Rest and Long Rest: rest on the spot, outside a fight. Short: 1 hour, then up to <see cref="HitDice"/>
+/// Hit Point Dice are spent (each: the die + Constitution modifier). Long: 8 hours of sleep; all Hit Points and Hit
+/// Point Dice back. Interrupted by a fight, by damage, or by a noise heard while asleep.
+/// </summary>
+public sealed record RestCommand : Command
+{
+    public required bool Long { get; init; }
+    public int HitDice { get; init; }
 }

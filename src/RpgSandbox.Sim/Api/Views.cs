@@ -243,7 +243,7 @@ public sealed record ActionView
 {
     public required ActionId Id { get; init; }
 
-    /// <summary>"Travel", "DepositFood", "TakeFood", "Wait", "Report" or "Guard". New kinds are announced before they appear.</summary>
+    /// <summary>"Travel", "DepositFood", "TakeFood", "Wait", "Report", "Guard", "Rest" (R1)... New kinds are announced before they appear.</summary>
     public required string Kind { get; init; }
 
     public required GameTime StartedAt { get; init; }
