@@ -163,6 +163,12 @@ public sealed record VisibleActorView
     public string? Doing { get; init; }
 
     /// <summary>
+    /// P5a: the door or window it is working on (picking, forcing, breaking glass, climbing), when the player sees it;
+    /// null otherwise. <see cref="Doing"/> says the gesture.
+    /// </summary>
+    public BarrierRefView? AtBarrier { get; init; }
+
+    /// <summary>
     /// On maps: whether this actor sees the player right now (SRD: if you can see a creature, you can discern whether
     /// it can see you). Null off the maps.
     /// </summary>
@@ -248,4 +254,12 @@ public sealed record KnownBarrierView
     /// <summary>P4a review: it has a lock (a key fits it), so it can be locked; false for one that only sticks.</summary>
     public bool HasLock { get; init; }
     public required string Clue { get; init; }
+}
+
+/// <summary>P5a: a door (<see cref="A"/> = <see cref="B"/> = its square) or a window (the two squares it lies between).</summary>
+public sealed record BarrierRefView
+{
+    public required GridPos A { get; init; }
+    public required GridPos B { get; init; }
+    public bool IsDoor => A == B;
 }

@@ -913,3 +913,23 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 - Muri e luce mantengono le loro regole in entrambi gli stati: guardare verso una casella buia o dietro un muro non la rende visibile. Gli altri PNG, con `Facing = null`, conservano la vista omnidirezionale; le aree senza mappa conservano le regole di Luogo.
 - Il client sfuma il confine *all'interno* delle caselle visibili. Il controllo delle caselle resta alla Sim; la sfumatura non scopre stanze, personaggi o oggetti oltre il limite. È ancora una resa a caselle, non una visibilità geometrica continua al pixel.
 - Salvataggio schema 31: `Facing` del giocatore è opzionale nei vecchi salvataggi e viene abilitato dal client al caricamento. Dopo il salvataggio conserva la direzione. Le sorgenti di luce usano distanza euclidea, così la loro impronta è circolare.
+
+## P5 — Ultimi punti di porte, finestre e coperture
+
+### P5a — Il predone supera le barriere
+- Solo un PNG in razzia. Per gli altri una porta che tiene senza la chiave resta un muro.
+- Se la via verso il bersaglio è chiusa solo da barriere, il predone la attraversa con le azioni del giocatore, con stessi tempi, prove, rumore e fatto BreakIn:
+  - porta chiusa a chiave: la scassina con gli arnesi da scasso, altrimenti la forza;
+  - porta incastrata: la forza;
+  - finestra chiusa: la apre; se tiene, rompe il vetro; poi ci si arrampica. Le sbarre fermano il predone.
+- Un tentativo fallito si ripete una volta; al secondo fallimento la razzia finisce (`RaidAborted`).
+- `VisibleActorView.AtBarrier` (`BarrierRefView`: `A`, `B`; `A == B` per una porta): la porta o finestra su cui lavora, se il giocatore lo vede. `Doing` dice il gesto.
+
+### P5b — `MoveCommand` a caselle in scontro
+- Come P4d: al massimo una porta chiusa aperta strada facendo come interazione gratuita del turno. `MovePreview.OpensDoor`.
+
+### P5c — Raccogliere dopo la porta
+- In scontro, `PickUpCommand` con l'interazione gratuita già usata richiede l'azione (SRD, Utilizzare): "(usi l'azione)". Senza azione: `NoActionLeft`.
+
+### P5d — Coperture lontane
+- I tiratori PNG cercano riparo campionando 32 direzioni e più distanze. Nessuna API.
