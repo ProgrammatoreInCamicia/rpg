@@ -30,6 +30,8 @@ public partial class VillageMap
 			"magic" => "<path d='m6 27 17-17M22 4l1 5 5 1-5 1-1 5-1-5-5-1 5-1zM7 5l1 3 3 1-3 1-1 3-1-3-3-1 3-1zM25 22l1 3 3 1-3 1-1 3-1-3-3-1 3-1z' />",
 			"eye" => "<path d='M2 16c5-7 9-10 14-10s9 3 14 10c-5 7-9 10-14 10S7 23 2 16Z' /><circle cx='16' cy='16' r='5' />",
 			"turn" => "<path d='M4 8h15a7 7 0 0 1 0 14H7m5-5-5 5 5 5' />",
+			"search" => "<circle cx='13' cy='13' r='8' /><path d='m19 19 9 9M10 11a4 4 0 0 1 4-3' />",
+			"options" => "<path d='M5 9h22M5 16h22M5 23h22' /><circle cx='11' cy='9' r='2.6' /><circle cx='21' cy='16' r='2.6' /><circle cx='13' cy='23' r='2.6' />",
 			"pause" => "<path d='M9 6v20M23 6v20' />",
 			"stop" => "<path d='M7 7h18v18H7z' />",
 			"sneak" => "<path d='M5 25c4-2 7-3 11-3s7 1 11 3M12 20l2-8 6-3M18 9l5 5M13 7a3 3 0 1 0 6 0 3 3 0 0 0-6 0Z' />",

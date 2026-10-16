@@ -3,20 +3,44 @@ using RpgSandbox.Sim.Api;
 
 namespace RpgSandbox.Game;
 
-/// <summary>The visible hotbar: equipment beside the portrait, resources above icon-only actions.</summary>
+/// <summary>
+/// The hotbar, after the reference in docs/hotbar.webp: one dark frame with a bronze rim; the portrait with its hit
+/// point bar and the hands as slots; the Common, Paladin and Items sections side by side in a fixed grid of slots (empty
+/// slots show); Action and Bonus as markers that dim the commands not using them; a round fixed button on the right.
+/// </summary>
 public partial class VillageMap
 {
 	private enum QuickFilter { All, Action, Bonus }
-	private enum QuickDeck { Common, Paladin, Items }
+	private enum QuickSection { Common, Paladin, Items }
+
+	private static readonly Color BarBronze = new("7a5f3a");
+	private static readonly Color BarGold = new("d9b26a");
+	private static readonly Color BarText = new("cdbf9f");
+	private static readonly Color SlotFill = new(0.115f, 0.105f, 0.095f);
+	private static readonly Color ActionMark = new("5fbf6a");
+	private static readonly Color BonusMark = new("e08a3c");
+	private const int SlotSize = 42;
+	private const int SlotRows = 2;
+
+	/// <summary>The sections of the grid, left to right: columns of slots and the caption under them.</summary>
+	private static readonly (QuickSection Section, int Columns, string Title)[] QuickSections =
+	{
+		(QuickSection.Common, 4, "COMUNI"), (QuickSection.Paladin, 2, "PALADINO"), (QuickSection.Items, 2, "OGGETTI"),
+	};
+
 	private PanelContainer _quickbarPanel = null!;
 	private TextureRect _quickPortrait = null!;
+	private ProgressBar _quickHitPointsBar = null!;
 	private Label _quickHitPoints = null!;
 	private Button _quickMainHand = null!;
 	private Button _quickOffHand = null!;
 	private Button _quickTorch = null!;
-	private GridContainer _quickExploreActions = null!;
+	private HBoxContainer _quickExploreActions = null!;
+	private HBoxContainer _quickCombatActions = null!;
+	private readonly Dictionary<QuickSection, GridContainer> _quickExploreGrids = new();
+	private readonly Dictionary<QuickSection, GridContainer> _quickCombatGrids = new();
+	private readonly Dictionary<GridContainer, List<Panel>> _quickEmptySlots = new();
 	private Button _quickExploreAttack = null!;
-	private GridContainer _quickCombatActions = null!;
 	private Button _quickAttack = null!;
 	private Button _quickDash = null!;
 	private Button _quickDisengage = null!;
@@ -31,111 +55,167 @@ public partial class VillageMap
 	private Button _quickItemTorch = null!;
 	private Button _quickCombatItemTorch = null!;
 	private Button _quickEndTurn = null!;
+	private Button _quickPause = null!;
 	private MenuButton _quickMore = null!;
 	private Button _quickAllFilter = null!;
 	private Button _quickActionFilter = null!;
 	private Button _quickBonusFilter = null!;
+	private Label _quickMode = null!;
 	private Label _quickMovement = null!;
 	private Label _quickConcentration = null!;
-	private Label _quickExploreEmpty = null!;
-	private Label _quickCombatEmpty = null!;
-	private Button _quickCommonDeck = null!;
-	private Button _quickPaladinDeck = null!;
-	private Button _quickItemsDeck = null!;
 	private QuickFilter _quickFilter;
-	private QuickDeck _quickDeck;
-	private readonly Dictionary<Button, (QuickDeck Deck, QuickFilter Cost)> _quickActions = new();
+	private readonly Dictionary<Button, (QuickSection Section, QuickFilter Cost)> _quickActions = new();
+	private readonly HashSet<Button> _quickDimmed = new();
 	private PanelContainer _attackOptionsPanel = null!;
 	private PanelContainer _gameMenu = null!;
 	private Button _gameMenuButton = null!;
 	private ConfirmationDialog _torchShieldConfirm = null!;
 
+	private static StyleBoxFlat SlotStyle(Color border, Color fill, int width = 1, int radius = 4) => new()
+	{
+		BgColor = fill, BorderColor = border,
+		BorderWidthLeft = width, BorderWidthRight = width, BorderWidthTop = width, BorderWidthBottom = width,
+		CornerRadiusTopLeft = radius, CornerRadiusTopRight = radius,
+		CornerRadiusBottomLeft = radius, CornerRadiusBottomRight = radius,
+		ContentMarginLeft = 7, ContentMarginRight = 7, ContentMarginTop = 7, ContentMarginBottom = 7,
+	};
+
+	/// <summary>A square slot with its icon: a dark inset, the rim in the command's colour, gold when held or armed.</summary>
+	private static void StyleSlot(Button button, string icon, Color accent, int size = SlotSize, bool round = false)
+	{
+		var radius = round ? size / 2 : 4;
+		button.Text = "";
+		button.Icon = ActionIcon(icon);
+		button.IconAlignment = HorizontalAlignment.Center;
+		button.ExpandIcon = true;
+		button.CustomMinimumSize = new Vector2(size, size);
+		button.FocusMode = Control.FocusModeEnum.None;
+		var rim = accent.Lerp(BarBronze, 0.55f).Darkened(0.2f);
+		button.AddThemeStyleboxOverride("normal", SlotStyle(rim, SlotFill, 1, radius));
+		button.AddThemeStyleboxOverride("hover", SlotStyle(accent, SlotFill.Lightened(0.09f), 1, radius));
+		button.AddThemeStyleboxOverride("pressed", SlotStyle(BarGold, accent.Darkened(0.72f), 2, radius));
+		button.AddThemeStyleboxOverride("hover_pressed", SlotStyle(BarGold, accent.Darkened(0.6f), 2, radius));
+		button.AddThemeStyleboxOverride("disabled", SlotStyle(new Color(0.19f, 0.17f, 0.15f), new Color(0.075f, 0.07f, 0.065f), 1, radius));
+		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		button.AddThemeColorOverride("icon_normal_color", new Color(0.90f, 0.86f, 0.78f));
+		button.AddThemeColorOverride("icon_hover_color", Colors.White);
+		button.AddThemeColorOverride("icon_pressed_color", BarGold.Lightened(0.3f));
+		button.AddThemeColorOverride("icon_hover_pressed_color", BarGold.Lightened(0.3f));
+		button.AddThemeColorOverride("icon_disabled_color", new Color(0.36f, 0.34f, 0.31f));
+	}
+
+	private static Panel EmptySlot(int size = SlotSize)
+	{
+		var slot = new Panel { CustomMinimumSize = new Vector2(size, size), MouseFilter = Control.MouseFilterEnum.Ignore };
+		slot.AddThemeStyleboxOverride("panel", SlotStyle(new Color(0.16f, 0.14f, 0.12f), new Color(0.07f, 0.065f, 0.06f)));
+		return slot;
+	}
+
+	private static Control Divider()
+	{
+		var margin = new MarginContainer();
+		margin.AddThemeConstantOverride("margin_left", 7);
+		margin.AddThemeConstantOverride("margin_right", 7);
+		margin.AddThemeConstantOverride("margin_top", 4);
+		margin.AddThemeConstantOverride("margin_bottom", 4);
+		margin.AddChild(new ColorRect { Color = BarBronze.Darkened(0.35f), CustomMinimumSize = new Vector2(1, 0),
+			MouseFilter = Control.MouseFilterEnum.Ignore });
+		return margin;
+	}
+
 	private void BuildQuickbarUi(CanvasLayer ui)
 	{
-		_quickbarPanel = HudPanel(208, 930, -132, -16, bottomAnchored: true);
+		_quickbarPanel = HudPanel(224, 930, -158, -10, bottomAnchored: true);
 		_quickbarPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
 		{
-			BgColor = new Color(0.08f, 0.09f, 0.11f, 0.94f),
+			BgColor = new Color(0.062f, 0.056f, 0.05f, 0.96f), BorderColor = BarBronze,
+			BorderWidthLeft = 2, BorderWidthRight = 2, BorderWidthTop = 2, BorderWidthBottom = 2,
+			CornerRadiusTopLeft = 7, CornerRadiusTopRight = 7, CornerRadiusBottomLeft = 7, CornerRadiusBottomRight = 7,
+			ShadowColor = new Color(0, 0, 0, 0.55f), ShadowSize = 10,
+			ContentMarginLeft = 10, ContentMarginRight = 10, ContentMarginTop = 8, ContentMarginBottom = 8,
 		});
 		ui.AddChild(_quickbarPanel);
-		var bar = new HBoxContainer();
-		bar.AddThemeConstantOverride("separation", 7);
+		var bar = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+		bar.AddThemeConstantOverride("separation", 10);
 		_quickbarPanel.AddChild(bar);
-		var portraitBlock = new VBoxContainer { CustomMinimumSize = new Vector2(72, 0) };
-		portraitBlock.AddThemeConstantOverride("separation", 0);
+
+		// The portrait, ringed in bronze, with the hit points as a bar under it.
+		var portraitBlock = new VBoxContainer { SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+		portraitBlock.AddThemeConstantOverride("separation", 5);
 		bar.AddChild(portraitBlock);
-		var portraitFrame = new PanelContainer { CustomMinimumSize = new Vector2(70, 70), ClipContents = true };
-		portraitFrame.AddThemeStyleboxOverride("panel", new StyleBoxFlat
-		{
-			BgColor = new Color(0.23f, 0.21f, 0.30f), BorderColor = UtilityAccent,
-			BorderWidthLeft = 2, BorderWidthRight = 2, BorderWidthTop = 2, BorderWidthBottom = 2,
-			CornerRadiusTopLeft = 35, CornerRadiusTopRight = 35,
-			CornerRadiusBottomLeft = 35, CornerRadiusBottomRight = 35,
-		});
+		var portraitFrame = new PanelContainer { CustomMinimumSize = new Vector2(78, 78), ClipContents = true };
+		portraitFrame.AddThemeStyleboxOverride("panel", SlotStyle(BarBronze.Lightened(0.15f), new Color(0.16f, 0.14f, 0.13f), 3, 39));
 		portraitBlock.AddChild(portraitFrame);
-		_quickPortrait = new TextureRect { CustomMinimumSize = new Vector2(68, 68),
+		_quickPortrait = new TextureRect { CustomMinimumSize = new Vector2(64, 64),
 			ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
 			StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
 			MouseFilter = Control.MouseFilterEnum.Ignore };
 		portraitFrame.AddChild(_quickPortrait);
-		_quickHitPoints = new Label { HorizontalAlignment = HorizontalAlignment.Center };
+		_quickHitPointsBar = new ProgressBar { ShowPercentage = false, MinValue = 0, MaxValue = 1, Value = 1,
+			CustomMinimumSize = new Vector2(78, 16), MouseFilter = Control.MouseFilterEnum.Ignore };
+		_quickHitPointsBar.AddThemeStyleboxOverride("background", SlotStyle(new Color(0, 0, 0, 0.8f), new Color(0.17f, 0.06f, 0.055f), 1, 3));
+		var fill = SlotStyle(new Color(0, 0, 0, 0), new Color(0.66f, 0.15f, 0.13f), 0, 3);
+		_quickHitPointsBar.AddThemeStyleboxOverride("fill", fill);
+		portraitBlock.AddChild(_quickHitPointsBar);
+		_quickHitPoints = new Label { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+			MouseFilter = Control.MouseFilterEnum.Ignore };
+		_quickHitPoints.SetAnchorsPreset(Control.LayoutPreset.FullRect);
 		_quickHitPoints.AddThemeFontSizeOverride("font_size", 11);
-		portraitBlock.AddChild(_quickHitPoints);
+		_quickHitPoints.AddThemeColorOverride("font_color", Colors.White);
+		_quickHitPoints.AddThemeColorOverride("font_outline_color", Colors.Black);
+		_quickHitPoints.AddThemeConstantOverride("outline_size", 4);
+		_quickHitPointsBar.AddChild(_quickHitPoints);
 
-		var equipment = new VBoxContainer();
-		equipment.AddThemeConstantOverride("separation", 3);
-		bar.AddChild(equipment);
-		_quickMainHand = EquipmentButton(equipment, "sword", "Mano principale");
+		// The hands: what is held, as slots; the torch under them.
+		var hands = new GridContainer { Columns = 2, SizeFlagsVertical = Control.SizeFlags.ShrinkCenter };
+		hands.AddThemeConstantOverride("h_separation", 4);
+		hands.AddThemeConstantOverride("v_separation", 4);
+		bar.AddChild(hands);
+		_quickMainHand = HandSlot(hands, "sword", "Mano principale");
 		_quickMainHand.Pressed += () => SelectEquippedAttack(EquipmentSlot.MainHand);
-		_quickOffHand = EquipmentButton(equipment, "shield", "Mano secondaria");
+		_quickOffHand = HandSlot(hands, "shield", "Mano secondaria");
 		_quickOffHand.Pressed += () => SelectEquippedAttack(EquipmentSlot.OffHand);
-		_quickTorch = EquipmentButton(equipment, "torch", "Torcia (T)");
+		_quickTorch = HandSlot(hands, "torch", "Torcia (T)");
 		_quickTorch.Pressed += RequestTorchToggle;
+		hands.AddChild(EmptySlot());
+		bar.AddChild(Divider());
 
-		var actionArea = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		actionArea.AddThemeConstantOverride("separation", 5);
-		bar.AddChild(actionArea);
-		var resources = new HBoxContainer();
-		resources.AddThemeConstantOverride("separation", 4);
-		actionArea.AddChild(resources);
-		_quickAllFilter = ResourceButton(resources, "Tutte", QuickFilter.All);
-		_quickActionFilter = ResourceButton(resources, "Azione", QuickFilter.Action);
-		_quickBonusFilter = ResourceButton(resources, "Bonus", QuickFilter.Bonus);
-		_quickConcentration = new Label { Visible = false, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
-		_quickConcentration.AddThemeFontSizeOverride("font_size", 11);
-		resources.AddChild(_quickConcentration);
-		_quickMovement = new Label {
-			HorizontalAlignment = HorizontalAlignment.Right };
-		_quickMovement.AddThemeFontSizeOverride("font_size", 11);
-		resources.AddChild(_quickMovement);
-		_quickExploreActions = new GridContainer { Columns = 10, CustomMinimumSize = new Vector2(0, 40) };
-		_quickExploreActions.AddThemeConstantOverride("h_separation", 4);
-		_quickExploreActions.AddThemeConstantOverride("v_separation", 4);
-		actionArea.AddChild(_quickExploreActions);
+		// The middle: resources over the grid of sections.
+		var middle = new VBoxContainer();
+		middle.AddThemeConstantOverride("separation", 5);
+		bar.AddChild(middle);
+		var resources = new HBoxContainer { CustomMinimumSize = new Vector2(0, 22) };
+		resources.AddThemeConstantOverride("separation", 6);
+		middle.AddChild(resources);
+		_quickActionFilter = ResourcePip(resources, "Azione", ActionMark, QuickFilter.Action);
+		_quickBonusFilter = ResourcePip(resources, "Bonus", BonusMark, QuickFilter.Bonus);
+		_quickAllFilter = new Button { Visible = false };
+		_quickAllFilter.Pressed += () => { _quickFilter = QuickFilter.All; RefreshQuickbar(); };
+		resources.AddChild(_quickAllFilter);
+		_quickMode = SmallLabel(resources, BarText);
+		_quickMovement = SmallLabel(resources, MovementAccent.Lightened(0.25f));
+		resources.AddChild(new Control { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
+		_quickConcentration = SmallLabel(resources, MagicAccent.Lightened(0.25f));
+		_quickExploreActions = SectionSet(middle, _quickExploreGrids);
+		_quickCombatActions = SectionSet(middle, _quickCombatGrids);
+		_quickCombatActions.Visible = false;
 		BuildExploreQuickActions();
-		_quickExploreEmpty = new Label { Text = "Nessun comando in questa scheda", Visible = false };
-		_quickExploreActions.AddChild(_quickExploreEmpty);
-		_quickCombatActions = new GridContainer { Columns = 10, Visible = false, CustomMinimumSize = new Vector2(0, 40) };
-		_quickCombatActions.AddThemeConstantOverride("h_separation", 4);
-		_quickCombatActions.AddThemeConstantOverride("v_separation", 4);
-		actionArea.AddChild(_quickCombatActions);
 		BuildCombatQuickActions();
-		_quickCombatEmpty = new Label { Text = "Nessun comando in questa scheda", Visible = false };
-		_quickCombatActions.AddChild(_quickCombatEmpty);
-		var decks = new HBoxContainer();
-		decks.AddThemeConstantOverride("separation", 4);
-		actionArea.AddChild(decks);
-		_quickCommonDeck = DeckButton(decks, "Comuni", QuickDeck.Common);
-		_quickPaladinDeck = DeckButton(decks, "Paladino", QuickDeck.Paladin);
-		_quickItemsDeck = DeckButton(decks, "Oggetti", QuickDeck.Items);
-		var fixedArea = new VBoxContainer { CustomMinimumSize = new Vector2(48, 0) };
+		bar.AddChild(Divider());
+
+		// The fixed round button: End Turn in a fight, pause and resume outside.
+		var fixedArea = new CenterContainer { CustomMinimumSize = new Vector2(62, 0) };
 		bar.AddChild(fixedArea);
-		_quickEndTurn = new Button { CustomMinimumSize = new Vector2(46, 46), TooltipText = "Fine turno" };
-		StyleActionButton(_quickEndTurn, "turn", MovementAccent, iconOnly: true);
+		_quickEndTurn = new Button { TooltipText = "Fine turno" };
+		StyleSlot(_quickEndTurn, "turn", BarGold, 58, round: true);
 		_quickEndTurn.Pressed += EndCombatTurn;
 		fixedArea.AddChild(_quickEndTurn);
+		_quickPause = new Button { TooltipText = "Pausa o riprendi (Spazio)", ToggleMode = true };
+		StyleSlot(_quickPause, "pause", BarGold, 58, round: true);
+		_quickPause.Pressed += () => SetPaused(!_paused);
+		fixedArea.AddChild(_quickPause);
 
-		_attackOptionsPanel = HudPanel(410, 930, -280, -140, bottomAnchored: true);
+		_attackOptionsPanel = HudPanel(410, 930, -310, -166, bottomAnchored: true);
 		_attackOptionsPanel.Visible = false;
 		_attackOptionsPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.09f, 0.10f, 0.13f, 0.97f) });
 		ui.AddChild(_attackOptionsPanel);
@@ -155,103 +235,154 @@ public partial class VillageMap
 		ui.AddChild(_torchShieldConfirm);
 	}
 
-	private Button EquipmentButton(BoxContainer parent, string icon, string tooltip)
+	private static Label SmallLabel(HBoxContainer parent, Color color)
 	{
-		var button = new Button { CustomMinimumSize = new Vector2(38, 28), TooltipText = tooltip };
-		StyleActionButton(button, icon, UtilityAccent, iconOnly: true);
+		var label = new Label { VerticalAlignment = VerticalAlignment.Center };
+		label.AddThemeFontSizeOverride("font_size", 12);
+		label.AddThemeColorOverride("font_color", color);
+		parent.AddChild(label);
+		return label;
+	}
+
+	/// <summary>One set of sections (exploration or fight): a grid per section, its caption under it, dividers between.</summary>
+	private HBoxContainer SectionSet(VBoxContainer parent, Dictionary<QuickSection, GridContainer> grids)
+	{
+		var set = new HBoxContainer();
+		set.AddThemeConstantOverride("separation", 0);
+		parent.AddChild(set);
+		foreach (var (section, columns, title) in QuickSections)
+		{
+			if (set.GetChildCount() > 0)
+				set.AddChild(Divider());
+			var column = new VBoxContainer();
+			column.AddThemeConstantOverride("separation", 3);
+			set.AddChild(column);
+			var grid = new GridContainer { Columns = columns };
+			grid.AddThemeConstantOverride("h_separation", 4);
+			grid.AddThemeConstantOverride("v_separation", 4);
+			column.AddChild(grid);
+			var caption = new Label { Text = title, HorizontalAlignment = HorizontalAlignment.Center };
+			caption.AddThemeFontSizeOverride("font_size", 9);
+			caption.AddThemeColorOverride("font_color", BarBronze.Lightened(0.2f));
+			column.AddChild(caption);
+			grids[section] = grid;
+			_quickEmptySlots[grid] = new List<Panel>();
+		}
+		return set;
+	}
+
+	private Button HandSlot(GridContainer parent, string icon, string tooltip)
+	{
+		var button = new Button { TooltipText = tooltip };
+		StyleSlot(button, icon, UtilityAccent);
 		parent.AddChild(button);
 		return button;
 	}
 
-	private Button ResourceButton(HBoxContainer parent, string label, QuickFilter filter)
+	/// <summary>Action or Bonus: a marker lit while it is unspent; pressed, it dims the commands that do not use it.</summary>
+	private Button ResourcePip(HBoxContainer parent, string label, Color mark, QuickFilter filter)
 	{
-		var button = new Button { Text = label, ToggleMode = true, CustomMinimumSize = new Vector2(82, 26) };
-		button.Pressed += () => { _quickFilter = filter; RefreshQuickbar(); };
-		parent.AddChild(button);
-		return button;
-	}
-
-	private Button DeckButton(HBoxContainer parent, string label, QuickDeck deck)
-	{
-		var button = new Button { Text = label, ToggleMode = true, CustomMinimumSize = new Vector2(84, 24) };
+		var button = new Button { Text = label, ToggleMode = true, FocusMode = Control.FocusModeEnum.None,
+			CustomMinimumSize = new Vector2(0, 22), TooltipText = $"Mostra in evidenza i comandi che usano: {label.ToLowerInvariant()}" };
 		button.AddThemeFontSizeOverride("font_size", 12);
-		button.Pressed += () => { _quickDeck = deck; RefreshQuickbarDeck(); };
+		var normal = SlotStyle(mark.Darkened(0.5f), SlotFill, 1, 11);
+		normal.ContentMarginLeft = normal.ContentMarginRight = 9;
+		normal.ContentMarginTop = normal.ContentMarginBottom = 1;
+		var pressed = (StyleBoxFlat)normal.Duplicate();
+		pressed.BorderColor = BarGold;
+		pressed.BgColor = mark.Darkened(0.72f);
+		var hover = (StyleBoxFlat)normal.Duplicate();
+		hover.BorderColor = mark;
+		button.AddThemeStyleboxOverride("normal", normal);
+		button.AddThemeStyleboxOverride("hover", hover);
+		button.AddThemeStyleboxOverride("pressed", pressed);
+		button.AddThemeStyleboxOverride("hover_pressed", pressed);
+		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
+		button.Pressed += () => { _quickFilter = _quickFilter == filter ? QuickFilter.All : filter; RefreshQuickbar(); };
 		parent.AddChild(button);
 		return button;
 	}
 
-	private Button QuickAction(GridContainer row, string icon, string tooltip, Color accent, Action action,
-		QuickDeck deck = QuickDeck.Common, QuickFilter cost = QuickFilter.All)
+	private Button QuickAction(QuickSection section, bool combat, string icon, string tooltip, Color accent, Action action,
+		QuickFilter cost = QuickFilter.All, Button? button = null)
 	{
-		var button = new Button { CustomMinimumSize = new Vector2(39, 39), TooltipText = tooltip };
-		StyleActionButton(button, icon, accent, iconOnly: true);
-		button.Pressed += action;
-		row.AddChild(button);
-		_quickActions[button] = (deck, cost);
+		button ??= new Button();
+		button.TooltipText = tooltip;
+		StyleSlot(button, icon, accent);
+		if (button is not MenuButton)
+			button.Pressed += action;
+		if (cost != QuickFilter.All)
+		{
+			// The cost in the corner: a green dot uses the action, an orange triangle the bonus action.
+			var mark = new Label { Text = cost == QuickFilter.Action ? "●" : "▲", Position = new Vector2(3, -1),
+				MouseFilter = Control.MouseFilterEnum.Ignore };
+			mark.AddThemeFontSizeOverride("font_size", 9);
+			mark.AddThemeColorOverride("font_color", cost == QuickFilter.Action ? ActionMark : BonusMark);
+			button.AddChild(mark);
+		}
+		(combat ? _quickCombatGrids : _quickExploreGrids)[section].AddChild(button);
+		_quickActions[button] = (section, cost);
 		return button;
 	}
 
 	private void BuildExploreQuickActions()
 	{
-		_quickExploreAttack = QuickAction(_quickExploreActions, "sword", "Attacco: clicca un bersaglio. Esc annulla.", AttackAccent,
+		_quickExploreAttack = QuickAction(QuickSection.Common, false, "sword", "Attacco: clicca un bersaglio. Esc annulla.", AttackAccent,
 			() => { _attackArmed = !_attackArmed; RefreshAttackBars(); RefreshQuickbar(); });
-		QuickAction(_quickExploreActions, "pause", "Pausa o riprendi (Spazio)", MovementAccent, () => SetPaused(!_paused));
-		QuickAction(_quickExploreActions, "stop", "Ferma il movimento (X)", MovementAccent, Stop);
-		QuickAction(_quickExploreActions, "sneak", "Muoviti furtivamente (F)", DefenseAccent, () => SetSneak(!_sneak));
-		_quickSearch = QuickAction(_quickExploreActions, "eye", "Cerca trappole entro 10 piedi: Indagare per fosse, Percezione per aghi · 1 minuto", UtilityAccent, SearchForTraps);
-		_quickClimb = QuickAction(_quickExploreActions, "escape", "Risali dalla fossa · 1 minuto", MovementAccent, ClimbOutOfPit);
-		QuickAction(_quickExploreActions, "rest", "Riposo", UtilityAccent, () => _restPanel.Visible = !_restPanel.Visible);
-		QuickAction(_quickExploreActions, "journal", "Diario", UtilityAccent, ToggleJournal);
-		QuickAction(_quickExploreActions, "class", "Scheda del paladino", UtilityAccent,
-			() => { _classPanel.Visible = true; RebuildClassPanel(); }, QuickDeck.Paladin);
-		_quickExploreMagic = QuickAction(_quickExploreActions, "magic", "Libro degli incantesimi", MagicAccent,
-			ToggleSpellPanel, QuickDeck.Paladin);
-		_quickExploreSense = QuickAction(_quickExploreActions, "eye", "Percezione divina", MagicAccent,
-			UseDivineSense, QuickDeck.Paladin);
-		QuickAction(_quickExploreActions, "bag", "Inventario (I)", UtilityAccent,
-			() => _inventoryPanel.Visible = !_inventoryPanel.Visible, QuickDeck.Items);
-		_quickItemTorch = QuickAction(_quickExploreActions, "torch", "Accendi o spegni la torcia (T)", UtilityAccent,
-			RequestTorchToggle, QuickDeck.Items);
-		_quickPoison = QuickAction(_quickExploreActions, "poison", "Applica veleno base all'arma principale", UtilityAccent,
-			ApplyWeaponPoison, QuickDeck.Items);
+		_quickExploreAttack.ToggleMode = true;
+		QuickAction(QuickSection.Common, false, "stop", "Ferma il movimento (X)", MovementAccent, Stop);
+		QuickAction(QuickSection.Common, false, "sneak", "Muoviti furtivamente (F)", DefenseAccent, () => SetSneak(!_sneak));
+		_quickSearch = QuickAction(QuickSection.Common, false, "search",
+			"Cerca trappole entro 10 piedi: Indagare per fosse, Percezione per aghi · 1 minuto", UtilityAccent, SearchForTraps);
+		_quickClimb = QuickAction(QuickSection.Common, false, "escape", "Risali dalla fossa · 1 minuto", MovementAccent, ClimbOutOfPit);
+		QuickAction(QuickSection.Common, false, "rest", "Riposo", UtilityAccent, () => _restPanel.Visible = !_restPanel.Visible);
+		QuickAction(QuickSection.Common, false, "journal", "Diario", UtilityAccent, ToggleJournal);
+		QuickAction(QuickSection.Paladin, false, "class", "Scheda del paladino", UtilityAccent,
+			() => { _classPanel.Visible = true; RebuildClassPanel(); });
+		_quickExploreMagic = QuickAction(QuickSection.Paladin, false, "magic", "Libro degli incantesimi", MagicAccent, ToggleSpellPanel);
+		_quickExploreSense = QuickAction(QuickSection.Paladin, false, "eye", "Percezione divina", MagicAccent, UseDivineSense);
+		QuickAction(QuickSection.Items, false, "bag", "Inventario (I)", UtilityAccent,
+			() => _inventoryPanel.Visible = !_inventoryPanel.Visible);
+		_quickItemTorch = QuickAction(QuickSection.Items, false, "torch", "Accendi o spegni la torcia (T)", UtilityAccent, RequestTorchToggle);
+		_quickPoison = QuickAction(QuickSection.Items, false, "poison", "Applica veleno base all'arma principale", UtilityAccent,
+			ApplyWeaponPoison);
 	}
 
 	private void BuildCombatQuickActions()
 	{
-		_quickAttack = QuickAction(_quickCombatActions, "sword", "Attacco: scegli l'arma e clicca un bersaglio. Esc annulla.",
-			AttackAccent, () => { _attackArmed = !_attackArmed; RefreshAttackBars(); RefreshQuickbar(); }, cost: QuickFilter.Action);
-		_quickDash = QuickAction(_quickCombatActions, "dash", CombatActionTip(CombatAction.Dash), MovementAccent,
-			() => ExecuteCombatAction(CombatAction.Dash), cost: QuickFilter.Action);
-		_quickDisengage = QuickAction(_quickCombatActions, "escape", CombatActionTip(CombatAction.Disengage), DefenseAccent,
-			() => ExecuteCombatAction(CombatAction.Disengage), cost: QuickFilter.Action);
-		_quickDodge = QuickAction(_quickCombatActions, "shield", CombatActionTip(CombatAction.Dodge), DefenseAccent,
-			() => ExecuteCombatAction(CombatAction.Dodge), cost: QuickFilter.Action);
-		_quickMore = new MenuButton { CustomMinimumSize = new Vector2(42, 42), TooltipText = "Altre azioni" };
-		StyleActionButton(_quickMore, "more", UtilityAccent, iconOnly: true);
-		_quickCombatActions.AddChild(_quickMore);
-		_quickActions[_quickMore] = (QuickDeck.Common, QuickFilter.Action);
+		_quickAttack = QuickAction(QuickSection.Common, true, "sword", "Attacco: scegli l'arma e clicca un bersaglio. Esc annulla.",
+			AttackAccent, () => { _attackArmed = !_attackArmed; RefreshAttackBars(); RefreshQuickbar(); }, QuickFilter.Action);
+		_quickAttack.ToggleMode = true;
+		_quickDash = QuickAction(QuickSection.Common, true, "dash", CombatActionTip(CombatAction.Dash), MovementAccent,
+			() => ExecuteCombatAction(CombatAction.Dash), QuickFilter.Action);
+		_quickDisengage = QuickAction(QuickSection.Common, true, "escape", CombatActionTip(CombatAction.Disengage), DefenseAccent,
+			() => ExecuteCombatAction(CombatAction.Disengage), QuickFilter.Action);
+		_quickDodge = QuickAction(QuickSection.Common, true, "shield", CombatActionTip(CombatAction.Dodge), DefenseAccent,
+			() => ExecuteCombatAction(CombatAction.Dodge), QuickFilter.Action);
+		_quickMore = (MenuButton)QuickAction(QuickSection.Common, true, "more", "Altre azioni", UtilityAccent, () => { },
+			QuickFilter.Action, new MenuButton());
 		var menu = _quickMore.GetPopup();
 		foreach (var choice in Enum.GetValues<CombatAction>().Where(c => c is not (CombatAction.Dash or CombatAction.Disengage or CombatAction.Dodge)))
 			menu.AddItem($"{CombatActionName(choice)} · Azione", (int)choice);
 		menu.AddSeparator();
 		menu.AddItem("Lascia la presa · gratuita", ReleaseMenuId);
 		menu.IdPressed += id => { if (id == ReleaseMenuId) ReleaseGrapple(); else ExecuteCombatAction((CombatAction)id); };
-		_quickHeal = QuickAction(_quickCombatActions, "heal", "Imposizione delle mani · azione bonus", UtilityAccent,
-			() => { _classPanel.Visible = true; RebuildClassPanel(); }, QuickDeck.Paladin, QuickFilter.Bonus);
-		_quickMagic = QuickAction(_quickCombatActions, "magic", "Incantesimi · azione o azione bonus", MagicAccent,
-			ToggleSpellPanel, QuickDeck.Paladin);
-		_quickSense = QuickAction(_quickCombatActions, "eye", "Percezione divina · azione bonus", MagicAccent,
-			UseDivineSense, QuickDeck.Paladin, QuickFilter.Bonus);
-		QuickAction(_quickCombatActions, "more", "Opzioni dell'attacco: arma, Punizione, manovre e danni non letali", AttackAccent,
-			() => _attackOptionsPanel.Visible = !_attackOptionsPanel.Visible, cost: QuickFilter.Action);
-		_quickCombatClimb = QuickAction(_quickCombatActions, "escape", "Risali dalla fossa · azione", MovementAccent,
-			ClimbOutOfPit, cost: QuickFilter.Action);
-		QuickAction(_quickCombatActions, "bag", "Inventario (I)", UtilityAccent,
-			() => _inventoryPanel.Visible = !_inventoryPanel.Visible, QuickDeck.Items);
-		_quickCombatItemTorch = QuickAction(_quickCombatActions, "torch", "Accendi o spegni la torcia (T)", UtilityAccent,
-			RequestTorchToggle, QuickDeck.Items);
-		_quickCombatPoison = QuickAction(_quickCombatActions, "poison", "Applica veleno base · azione bonus", UtilityAccent,
-			ApplyWeaponPoison, QuickDeck.Items, QuickFilter.Bonus);
+		QuickAction(QuickSection.Common, true, "options", "Opzioni dell'attacco: arma, Punizione, manovre e danni non letali", AttackAccent,
+			() => _attackOptionsPanel.Visible = !_attackOptionsPanel.Visible, QuickFilter.Action);
+		_quickCombatClimb = QuickAction(QuickSection.Common, true, "escape", "Risali dalla fossa · azione", MovementAccent,
+			ClimbOutOfPit, QuickFilter.Action);
+		_quickHeal = QuickAction(QuickSection.Paladin, true, "heal", "Imposizione delle mani · azione bonus", UtilityAccent,
+			() => { _classPanel.Visible = true; RebuildClassPanel(); }, QuickFilter.Bonus);
+		_quickMagic = QuickAction(QuickSection.Paladin, true, "magic", "Incantesimi · azione o azione bonus", MagicAccent,
+			ToggleSpellPanel);
+		_quickSense = QuickAction(QuickSection.Paladin, true, "eye", "Percezione divina · azione bonus", MagicAccent,
+			UseDivineSense, QuickFilter.Bonus);
+		QuickAction(QuickSection.Items, true, "bag", "Inventario (I)", UtilityAccent,
+			() => _inventoryPanel.Visible = !_inventoryPanel.Visible);
+		_quickCombatItemTorch = QuickAction(QuickSection.Items, true, "torch", "Accendi o spegni la torcia (T)", UtilityAccent,
+			RequestTorchToggle);
+		_quickCombatPoison = QuickAction(QuickSection.Items, true, "poison", "Applica veleno base · azione bonus", UtilityAccent,
+			ApplyWeaponPoison, QuickFilter.Bonus);
 	}
 
 	private void SelectEquippedAttack(EquipmentSlot slot)
@@ -292,20 +423,27 @@ public partial class VillageMap
 		_quickExploreAttack.SetPressedNoSignal(_attackArmed);
 		_quickActionFilter.Visible = combat is not null;
 		_quickBonusFilter.Visible = combat is not null;
-		_quickAllFilter.SetPressedNoSignal(_quickFilter == QuickFilter.All);
 		_quickActionFilter.SetPressedNoSignal(_quickFilter == QuickFilter.Action);
 		_quickBonusFilter.SetPressedNoSignal(_quickFilter == QuickFilter.Bonus);
-		_quickActionFilter.Text = combat is { } fight ? $"Azione {(fight.You.ActionAvailable ? "●" : "○")}" : "Azione";
-		_quickBonusFilter.Text = combat is { } turn ? $"Bonus {(turn.You.BonusActionAvailable ? "●" : "○")}" : "Bonus";
-		_quickMovement.Text = combat is { } battle ? $"Mov. {battle.You.MovementLeftFeet} ft" : "";
+		_quickActionFilter.Text = combat is { } fight ? $"{(fight.You.ActionAvailable ? "●" : "○")} Azione" : "Azione";
+		_quickBonusFilter.Text = combat is { } turn ? $"{(turn.You.BonusActionAvailable ? "▲" : "△")} Bonus" : "Bonus";
+		_quickActionFilter.AddThemeColorOverride("font_color", combat is { You.ActionAvailable: true } ? ActionMark.Lightened(0.3f) : BarText.Darkened(0.35f));
+		_quickBonusFilter.AddThemeColorOverride("font_color", combat is { You.BonusActionAvailable: true } ? BonusMark.Lightened(0.3f) : BarText.Darkened(0.35f));
+		_quickMode.Visible = combat is null;
+		_quickMode.Text = "Esplorazione" + (_paused ? " · in pausa" : "") + (_sneak ? " · furtivo" : "");
+		_quickMovement.Visible = combat is not null;
+		_quickMovement.Text = combat is { } battle ? $"Movimento {battle.You.MovementLeftFeet} ft" : "";
 		var concentration = _view.Spells?.Concentrating;
 		var concentrationName = concentration is null ? null
 			: _view.Spells!.Prepared.FirstOrDefault(s => s.Id == concentration)?.Name ?? concentration;
 		_quickConcentration.Visible = concentrationName is not null;
 		_quickConcentration.Text = concentrationName is null ? ""
-			: $"Concentrazione: {(concentrationName.Length > 14 ? concentrationName[..13] + "…" : concentrationName)}";
+			: $"◆ {(concentrationName.Length > 18 ? concentrationName[..17] + "…" : concentrationName)}";
 		_quickConcentration.TooltipText = concentrationName is null ? "" : $"Concentrazione: {concentrationName}";
-		_quickHitPoints.Text = $"{_view.HitPoints}/{_view.MaxHitPoints} PF";
+		_quickConcentration.MouseFilter = Control.MouseFilterEnum.Pass;
+		_quickHitPoints.Text = $"{_view.HitPoints}/{_view.MaxHitPoints}";
+		_quickHitPointsBar.TooltipText = $"Punti ferita: {_view.HitPoints} su {_view.MaxHitPoints}";
+		_quickHitPointsBar.Value = _view.MaxHitPoints > 0 ? Math.Clamp((double)_view.HitPoints / _view.MaxHitPoints, 0, 1) : 0;
 		_quickPortrait.Texture = EnsurePaladinLiveModel().LiveTexture;
 		var main = _view.Equipment.FirstOrDefault(e => e.Slot == EquipmentSlot.MainHand);
 		var off = _view.Equipment.FirstOrDefault(e => e.Slot is EquipmentSlot.OffHand or EquipmentSlot.Shield);
@@ -313,14 +451,18 @@ public partial class VillageMap
 		_quickOffHand.TooltipText = off is null ? "Mano secondaria libera · apri inventario" : $"{(off.Slot == EquipmentSlot.Shield ? "Scudo" : "Mano secondaria")}: {off.Name}";
 		_quickMainHand.Icon = main is null ? null : ActionIcon(EquipmentIcon(main.Item.Value));
 		_quickOffHand.Icon = off is null ? null : ActionIcon(off.Slot == EquipmentSlot.Shield ? "shield" : EquipmentIcon(off.Item.Value));
-		_quickTorch.Visible = _view.Torches > 0 || _view.TorchLitUntil is not null;
 		_quickTorch.Disabled = _view.Dead || _view.TorchLitUntil is null && _view.Torches == 0;
+		_quickTorch.Modulate = _view.Torches > 0 || _view.TorchLitUntil is not null ? Colors.White : new Color(1, 1, 1, 0.35f);
 		_quickItemTorch.Disabled = _quickTorch.Disabled;
 		_quickCombatItemTorch.Disabled = _quickTorch.Disabled;
 		_quickPoison.Disabled = !CanApplyWeaponPoison();
 		_quickCombatPoison.Disabled = !CanApplyWeaponPoison();
 		_quickExploreSense.Disabled = !CanUseDivineSense();
 		_quickEndTurn.Visible = combat is not null;
+		_quickPause.Visible = combat is null;
+		_quickPause.SetPressedNoSignal(_paused);
+		_quickPause.Icon = ActionIcon(_paused ? "turn" : "pause");
+		_quickPause.TooltipText = _paused ? "Riprendi (Spazio)" : "Pausa (Spazio)";
 		_quickTorch.TooltipText = _view.TorchLitUntil is not null ? "Spegni la torcia (T)"
 			: off?.Slot == EquipmentSlot.Shield ? "Riponi lo scudo e accendi la torcia (T)"
 			: off?.Slot == EquipmentSlot.OffHand ? "Mano secondaria occupata: riponi l'arma prima di accendere la torcia"
@@ -359,33 +501,36 @@ public partial class VillageMap
 		RefreshQuickbarDeck();
 	}
 
+	/// <summary>Which commands are on the bar now, which the filter dims, and the empty slots that keep the grid whole.</summary>
 	private void RefreshQuickbarDeck()
 	{
-		_quickCommonDeck.SetPressedNoSignal(_quickDeck == QuickDeck.Common);
-		_quickPaladinDeck.SetPressedNoSignal(_quickDeck == QuickDeck.Paladin);
-		_quickItemsDeck.SetPressedNoSignal(_quickDeck == QuickDeck.Items);
+		_quickDimmed.Clear();
 		foreach (var (button, setting) in _quickActions)
 		{
-			var available = (button != _quickMagic && button != _quickExploreMagic || _view.Spells is not null)
+			button.Visible = (button != _quickMagic && button != _quickExploreMagic || _view.Spells is not null)
 				&& (button != _quickSense && button != _quickExploreSense || _view.ChannelDivinity is not null)
 				&& (button != _quickClimb && button != _quickCombatClimb || _view.InPit)
 				&& (button != _quickItemTorch && button != _quickCombatItemTorch
 					|| _view.Torches > 0 || _view.TorchLitUntil is not null)
 				&& (button != _quickPoison && button != _quickCombatPoison
 					|| _view.Inventory.Any(i => i.Item.Value == "basic-poison" && i.Count > 0));
-			button.Visible = available && setting.Deck == _quickDeck
-				&& (_view.Combat is null || _quickFilter == QuickFilter.All
-					|| setting.Cost == QuickFilter.All || setting.Cost == _quickFilter);
+			var dimmed = _view.Combat is not null && _quickFilter != QuickFilter.All && setting.Cost != _quickFilter;
+			if (dimmed) _quickDimmed.Add(button);
+			button.Modulate = dimmed ? new Color(1, 1, 1, 0.22f) : Colors.White;
 		}
-		_quickExploreEmpty.Visible = _view.Combat is null
-			&& !_quickActions.Keys.Any(b => b.GetParent() == _quickExploreActions && b.Visible);
-		_quickCombatEmpty.Visible = _view.Combat is not null
-			&& !_quickActions.Keys.Any(b => b.GetParent() == _quickCombatActions && b.Visible);
-		var active = _view.Combat is null ? _quickExploreActions : _quickCombatActions;
-		var visibleCount = _quickActions.Keys.Count(b => b.GetParent() == active && b.Visible);
-		var twoRows = visibleCount > active.Columns;
-		active.CustomMinimumSize = new Vector2(0, twoRows ? 84 : 40);
-		_quickbarPanel.OffsetTop = twoRows ? -174 : -132;
+		foreach (var (grid, empties) in _quickEmptySlots)
+		{
+			var used = grid.GetChildren().OfType<Button>().Count(b => b.Visible);
+			var capacity = Math.Max(grid.Columns * SlotRows, (used + grid.Columns - 1) / grid.Columns * grid.Columns);
+			while (empties.Count < capacity - used)
+			{
+				var slot = EmptySlot();
+				empties.Add(slot);
+				grid.AddChild(slot);
+			}
+			for (var i = 0; i < empties.Count; i++)
+				empties[i].Visible = i < capacity - used;
+		}
 	}
 
 	private void BuildGameMenu(CanvasLayer ui)
@@ -425,19 +570,20 @@ public partial class VillageMap
 	}
 
 	private void ToggleGameMenu() => _gameMenu.Visible = !_gameMenu.Visible;
+
+	/// <summary>On the bar and not dimmed by the Action or Bonus filter.</summary>
+	private bool QuickLit(Button button) => button.Visible && button.GetParent()?.GetParent()?.GetParent() is CanvasItem { Visible: true }
+		&& !_quickDimmed.Contains(button);
+
 	internal bool GameMenuOpenForSmoke => _gameMenu.Visible;
 	internal bool QuickbarVisibleForSmoke => _quickbarPanel.Visible;
-	internal void ChooseCommonQuickDeckForSmoke() => _quickCommonDeck.EmitSignal(BaseButton.SignalName.Pressed);
-	internal void ChoosePaladinQuickDeckForSmoke() => _quickPaladinDeck.EmitSignal(BaseButton.SignalName.Pressed);
-	internal void ChooseItemsQuickDeckForSmoke() => _quickItemsDeck.EmitSignal(BaseButton.SignalName.Pressed);
-	internal bool QuickDeckSelectedForSmoke(string name) => _quickDeck.ToString() == name;
-	internal bool EndTurnFixedForSmoke => _quickEndTurn.Visible && _quickEndTurn.GetParent() != _quickCombatActions;
+	internal bool EndTurnFixedForSmoke => _quickEndTurn.Visible && _quickEndTurn.GetParent() is not GridContainer;
 	internal void ChooseBonusQuickFilterForSmoke() => _quickBonusFilter.EmitSignal(BaseButton.SignalName.Pressed);
 	internal void ChooseAllQuickFilterForSmoke() => _quickAllFilter.EmitSignal(BaseButton.SignalName.Pressed);
 	internal bool BonusQuickFilterSelectedForSmoke => _quickFilter == QuickFilter.Bonus && _quickBonusFilter.ButtonPressed;
-	internal bool ActionQuickButtonVisibleForSmoke => _quickDash.Visible;
-	internal bool BonusQuickButtonVisibleForSmoke => _quickHeal.Visible;
-	internal bool PoisonQuickButtonVisibleForSmoke => _quickPoison.Visible && !_quickPoison.Disabled;
+	internal bool ActionQuickButtonVisibleForSmoke => QuickLit(_quickDash);
+	internal bool BonusQuickButtonVisibleForSmoke => QuickLit(_quickHeal);
+	internal bool PoisonQuickButtonVisibleForSmoke => QuickLit(_quickPoison) && !_quickPoison.Disabled;
 	internal void ApplyPoisonFromQuickbarForSmoke() => _quickPoison.EmitSignal(BaseButton.SignalName.Pressed);
 	internal void RequestTorchForSmoke() => RequestTorchToggle();
 	internal bool TorchShieldPromptVisibleForSmoke => _torchShieldConfirm.Visible;

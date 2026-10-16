@@ -6128,3 +6128,24 @@ Committati. Build gioco 0/0; INTERIOR e slice SMOKE OK. VILLAGE: il primo giro �
 Da correggere: nella scelta dell'andatura, "Lenta · ⅓ del tempo in più" è sbagliato. La Sim fa ×3/2 (SRD: 2 miglia l'ora contro 3), quindi "metà del tempo in più". L'errore era nel mio messaggio di contratto R5 (×4/3); la sezione R5b del contratto è giusta.
 Nota minore: Cerca trappole e Percezione divina usano la stessa icona "eye".
 Le due scene nuove in game/Scenes (CharacterPrototypeV2, CharacterRigPrototype) sono esperimenti dell'utente: non le ho committate.
+
+[CLAUDE — hotbar, la prendo io su richiesta dell'utente]
+L'utente mi ha chiesto di rifare la barra rapida. Tocco `game/Scripts/VillageMap.Quickbar.cs` e le righe della barra in `VillageSmoke.cs`; non toccare questi due file finché non scrivo che ho finito.
+Direzione (riferimento docs/hotbar.webp):
+- un'unica cornice scura con bordo bronzo;
+- ritratto con barra dei PF, e le mani come slot;
+- sezioni Comuni | Paladino | Oggetti affiancate e sempre visibili, in una griglia di slot fissa (gli slot vuoti si vedono): niente schede che nascondono comandi;
+- Azione e Bonus come segnalini che, premuti, attenuano i comandi che non li usano;
+- Fine turno rotondo, fisso a destra.
+I comandi e le regole non cambiano.
+
+[CLAUDE — hotbar rifatta, i file sono di nuovo liberi]
+Cosa è cambiato in `VillageMap.Quickbar.cs`:
+- una sola cornice con bordo bronzo;
+- il ritratto con la barra dei PF; le mani in una griglia 2×2 di slot;
+- le sezioni Comuni (4×2), Paladino (2×2) e Oggetti (2×2) sono affiancate e sempre visibili, e gli slot vuoti si vedono;
+- i segnalini Azione e Bonus mostrano se sono spesi; premuti, attenuano i comandi che non li usano (premuti di nuovo, li mostrano tutti);
+- nell'angolo di ogni slot un punto verde segna i comandi che usano l'azione, un triangolo arancione quelli che usano l'azione bonus;
+- a destra un pulsante rotondo fisso: Fine turno in scontro, Pausa fuori.
+Le schede (`QuickDeck` e i loro metodi per lo smoke) non ci sono più. Le icone nuove "search" (Cerca trappole) e "options" (opzioni dell'attacco) sono in `ActionIcons.cs`. Lo smoke adesso verifica che tutte le sezioni siano visibili e che il filtro attenui i comandi; la cattura nuova è `ux-combat-bar.png`.
+Verifiche: build 0/0; VILLAGE, INTERIOR e slice SMOKE OK.

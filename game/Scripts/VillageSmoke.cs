@@ -410,8 +410,7 @@ public partial class VillageSmoke : Node
 		await Frames(2);
 		Capture("r5-hazard-ui.png");
 		_map.CloseInventoryForSmoke();
-		_map.ChooseItemsQuickDeckForSmoke();
-		Require(_map.PoisonQuickButtonVisibleForSmoke, "UX: the available poison is missing from the items deck");
+		Require(_map.PoisonQuickButtonVisibleForSmoke, "UX: the available poison is missing from the items section");
 		await Frames(1);
 		Capture("ux-items-poison-ready.png");
 		_map.ApplyPoisonFromQuickbarForSmoke();
@@ -420,7 +419,6 @@ public partial class VillageSmoke : Node
 			"UX: the poison shortcut did not invoke the Sim command");
 		await Frames(1);
 		Capture("ux-items-poison.png");
-		_map.ChooseCommonQuickDeckForSmoke();
 		Capture("r5-hazard-map.png");
 
 		var pitSave = JsonNode.Parse(stream.ToArray())!.AsObject();
@@ -629,27 +627,21 @@ public partial class VillageSmoke : Node
 		File.WriteAllText(twoWeapons, fight.ToJsonString());
 		_map.LoadGameFromPath(twoWeapons);
 		await Frames(2);
-		Require(_map.QuickDeckSelectedForSmoke("Common") && _map.ActionQuickButtonVisibleForSmoke
-			&& _map.EndTurnFixedForSmoke,
-			"UX: combat should open the common deck with action icons and a fixed End Turn control");
-		_map.ChoosePaladinQuickDeckForSmoke();
+		Require(_map.ActionQuickButtonVisibleForSmoke && _map.BonusQuickButtonVisibleForSmoke && _map.EndTurnFixedForSmoke,
+			"UX: in combat every section is on the bar, with a fixed End Turn control");
 		_map.ChooseBonusQuickFilterForSmoke();
-		Require(_map.QuickDeckSelectedForSmoke("Paladin") && _map.BonusQuickFilterSelectedForSmoke
+		Require(_map.BonusQuickFilterSelectedForSmoke
 			&& _map.BonusQuickButtonVisibleForSmoke
 			&& !_map.ActionQuickButtonVisibleForSmoke,
-			"UX: Paladin/Bonus should show bonus class commands and hide common actions");
+			"UX: the Bonus filter should dim the commands that take the action");
 		await Frames(1);
 		Capture("ux-paladin-bonus.png");
 		_map.ChooseAllQuickFilterForSmoke();
 		Require(_map.BonusQuickButtonVisibleForSmoke, "UX: All should restore the class commands");
-		_map.ChooseItemsQuickDeckForSmoke();
-		Require(_map.QuickDeckSelectedForSmoke("Items") && !_map.BonusQuickButtonVisibleForSmoke,
-			"UX: the items deck should be independent from the class deck");
+		Require(_map.ActionQuickButtonVisibleForSmoke,
+			"UX: All should light the tactical actions again");
 		await Frames(1);
-		Capture("ux-items-combat.png");
-		_map.ChooseCommonQuickDeckForSmoke();
-		Require(_map.ActionQuickButtonVisibleForSmoke && !_map.BonusQuickButtonVisibleForSmoke,
-			"UX: returning to Common should restore tactical actions");
+		Capture("ux-combat-bar.png");
 		var enemy = MappedVillageScenario.Ids.Farmer;
 		Require(_map.View.Combat is { IsYourTurn: true, You.ActionAvailable: true }
 			&& _map.View.Combat.Targets.Any(t => t.Target == enemy && t.Attack == "Pugnale" && t.Valid),
