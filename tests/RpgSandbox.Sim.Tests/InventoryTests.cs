@@ -81,22 +81,31 @@ public class InventoryTests
     }
 
     [Fact]
-    public void In_a_fight_picking_something_up_takes_the_turns_one_free_interaction()
+    public void In_a_fight_picking_something_up_takes_the_free_interaction_then_the_action()
     {
-        // Two javelins lie next to the player; the fight is on.
+        // Three javelins lie next to the player; the fight is on, and it is a fresh turn of the player.
         var s = FirstSeed(seed =>
         {
             var x = Yard(seed);
-            x.Engine.World.Maps[new AreaId("a")].PutOnGround(new GridPos(2, 3), Javelin, 2);
+            x.Engine.World.Maps[new AreaId("a")].PutOnGround(new GridPos(2, 3), Javelin, 3);
             x.Execute(new AttackCommand { Actor = x.Player, Target = Foe, Attack = Throw });
+            x.Execute(new EndTurnCommand { Actor = x.Player });
+            x.Advance(Duration.FromSeconds(6));
             return x;
-        }, x => x.GetPlayerView().Combat is { IsYourTurn: true });
+        }, x => x.GetPlayerView().Combat is { IsYourTurn: true, You: { ActionAvailable: true, InteractionAvailable: true } });
         var before = Carried(s, Javelin);
+        PickUpCommand One() => new() { Actor = s.Player, At = new GridPos(2, 3), Item = Javelin, Count = 1 };
 
-        Assert.True(s.Execute(new PickUpCommand { Actor = s.Player, At = new GridPos(2, 3), Item = Javelin, Count = 1 }).Success);
-        Assert.Equal(RejectionReason.NoActionLeft,
-            s.Execute(new PickUpCommand { Actor = s.Player, At = new GridPos(2, 3), Item = Javelin, Count = 1 }).Rejection);
-        Assert.Equal(before + 1, Carried(s, Javelin));
+        var first = s.Execute(One());
+        Assert.True(first.Success, first.Message);
+        Assert.DoesNotContain("azione", first.Message);
+        Assert.True(s.GetPlayerView().Combat!.You.ActionAvailable);
+        var second = s.Execute(One()); // P5c, SRD: a second interaction takes the action (Utilize)
+        Assert.True(second.Success, second.Message);
+        Assert.Contains("(usi l'azione)", second.Message);
+        Assert.False(s.GetPlayerView().Combat!.You.ActionAvailable);
+        Assert.Equal(RejectionReason.NoActionLeft, s.Execute(One()).Rejection);
+        Assert.Equal(before + 2, Carried(s, Javelin));
     }
 
     [Fact]

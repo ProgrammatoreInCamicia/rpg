@@ -20,21 +20,27 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(RejectionReason.OutOfReach, "È troppo lontano: avvicinati.");
         if (map.OnGround(command.At, command.Item) < command.Count)
             return CommandResult.Rejected(RejectionReason.NothingThere, $"Lì non ci sono {command.Count} {item.Name}.");
+        var takesAction = false;
         if (EncounterOf(actor) is { } e)
         {
             if (!IsTurnOf(e, actor))
                 return CommandResult.Rejected(RejectionReason.NotYourTurn, "Non è il tuo turno.");
+            // P5c, SRD: the turn's free interaction; a second one takes the action (Utilize).
             var me = CombatantOf(e, actor.Id);
-            if (me.Interacted)
-                return CommandResult.Rejected(RejectionReason.NoActionLeft, "Hai già usato l'interazione con un oggetto in questo turno.");
-            me.Interacted = true;
+            takesAction = me.Interacted;
+            if (takesAction && me.ActionUsed)
+                return CommandResult.Rejected(RejectionReason.NoActionLeft, "Hai già usato l'interazione con un oggetto e l'azione in questo turno.");
+            if (takesAction)
+                me.ActionUsed = true;
+            else
+                me.Interacted = true;
         }
         else if (actor.CurrentAction is not null)
             return CommandResult.Rejected(RejectionReason.ActorBusy, $"{actor.Name} è già impegnato.");
         map.PutOnGround(command.At, command.Item, -command.Count);
         actor.Give(item.Id, command.Count);
         World.RecordFact("ItemPickedUp", $"{actor.Name} raccoglie {command.Count} × {item.Name}.", actor.Id);
-        return new CommandResult { Message = $"Raccogli {command.Count} × {item.Name}." };
+        return new CommandResult { Message = $"Raccogli {command.Count} × {item.Name}.{(takesAction ? " (usi l'azione)" : "")}" };
     }
 
     private CommandResult Drop(DropCommand command)
