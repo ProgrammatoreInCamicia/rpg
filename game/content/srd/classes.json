@@ -1,7 +1,11 @@
 {
-  "source": "SRD 5.2.1 (Wizards of the Coast LLC), CC BY 4.0: Paladin (core traits). Only what the rules use so far.",
+  "source": "SRD 5.2.1 (Wizards of the Coast LLC), CC BY 4.0: Paladin (core traits and the Paladin Features table, p. 53). Only what the rules use so far.",
   "classes": [
     { "id": "paladin", "name": "Paladino", "hitDie": 10,
-      "weapons": ["Simple", "Martial"], "armor": ["Light", "Medium", "Heavy", "Shield"], "masteries": 2, "saves": ["Wisdom", "Charisma"] }
+      "weapons": ["Simple", "Martial"], "armor": ["Light", "Medium", "Heavy", "Shield"], "masteries": 2, "saves": ["Wisdom", "Charisma"],
+      "spellcasting": { "ability": "Charisma",
+        "prepared": [2, 3, 4, 5, 6, 6, 7, 7, 9, 9, 10, 10, 11, 11, 12, 12, 14, 14, 15, 15],
+        "slots": [[2], [2], [3], [3], [4, 2], [4, 2], [4, 3], [4, 3], [4, 3, 2], [4, 3, 2], [4, 3, 3], [4, 3, 3], [4, 3, 3, 1], [4, 3, 3, 1],
+          [4, 3, 3, 2], [4, 3, 3, 2], [4, 3, 3, 3, 1], [4, 3, 3, 3, 1], [4, 3, 3, 3, 2], [4, 3, 3, 3, 2]] } }
   ]
 }

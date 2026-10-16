@@ -1,0 +1,12 @@
+{
+  "source": "SRD 5.2.1 (Wizards of the Coast LLC), CC BY 4.0: Spells (p. 107-175), only the ones the game implements. Range in feet (0: self, 5: touch), duration in minutes (0: instantaneous). The effects are in the simulation's code, by id.",
+  "spells": [
+    { "id": "bless", "name": "Benedizione", "level": 1, "casting": "Action", "range": 30, "duration": 1, "concentration": true, "targets": 3, "classes": ["paladin"] },
+    { "id": "cure-wounds", "name": "Cura ferite", "level": 1, "casting": "Action", "range": 5, "duration": 0, "concentration": false, "targets": 1, "classes": ["paladin"] },
+    { "id": "divine-favor", "name": "Favore divino", "level": 1, "casting": "BonusAction", "range": 0, "duration": 1, "concentration": false, "targets": 0, "classes": ["paladin"] },
+    { "id": "divine-smite", "name": "Punizione divina", "level": 1, "casting": "AfterMeleeHit", "range": 0, "duration": 0, "concentration": false, "targets": 0, "classes": ["paladin"] },
+    { "id": "shield-of-faith", "name": "Scudo della fede", "level": 1, "casting": "BonusAction", "range": 60, "duration": 10, "concentration": true, "targets": 1, "classes": ["paladin"] },
+    { "id": "aid", "name": "Aiuto", "level": 2, "casting": "Action", "range": 30, "duration": 480, "concentration": false, "targets": 3, "classes": ["paladin"] },
+    { "id": "lesser-restoration", "name": "Ristorare inferiore", "level": 2, "casting": "BonusAction", "range": 5, "duration": 0, "concentration": false, "targets": 1, "classes": ["paladin"] }
+  ]
+}

@@ -55,6 +55,12 @@ public sealed record PlayerView
     /// <summary>R3a: the weapons (item ids) whose mastery the character uses.</summary>
     public IReadOnlyList<ItemId> MasteryWeapons { get; init; } = Array.Empty<ItemId>();
 
+    /// <summary>R3b: the character's spellcasting; null if it casts no spells.</summary>
+    public SpellbookView? Spells { get; init; }
+
+    /// <summary>R3b: the spells in effect on the player.</summary>
+    public IReadOnlyList<EffectView> Effects { get; init; } = Array.Empty<EffectView>();
+
     /// <summary>Direction the character faces in map coordinates; null in legacy all-direction scenarios.</summary>
     public GridPos? Facing { get; init; }
 
@@ -337,4 +343,55 @@ public sealed record ChoiceView
     public required IReadOnlyList<string> Options { get; init; }
     public required int Picks { get; init; }
     public bool Optional { get; init; }
+}
+
+/// <summary>R3b: a spell the character has prepared, as the spellbook shows it.</summary>
+public sealed record SpellView
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public required int Level { get; init; }
+
+    /// <summary>"Action", "BonusAction" or "AfterMeleeHit" (Divine Smite, through <see cref="AttackCommand.SmiteSlot"/>).</summary>
+    public required string Casting { get; init; }
+
+    /// <summary>Feet; 0 self, 5 touch.</summary>
+    public required int RangeFeet { get; init; }
+    public required int Targets { get; init; }
+    public required bool Concentration { get; init; }
+
+    /// <summary>Always prepared (a class or oath feature): it does not count against the prepared spells.</summary>
+    public bool AlwaysPrepared { get; init; }
+}
+
+/// <summary>R3b: spell slots of one level: left and in all.</summary>
+public sealed record SlotView
+{
+    public required int Level { get; init; }
+    public required int Remaining { get; init; }
+    public required int Max { get; init; }
+}
+
+/// <summary>R3b: the character's spellcasting: prepared spells, slots, DC and attack bonus, Concentration in progress.</summary>
+public sealed record SpellbookView
+{
+    public required IReadOnlyList<SpellView> Prepared { get; init; }
+    public required IReadOnlyList<SlotView> Slots { get; init; }
+    public required int SaveDc { get; init; }
+    public required int AttackBonus { get; init; }
+
+    /// <summary>The spell it is concentrating on, if any.</summary>
+    public string? Concentrating { get; init; }
+
+    /// <summary>Paladin's Smite: the free Divine Smite is still there (until the next Long Rest).</summary>
+    public bool FreeSmite { get; init; }
+}
+
+/// <summary>R3b: a spell in effect on a creature: which, who cast it, until when.</summary>
+public sealed record EffectView
+{
+    public required string Spell { get; init; }
+    public required string Name { get; init; }
+    public required ActorId Caster { get; init; }
+    public GameTime? Until { get; init; }
 }

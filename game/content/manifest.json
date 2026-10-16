@@ -5,6 +5,7 @@
     "srd/items.json",
     "original/items.json",
     "srd/classes.json",
+    "srd/spells.json",
     "srd/creatures.json",
     "original/kinds.json",
     "original/creatures.json",

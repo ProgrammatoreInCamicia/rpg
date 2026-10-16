@@ -290,3 +290,15 @@ public sealed record ChooseCommand : Command
     public required string Choice { get; init; }
     public required IReadOnlyList<string> Options { get; init; }
 }
+
+/// <summary>
+/// R3b: casts a prepared spell with a slot of <see cref="SlotLevel"/> (at least the spell's level), on the creatures
+/// <see cref="Targets"/> (none for a spell on oneself). <see cref="Condition"/>: what Lesser Restoration ends.
+/// </summary>
+public sealed record CastCommand : Command
+{
+    public required string Spell { get; init; }
+    public required int SlotLevel { get; init; }
+    public IReadOnlyList<ActorId> Targets { get; init; } = Array.Empty<ActorId>();
+    public ConditionKind? Condition { get; init; }
+}

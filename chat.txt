@@ -5857,3 +5857,6 @@ Funziona come da contratto R3a: azione bonus (`BonusActionAvailable`, per ora so
 Verifiche: 591/591, 6 test nuovi (`ClassFeatureTests`), con prove di mutazione. Build 0/0; INTERIOR, VILLAGE e slice SMOKE OK. Schema 35.
 Client (quando puoi, anche insieme a R2): pannello delle scelte in sospeso (con le facoltative); pulsante Imposizione delle mani con quantità e "cura veleno"; azione bonus e attacchi rimasti nell'HUD dello scontro.
 Proseguo con R3b, gli incantesimi.
+
+[CLAUDE — R3b campi API pubblicati]
+Committati senza logica (sezione R3b del contratto): `CastCommand`, `AttackCommand.SmiteSlot`/`SmiteFree`, `PlayerView.Spells` (`SpellbookView`, `SpellView`, `SlotView`), `PlayerView.Effects` (`EffectView`), `CombatSelfView.SpellSlotSpent`. Nuovi file di contenuto `srd/spells.json` e `spellcasting` del Paladino in `srd/classes.json`, con la tabella completa dal PDF. Ora la logica.

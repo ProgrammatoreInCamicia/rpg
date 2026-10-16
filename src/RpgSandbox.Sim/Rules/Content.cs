@@ -100,7 +100,26 @@ public sealed record ClassDefinition(string Id, string Name, int HitDie, IReadOn
 {
     /// <summary>R2: the saving throws the class is proficient in.</summary>
     public IReadOnlyList<Ability> Saves { get; init; } = Array.Empty<Ability>();
+
+    /// <summary>R3b: how the class casts spells; null if it does not.</summary>
+    public SpellcastingDefinition? Spellcasting { get; init; }
 }
+
+/// <summary>
+/// R3b: a class's spellcasting (SRD class features table): its ability, how many spells it prepares and its spell slots by
+/// spell level, for each class level from 1.
+/// </summary>
+public sealed record SpellcastingDefinition(Ability Ability, IReadOnlyList<int> Prepared, IReadOnlyList<IReadOnlyList<int>> Slots);
+
+/// <summary>R3b: how a spell is cast: with the Magic action, a Bonus Action, or the Bonus Action right after a melee hit.</summary>
+public enum CastingTime { Action, BonusAction, AfterMeleeHit }
+
+/// <summary>
+/// R3b: a spell (SRD Spells): its level, casting time, range in feet (0 self, 5 touch), duration in minutes (0
+/// instantaneous), Concentration, how many creatures it targets at its level, the classes that have it. Its effect is in code.
+/// </summary>
+public sealed record SpellDefinition(string Id, string Name, int Level, CastingTime Casting, int RangeFeet, int DurationMinutes,
+    bool Concentration, int Targets, IReadOnlyList<string> Classes);
 
 /// <summary>The six ability scores.</summary>
 public sealed record AbilityScores(int Strength, int Dexterity, int Constitution, int Intelligence, int Wisdom, int Charisma);
@@ -129,6 +148,9 @@ public sealed class ContentPack
     public required IReadOnlyDictionary<string, ClassDefinition> Classes { get; init; }
     public required IReadOnlyDictionary<string, CreatureDefinition> Creatures { get; init; }
     public required IReadOnlyDictionary<string, CharacterDefinition> Characters { get; init; }
+
+    /// <summary>R3b: the spells the game implements, by id.</summary>
+    public IReadOnlyDictionary<string, SpellDefinition> Spells { get; init; } = new Dictionary<string, SpellDefinition>();
 
     /// <summary>C5a: kinds of creatures, by id.</summary>
     public IReadOnlyDictionary<string, KindDefinition> Kinds { get; init; } = new Dictionary<string, KindDefinition>();
@@ -196,6 +218,7 @@ public sealed class ContentPack
         var creatures = new Dictionary<string, CreatureDefinition>();
         var characters = new Dictionary<string, CharacterDefinition>();
         var kinds = new Dictionary<string, KindDefinition>();
+        var spells = new Dictionary<string, SpellDefinition>();
         var documents = listed.Select(n => (Name: n, Root: Parse(texts[n], n))).ToList();
         // Items first: everything else refers to them.
         foreach (var (name, root) in documents)
@@ -210,6 +233,9 @@ public sealed class ContentPack
             if (root.TryGetProperty("classes", out var cl))
                 foreach (var e in cl.EnumerateArray())
                     Add(classes, ReadClass(e, name), name);
+            if (root.TryGetProperty("spells", out var sp))
+                foreach (var e in sp.EnumerateArray())
+                    Add(spells, ReadSpell(e, name), name);
             if (root.TryGetProperty("creatures", out var cr))
                 foreach (var e in cr.EnumerateArray())
                     Add(creatures, ReadCreature(e, name, items), name);
@@ -231,7 +257,7 @@ public sealed class ContentPack
         return new ContentPack
         {
             Id = id, Version = version, Hash = HashOf(ordered), Files = ordered,
-            Items = items, Classes = classes, Creatures = creatures, Characters = characters, Kinds = kinds, Scenarios = scenarios,
+            Items = items, Classes = classes, Creatures = creatures, Characters = characters, Kinds = kinds, Scenarios = scenarios, Spells = spells,
         };
     }
 
@@ -287,6 +313,18 @@ public sealed class ContentPack
         return new ItemDefinition(id, Text(e, "name", where), pounds, cost) { Weapon = weapon, Armor = armor };
     }
 
+    private static SpellDefinition ReadSpell(JsonElement e, string file)
+    {
+        var id = Text(e, "id", file);
+        var where = $"{file}, incantesimo '{id}'";
+        var spell = new SpellDefinition(id, Text(e, "name", where), Int(e, "level", where), EnumOf<CastingTime>(Field(e, "casting", where), where),
+            Int(e, "range", where), Int(e, "duration", where), Field(e, "concentration", where).GetBoolean(), Int(e, "targets", where),
+            Array(e, "classes", where).Select(x => x.GetString() ?? "").ToArray());
+        if (spell.Level is < 0 or > 9 || spell.RangeFeet < 0 || spell.DurationMinutes < 0 || spell.Targets < 0)
+            throw new InvalidDataException($"contenuti: {where}: livello, gittata, durata o bersagli non validi");
+        return spell;
+    }
+
     private static ClassDefinition ReadClass(JsonElement e, string file)
     {
         var id = Text(e, "id", file);
@@ -296,6 +334,9 @@ public sealed class ContentPack
             Array(e, "armor", where).Select(x => EnumOf<ArmorType>(x, where)).ToArray(), Int(e, "masteries", where))
         {
             Saves = e.TryGetProperty("saves", out var saves) ? saves.EnumerateArray().Select(x => EnumOf<Ability>(x, where)).ToArray() : System.Array.Empty<Ability>(),
+            Spellcasting = e.TryGetProperty("spellcasting", out var sc) ? new SpellcastingDefinition(EnumOf<Ability>(Field(sc, "ability", where), where),
+                Array(sc, "prepared", where).Select(x => x.GetInt32()).ToArray(),
+                Array(sc, "slots", where).Select(l => (IReadOnlyList<int>)l.EnumerateArray().Select(x => x.GetInt32()).ToArray()).ToArray()) : null,
         };
     }
 
@@ -457,7 +498,7 @@ public sealed class ContentPack
         var id = value switch
         {
             ItemDefinition i => i.Id, ClassDefinition c => c.Id, CreatureDefinition r => r.Id, CharacterDefinition h => h.Id,
-            KindDefinition k => k.Id, _ => "",
+            KindDefinition k => k.Id, SpellDefinition s => s.Id, _ => "",
         };
         if (!into.TryAdd(id, value))
             throw new InvalidDataException($"contenuti: '{id}' ripetuto ({file})");

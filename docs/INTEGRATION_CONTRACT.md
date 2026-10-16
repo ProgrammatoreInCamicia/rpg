@@ -981,3 +981,11 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
   - "WeaponMastery": facoltativa dopo ogni riposo lungo, due armi fra quelle in cui si è competenti.
 - `PlayerView.FightingStyle`, `PlayerView.MasteryWeapons`.
 - Fatto: la riserva rimborsa i punti che non potevano curare; un aumento di Costituzione alza subito i punti ferita massimi. Scelte solo fuori dallo scontro. Salvataggio schema 35. Attacco extra solo per l'azione Attacco del proprio turno: l'attacco d'apertura fuori scontro resta uno.
+
+## R3b — Incantesimi (SRD 5.2.1 "Spells", p. 105–175; Paladino p. 53–56)
+
+- Contenuti: `srd/spells.json` (livello, `casting` Action/BonusAction/AfterMeleeHit, gittata in piedi con 0 = sé e 5 = contatto, durata in minuti, concentrazione, bersagli); `spellcasting` della classe in `srd/classes.json` (caratteristica, incantesimi preparati e slot per ogni livello di classe).
+- `PlayerView.Spells` (`SpellbookView`: `Prepared` con `SpellView`, `Slots` con `SlotView`, `SaveDc`, `AttackBonus`, `Concentrating`, `FreeSmite`), `PlayerView.Effects` (`EffectView`), `CombatSelfView.SpellSlotSpent`.
+- `CastCommand { Spell, SlotLevel, Targets, Condition }`; `AttackCommand.SmiteSlot`/`SmiteFree` per Punizione divina (ADATTAMENTO: scelta prima del tiro, spesa solo se colpisce).
+- Regole: CD = 8 + caratteristica + competenza; uno slot per turno; Magia = l'azione, gli altri l'azione bonus; un percorso libero verso il bersaglio (non dietro copertura totale); lo stesso incantesimo non si somma (il nuovo sostituisce il vecchio); concentrazione: uno alla volta, tiro salvezza su Costituzione CD max(10, metà del danno) fino a 30, finisce se incapacitato o morto.
+- Scelte: "PreparedSpells" quando mancano incantesimi preparati; dopo un riposo lungo "SwapSpell" facoltativa (due opzioni: quello da togliere e quello nuovo).

@@ -20,6 +20,13 @@ public sealed record AttackCommand : Command
 
     /// <summary>SRD Knocking Out: a melee hit that would drop the target to 0 leaves it at 1 HP, unconscious.</summary>
     public bool NonLethal { get; init; }
+
+    /// <summary>
+    /// R3b, Divine Smite: if this melee attack hits, smite with a spell slot of this level (or, with <see cref="SmiteFree"/>,
+    /// the free use of Paladin's Smite). ADAPTATION: chosen before the roll, spent only on a hit.
+    /// </summary>
+    public int? SmiteSlot { get; init; }
+    public bool SmiteFree { get; init; }
 }
 
 /// <summary>End the actor's turn; the other turns are then resolved up to the player's next one.</summary>
@@ -149,6 +156,9 @@ public sealed record CombatSelfView
 
     /// <summary>R3a, Extra Attack: attacks still to make with the Attack action already taken this turn.</summary>
     public int AttacksLeft { get; init; }
+
+    /// <summary>R3b, SRD: one spell slot a turn; it was spent this turn.</summary>
+    public bool SpellSlotSpent { get; init; }
 
     /// <summary>SRD: one Reaction, regained at the start of one's own turn.</summary>
     public required bool ReactionAvailable { get; init; }
