@@ -8,8 +8,9 @@ namespace RpgSandbox.Game;
 public partial class VillageMap
 {
 	private Node2D _roofs = null!;
-	private static readonly Color RoofColor = new(0.36f, 0.39f, 0.43f);
-	private readonly Dictionary<GridPos, Polygon2D> _roofTiles = new();
+	private static readonly Color RoofColor = new(0.31f, 0.36f, 0.43f);
+	private readonly Dictionary<GridPos, Node2D> _roofTiles = new();
+	private readonly Dictionary<LocationId, (int MinX, int MaxX, int MinY, int MaxY)> _roofBounds = new();
 	private readonly List<(GridPos Covered, GridPos Exposed, Polygon2D Blend)> _roofBlends = new();
 	private readonly List<(GridPos Cell, Line2D Rim)> _roofRims = new();
 	private readonly List<(MapEdgeView Edge, Node2D Panel)> _interiorEdges = new();
@@ -17,26 +18,40 @@ public partial class VillageMap
 
 	private void BuildRoofLayer()
 	{
-		_roofs = new Node2D { ZIndex = -9 };
+		// Above wall panels and figures: the roof is the outside of the building, not a floor tint.
+		_roofs = new Node2D { ZIndex = 20 };
 		AddChild(_roofs);
 		var map = _view.Map!;
+		var indoorCells = new List<(GridPos Cell, LocationId Zone)>();
 		for (var y = 0; y < map.Height; y++)
 		for (var x = 0; x < map.Width; x++)
 		{
 			var cell = new GridPos(x, y);
-			if (!IsIndoor(cell)) continue;
-			// An opaque, continuous roof silhouette covers the floor of rooms outside current sight.
-			// It is independent of the room's light: a dark interior does not make the exterior disappear.
-			var tile = new Polygon2D
-			{
-				Polygon = Diamond(1.012f), Position = CellToScreen(cell),
-				Color = RoofColor,
-			};
+			if (IsIndoor(cell) && ZoneAt(cell) is { } zone) indoorCells.Add((cell, zone));
+		}
+		foreach (var group in indoorCells.GroupBy(entry => entry.Zone))
+			_roofBounds[group.Key] = (group.Min(e => e.Cell.X), group.Max(e => e.Cell.X),
+				group.Min(e => e.Cell.Y), group.Max(e => e.Cell.Y));
+		foreach (var (cell, _) in indoorCells)
+		{
+			var tile = new Node2D { Position = CellToScreen(cell) };
+			var corners = RoofCorners(cell).Select(p => p - tile.Position).ToArray();
+			var peak = new Vector2(0, -RoofHeight(cell, cell.X, cell.Y));
+			var bounds = _roofBounds[ZoneAt(cell)!.Value];
+			var acrossX = bounds.MaxX - bounds.MinX < bounds.MaxY - bounds.MinY;
+			var across = acrossX ? cell.X : cell.Y;
+			var middle = acrossX ? (bounds.MinX + bounds.MaxX) / 2f : (bounds.MinY + bounds.MaxY) / 2f;
+			var plane = across < middle ? RoofColor.Lightened(0.08f) : RoofColor.Darkened(0.07f);
+			for (var side = 0; side < 4; side++)
+				tile.AddChild(new Polygon2D
+				{
+					Polygon = new[] { corners[side], corners[(side + 1) % 4], peak },
+					Color = plane,
+				});
 			_roofs.AddChild(tile);
 			_roofTiles[cell] = tile;
 		}
-		// One colour across all diamonds reads as a single roof. Only its outer contour is inked;
-		// the seams between 5-foot squares are deliberately absent.
+		// Keep the per-cell cutaway, but draw only the perimeter of the building, never grid lines.
 		foreach (var cell in _roofTiles.Keys)
 		foreach (var nearby in new[]
 		{
@@ -73,15 +88,38 @@ public partial class VillageMap
 		}
 	}
 
-	private static (Vector2 From, Vector2 To) RoofEdge(GridPos cell, GridPos nearby)
+	private float RoofHeight(GridPos cell, float x, float y)
 	{
-		var diamond = Diamond();
-		var from = nearby.X > cell.X ? diamond[1] : nearby.X < cell.X ? diamond[3]
-			: nearby.Y > cell.Y ? diamond[2] : diamond[0];
-		var to = nearby.X > cell.X ? diamond[2] : nearby.X < cell.X ? diamond[0]
-			: nearby.Y > cell.Y ? diamond[3] : diamond[1];
+		var bounds = _roofBounds[ZoneAt(cell)!.Value];
+		var acrossX = bounds.MaxX - bounds.MinX < bounds.MaxY - bounds.MinY;
+		var start = acrossX ? bounds.MinX - 0.5f : bounds.MinY - 0.5f;
+		var end = acrossX ? bounds.MaxX + 0.5f : bounds.MaxY + 0.5f;
+		var along = acrossX ? x : y;
+		var distance = MathF.Max(0, MathF.Min(along - start, end - along));
+		return WallHeight + 5f + MathF.Min(19f, distance * 12f);
+	}
+
+	private Vector2[] RoofCorners(GridPos cell)
+	{
 		var center = CellToScreen(cell);
-		return (center + from, center + to);
+		var diamond = Diamond(1.012f);
+		return new[]
+		{
+			center + diamond[0] + Vector2.Up * RoofHeight(cell, cell.X - 0.5f, cell.Y - 0.5f),
+			center + diamond[1] + Vector2.Up * RoofHeight(cell, cell.X + 0.5f, cell.Y - 0.5f),
+			center + diamond[2] + Vector2.Up * RoofHeight(cell, cell.X + 0.5f, cell.Y + 0.5f),
+			center + diamond[3] + Vector2.Up * RoofHeight(cell, cell.X - 0.5f, cell.Y + 0.5f),
+		};
+	}
+
+	private (Vector2 From, Vector2 To) RoofEdge(GridPos cell, GridPos nearby)
+	{
+		var corners = RoofCorners(cell);
+		var from = nearby.X > cell.X ? corners[1] : nearby.X < cell.X ? corners[3]
+			: nearby.Y > cell.Y ? corners[2] : corners[0];
+		var to = nearby.X > cell.X ? corners[2] : nearby.X < cell.X ? corners[0]
+			: nearby.Y > cell.Y ? corners[3] : corners[1];
+		return (from, to);
 	}
 
 	private bool IsIndoor(GridPos cell)
@@ -173,6 +211,8 @@ public partial class VillageMap
 	}
 
 	internal bool RoofVisibleForSmoke(GridPos cell) => _roofTiles.TryGetValue(cell, out var tile) && tile.Visible;
+	internal bool RoofRaisedForSmoke(GridPos cell) => _roofTiles.TryGetValue(cell, out var tile)
+		&& tile.GetChildren().OfType<Polygon2D>().Any(face => face.Polygon.Min(point => point.Y) < -WallHeight);
 	internal bool InteriorEdgeVisibleForSmoke(GridPos a, GridPos b) =>
 		_interiorEdges.Single(p => p.Edge.A == a && p.Edge.B == b).Panel.Visible;
 }

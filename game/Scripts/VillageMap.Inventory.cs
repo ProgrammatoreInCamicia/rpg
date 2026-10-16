@@ -1,5 +1,6 @@
 using Godot;
 using RpgSandbox.Sim.Api;
+using RpgSandbox.Sim.Rules;
 
 namespace RpgSandbox.Game;
 
@@ -64,7 +65,8 @@ public partial class VillageMap
 		var copper = _view.Coins % 10;
 		_coinsLabel.Text = $"Denaro: {gold} mo · {silver} ma · {copper} mr";
 		_inventoryButton.Text = $"Inventario ({_view.Inventory.Sum(i => i.Count)})";
-		var key = $"{_view.Position}|{_view.Dead}|{_view.Combat?.Round}:{_view.Combat?.Turn}|{_view.Coins}|"
+		var key = $"{_view.Position}|{_view.Dead}|{_view.Unconscious}|{_view.Action?.Kind}|"
+			+ $"{_view.Combat?.Round}:{_view.Combat?.Turn}:{_view.Combat?.IsYourTurn}:{_view.Combat?.You.ActionAvailable}:{_view.Combat?.You.InteractionAvailable}|{_view.Coins}|"
 			+ string.Join(";", _view.Equipment.Select(e => $"{e.Slot}:{e.Item}:{e.Name}")) + "|"
 			+ string.Join(";", _view.Inventory.Select(i => $"{i.Item}:{i.Name}:{i.Count}:{i.Equipped}")) + "|"
 			+ string.Join(";", _view.GroundItems.Select(i => $"{i.At}:{i.Item}:{i.Name}:{i.Count}"));
@@ -76,8 +78,22 @@ public partial class VillageMap
 		ClearRows(_groundRows);
 		if (_view.Equipment.Count == 0)
 			_equipmentRows.AddChild(new Label { Text = "Niente equipaggiato." });
+		var canEquip = !_view.Dead && !_view.Unconscious && (_view.Combat is { } fight
+			? fight.IsYourTurn && (fight.You.InteractionAvailable || fight.You.ActionAvailable)
+			: _view.Action is null);
 		foreach (var worn in _view.Equipment)
-			_equipmentRows.AddChild(new Label { Text = $"{EquipmentSlotName(worn.Slot)}: {worn.Name}" });
+		{
+			var row = new HBoxContainer();
+			row.AddChild(new Label { Text = $"{EquipmentSlotName(worn.Slot)}: {worn.Name}",
+				SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
+			if (worn.Slot != EquipmentSlot.Armor)
+			{
+				var stow = new Button { Text = "Riponi", Disabled = !canEquip };
+				stow.Pressed += () => EquipItem(null, worn.Slot);
+				row.AddChild(stow);
+			}
+			_equipmentRows.AddChild(row);
+		}
 		if (_view.Inventory.Count == 0)
 			_inventoryRows.AddChild(new Label { Text = "Nessun oggetto." });
 		foreach (var stack in _view.Inventory)
@@ -86,6 +102,21 @@ public partial class VillageMap
 			var worn = stack.Equipped > 0 ? " (in uso)" : "";
 			row.AddChild(new Label { Text = $"{stack.Name} ×{stack.Count}{worn}", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
 				TooltipText = stack.Equipped > 0 ? $"{stack.Equipped} equipaggiato/i" : "" });
+			var item = ContentPack.Default.Item(stack.Item.Value);
+			if (item is { Weapon: not null } || item?.Armor is { Type: ArmorType.Shield })
+			{
+				var equip = new MenuButton { Text = "Impugna…", Disabled = !canEquip || stack.Count <= stack.Equipped };
+				var menu = equip.GetPopup();
+				if (item.Weapon is not null)
+				{
+					menu.AddItem("Mano principale", (int)EquipmentSlot.MainHand);
+					menu.AddItem("Mano secondaria", (int)EquipmentSlot.OffHand);
+				}
+				if (item.Armor is { Type: ArmorType.Shield })
+					menu.AddItem("Scudo", (int)EquipmentSlot.Shield);
+				menu.IdPressed += id => EquipItem(stack.Item.Value, (EquipmentSlot)id);
+				row.AddChild(equip);
+			}
 			var drop = new Button { Text = "Lascia 1", Disabled = _view.Dead || _view.Position is null
 				|| stack.Count <= stack.Equipped,
 				TooltipText = stack.Count <= stack.Equipped ? "È equipaggiato: non puoi lasciarlo finché non puoi cambiarlo." : "" };
@@ -121,8 +152,16 @@ public partial class VillageMap
 		EquipmentSlot.Armor => "Armatura",
 		EquipmentSlot.Shield => "Scudo",
 		EquipmentSlot.MainHand => "Mano principale",
+		EquipmentSlot.OffHand => "Mano secondaria",
 		_ => slot.ToString(),
 	};
+
+	private void EquipItem(string? item, EquipmentSlot slot)
+	{
+		var result = _sim.Execute(new EquipCommand { Actor = _sim.Player, Item = item, Slot = slot });
+		ShowMessage(result.Message);
+		Refresh();
+	}
 
 	private bool GroundInReach(GridPos at) => _view.Position is { } here
 		&& Math.Max(Math.Abs(here.X - at.X), Math.Abs(here.Y - at.Y)) <= 1;
@@ -149,12 +188,29 @@ public partial class VillageMap
 	internal void OpenInventoryForSmoke() => _inventoryPanel.Visible = true;
 	internal void CloseInventoryForSmoke() => _inventoryPanel.Visible = false;
 	internal IReadOnlyList<string> EquipmentLabelsForSmoke => _equipmentRows.GetChildren()
-		.OfType<Label>().Select(label => label.Text).ToArray();
+		.OfType<HBoxContainer>().SelectMany(row => row.GetChildren().OfType<Label>()).Select(label => label.Text).ToArray();
+	internal void EquipForSmoke(ItemId item, EquipmentSlot slot)
+	{
+		var row = _inventoryRows.GetChildren().OfType<HBoxContainer>().FirstOrDefault(r =>
+			r.GetChildren().OfType<Label>().Any(l => l.Text.StartsWith(_view.Inventory.Single(i => i.Item == item).Name + " ×", StringComparison.Ordinal)));
+		var button = row?.GetChildren().OfType<MenuButton>().SingleOrDefault();
+		if (button is null || button.Disabled || button.GetPopup().GetItemIndex((int)slot) < 0)
+			throw new InvalidOperationException($"No enabled equip option for {item} in {slot}");
+		button.GetPopup().EmitSignal(PopupMenu.SignalName.IdPressed, (long)slot);
+	}
+	internal void StowForSmoke(EquipmentSlot slot)
+	{
+		var row = _equipmentRows.GetChildren().OfType<HBoxContainer>().FirstOrDefault(r =>
+			r.GetChildren().OfType<Label>().Any(l => l.Text.StartsWith(EquipmentSlotName(slot) + ":", StringComparison.Ordinal)));
+		var button = row?.GetChildren().OfType<Button>().SingleOrDefault();
+		if (button is null || button.Disabled) throw new InvalidOperationException($"No enabled stow option for {slot}");
+		button.EmitSignal(Button.SignalName.Pressed);
+	}
 	internal bool DropEnabledForSmoke(ItemId item)
 	{
 		var index = _view.Inventory.ToList().FindIndex(i => i.Item == item);
 		return index >= 0 && _inventoryRows.GetChild(index) is HBoxContainer row
-			&& row.GetChildren().OfType<Button>().SingleOrDefault() is { Disabled: false };
+			&& row.GetChildren().OfType<Button>().FirstOrDefault(b => b.Text == "Lascia 1") is { Disabled: false };
 	}
 
 	private void Drop(ItemId item, int count) => Order("lascia un oggetto", walk: false, () =>

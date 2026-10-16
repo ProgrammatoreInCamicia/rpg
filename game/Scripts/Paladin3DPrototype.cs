@@ -9,10 +9,13 @@ namespace RpgSandbox.Game;
 /// </summary>
 public partial class Paladin3DPrototype : Node3D
 {
+	public enum CharacterStyle { Paladin, Guard, Farmer, Raider }
+	public CharacterStyle Style { get; set; } = CharacterStyle.Paladin;
 	/// <summary>Use the same rig as a live ViewportTexture in the village, without exporting an atlas.</summary>
 	public bool LiveMode { get; set; }
 	public Texture2D LiveTexture => _viewport.GetTexture();
-	public void PoseLive(float yaw, float cycle) => Pose(yaw, cycle);
+	public bool Swinging => _shoulders.Count == 2 && _shoulders[1].Rotation.Z < -0.5f;
+	public void PoseLive(float yaw, float cycle, float attackProgress = 0f) => Pose(yaw, cycle, attackProgress);
 	public void SetLiveRendering(bool active) => _viewport.RenderTargetUpdateMode = active
 		? SubViewport.UpdateMode.Always : SubViewport.UpdateMode.Disabled;
 
@@ -96,12 +99,14 @@ public partial class Paladin3DPrototype : Node3D
 		stage.AddChild(_figure);
 		_body = new Node3D();
 		_figure.AddChild(_body);
-		var mail = Paint("70818c", 0.48f);
-		var steel = Paint("a8b6bd", 0.58f);
-		var darkSteel = Paint("46525d", 0.5f);
-		var blue = Paint("234679", 0.08f);
-		var gold = Paint("c69c51", 0.48f);
-		var leather = Paint("4d3328", 0.02f);
+		var mail = Paint(Style switch { CharacterStyle.Guard => "566b78", CharacterStyle.Farmer => "88765b",
+			CharacterStyle.Raider => "594c48", _ => "70818c" }, Style == CharacterStyle.Farmer ? 0f : 0.48f);
+		var steel = Paint(Style == CharacterStyle.Farmer ? "a28d71" : "a8b6bd", 0.58f);
+		var darkSteel = Paint(Style == CharacterStyle.Farmer ? "54453a" : "46525d", 0.5f);
+		var blue = Paint(Style switch { CharacterStyle.Guard => "314e62", CharacterStyle.Farmer => "8a7452",
+			CharacterStyle.Raider => "613833", _ => "234679" }, 0.08f);
+		var gold = Paint(Style == CharacterStyle.Farmer ? "b49c6c" : "c69c51", 0.48f);
+		var leather = Paint(Style == CharacterStyle.Farmer ? "4b3c2d" : "4d3328", 0.02f);
 		var skin = Paint("b48265", 0.0f);
 		var hair = Paint("735039", 0.0f);
 
@@ -115,21 +120,27 @@ public partial class Paladin3DPrototype : Node3D
 			skin, new Vector3(0, 1.84f, 0));
 		Part(_body, new SphereMesh { Radius = 0.205f, Height = 0.28f },
 			hair, new Vector3(0, 1.98f, -0.025f));
-		Part(_body, new SphereMesh { Radius = 0.23f, Height = 0.30f },
-			steel, new Vector3(0, 2.03f, 0));
-		Part(_body, new BoxMesh { Size = new Vector3(0.47f, 0.055f, 0.38f) },
-			gold, new Vector3(0, 1.91f, 0));
-		Part(_body, new BoxMesh { Size = new Vector3(0.075f, 0.20f, 0.10f) },
-			steel, new Vector3(0, 1.82f, 0.20f));
-		Part(_body, new SphereMesh { Radius = 0.075f, Height = 0.13f },
-			gold, new Vector3(0, 1.45f, 0.275f));
+		if (Style != CharacterStyle.Farmer)
+		{
+			Part(_body, new SphereMesh { Radius = 0.23f, Height = 0.30f },
+				steel, new Vector3(0, 2.03f, 0));
+			Part(_body, new BoxMesh { Size = new Vector3(0.47f, 0.055f, 0.38f) },
+				gold, new Vector3(0, 1.91f, 0));
+			Part(_body, new BoxMesh { Size = new Vector3(0.075f, 0.20f, 0.10f) },
+				steel, new Vector3(0, 1.82f, 0.20f));
+			Part(_body, new SphereMesh { Radius = 0.075f, Height = 0.13f },
+				gold, new Vector3(0, 1.45f, 0.275f));
+		}
 
 		_cape = new Node3D { Position = new Vector3(0, 1.63f, -0.30f) };
 		_body.AddChild(_cape);
-		Part(_cape, new BoxMesh { Size = new Vector3(0.57f, 0.91f, 0.035f) },
-			blue, new Vector3(0, -0.40f, -0.025f));
-		Part(_cape, new BoxMesh { Size = new Vector3(0.57f, 0.05f, 0.05f) },
-			gold, new Vector3(0, -0.85f, -0.025f));
+		if (Style is CharacterStyle.Paladin or CharacterStyle.Guard)
+		{
+			Part(_cape, new BoxMesh { Size = new Vector3(0.57f, 0.91f, 0.035f) },
+				blue, new Vector3(0, -0.40f, -0.025f));
+			Part(_cape, new BoxMesh { Size = new Vector3(0.57f, 0.05f, 0.05f) },
+				gold, new Vector3(0, -0.85f, -0.025f));
+		}
 
 		for (var side = -1; side <= 1; side += 2)
 		{
@@ -155,14 +166,14 @@ public partial class Paladin3DPrototype : Node3D
 				mail, new Vector3(side * 0.07f, -0.32f, 0));
 			Part(shoulder, new SphereMesh { Radius = 0.11f, Height = 0.20f },
 				leather, new Vector3(side * 0.08f, -0.61f, 0));
-			if (side < 0)
+			if (side < 0 && Style is CharacterStyle.Paladin or CharacterStyle.Guard)
 			{
 				Part(shoulder, new CylinderMesh { TopRadius = 0.26f, BottomRadius = 0.22f, Height = 0.055f },
 					blue, new Vector3(-0.09f, -0.61f, 0.19f), new Vector3(90, 0, 0));
 				Part(shoulder, new CylinderMesh { TopRadius = 0.08f, BottomRadius = 0.08f, Height = 0.063f },
 					gold, new Vector3(-0.09f, -0.61f, 0.225f), new Vector3(90, 0, 0));
 			}
-			else
+			else if (side > 0 && Style != CharacterStyle.Farmer)
 			{
 				Part(shoulder, new BoxMesh { Size = new Vector3(0.045f, 0.72f, 0.075f) },
 					steel, new Vector3(0.08f, -0.91f, 0.14f), new Vector3(16, 0, 11));
@@ -192,7 +203,7 @@ public partial class Paladin3DPrototype : Node3D
 		parent.AddChild(part);
 	}
 
-	private void Pose(float yaw, float cycle)
+	private void Pose(float yaw, float cycle, float attackProgress = 0f)
 	{
 		_figure.Rotation = new Vector3(0, yaw, 0);
 		var stride = Mathf.Sin(cycle * Mathf.Tau);
@@ -205,6 +216,12 @@ public partial class Paladin3DPrototype : Node3D
 			_hips[i].Rotation = new Vector3(signed * 0.37f, 0, 0);
 			_knees[i].Rotation = new Vector3(Mathf.Max(0, -signed) * 0.42f, 0, 0);
 			_shoulders[i].Rotation = new Vector3(-signed * 0.28f, 0, 0);
+		}
+		if (attackProgress > 0f)
+		{
+			var swing = MathF.Sin(attackProgress * MathF.PI);
+			_shoulders[1].Rotation = new Vector3(-1.1f * swing, 0, -1.35f * swing);
+			_body.Rotation = new Vector3(0, 0.18f * swing, 0);
 		}
 	}
 

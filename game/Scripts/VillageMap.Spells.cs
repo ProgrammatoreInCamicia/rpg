@@ -8,7 +8,9 @@ public partial class VillageMap
 {
 	private Button _spellButton = null!;
 	private Button _combatSpellButton = null!;
+	private VBoxContainer _combatSpellTile = null!;
 	private Button _divineSenseButton = null!;
+	private VBoxContainer _divineSenseTile = null!;
 	private Button _spellDivineSenseButton = null!;
 	private PanelContainer _spellPanel = null!;
 	private Label _spellSummary = null!;
@@ -88,14 +90,14 @@ public partial class VillageMap
 		box.AddChild(_castSpellButton);
 	}
 
-	private void BuildCombatSpellButtons(BoxContainer row)
+	private void BuildCombatSpellButtons(HBoxContainer row)
 	{
-		_combatSpellButton = new Button { Text = "Magia", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_combatSpellButton = new Button { TooltipText = "Apri il libro: scegli incantesimo, slot e bersagli. Il costo dipende dall'incantesimo." };
 		_combatSpellButton.Pressed += ToggleSpellPanel;
-		row.AddChild(_combatSpellButton);
-		_divineSenseButton = new Button { Text = "Percezione divina", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_combatSpellTile = AddActionTile(row, _combatSpellButton, "Magia", "Azione/bonus", "magic", MagicAccent);
+		_divineSenseButton = new Button();
 		_divineSenseButton.Pressed += UseDivineSense;
-		row.AddChild(_divineSenseButton);
+		_divineSenseTile = AddActionTile(row, _divineSenseButton, "Percezione", "Bonus", "eye", MagicAccent);
 	}
 
 	private void ToggleSpellPanel()
@@ -129,10 +131,13 @@ public partial class VillageMap
 		var book = _view.Spells;
 		_spellButton.Visible = book is not null;
 		_combatSpellButton.Visible = book is not null;
+		_combatSpellTile.Visible = book is not null;
 		_divineSenseButton.Visible = _view.ChannelDivinity is not null;
+		_divineSenseTile.Visible = _view.ChannelDivinity is not null;
 		_spellDivineSenseButton.Visible = _view.ChannelDivinity is not null;
 		_divineSenseButton.Disabled = !CanUseDivineSense();
 		_spellDivineSenseButton.Disabled = !CanUseDivineSense();
+		SetActionTileEnabled(_divineSenseButton, !_divineSenseButton.Disabled);
 		_divineSenseButton.TooltipText = $"Incanalare divinità: {_view.ChannelDivinity?.Remaining ?? 0}/{_view.ChannelDivinity?.Max ?? 0}. Usa l'azione bonus.";
 		if (book is null) { _spellPanel.Visible = false; return; }
 		_prepareSpellsButton.Visible = _view.PendingChoices.Any(c => c.Kind is "PreparedSpells" or "SwapSpell");

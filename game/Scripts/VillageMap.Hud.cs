@@ -10,6 +10,7 @@ public partial class VillageMap
 	private PanelContainer _hudLogPanel = null!;
 	private Button _hudLogExpand = null!;
 	private bool _hudLogExpanded;
+	private bool _hudLogHovered;
 	private bool _hudWasInCombat;
 	private Label _hudHitPoints = null!;
 	private PanelContainer _exploreActionPanel = null!;
@@ -33,32 +34,43 @@ public partial class VillageMap
 
 	private void BuildHudLog(CanvasLayer ui)
 	{
-		_hudLogPanel = HudPanel(-330, -16, -154, -16, bottomAnchored: true, rightAnchored: true);
-		_hudLogPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.08f, 0.09f, 0.11f, 0.91f) });
+		_hudLogPanel = HudPanel(-330, -66, -116, -16, bottomAnchored: true, rightAnchored: true);
+		_hudLogPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.08f, 0.09f, 0.11f, 0.84f) });
+		_hudLogPanel.MouseEntered += () => { _hudLogHovered = true; RefreshHudLogAppearance(); };
+		_hudLogPanel.MouseExited += () => { _hudLogHovered = false; RefreshHudLogAppearance(); };
 		ui.AddChild(_hudLogPanel);
 		var box = new VBoxContainer();
 		_hudLogPanel.AddChild(box);
-		var header = new HBoxContainer();
-		box.AddChild(header);
-		header.AddChild(new Label { Text = "Registro", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
-		_hudLogExpand = new Button { Text = "Espandi" };
+		_hudLogExpand = new Button { TooltipText = "Apri o chiudi il registro", AnchorLeft = 1,
+			AnchorRight = 1, AnchorTop = 1, AnchorBottom = 1, OffsetLeft = -56,
+			OffsetRight = -16, OffsetTop = -56, OffsetBottom = -16 };
+		StyleActionButton(_hudLogExpand, "journal", UtilityAccent, iconOnly: true);
 		_hudLogExpand.Pressed += () =>
 		{
 			_hudLogExpanded = !_hudLogExpanded;
 			RefreshHudLogSize();
 		};
-		header.AddChild(_hudLogExpand);
+		ui.AddChild(_hudLogExpand);
 		_hudLog = new RichTextLabel { BbcodeEnabled = false, ScrollFollowing = true,
 			SizeFlagsVertical = Control.SizeFlags.ExpandFill,
-			MouseFilter = Control.MouseFilterEnum.Stop };
+			MouseFilter = Control.MouseFilterEnum.Ignore };
 		_hudLog.AddThemeFontSizeOverride("normal_font_size", 13);
 		box.AddChild(_hudLog);
+		RefreshHudLogAppearance();
 	}
 
 	private void RefreshHudLogSize()
 	{
-		_hudLogPanel.OffsetTop = _hudLogExpanded ? -360 : _view.Combat is null ? -154 : -236;
-		_hudLogExpand.Text = _hudLogExpanded ? "Riduci" : "Espandi";
+		_hudLogPanel.OffsetTop = _hudLogExpanded ? -360 : _view.Combat is null ? -116 : -150;
+		_hudLogPanel.OffsetRight = _hudLogExpanded ? -16 : -66;
+		_hudLogExpand.TooltipText = _hudLogExpanded ? "Riduci il registro" : "Apri il registro";
+		RefreshHudLogAppearance();
+	}
+
+	private void RefreshHudLogAppearance()
+	{
+		_hudLogPanel.Modulate = new Color(1, 1, 1, _hudLogExpanded ? 1 : _hudLogHovered ? 0.94f : 0.42f);
+		_hudLog.MouseFilter = _hudLogExpanded ? Control.MouseFilterEnum.Stop : Control.MouseFilterEnum.Ignore;
 	}
 
 	private void ResetHudLog()
@@ -82,7 +94,7 @@ public partial class VillageMap
 			_spellPanel.Visible = false;
 		}
 		_hudWasInCombat = inCombat;
-		_exploreActionPanel.Visible = !inCombat && !_view.Dead;
+		RefreshQuickbar();
 		RefreshHudLogSize();
 		if (_view.Combat is not null) _restPanel.Visible = false;
 		_hudHitPoints.Text = $"PF {_view.HitPoints}/{_view.MaxHitPoints}";
@@ -123,23 +135,29 @@ public partial class VillageMap
 		if (_hudLines.Count > 150) _hudLines.RemoveAt(0);
 	}
 
-	private void CloseHudOverlay()
+	private bool CloseHudOverlay()
 	{
-		if (_openingConfirm.Visible) { _openingConfirm.Hide(); return; }
-		if (_openingPanel.Visible) { _openingPanel.Visible = false; return; }
-		if (_classPanel.Visible) { _classPanel.Visible = false; return; }
-		if (_spellPanel.Visible) { _spellPanel.Visible = false; return; }
-		if (_inventoryPanel.Visible) { _inventoryPanel.Visible = false; return; }
-		if (_journalPanel.Visible) { ToggleJournal(); return; }
-		if (_creaturePanel.Visible) { _creaturePanel.Visible = false; return; }
-		if (_barrierMenu.Visible) { _barrierMenu.Visible = false; return; }
-		if (_personMenu.Visible) { _personMenu.Visible = false; return; }
-		_restPanel.Visible = false;
+		if (_gameMenu.Visible) { _gameMenu.Visible = false; return true; }
+		if (_attackOptionsPanel.Visible) { _attackOptionsPanel.Visible = false; return true; }
+		if (_openingConfirm.Visible) { _openingConfirm.Hide(); return true; }
+		if (_openingPanel.Visible) { _openingPanel.Visible = false; return true; }
+		if (_classPanel.Visible) { _classPanel.Visible = false; return true; }
+		if (_spellPanel.Visible) { _spellPanel.Visible = false; return true; }
+		if (_inventoryPanel.Visible) { _inventoryPanel.Visible = false; return true; }
+		if (_journalPanel.Visible) { ToggleJournal(); return true; }
+		if (_creaturePanel.Visible) { _creaturePanel.Visible = false; return true; }
+		if (_barrierMenu.Visible) { _barrierMenu.Visible = false; return true; }
+		if (_personMenu.Visible) { _personMenu.Visible = false; return true; }
+		if (_restPanel.Visible) { _restPanel.Visible = false; return true; }
+		return false;
 	}
 
 	internal string HudLogForSmoke => _hudLog.Text;
+	internal float HudLogAlphaForSmoke => _hudLogPanel.Modulate.A;
+	internal void HoverHudLogForSmoke(bool hover) { _hudLogHovered = hover; RefreshHudLogAppearance(); }
+	internal void ExpandHudLogForSmoke() => _hudLogExpand.EmitSignal(BaseButton.SignalName.Pressed);
 	internal bool InventoryOpenForSmoke => _inventoryPanel.Visible;
-	internal bool ExploreActionBarVisibleForSmoke => _exploreActionPanel.Visible;
-	internal bool CombatActionBarVisibleForSmoke => _combatPanel.Visible;
+	internal bool ExploreActionBarVisibleForSmoke => _quickbarPanel.Visible && _view.Combat is null;
+	internal bool CombatActionBarVisibleForSmoke => _quickbarPanel.Visible && _view.Combat is not null;
 	internal void ToggleInventoryForSmoke() => _inventoryPanel.Visible = !_inventoryPanel.Visible;
 }

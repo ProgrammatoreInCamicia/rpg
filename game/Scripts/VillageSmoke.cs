@@ -59,6 +59,12 @@ public partial class VillageSmoke : Node
 			await PaladinAttackFeatures();
 			return;
 		}
+		if (OS.GetCmdlineUserArgs().Contains("--r4-ui-only"))
+		{
+			await Frames(3);
+			await R4ClientControls();
+			return;
+		}
 		if (OS.GetCmdlineUserArgs().Contains("--p5a-only"))
 		{
 			await Frames(3);
@@ -82,6 +88,8 @@ public partial class VillageSmoke : Node
 			&& _map.HasFigureSpriteForSmoke(MappedVillageScenario.Ids.Guard),
 			"G15: directional character sprite did not load in the village");
 		Require(_map.PaladinLive3dLoadedForSmoke, "G15: the live 3D paladin is not the village default");
+		Require(_map.NpcLive3dLoadedForSmoke(MappedVillageScenario.Ids.Guard),
+			"Visuals: the guard does not use the live 3D figure");
 		_map.TogglePaladin3dPrototypeForSmoke();
 		await Frames(2);
 		Require(_map.Paladin3dLoadedForSmoke, "G15: the optional 3D paladin walk atlas did not load");
@@ -332,6 +340,7 @@ public partial class VillageSmoke : Node
 		await DaylightAssault();
 		await CombatActions();
 		await PaladinAttackFeatures();
+		await R4ClientControls();
 		await InventoryPreview();
 		await InventoryCombat();
 	}
@@ -444,6 +453,142 @@ public partial class VillageSmoke : Node
 		Require(_map.GroundMarkVisibleForSmoke(ground), "C3b preview: the ground item is not marked");
 		await Frames(2);
 		Capture("41-c3b-inventory-preview.png");
+	}
+
+	/// <summary>R4: equip from the inventory, use maneuvers and the off-hand attack, then exercise the action menu.</summary>
+	private async Task R4ClientControls()
+	{
+		var session = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
+		using var initial = new MemoryStream();
+		session.Save(initial);
+		var peaceful = JsonNode.Parse(initial.ToArray())!.AsObject();
+		var player = peaceful["Actors"]!.AsArray().Single(a => a!["Id"]!.GetValue<string>() == MappedVillageScenario.Ids.Player.Value)!;
+		player["Inventory"]!.AsArray().Add(new JsonObject { ["Item"] = "dagger", ["Count"] = 1 });
+		player["Inventory"]!.AsArray().Add(new JsonObject { ["Item"] = "shortsword", ["Count"] = 1 });
+		var peacefulSave = System.IO.Path.Combine(_outputDir, "r4-gear-outside.json");
+		File.WriteAllText(peacefulSave, peaceful.ToJsonString());
+		_map.LoadGameFromPath(peacefulSave);
+		await Frames(2);
+		Require(_map.QuickbarVisibleForSmoke && _map.ExploreActionBarVisibleForSmoke,
+			"UX: the compact exploration bar is missing");
+		Require(_map.HudLogAlphaForSmoke < 0.5f, "UX: the log should be translucent at rest");
+		_map.HoverHudLogForSmoke(true);
+		Require(_map.HudLogAlphaForSmoke > 0.9f, "UX: hovering should reveal the log");
+		_map.HoverHudLogForSmoke(false);
+		_map.ExpandHudLogForSmoke();
+		Require(_map.HudLogAlphaForSmoke == 1f, "UX: opening the log should make it opaque");
+		_map.ExpandHudLogForSmoke();
+		_map._UnhandledInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+		Require(_map.GameMenuOpenForSmoke, "UX: Escape should open the game menu");
+		_map._UnhandledInput(new InputEventKey { Keycode = Key.Escape, Pressed = true });
+		Require(!_map.GameMenuOpenForSmoke, "UX: Escape should close the game menu");
+		_map.OpenInventoryForSmoke();
+		_map.StowForSmoke(EquipmentSlot.Shield);
+		_map.StowForSmoke(EquipmentSlot.MainHand);
+		_map.EquipForSmoke(new ItemId("dagger"), EquipmentSlot.MainHand);
+		_map.EquipForSmoke(new ItemId("shortsword"), EquipmentSlot.OffHand);
+		Require(_map.View.Equipment.Any(e => e.Slot == EquipmentSlot.MainHand && e.Item == new ItemId("dagger"))
+			&& _map.View.Equipment.Any(e => e.Slot == EquipmentSlot.OffHand && e.Item == new ItemId("shortsword"))
+			&& _map.View.Attacks.Any(a => a.Name == "Spada corta (mano secondaria)"),
+			$"R4b: inventory controls did not equip two weapons: {_map.LastMessage}");
+		await Frames(2);
+		Capture("r4-two-weapons-inventory.png");
+
+		var source = System.IO.Path.Combine(_outputDir, "g13-guard-joined.json");
+		var fight = JsonNode.Parse(File.ReadAllText(source))!.AsObject();
+		var actors = fight["Actors"]!.AsArray();
+		player = actors.Single(a => a!["Id"]!.GetValue<string>() == MappedVillageScenario.Ids.Player.Value)!;
+		player["Inventory"]!.AsArray().Add(new JsonObject { ["Item"] = "dagger", ["Count"] = 1 });
+		player["Inventory"]!.AsArray().Add(new JsonObject { ["Item"] = "shortsword", ["Count"] = 1 });
+		player["Equipment"]!["Shield"] = null;
+		player["Equipment"]!["MainHand"] = "dagger";
+		player["Equipment"]!["OffHand"] = "shortsword";
+		var twoWeapons = System.IO.Path.Combine(_outputDir, "r4-two-weapons-fight.json");
+		File.WriteAllText(twoWeapons, fight.ToJsonString());
+		_map.LoadGameFromPath(twoWeapons);
+		await Frames(2);
+		_map.ChooseBonusQuickFilterForSmoke();
+		Require(_map.BonusQuickFilterSelectedForSmoke && _map.BonusQuickButtonVisibleForSmoke
+			&& !_map.ActionQuickButtonVisibleForSmoke,
+			"UX: Bonus filter should hide action icons and keep bonus icons");
+		_map.ChooseAllQuickFilterForSmoke();
+		Require(_map.ActionQuickButtonVisibleForSmoke && _map.BonusQuickButtonVisibleForSmoke,
+			"UX: All filter should restore both kinds of icons");
+		var enemy = MappedVillageScenario.Ids.Farmer;
+		Require(_map.View.Combat is { IsYourTurn: true, You.ActionAvailable: true }
+			&& _map.View.Combat.Targets.Any(t => t.Target == enemy && t.Attack == "Pugnale" && t.Valid),
+			$"R4b: no valid first light-weapon attack in the fixture: "
+			+ $"attacks={string.Join(",", _map.View.Attacks.Select(a => a.Name))}; "
+			+ $"options={string.Join(";", _map.View.Combat?.Targets.Where(t => t.Target == enemy).Select(t => $"{t.Attack}:{t.Valid}:{t.Why}") ?? Array.Empty<string>())}; "
+			+ $"equipment={string.Join(",", _map.View.Equipment.Select(e => $"{e.Slot}:{e.Item}"))}; "
+			+ $"combatants={string.Join(",", _map.View.Combat?.Combatants.Select(c => $"{c.Id}:{c.Condition}") ?? Array.Empty<string>())}; "
+			+ $"visible={string.Join(",", _map.View.VisibleActors.Select(a => a.Id))}");
+		_map.ArmAttackForSmoke("Pugnale");
+		_map.ClickArmedTargetForSmoke(enemy);
+		Require(_map.View.Combat is { You.OffHandAttackAvailable: true },
+			$"R4b: first Light attack did not unlock the second hand: {_map.LastMessage}");
+		_map.ArmAttackForSmoke("Spada corta (mano secondaria)");
+		_map.ClickArmedTargetForSmoke(enemy);
+		Require(_map.View.Combat is { You.OffHandAttackAvailable: false, You.BonusActionAvailable: false }
+			&& _map.View.Combat.Log.Count(e => e.Kind == CombatLogKind.Attack && e.Actor == _map.View.Id) >= 2,
+			$"R4b: the off-hand attack was not sent from the action bar: {_map.LastMessage}");
+		await Seconds(0.16);
+		Require(_map.AttackSwingForSmoke(_map.View.Id), "Visuals: the live figure did not swing after the attack");
+		Capture("r4-offhand-attack.png");
+
+		var original = System.IO.Path.Combine(_outputDir, "g13-guard-joined.json");
+		var unarmed = JsonNode.Parse(File.ReadAllText(original))!.AsObject();
+		var unarmedPlayer = unarmed["Actors"]!.AsArray().Single(a => a!["Id"]!.GetValue<string>() == MappedVillageScenario.Ids.Player.Value)!;
+		unarmedPlayer["Equipment"]!["Shield"] = null;
+		unarmedPlayer["Equipment"]!["MainHand"] = null;
+		var unarmedSave = System.IO.Path.Combine(_outputDir, "r4-free-hands-fight.json");
+		File.WriteAllText(unarmedSave, unarmed.ToJsonString());
+		_map.LoadGameFromPath(unarmedSave);
+		await Frames(2);
+		_map.ArmAttackForSmoke("Colpo senz'armi");
+		_map.SelectManeuverForSmoke(1);
+		_map.ClickArmedTargetForSmoke(enemy);
+		Require(_map.View.Combat is { You.ActionAvailable: false }
+			&& _map.View.Combat.Log.Any(e => e.Kind == CombatLogKind.Condition && e.Text.Contains("afferrare")),
+			$"R4a: Afferra was not sent by the unarmed attack menu: {_map.LastMessage}");
+		await Frames(2);
+		Capture("r4-grapple-attempt.png");
+
+		_map.LoadGameFromPath(original);
+		await Frames(2);
+		_map.ArmAttackForSmoke("Colpo senz'armi");
+		_map.SelectManeuverForSmoke(3);
+		_map.ClickArmedTargetForSmoke(enemy);
+		Require(_map.View.Combat is { You.ActionAvailable: false }
+			&& _map.View.Combat.Log.Any(e => e.Kind == CombatLogKind.Condition && e.Text.Contains("buttare a terra")),
+			$"R4a: Spingi a terra was not sent by the unarmed attack menu: {_map.LastMessage}");
+
+		var held = JsonNode.Parse(File.ReadAllText(original))!.AsObject();
+		var heldFarmer = held["Actors"]!.AsArray().Single(a => a!["Id"]!.GetValue<string>() == enemy.Value)!;
+		heldFarmer["Conditions"] = new JsonArray(new JsonObject { ["Kind"] = "Grappled", ["Source"] = MappedVillageScenario.Ids.Player.Value });
+		var heldSave = System.IO.Path.Combine(_outputDir, "r4-held-farmer.json");
+		File.WriteAllText(heldSave, held.ToJsonString());
+		_map.LoadGameFromPath(heldSave);
+		await Frames(2);
+		Require(_map.ReleaseEnabledForSmoke, "R4a: Lascia la presa is not enabled for the held creature");
+		_map.PressReleaseForSmoke();
+		Require(_map.View.VisibleActors.First(a => a.Id == enemy).Conditions.All(c => c.Kind != ConditionKind.Grappled),
+			$"R4a: Lascia la presa did not free the held creature: {_map.LastMessage}");
+
+		foreach (var (action, text) in new[] { (CombatAction.Search, "cerca"), (CombatAction.Ready, "prepara") })
+		{
+			_map.LoadGameFromPath(original);
+			await Frames(2);
+			_map.PressCombatActionForSmoke(action);
+			Require(_map.View.Combat is { You.ActionAvailable: false }
+				&& _map.View.Combat.Log.Any(e => e.Text.Contains(text, StringComparison.OrdinalIgnoreCase)),
+				$"R4c: {action} did not run from the compact action menu: {_map.LastMessage}");
+		}
+		_map.LoadGameFromPath(original);
+		await Frames(2);
+		_map.PressCombatActionForSmoke(CombatAction.Hide);
+		Require(_map.LastMessage.Contains("Ti vedono") || _map.View.Combat is { You.ActionAvailable: false },
+			$"R4c: Nasconditi did not reach the Sim from the menu: {_map.LastMessage}");
 	}
 
 	/// <summary>R3b/R3c: the attack bar forwards both the Smite and Sacred Weapon choices to a real fight.</summary>
@@ -1071,6 +1216,7 @@ public partial class VillageSmoke : Node
 		Require(_map.View.Position == lookout && _map.SmokeWorld.Actors.Single(a => a.Id == raider).Move?.Stealthy == true,
 			"The UI did not restore the raid walk");
 		Require(_map.View.VisibleActors.Any(a => a.Id == raider), "The raider should be visible at dusk from the lookout");
+		Require(_map.NpcLive3dLoadedForSmoke(raider), "Visuals: the raider does not use the live 3D figure");
 		Capture("11-raider-enters.png");
 
 		_map.SetPace(6);

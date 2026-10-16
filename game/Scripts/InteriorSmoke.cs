@@ -23,6 +23,8 @@ public partial class InteriorSmoke : Node
 			_map.AdvanceForSmoke(new GameTime(13 * 3600));
 			await Frames(3);
 			Capture("day-outside.png");
+			Require(_map.RoofRaisedForSmoke(new GridPos(6, 4)),
+				"the roof is still drawn at floor height");
 			Require(!_map.PreviewSpotForSmoke(Spot.CenterOf(new GridPos(4, 4))).Visible,
 				"an unexplored room showed a free-walk preview");
 			_map.SetPaused(false);
@@ -58,6 +60,8 @@ public partial class InteriorSmoke : Node
 			Require(_map.View.Doors.Single(d => d.At == InteriorPrototypeScenario.Door).Open == true,
 				"walking through the edge door did not open it");
 			Capture("day-inside.png");
+			Require(_map.NpcLive3dLoadedForSmoke(MappedVillageScenario.Ids.Farmer),
+				"the visible inhabitant does not use the live 3D figure");
 			// Once the room has been explored, stepping outside and shutting the door must
 			// restore the facade. Remembered floor and internal partitions stay concealed.
 			_map.SetPaused(false);

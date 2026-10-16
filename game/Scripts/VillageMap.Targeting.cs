@@ -1,5 +1,6 @@
 using Godot;
 using RpgSandbox.Sim.Api;
+using RpgSandbox.Sim.Rules;
 
 namespace RpgSandbox.Game;
 
@@ -16,6 +17,8 @@ public partial class VillageMap
 	private int _smiteChoice;
 	private bool _sacredWeaponChosen;
 	private const int FreeSmiteMenuId = 100;
+	private readonly List<(HBoxContainer Row, OptionButton Picker)> _maneuverBars = new();
+	private int _maneuverChoice;
 
 	private void BuildAttackBar(BoxContainer parent)
 	{
@@ -31,6 +34,8 @@ public partial class VillageMap
 		row.AddChild(picker);
 		var arm = new Button { Text = "Attacca", ToggleMode = true,
 			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		StyleActionButton(arm, "sword", AttackAccent);
+		arm.TooltipText = "Seleziona l'arma, attiva l'attacco, poi clicca un bersaglio. Esc annulla senza consumare l'azione.";
 		arm.Pressed += () =>
 		{
 			_attackArmed = !_attackArmed;
@@ -60,6 +65,17 @@ public partial class VillageMap
 		sacred.Toggled += on => { _sacredWeaponChosen = on; RefreshAttackBars(); };
 		features.AddChild(sacred);
 		_attackFeatureBars.Add((features, smite, sacred));
+		var maneuverRow = new HBoxContainer { Visible = false };
+		parent.AddChild(maneuverRow);
+		maneuverRow.AddChild(new Label { Text = "Colpo senz'armi:" });
+		var maneuver = new OptionButton { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		maneuver.AddItem("Colpisci", 0);
+		maneuver.AddItem("Afferra", 1);
+		maneuver.AddItem("Spingi 5 piedi", 2);
+		maneuver.AddItem("Butta a terra", 3);
+		maneuver.ItemSelected += index => { _maneuverChoice = maneuver.GetItemId((int)index); RefreshAttackBars(); };
+		maneuverRow.AddChild(maneuver);
+		_maneuverBars.Add((maneuverRow, maneuver));
 		var hint = new Label { Text = "Clicca un bersaglio. Esc annulla.",
 			AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false };
 		parent.AddChild(hint);
@@ -93,22 +109,42 @@ public partial class VillageMap
 			arm.SetPressedNoSignal(_attackArmed);
 			arm.Text = _attackArmed ? "Bersaglio… (Esc)" : "Attacca";
 			arm.Disabled = _armedAttack is null || _view.Dead || _view.Unconscious
-				|| _view.Combat is { IsYourTurn: false };
+				|| _view.Combat is { IsYourTurn: false }
+				|| _view.Combat is { } fight && IsOffHandAttack(_armedAttack) && !fight.You.OffHandAttackAvailable;
 			nonLethal.SetPressedNoSignal(_nonLethalEnabled);
 		}
 		foreach (var hint in _attackHints) hint.Visible = _attackArmed;
 		var combat = _view.Combat;
 		var melee = _armedAttack is { } chosen && IsMeleeAttack(chosen);
+		var unarmed = _armedAttack == "Colpo senz'armi";
+		if (!unarmed || combat is null) _maneuverChoice = 0;
+		var mainHand = _view.Equipment.FirstOrDefault(e => e.Slot == EquipmentSlot.MainHand);
+		var mainWeapon = mainHand is null ? null : ContentPack.Default.Item(mainHand.Item.Value)?.Weapon;
+		var freeHand = mainHand is null || !_view.Equipment.Any(e => e.Slot is EquipmentSlot.Shield or EquipmentSlot.OffHand)
+			&& mainWeapon is not null && !mainWeapon.Has(WeaponProperty.TwoHanded)
+			&& !mainWeapon.Has(WeaponProperty.Versatile);
+		if (_maneuverChoice == 1 && !freeHand) _maneuverChoice = 0;
+		foreach (var (row, picker) in _maneuverBars)
+		{
+			row.Visible = combat is not null && unarmed;
+			picker.SetItemDisabled(1, !freeHand);
+			picker.Select(_maneuverChoice);
+			picker.Disabled = combat is not { IsYourTurn: true };
+			picker.SetItemTooltip(1, freeHand ? "Serve una mano libera; il bersaglio fa un tiro salvezza."
+				: "Riponi scudo, arma secondaria o arma a due mani per liberare una mano.");
+		}
 		var smiteReady = combat is { IsYourTurn: true, You.BonusActionAvailable: true }
-			&& melee && _view.Spells?.Prepared.Any(s => s.Id == "divine-smite") == true;
+			&& melee && _maneuverChoice == 0 && _view.Spells?.Prepared.Any(s => s.Id == "divine-smite") == true;
 		var sacredReady = combat is { IsYourTurn: true, You.ActionAvailable: true }
-			&& melee && _view.ChannelDivinity is { Remaining: > 0 } && _view.Subclass == "devotion";
+			&& melee && _maneuverChoice == 0 && !unarmed && !IsOffHandAttack(_armedAttack)
+			&& _view.ChannelDivinity is { Remaining: > 0 } && _view.Subclass == "devotion";
 		if (!smiteReady || _smiteChoice > 0 && combat!.You.SpellSlotSpent
 			|| _smiteChoice == -1 && _view.Spells?.FreeSmite != true) _smiteChoice = 0;
 		if (!sacredReady) _sacredWeaponChosen = false;
 		foreach (var (row, smite, sacred) in _attackFeatureBars)
 		{
-			row.Visible = combat is not null && (_view.Spells?.Prepared.Any(s => s.Id == "divine-smite") == true || _view.ChannelDivinity is not null);
+			row.Visible = combat is not null && _maneuverChoice == 0
+				&& (_view.Spells?.Prepared.Any(s => s.Id == "divine-smite") == true || _view.ChannelDivinity is not null);
 			smite.Clear();
 			smite.AddItem("Senza Punizione", 0);
 			if (_view.Spells?.FreeSmite == true) smite.AddItem("Punizione gratuita", FreeSmiteMenuId);
@@ -126,6 +162,10 @@ public partial class VillageMap
 			sacred.SetPressedNoSignal(_sacredWeaponChosen);
 		}
 	}
+
+	private static bool IsOffHandAttack(string? name) => name?.EndsWith("(mano secondaria)", StringComparison.Ordinal) == true;
+	private string? ChosenManeuver => _maneuverChoice switch { 1 => "Grapple", 2 or 3 => "Shove", _ => null };
+	private bool ChosenShoveProne => _maneuverChoice == 3;
 
 	private bool UseArmedAttack(ActorId target)
 	{
@@ -209,6 +249,15 @@ public partial class VillageMap
 			sacred.SetPressedNoSignal(true);
 			_sacredWeaponChosen = true;
 		}
+		RefreshAttackBars();
+	}
+	internal void SelectManeuverForSmoke(int option)
+	{
+		if (_view.Combat is null || _armedAttack != "Colpo senz'armi") throw new InvalidOperationException("Unarmed attack is not selected");
+		var picker = _maneuverBars[^1].Picker;
+		if (option is < 0 or > 3 || picker.IsItemDisabled(option)) throw new InvalidOperationException("Maneuver is unavailable in the UI");
+		picker.Select(option);
+		_maneuverChoice = option;
 		RefreshAttackBars();
 	}
 }

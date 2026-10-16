@@ -15,10 +15,15 @@ public partial class VillageMap
 	private int _paladin3dFacing = 1;
 	private bool _paladin3dPrototype;
 	private Paladin3DPrototype? _paladinLiveModel;
+	private readonly Dictionary<ActorId, Paladin3DPrototype> _npcLiveModels = new();
+	private readonly Dictionary<ActorId, float> _npcYaw = new();
+	private readonly Dictionary<ActorId, float> _npcWalkDistance = new();
 	private bool _paladinLive3d = true;
 	private float _paladinLiveYaw;
 	private float _paladinLiveTargetYaw;
 	private readonly Dictionary<ActorId, double> _attackVisualUntil = new();
+	private readonly Dictionary<ActorId, double> _attackVisualStarted = new();
+	private readonly Dictionary<ActorId, double> _slashVisualUntil = new();
 	private readonly Dictionary<ActorId, double> _hitVisualUntil = new();
 	private int _seenCombatVisuals;
 	private bool _observingLastFight;
@@ -174,29 +179,29 @@ public partial class VillageMap
 	private void AddFigureSprite(Node2D token, ActorId id)
 	{
 		var asset = FigureAsset(id);
-		if (asset is null)
-			return;
-		if (!_figureAtlases.TryGetValue(asset, out var directions))
+		AtlasTexture[]? directions = null;
+		if (asset is not null && !_figureAtlases.TryGetValue(asset, out directions))
 		{
 			var source = GD.Load<Texture2D>($"res://Assets/G15/Characters/{asset}-directions.png");
-			if (source is null)
-				return;
-			var width = source.GetWidth() / 2;
-			var height = source.GetHeight() / 2;
-			directions = Enumerable.Range(0, 4).Select(i => new AtlasTexture
+			if (source is not null)
 			{
-				Atlas = source,
-				Region = new Rect2((i % 2) * width, (i / 2) * height, width, height),
-			}).ToArray();
-			_figureAtlases[asset] = directions;
+				var width = source.GetWidth() / 2;
+				var height = source.GetHeight() / 2;
+				directions = Enumerable.Range(0, 4).Select(i => new AtlasTexture
+				{
+					Atlas = source,
+					Region = new Rect2((i % 2) * width, (i / 2) * height, width, height),
+				}).ToArray();
+				_figureAtlases[asset] = directions;
+			}
 		}
 		token.AddChild(new Sprite2D
 		{
 			Name = "Figure",
-			Texture = directions[0],
+			Texture = directions?[0],
 			TextureFilter = CanvasItem.TextureFilterEnum.Linear,
-			Scale = Vector2.One * (50f / directions[0].GetWidth()),
-			Offset = new Vector2(0, -directions[0].GetHeight() * 0.40f),
+			Scale = Vector2.One * (directions is null ? 0.32f : 50f / directions[0].GetWidth()),
+			Offset = directions is null ? new Vector2(0, -64) : new Vector2(0, -directions[0].GetHeight() * 0.40f),
 		});
 		_figureFacing[id] = 0;
 	}
@@ -210,14 +215,16 @@ public partial class VillageMap
 		token.GetNode<Polygon2D>("Head").Visible = false;
 		token.GetNode<Polygon2D>("Prone").Visible = false;
 		var delta = token.Position - previousPosition;
-		var asset = FigureAsset(id)!;
+		var asset = FigureAsset(id);
 		var live = id == MappedVillageScenario.Ids.Player && _paladinLive3d && EnsurePaladinLiveModel() is { };
+		var liveNpc = id != MappedVillageScenario.Ids.Player;
 		var prototype = id == MappedVillageScenario.Ids.Player && _paladin3dPrototype && LoadPaladin3dFrames() is { };
-		var plannedTangent = (prototype || live) && moving ? WalkTangent(walk, token.Position) : null;
+		var plannedTangent = (prototype || live || liveNpc) && moving ? WalkTangent(walk, token.Position) : null;
 		if (plannedTangent is { } tangent)
 		{
 			if (prototype) _paladin3dFacing = PrototypeFacing(tangent);
 			if (live) _paladinLiveTargetYaw = LiveYaw(tangent);
+			if (liveNpc) _npcYaw[id] = LiveYaw(tangent);
 			_paladin3dDirectionTravel = Vector2.Zero;
 		}
 		if (moving && delta.LengthSquared() is > 0.01f and < 10000f)
@@ -237,30 +244,56 @@ public partial class VillageMap
 				}
 				_paladin3dWalkDistance += delta.Length();
 			}
+			if (liveNpc)
+			{
+				if (plannedTangent is null) _npcYaw[id] = LiveYaw(delta);
+				_npcWalkDistance[id] = _npcWalkDistance.GetValueOrDefault(id) + delta.Length();
+			}
 		}
 		if (!moving)
 			_paladin3dDirectionTravel = Vector2.Zero;
+		var now = Time.GetTicksMsec() / 1000.0;
+		var attacking = _attackVisualUntil.GetValueOrDefault(id) > now;
+		var attackProgress = _slashVisualUntil.GetValueOrDefault(id) > now
+			? (float)Math.Clamp((now - _attackVisualStarted.GetValueOrDefault(id)) / 0.42, 0, 1) : 0f;
 		if (live)
 		{
 			var weight = 1f - Mathf.Exp(-12f * (float)GetProcessDeltaTime());
 			_paladinLiveYaw = Mathf.LerpAngle(_paladinLiveYaw, _paladinLiveTargetYaw, weight);
-			_paladinLiveModel!.PoseLive(_paladinLiveYaw, moving ? _paladin3dWalkDistance / 40f : 0f);
+			_paladinLiveModel!.PoseLive(_paladinLiveYaw, moving ? _paladin3dWalkDistance / 40f : 0f, attackProgress);
 		}
+		var npcModel = liveNpc ? EnsureNpcLiveModel(id) : null;
+		if (npcModel is not null)
+			npcModel.PoseLive(_npcYaw.GetValueOrDefault(id), moving ? _npcWalkDistance.GetValueOrDefault(id) / 40f : 0f,
+				attackProgress);
 		var facing = _figureFacing.GetValueOrDefault(id);
-		Texture2D frame = live ? _paladinLiveModel!.LiveTexture : prototype
+		Texture2D? frame = live ? _paladinLiveModel!.LiveTexture : npcModel is not null ? npcModel.LiveTexture : prototype
 			? _paladin3dFrames![_paladin3dFacing * 8 + (moving ? (int)(_paladin3dWalkDistance / 5f) % 8 : 0)]
-			: _figureAtlases[asset][facing];
+			: asset is not null && _figureAtlases.TryGetValue(asset, out var frames) ? frames[facing] : null;
 		if (sprite.Texture != frame)
 			sprite.Texture = frame;
-		sprite.Scale = Vector2.One * (prototype || live ? 0.32f : 50f / _figureAtlases[asset][0].GetWidth());
-		sprite.Offset = prototype || live ? new Vector2(0, -64) : new Vector2(0, -_figureAtlases[asset][0].GetHeight() * 0.40f);
-		var now = Time.GetTicksMsec() / 1000.0;
-		var attacking = _attackVisualUntil.GetValueOrDefault(id) > now;
+		sprite.Scale = Vector2.One * (prototype || live || liveNpc || frame is null ? 0.32f : 50f / frame.GetWidth());
+		sprite.Offset = prototype || live || liveNpc || frame is null ? new Vector2(0, -64) : new Vector2(0, -frame.GetHeight() * 0.40f);
 		var hit = _hitVisualUntil.GetValueOrDefault(id) > now;
-		var bob = !moving || prone || prototype || live ? 0f : MathF.Sin((float)(now * 13)) * 0.6f;
+		var bob = !moving || prone || prototype || live || liveNpc ? 0f : MathF.Sin((float)(now * 13)) * 0.6f;
 		sprite.Position = prone ? new Vector2(0, -5) : new Vector2(attacking ? (facing is 0 or 2 ? -3 : 3) : 0, bob);
-		sprite.RotationDegrees = prone ? -78f : attacking ? (facing is 0 or 2 ? -8f : 8f) : 0f;
+		sprite.RotationDegrees = prone ? -78f : live || liveNpc ? 0f : attacking ? (facing is 0 or 2 ? -8f : 8f) : 0f;
 		sprite.Modulate = hit ? new Color(1f, 0.52f, 0.48f) : Colors.White;
+		var slash = token.GetNode<Line2D>("Slash");
+		slash.Visible = !prone && _slashVisualUntil.GetValueOrDefault(id) > now;
+		if (slash.Visible)
+		{
+			var sweep = Mathf.Clamp(attackProgress, 0f, 1f);
+			var side = facing is 0 or 2 ? -1f : 1f;
+			slash.Points = new[]
+			{
+				new Vector2(side * (-15 + 10 * sweep), -43 + 8 * sweep),
+				new Vector2(side * (-5 + 15 * sweep), -48 + 9 * sweep),
+				new Vector2(side * (7 + 15 * sweep), -43 + 12 * sweep),
+				new Vector2(side * (17 + 12 * sweep), -31 + 13 * sweep),
+			};
+			slash.Modulate = slash.Modulate with { A = MathF.Sin(MathF.PI * sweep) };
+		}
 	}
 
 	private AtlasTexture[]? LoadPaladin3dFrames()
@@ -339,6 +372,18 @@ public partial class VillageMap
 		return _paladinLiveModel;
 	}
 
+	private Paladin3DPrototype EnsureNpcLiveModel(ActorId id)
+	{
+		if (_npcLiveModels.TryGetValue(id, out var model)) return model;
+		var style = id == MappedVillageScenario.Ids.Guard ? Paladin3DPrototype.CharacterStyle.Guard
+			: id == MappedVillageScenario.Ids.Farmer ? Paladin3DPrototype.CharacterStyle.Farmer
+			: Paladin3DPrototype.CharacterStyle.Raider;
+		model = new Paladin3DPrototype { Name = $"LiveFigure_{id.Value}", LiveMode = true, Style = style };
+		AddChild(model);
+		_npcLiveModels[id] = model;
+		return model;
+	}
+
 	private void TogglePaladinLive3dPrototype()
 	{
 		_paladinLive3d = !_paladinLive3d;
@@ -383,6 +428,12 @@ public partial class VillageMap
 		&& _tokens.TryGetValue(MappedVillageScenario.Ids.Player, out var token)
 		&& token.GetNodeOrNull<Sprite2D>("Figure") is { Texture: { } texture }
 		&& texture == _paladinLiveModel.LiveTexture;
+	internal bool NpcLive3dLoadedForSmoke(ActorId id) => _npcLiveModels.TryGetValue(id, out var model)
+		&& _tokens.TryGetValue(id, out var token)
+		&& token.GetNodeOrNull<Sprite2D>("Figure") is { Texture: { } texture }
+		&& texture == model.LiveTexture;
+	internal bool AttackSwingForSmoke(ActorId id) => id == _view.Id
+		? _paladinLiveModel?.Swinging == true : _npcLiveModels.TryGetValue(id, out var model) && model.Swinging;
 	internal bool Paladin3dLoadedForSmoke => _paladin3dFrames?.Length == 64
 		&& _tokens.TryGetValue(MappedVillageScenario.Ids.Player, out var token)
 		&& token.GetNodeOrNull<Sprite2D>("Figure") is { Texture: { } texture }
@@ -414,9 +465,12 @@ public partial class VillageMap
 				continue;
 			if (entry.Actor is { } attacker)
 			{
-				_attackVisualUntil[attacker] = now + 0.3;
+				_attackVisualStarted[attacker] = now;
+				_attackVisualUntil[attacker] = now + 0.42;
 				if (entry.ShotFrom is { } from && entry.ShotTo is { } to)
 					StartShotVisual(from, to);
+				else
+					_slashVisualUntil[attacker] = now + 0.42;
 			}
 			if (entry.Hit == true && entry.Target is { } target)
 				_hitVisualUntil[target] = now + 0.35;

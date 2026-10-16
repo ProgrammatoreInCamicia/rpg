@@ -19,6 +19,8 @@ public partial class VillageMap
 	private Label _combatHint = null!;
 	private Label _combatTarget = null!;
 	private readonly Dictionary<CombatAction, Button> _combatActionButtons = new();
+	private MenuButton _combatMoreActions = null!;
+	private const int ReleaseMenuId = 100;
 	private VBoxContainer _combatAttacks = null!;
 	private CheckBox _combatNonLethal = null!;
 	private Button _combatEndTurn = null!;
@@ -49,7 +51,7 @@ public partial class VillageMap
 		var top = new VBoxContainer();
 		top.AddThemeConstantOverride("separation", 2);
 		_combatTopPanel.AddChild(top);
-		_combatPanel = HudPanel(208, 930, -273, -16, bottomAnchored: true);
+		_combatPanel = HudPanel(208, 930, -323, -16, bottomAnchored: true);
 		_combatPanel.Visible = false;
 		_combatPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.10f, 0.11f, 0.13f, 0.94f) });
 		ui.AddChild(_combatPanel);
@@ -78,29 +80,54 @@ public partial class VillageMap
 		box.AddChild(_combatNonLethal);
 		BuildAttackBar(box);
 		var actionRow = new HBoxContainer();
+		actionRow.AddThemeConstantOverride("separation", 5);
 		box.AddChild(actionRow);
-		foreach (var action in Enum.GetValues<CombatAction>())
+		foreach (var action in new[] { CombatAction.Dash, CombatAction.Disengage, CombatAction.Dodge })
 		{
 			var choice = action;
-			var button = new Button { Text = CombatActionName(choice), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+			var button = new Button();
 			button.Pressed += () => ExecuteCombatAction(choice);
-			actionRow.AddChild(button);
+			AddActionTile(actionRow, button, CombatActionName(choice), "Azione",
+				choice == CombatAction.Dash ? "dash" : "shield",
+				choice == CombatAction.Dash ? MovementAccent : DefenseAccent);
 			_combatActionButtons.Add(choice, button);
 		}
-		_combatLayOnHands = new Button { Text = "Imposizione", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_combatMoreActions = new MenuButton { TooltipText = "Liberarsi, aiutare, nascondersi, cercare, preparare e lasciare una presa." };
+		var moreMenu = _combatMoreActions.GetPopup();
+		foreach (var action in Enum.GetValues<CombatAction>().Where(a => a is not (CombatAction.Dash or CombatAction.Disengage or CombatAction.Dodge)))
+		{
+			moreMenu.AddItem($"{CombatActionName(action)} · Azione", (int)action);
+			moreMenu.SetItemIcon(moreMenu.ItemCount - 1, ActionIcon(action switch
+			{
+				CombatAction.Escape => "escape", CombatAction.Help => "heal",
+				CombatAction.Hide => "sneak", CombatAction.Search => "eye",
+				_ => "sword",
+			}));
+		}
+		moreMenu.AddSeparator();
+		moreMenu.AddItem("Lascia la presa · gratuita", ReleaseMenuId);
+		moreMenu.SetItemIcon(moreMenu.ItemCount - 1, ActionIcon("escape"));
+		moreMenu.IdPressed += id =>
+		{
+			if (id == ReleaseMenuId) ReleaseGrapple();
+			else ExecuteCombatAction((CombatAction)id);
+		};
+		AddActionTile(actionRow, _combatMoreActions, "Altre", "Menu", "more", UtilityAccent);
+		_combatLayOnHands = new Button { TooltipText = "Imposizione delle mani: cura un bersaglio usando l'azione bonus." };
 		_combatLayOnHands.Pressed += () =>
 		{
 			_classPanel.Visible = true;
 			RebuildClassPanel();
 		};
-		actionRow.AddChild(_combatLayOnHands);
+		AddActionTile(actionRow, _combatLayOnHands, "Cura", "Bonus", "heal", UtilityAccent);
 		BuildCombatSpellButtons(actionRow);
 		var attackScroll = new ScrollContainer { CustomMinimumSize = new Vector2(0, 50), Visible = false,
 			SizeFlagsVertical = Control.SizeFlags.ExpandFill };
 		box.AddChild(attackScroll);
 		_combatAttacks = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		attackScroll.AddChild(_combatAttacks);
-		_combatEndTurn = new Button { Text = "Fine turno" };
+		_combatEndTurn = new Button { Text = "Fine turno", TooltipText = "Concludi il turno e lascia agire gli altri combattenti." };
+		StyleActionButton(_combatEndTurn, "turn", MovementAccent);
 		_combatEndTurn.Pressed += EndCombatTurn;
 		box.AddChild(_combatEndTurn);
 		_combatLog = new RichTextLabel { BbcodeEnabled = false, Visible = false };
@@ -186,11 +213,18 @@ public partial class VillageMap
 	internal void AttackCombatTargetForSmoke(TargetView attack) => ExecuteCombatAttack(attack);
 	internal void PressCombatActionForSmoke(CombatAction action)
 	{
-		var button = _combatActionButtons[action];
-		if (button.Disabled) throw new InvalidOperationException($"{action} is disabled in the combat UI");
-		button.EmitSignal(Button.SignalName.Pressed);
+		if (!CombatActionEnabledForSmoke(action)) throw new InvalidOperationException($"{action} is disabled in the combat UI");
+		if (_combatActionButtons.TryGetValue(action, out var button)) button.EmitSignal(Button.SignalName.Pressed);
+		else _combatMoreActions.GetPopup().EmitSignal(PopupMenu.SignalName.IdPressed, (long)action);
 	}
-	internal bool CombatActionEnabledForSmoke(CombatAction action) => !_combatActionButtons[action].Disabled;
+	internal bool CombatActionEnabledForSmoke(CombatAction action) => _combatActionButtons.TryGetValue(action, out var button)
+		? !button.Disabled : !_combatMoreActions.GetPopup().IsItemDisabled(_combatMoreActions.GetPopup().GetItemIndex((int)action));
+	internal bool ReleaseEnabledForSmoke => !_combatMoreActions.GetPopup().IsItemDisabled(_combatMoreActions.GetPopup().GetItemIndex(ReleaseMenuId));
+	internal void PressReleaseForSmoke()
+	{
+		if (!ReleaseEnabledForSmoke) throw new InvalidOperationException("Release is disabled in the combat UI");
+		_combatMoreActions.GetPopup().EmitSignal(PopupMenu.SignalName.IdPressed, (long)ReleaseMenuId);
+	}
 	internal MovePreview CombatMovePreviewForSmoke(GridPos cell) => _sim.PreviewMove(_sim.Player, cell);
 	internal IReadOnlyList<string> CombatAttackLabelsForSmoke => _combatAttacks.GetChildren()
 		.OfType<Button>().Select(button => button.Text).ToArray();
@@ -233,6 +267,7 @@ public partial class VillageMap
 			+ $" · Azione: {(combat.You.ActionAvailable ? "pronta" : "usata")}"
 			+ $" · Bonus: {(combat.You.BonusActionAvailable ? "pronta" : "usata")}"
 			+ (combat.You.AttacksLeft > 0 ? $" · Attacchi rimasti: {combat.You.AttacksLeft}" : "")
+			+ (combat.You.OffHandAttackAvailable ? " · Mano secondaria pronta" : "")
 			+ $" · Reazione: {(combat.You.ReactionAvailable ? "pronta" : "usata")}"
 			+ (combat.You.Disengaged ? "\nDisimpegnato: il movimento non provoca attacchi di opportunit\u00e0." : "")
 			+ (combat.You.Dodging ? "\nIn schivata: gli attacchi che vedi arrivare hanno svantaggio." : "")
@@ -242,14 +277,27 @@ public partial class VillageMap
 		_combatEndTurn.Disabled = !combat.IsYourTurn;
 		_combatLayOnHands.Disabled = !combat.IsYourTurn || !combat.You.BonusActionAvailable
 			|| _view.LayOnHands is not { Remaining: > 0 } || _view.Dead || _view.Unconscious;
+		SetActionTileEnabled(_combatLayOnHands, !_combatLayOnHands.Disabled);
 		foreach (var (action, button) in _combatActionButtons)
 		{
 			var option = combat.Actions.FirstOrDefault(a => a.Action == action);
 			button.Disabled = option?.Valid != true;
-			button.Visible = action is CombatAction.Dash or CombatAction.Disengage or CombatAction.Dodge
-				|| option?.Valid == true;
+			SetActionTileEnabled(button, !button.Disabled);
 			button.TooltipText = option is { Valid: false } ? option.Why ?? "Azione non disponibile." : CombatActionTip(action);
 		}
+		var menu = _combatMoreActions.GetPopup();
+		foreach (var action in Enum.GetValues<CombatAction>().Where(a => !_combatActionButtons.ContainsKey(a)))
+		{
+			var option = combat.Actions.FirstOrDefault(a => a.Action == action);
+			var index = menu.GetItemIndex((int)action);
+			menu.SetItemDisabled(index, option?.Valid != true);
+			menu.SetItemTooltip(index, option is { Valid: false } ? option.Why ?? "Azione non disponibile." : CombatActionTip(action));
+		}
+		var canRelease = CanReleaseKnownGrapple();
+		menu.SetItemDisabled(menu.GetItemIndex(ReleaseMenuId), !canRelease);
+		_combatMoreActions.Disabled = _view.Dead || _view.Unconscious
+			|| !combat.Actions.Any(a => !_combatActionButtons.ContainsKey(a.Action) && a.Valid) && !canRelease;
+		SetActionTileEnabled(_combatMoreActions, !_combatMoreActions.Disabled);
 		_combatLog.Text = string.Join("\n", combat.Log.TakeLast(14).Select(e => $"R{e.Round} · {e.Text}"));
 		if (_selectedCombatTarget is { } selected && combat.Combatants.All(c => c.Id != selected))
 			_selectedCombatTarget = null;
@@ -404,8 +452,8 @@ public partial class VillageMap
 			? $"\nAttacco iniziale in attesa: {opening.Attack}." : "";
 		return (combat.IsYourTurn
 			? _freeMovementEnabled
-				? "Passa il mouse sul pavimento per vedere il percorso; clicca per muoverti. Clic destro su porte e finestre per interagire."
-				: "Passa il mouse su una casella verde per vedere il percorso; clicca per muoverti. Clic destro su porte e finestre per interagire."
+				? "Terreno: percorso e movimento · Clic destro: porte e finestre"
+				: "Casella verde: percorso e movimento · Clic destro: porte e finestre"
 			: "Attendi il tuo turno.") + pending;
 	}
 
@@ -495,7 +543,8 @@ public partial class VillageMap
 		var result = _sim.Execute(new AttackCommand { Actor = _sim.Player, Target = target.Target,
 			Attack = target.Attack, NonLethal = _nonLethalEnabled && IsMeleeAttack(target.Attack),
 			SmiteFree = _smiteChoice == -1, SmiteSlot = _smiteChoice > 0 ? _smiteChoice : null,
-			SacredWeapon = _sacredWeaponChosen });
+			SacredWeapon = _sacredWeaponChosen, Maneuver = ChosenManeuver, ShoveProne = ChosenShoveProne,
+			OffHand = IsOffHandAttack(target.Attack) });
 		if (result.Success) { _smiteChoice = 0; _sacredWeaponChosen = false; }
 		ShowMessage(result.Message);
 		Refresh();
@@ -511,6 +560,16 @@ public partial class VillageMap
 		_combatVisualTracks.Clear();
 		var result = _sim.Execute(new CombatActionCommand { Actor = _sim.Player, Action = action,
 			Target = action == CombatAction.Help ? _selectedCombatTarget : null });
+		ShowMessage(result.Message);
+		Refresh();
+	}
+
+	private bool CanReleaseKnownGrapple() => _view.VisibleActors.Any(a =>
+		a.Conditions.Any(c => c.Kind == ConditionKind.Grappled && c.Source == _view.Id));
+
+	private void ReleaseGrapple()
+	{
+		var result = _sim.Execute(new ReleaseCommand { Actor = _sim.Player });
 		ShowMessage(result.Message);
 		Refresh();
 	}

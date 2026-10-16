@@ -201,8 +201,8 @@ public partial class VillageMap : Node2D
 		}
 		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape })
 		{
-			if (_attackArmed) { _attackArmed = false; RefreshAttackBars(); }
-			else CloseHudOverlay();
+			if (_attackArmed) { _attackArmed = false; RefreshAttackBars(); RefreshQuickbar(); }
+			else if (!CloseHudOverlay()) ToggleGameMenu();
 			return;
 		}
 		if (_view.Combat is not null && HandleCombatInput(@event))
@@ -1291,6 +1291,11 @@ public partial class VillageMap : Node2D
 		AddFigureSprite(token, id);
 		token.AddChild(new Line2D
 		{
+			Name = "Slash", Width = 4f, Antialiased = true, ZIndex = 4,
+			DefaultColor = new Color(0.87f, 0.96f, 1f), Visible = false,
+		});
+		token.AddChild(new Line2D
+		{
 			Name = "DodgeMark",
 			Points = new[] { new Vector2(0, -40), new Vector2(13, -20), new Vector2(0, 1),
 				new Vector2(-13, -20), new Vector2(0, -40) },
@@ -1358,7 +1363,7 @@ public partial class VillageMap : Node2D
 		_watched = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		box.AddChild(_watched);
 
-		_exploreActionPanel = HudPanel(208, 930, -145, -16, bottomAnchored: true);
+		_exploreActionPanel = HudPanel(208, 930, -188, -16, bottomAnchored: true);
 		_exploreActionPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.08f, 0.09f, 0.11f, 0.94f) });
 		ui.AddChild(_exploreActionPanel);
 		var actions = new VBoxContainer();
@@ -1368,18 +1373,22 @@ public partial class VillageMap : Node2D
 		actions.AddChild(primary);
 
 		_pause = new Button { Text = "Pausa (Spazio)", ToggleMode = true };
+		StyleActionButton(_pause, "pause", MovementAccent);
 		_pause.Toggled += SetPaused;
 		_pause.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		primary.AddChild(_pause);
 		_stop = new Button { Text = "Fermati (X)" };
+		StyleActionButton(_stop, "stop", MovementAccent);
 		_stop.Pressed += Stop;
 		_stop.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		primary.AddChild(_stop);
 		_sneakToggle = new CheckButton { Text = "Furtivo (F)", TooltipText = "Muoviti piano e cerca il buio." };
+		StyleActionButton(_sneakToggle, "sneak", DefenseAccent);
 		_sneakToggle.Toggled += SetSneak;
 		_sneakToggle.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		primary.AddChild(_sneakToggle);
 		_torch = new Button { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		StyleActionButton(_torch, "torch", UtilityAccent);
 		_torch.Pressed += ToggleTorch;
 		primary.AddChild(_torch);
 		var utility = new HBoxContainer();
@@ -1397,11 +1406,15 @@ public partial class VillageMap : Node2D
 		}
 		utility.AddChild(paceRow);
 		var restButton = new Button { Text = "Riposo", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		StyleActionButton(restButton, "rest", UtilityAccent);
 		restButton.Pressed += () => _restPanel.Visible = !_restPanel.Visible;
 		utility.AddChild(restButton);
 		BuildClassUi(ui, utility);
 		BuildInventoryUi(ui, utility);
 		BuildSpellUi(ui, utility);
+		StyleActionButton(_classButton, "class", UtilityAccent);
+		StyleActionButton(_inventoryButton, "bag", UtilityAccent);
+		StyleActionButton(_spellButton, "magic", MagicAccent);
 		_restPanel = HudPanel(300, 720, -300, -165, bottomAnchored: true);
 		_restPanel.Visible = false;
 		_restPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.10f, 0.11f, 0.13f, 0.96f) });
@@ -1429,16 +1442,21 @@ public partial class VillageMap : Node2D
 		ui.AddChild(_peopleScroll);
 
 		var saveRow = new HBoxContainer();
+		saveRow.AddThemeConstantOverride("separation", 6);
 		var save = new Button { Text = "Salva", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		StyleActionButton(save, "save", UtilityAccent);
 		save.Pressed += SaveGame;
 		saveRow.AddChild(save);
 		var load = new Button { Text = "Carica", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		StyleActionButton(load, "load", UtilityAccent);
 		load.Pressed += LoadGame;
 		saveRow.AddChild(load);
-		utility.AddChild(saveRow);
+		actions.AddChild(saveRow);
 		_journalButton = new Button { Text = "Diario" };
+		StyleActionButton(_journalButton, "journal", UtilityAccent);
+		_journalButton.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		_journalButton.Pressed += ToggleJournal;
-		utility.AddChild(_journalButton);
+		saveRow.AddChild(_journalButton);
 		BuildAttackBar(actions);
 
 		_message = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart, Visible = false };
@@ -1463,6 +1481,7 @@ public partial class VillageMap : Node2D
 		BuildBarrierUi(ui);
 		BuildJournalUi(ui);
 		BuildHudLog(ui);
+		BuildQuickbarUi(ui);
 
 		_offMapPanel = new PanelContainer { OffsetLeft = 440, OffsetRight = 840, OffsetTop = 100, OffsetBottom = 245,
 			Visible = false };
