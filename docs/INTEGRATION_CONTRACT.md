@@ -991,3 +991,12 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 - Scelte: "PreparedSpells" quando mancano incantesimi preparati; dopo un riposo lungo "SwapSpell" facoltativa (due opzioni: quello da togliere e quello nuovo).
 - Fatto: il Paladino iniziale ha già preparati Benedizione e Cura ferite (campo `spells` dei personaggi). Benedizione aggiunge 1d4 ai tiri d'attacco ("Benedizione +N" nel log) e ai tiri salvezza; Scudo della fede +2 alla CA; Favore divino +1d4 radiosi ai colpi con un'arma; Punizione divina 2d8 radiosi (+1d8 per livello di slot sopra il 1° e contro immondi e non morti), dadi raddoppiati sul critico, non sul colpo d'apertura (ADATTAMENTO); Aiuto +5 punti ferita massimi e attuali per livello di slot sopra il 1°, per 8 ore; Ristorare inferiore toglie la condizione indicata o la prima delle quattro. Nel riposo lungo si dorme: la concentrazione finisce. Fatto `SpellCast`, `ConcentrationLost`; `CombatLogKind.Spell`; rifiuto `NoSlot`. Salvataggio schema 36.
 - Review R2 (Codex): `ConditionView.Source` solo se la fonte è il giocatore o qualcuno che vede; gli `Spots` di una spinta (`Mastery`) si vedono se si vedeva il bersaglio, non chi spinge.
+
+## R3c — Incanalare divinità e Giuramento di devozione (SRD 5.2.1 p. 54–56, 159)
+
+- `PlayerView.ChannelDivinity` (`PoolView`): 2 usi dal livello 3 (3 dall'11); uno torna con il riposo breve, tutti con il lungo. `PlayerView.Subclass`.
+- Scelta "Subclass" al livello 3: "devotion".
+- `ChannelDivinityCommand { Effect = "DivineSense" }`: azione bonus; per 10 minuti sai dove sono celestiali, immondi e non morti entro 60 piedi (fatto con quello che percepisci; per ora nel gioco non ce ne sono).
+- `AttackCommand.SacredWeapon`: con l'azione Attacco, un uso sull'arma da mischia: per 10 minuti +Carisma (minimo +1) ai tiri d'attacco con quell'arma; l'arma fa luce piena per 20 piedi e fioca per altri 20.
+- Incantesimi del giuramento, sempre preparati: dal 3 Protezione dal bene e dal male e Scudo della fede; dal 5 Aiuto (Zona di verità aspetta il dialogo).
+- Protezione dal bene e dal male: contatto, concentrazione 10 minuti; aberrazioni, celestiali, elementali, folletti, immondi e non morti attaccano il protetto con svantaggio. ADATTAMENTO: la componente materiale (acqua santa da 25 mo, consumata) non è richiesta.

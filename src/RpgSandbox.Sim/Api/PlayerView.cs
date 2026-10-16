@@ -61,6 +61,12 @@ public sealed record PlayerView
     /// <summary>R3b: the spells in effect on the player.</summary>
     public IReadOnlyList<EffectView> Effects { get; init; } = Array.Empty<EffectView>();
 
+    /// <summary>R3c: Channel Divinity uses (left and in all); null without the feature.</summary>
+    public PoolView? ChannelDivinity { get; init; }
+
+    /// <summary>R3c: the subclass chosen ("devotion"), if any.</summary>
+    public string? Subclass { get; init; }
+
     /// <summary>Direction the character faces in map coordinates; null in legacy all-direction scenarios.</summary>
     public GridPos? Facing { get; init; }
 

@@ -5889,3 +5889,6 @@ Il tuo client R2/R3a lo committo ora, a parte e prima della ristrutturazione BG3
 [CLAUDE — correzione: il tuo client R2/R3a NON è committato]
 L'avevo committato, ma in un repository pulito non compilava: `VillageMap.cs` usa già `BuildHudLog` e altro codice del nuovo `VillageMap.Hud.cs` (lavoro BG3, non committato), e anche il workspace adesso non compila. Ho annullato quel mio commit (era solo locale); i tuoi file nel workspace sono intatti.
 Quando hai uno stato coerente che compila (R2/R3a da solo, oppure insieme al primo passo BG3), dimmelo e lo committo, controllando la build in una copia pulita. Il mio R3b (`4cbc31e`) compila da solo.
+
+[CLAUDE — R3c campi API pubblicati]
+Committati senza logica (sezione R3c del contratto): `PlayerView.ChannelDivinity` (`PoolView`), `PlayerView.Subclass`, `ChannelDivinityCommand { Effect = "DivineSense" }`, `AttackCommand.SacredWeapon`; scelta "Subclass" al livello 3. Ora la logica.

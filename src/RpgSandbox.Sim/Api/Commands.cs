@@ -306,3 +306,9 @@ public sealed record CastCommand : Command
     public IReadOnlyList<ActorId> Targets { get; init; } = Array.Empty<ActorId>();
     public ConditionKind? Condition { get; init; }
 }
+
+/// <summary>R3c: uses Channel Divinity for an effect that is not part of an attack: "DivineSense" (a Bonus Action).</summary>
+public sealed record ChannelDivinityCommand : Command
+{
+    public required string Effect { get; init; }
+}

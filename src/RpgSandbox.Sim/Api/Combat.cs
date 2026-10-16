@@ -27,6 +27,9 @@ public sealed record AttackCommand : Command
     /// </summary>
     public int? SmiteSlot { get; init; }
     public bool SmiteFree { get; init; }
+
+    /// <summary>R3c, Sacred Weapon: with this Attack action, spend a Channel Divinity on the melee weapon used.</summary>
+    public bool SacredWeapon { get; init; }
 }
 
 /// <summary>End the actor's turn; the other turns are then resolved up to the player's next one.</summary>
