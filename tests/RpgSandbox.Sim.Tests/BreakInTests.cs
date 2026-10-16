@@ -157,4 +157,35 @@ public class BreakInTests
         Assert.True(w.Stores[MappedVillageScenario.Ids.Pantry].Food < 6);
         Assert.Equal(40, w.Stores[MappedVillageScenario.Ids.GranaryStore].Food);
     }
+
+    [Fact]
+    public void Between_two_ways_in_it_takes_the_cheaper_not_the_one_with_fewer_squares()
+    {
+        // Review P5a: a wall down x = 5|6 with a window at row 0 and a locked door at row 2; a box at (7,1) used from
+        // (6,0) or (6,2). From (5,0) the window is one square away (but costs 4), the door three (costing 3).
+        var b = new ScenarioBuilder().WithSeed(1)
+            .AddArea("a", "A").AddLocation("yard", "Cortile", "a")
+            .AddMap("a", Enumerable.Repeat("YYYYYYYY", 3).ToArray(), new Dictionary<char, string> { ['Y'] = "yard" })
+            .AddFaction("bandits", "Banditi", homeStoreId: "camp")
+            .AddStore("box", "Cassa", "yard", food: 6, at: (7, 1), access: new[] { (6, 0), (6, 2) })
+            .AddStore("camp", "Bottino", "yard", food: 0, ownerFactionId: "bandits", at: (0, 2))
+            .AddActor("player", "Paladino", "yard", isPlayer: true, at: (0, 0))
+            .AddActor("raider", "Razziatore", "yard", factionId: "bandits", build: "raider", at: (5, 0));
+        b.AddEdge("a", (5, 0), (6, 0), MapEdgeKind.Window);
+        b.AddEdge("a", (5, 1), (6, 1), MapEdgeKind.Wall);
+        b.AddEdge("a", (5, 2), (6, 2), MapEdgeKind.Door, (6, 2), lockSpec: new LockSpec(Locked: true));
+        var s = SimulationSession.Create(b.Build());
+        Of(s, Raider).Assignment = new RaidAssignment
+        {
+            Faction = new FactionId("bandits"), Target = Box, Home = new StoreId("camp"), Amount = 4, AssignedAt = s.Now,
+        };
+        s.Engine.CancelAction(Of(s, Raider));
+        s.Engine.StartWait(Raider, Duration.FromSeconds(1), interruptible: true, description: null);
+        for (var i = 0; i < 120 && Of(s, Raider).CurrentAction is not BarrierAction; i++)
+            s.Advance(Duration.FromSeconds(1));
+
+        var work = Assert.IsType<BarrierAction>(Of(s, Raider).CurrentAction);
+        Assert.Equal(BarrierWork.PickLock, work.Work);
+        Assert.Equal(BarrierKey.Door(new GridPos(6, 2)), work.Target);
+    }
 }

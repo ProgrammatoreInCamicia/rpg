@@ -32,7 +32,7 @@ internal sealed partial class Simulation
             .Select(g => (Goal: g, Path: map.FindPath(from, g, opens: _ => true,
                 climbs: (a, b) => map.BarrierOf(BarrierKey.Window(a, b)) is not { Barred: true })))
             .Where(c => c.Path is not null)
-            .OrderBy(c => c.Path!.Count).ThenBy(c => c.Goal.Y).ThenBy(c => c.Goal.X)
+            .OrderBy(c => WayCost(map, from, c.Path!)).ThenBy(c => c.Goal.Y).ThenBy(c => c.Goal.X) // review P5a: by cost, not squares
             .Select(c => c.Path)
             .FirstOrDefault();
         if (route is null || route.Count == 0)
@@ -54,6 +54,18 @@ internal sealed partial class Simulation
             return BarrierWorkFor(npc, map, barrier, counting, out balked);
         }
         return new MoveCommand { Actor = npc.Id, To = route[^1], Stealthy = true }; // no barrier left on the way
+    }
+
+    /// <summary>Review P5a: what a way costs as <see cref="GridMap.FindPath"/> counts it: a square a step, a window crossed more.</summary>
+    private static int WayCost(GridMap map, GridPos from, IReadOnlyList<GridPos> path)
+    {
+        var cost = 0;
+        foreach (var next in path)
+        {
+            cost += map.IsWindow(from, next) ? GridMap.WindowCrossingSteps : 1;
+            from = next;
+        }
+        return cost;
     }
 
     /// <summary>P5a: what a raider standing at <paramref name="key"/> does to get through it.</summary>
