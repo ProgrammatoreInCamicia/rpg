@@ -13,6 +13,11 @@ public partial class VillageMap
 	private bool _hudLogHovered;
 	private bool _hudWasInCombat;
 	private Label _hudHitPoints = null!;
+	private PanelContainer _statusCard = null!;
+	private Label _hudBrief = null!;
+	private VBoxContainer _statusDetails = null!;
+	private Button _statusExpand = null!;
+	private bool _statusExpanded;
 	private PanelContainer _exploreActionPanel = null!;
 	private PanelContainer _restPanel = null!;
 	private readonly List<string> _hudLines = new();
@@ -86,6 +91,7 @@ public partial class VillageMap
 
 	private void RefreshHud()
 	{
+		RefreshStatusCard();
 		var inCombat = _view.Combat is not null;
 		if (inCombat && !_hudWasInCombat)
 		{
@@ -129,6 +135,33 @@ public partial class VillageMap
 		_hudLog.Text = string.Join("\n", _hudLines);
 	}
 
+	private void RefreshStatusCard()
+	{
+		var where = _view.Location is { } at
+			? _view.Locations.FirstOrDefault(l => l.Id == at)?.Name ?? at.Value
+			: _view.Travel is not null ? "In viaggio" : "Sulla strada";
+		var activity = _view.Dead ? "Morto"
+			: _view.Combat is { } combat ? $"Scontro · round {combat.Round}"
+			: _paused ? "In pausa"
+			: _walking ? "In cammino" : "";
+		_hudBrief.Text = activity.Length == 0 ? where : $"{where} · {activity}";
+		_hudBrief.TooltipText = _status.Text;
+		_statusCard.TooltipText = _statusExpanded ? "" : "Apri i dettagli per stato, esperienza, effetti e osservatori";
+	}
+
+	private void ToggleStatusCard()
+	{
+		_statusExpanded = !_statusExpanded;
+		_statusDetails.Visible = _statusExpanded;
+		_statusCard.OffsetBottom = _statusExpanded ? 260 : 113;
+		_statusExpand.Text = _statusExpanded ? "▴" : "▾";
+		_statusExpand.TooltipText = _statusExpanded ? "Riduci lo stato" : "Apri i dettagli dello stato";
+		RefreshStatusCard();
+	}
+
+	internal bool StatusCardExpandedForSmoke => _statusExpanded;
+	internal void ToggleStatusCardForSmoke() => _statusExpand.EmitSignal(BaseButton.SignalName.Pressed);
+
 	private void AddHudLine(string line)
 	{
 		_hudLines.Add(line);
@@ -137,6 +170,7 @@ public partial class VillageMap
 
 	private bool CloseHudOverlay()
 	{
+		if (_travelChoicePanel.Visible) { _travelChoicePanel.Visible = false; return true; }
 		if (_torchShieldConfirm.Visible) { _torchShieldConfirm.Hide(); return true; }
 		if (_gameMenu.Visible) { _gameMenu.Visible = false; return true; }
 		if (_attackOptionsPanel.Visible) { _attackOptionsPanel.Visible = false; return true; }

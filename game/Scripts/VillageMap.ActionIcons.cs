@@ -34,6 +34,7 @@ public partial class VillageMap
 			"stop" => "<path d='M7 7h18v18H7z' />",
 			"sneak" => "<path d='M5 25c4-2 7-3 11-3s7 1 11 3M12 20l2-8 6-3M18 9l5 5M13 7a3 3 0 1 0 6 0 3 3 0 0 0-6 0Z' />",
 			"torch" => "<path d='M16 15v14m-5 0h10M16 16c-7-4-4-9 0-13 0 4 7 7 0 13Z' />",
+			"poison" => "<path d='M12 4h8M13 4v7l-6 8a6 6 0 0 0 5 9h8a6 6 0 0 0 5-9l-6-8V4M10 20h12M13 24h6' />",
 			"rest" => "<path d='M5 22h22M7 22v5m18-5v5M7 19h18v3H7zM11 15h5v4h-5z' />",
 			"bag" => "<path d='M8 11h16l3 18H5l3-18ZM12 11V7a4 4 0 0 1 8 0v4' />",
 			"class" => "<path d='M16 3 27 8v8c0 7-5 12-11 14C10 28 5 23 5 16V8L16 3Z' /><path d='M16 9v14M10 16h12' />",

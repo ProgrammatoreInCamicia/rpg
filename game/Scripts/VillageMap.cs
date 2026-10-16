@@ -107,6 +107,7 @@ public partial class VillageMap : Node2D
 		SyncFigureFacing(_view.Facing);
 
 		BuildMap();
+		BuildR5Map();
 		BuildUi();
 		Refresh();
 
@@ -246,7 +247,9 @@ public partial class VillageMap : Node2D
 		if (mouse.ButtonIndex == MouseButton.Right)
 		{
 			var point = GetGlobalTransformWithCanvas().AffineInverse() * mouse.Position;
-			if (PersonAt(point) is { } target)
+			if (KnownTrapAt(point) is { } trap)
+				OpenTrapMenu(trap, mouse.Position);
+			else if (PersonAt(point) is { } target)
 				OpenPersonMenu(target);
 			else if (DoorAt(point) is { } door)
 				OpenDoorMenu(door);
@@ -306,6 +309,7 @@ public partial class VillageMap : Node2D
 	internal string LastMessage => _message.Text;
 	internal string EventText => _events.Text;
 	internal string LevelExperienceTextForSmoke => _levelExperience.Text;
+	internal string NeedsTextForSmoke => _food.Text;
 	internal ActorId? TalkingTo => _talkingTo;
 	internal bool OffMapPanelVisible => _offMapPanel.Visible;
 
@@ -371,13 +375,10 @@ public partial class VillageMap : Node2D
 			ShowMessage("Scegli una destinazione dalla strada.");
 			return;
 		}
-		StartActivity(new TravelCommand { Actor = _sim.Player, Destination = exit.Routes[0].To });
+		OfferTravel(exit.Routes[0].To);
 	}
 
-	internal void ReturnToVillage() => StartActivity(new TravelCommand
-	{
-		Actor = _sim.Player, Destination = MappedVillageScenario.Ids.ForestRoad,
-	});
+	internal void ReturnToVillage() => OfferTravel(MappedVillageScenario.Ids.ForestRoad);
 
 	/// <summary>
 	/// Click on someone: talk to them if they are next to you, otherwise walk up to them (the core picks the square
@@ -742,13 +743,14 @@ public partial class VillageMap : Node2D
 		if (!onMap)
 		{
 			_offMapLabel.Text = _view.Travel is { } travel
-				? $"In viaggio verso {_view.Locations.Single(l => l.Id == travel.Destination).Name}\n" +
+				? $"In viaggio verso {_view.Locations.Single(l => l.Id == travel.Destination).Name} · andatura {TravelPaceName(travel.Pace)}\n" +
 				  $"Arrivo tra {Math.Max(1, travel.ArrivesAt.Since(_view.Now).Seconds / 60)} minuti di gioco"
 				: _view.Location is { } place ? _view.Locations.Single(l => l.Id == place).Name : "In viaggio";
 			_returnToVillage.Visible = _view.Travel is null && _view.Location == MappedVillageScenario.Ids.BanditCamp;
 		}
 		var now = _view.Now;
-		_clock.Text = $"Giorno {now.Day + 1}   {now.Hour:00}:{now.Minute:00}:{now.Second:00}   {DayName(_view.Daylight)}   ({HereName(_view.Light)})";
+		_clock.Text = $"G{now.Day + 1} · {now.Hour:00}:{now.Minute:00} · {DayName(_view.Daylight)}";
+		_clock.TooltipText = $"Giorno {now.Day + 1}, {now.Hour:00}:{now.Minute:00}:{now.Second:00} · {HereName(_view.Light)}";
 		var where = _view.Location is { } here ? _view.Locations.Single(l => l.Id == here).Name
 			: onMap ? "strada" : "in viaggio";
 		_status.Text = _view.Dead ? "Sei morto. Carica un salvataggio per riprovare."
@@ -758,7 +760,15 @@ public partial class VillageMap : Node2D
 			: (_paused ? $"IN PAUSA — ordini in coda: {_queue.Count}. " : "")
 			+ (_walking ? $"Cammini… ({where})" : _view.Travel is not null ? "Sei in viaggio."
 				: onMap ? $"Sei qui: {where}. Clicca dove vuoi andare." : $"Sei qui: {where}.");
-		_food.Text = $"Razioni con te: {_view.Food}";
+		_food.Text = _view.Water is { } water
+			? $"Razioni {_view.Food} · acqua {water.Pints}/{water.Capacity}"
+				+ (_view.Hunger > 0 ? $" · digiuno {_view.Hunger} g" : "")
+			: $"Razioni {_view.Food}";
+		_food.TooltipText = _view.Water is { } supply
+			? $"Acqua negli otri: {supply.Pints}/{supply.Capacity} pinte. Digiuno: {_view.Hunger} giorni. "
+				+ $"{(supply.DrankToday ? "Hai bevuto abbastanza oggi" : "Oggi devi ancora bere abbastanza")}. "
+				+ $"Viaggio oggi: {_view.TravelHoursToday:0.#} ore."
+			: "";
 		_levelExperience.Visible = _view.Level is not null;
 		if (_view.Level is { } level)
 			_levelExperience.Text = _view.NextLevelAt is { } next
@@ -834,6 +844,7 @@ public partial class VillageMap : Node2D
 		RefreshCombatUi();
 		RefreshAttackBars();
 		RefreshHud();
+		RefreshR5Controls();
 		ObserveCombatVisuals();
 		RefreshInventoryUi();
 		PlaceGroundItems();
@@ -1353,30 +1364,45 @@ public partial class VillageMap : Node2D
 	{
 		var ui = new CanvasLayer();
 		AddChild(ui);
-		var panel = HudPanel(16, 300, 16, 222);
-		// In the explored interior, unknown squares can fall behind the HUD; keep the controls readable.
-		if (_view.MapVisibility is not null)
-			panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.12f, 0.12f, 0.13f) });
-		ui.AddChild(panel);
+		_statusCard = HudPanel(16, 320, 16, 113);
+		_statusCard.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+		{
+			BgColor = new Color(0.08f, 0.09f, 0.11f, 0.91f),
+			BorderColor = UtilityAccent.Darkened(0.35f), BorderWidthBottom = 1,
+			CornerRadiusTopLeft = 4, CornerRadiusTopRight = 4,
+			CornerRadiusBottomLeft = 4, CornerRadiusBottomRight = 4,
+		});
+		ui.AddChild(_statusCard);
 		var box = new VBoxContainer();
 		box.AddThemeConstantOverride("separation", 3);
-		panel.AddChild(box);
+		_statusCard.AddChild(box);
 
+		var heading = new HBoxContainer();
+		box.AddChild(heading);
 		_clock = new Label();
-		_clock.AddThemeFontSizeOverride("font_size", 15);
-		box.AddChild(_clock);
-		_status = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
-		box.AddChild(_status);
-		_food = new Label();
+		_clock.AddThemeFontSizeOverride("font_size", 14);
+		_clock.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		heading.AddChild(_clock);
+		_statusExpand = new Button { Text = "▾", CustomMinimumSize = new Vector2(28, 25),
+			TooltipText = "Apri i dettagli dello stato" };
+		_statusExpand.Pressed += ToggleStatusCard;
+		heading.AddChild(_statusExpand);
+		_hudBrief = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		box.AddChild(_hudBrief);
+		_food = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		box.AddChild(_food);
-		_levelExperience = new Label();
-		box.AddChild(_levelExperience);
-		_hudHitPoints = new Label();
-		box.AddChild(_hudHitPoints);
 		BuildConditionsUi(box);
-		BuildMagicStatusUi(box);
+		_statusDetails = new VBoxContainer { Visible = false };
+		box.AddChild(_statusDetails);
+		_status = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		_statusDetails.AddChild(_status);
+		_levelExperience = new Label();
+		_statusDetails.AddChild(_levelExperience);
+		_hudHitPoints = new Label();
+		_statusDetails.AddChild(_hudHitPoints);
+		BuildMagicStatusUi(_statusDetails);
 		_watched = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
-		box.AddChild(_watched);
+		_statusDetails.AddChild(_watched);
 
 		_exploreActionPanel = HudPanel(208, 930, -188, -16, bottomAnchored: true);
 		_exploreActionPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.08f, 0.09f, 0.11f, 0.94f) });
@@ -1497,6 +1523,7 @@ public partial class VillageMap : Node2D
 		BuildJournalUi(ui);
 		BuildHudLog(ui);
 		BuildQuickbarUi(ui);
+		BuildR5Ui(ui);
 
 		_offMapPanel = new PanelContainer { OffsetLeft = 440, OffsetRight = 840, OffsetTop = 100, OffsetBottom = 245,
 			Visible = false };

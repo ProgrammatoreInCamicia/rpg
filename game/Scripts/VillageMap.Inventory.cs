@@ -10,6 +10,7 @@ public partial class VillageMap
 	private Button _inventoryButton = null!;
 	private PanelContainer _inventoryPanel = null!;
 	private Label _coinsLabel = null!;
+	private Label _poisonStatus = null!;
 	private VBoxContainer _equipmentRows = null!;
 	private VBoxContainer _inventoryRows = null!;
 	private VBoxContainer _groundRows = null!;
@@ -40,6 +41,8 @@ public partial class VillageMap
 		column.AddChild(header);
 		_coinsLabel = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		column.AddChild(_coinsLabel);
+		_poisonStatus = new Label();
+		column.AddChild(_poisonStatus);
 		var scroll = new ScrollContainer { CustomMinimumSize = new Vector2(0, 325),
 			SizeFlagsVertical = Control.SizeFlags.ExpandFill };
 		column.AddChild(scroll);
@@ -64,9 +67,12 @@ public partial class VillageMap
 		var silver = _view.Coins % 100 / 10;
 		var copper = _view.Coins % 10;
 		_coinsLabel.Text = $"Denaro: {gold} mo · {silver} ma · {copper} mr";
+		_poisonStatus.Visible = _view.WeaponPoisonedUntil is not null;
+		_poisonStatus.Text = _view.WeaponPoisonedUntil is { } until
+			? $"Arma avvelenata: {Math.Max(1, until.Since(_view.Now).Seconds)} s rimasti" : "";
 		_inventoryButton.Text = $"Inventario ({_view.Inventory.Sum(i => i.Count)})";
 		var key = $"{_view.Position}|{_view.Dead}|{_view.Unconscious}|{_view.Action?.Kind}|"
-			+ $"{_view.Combat?.Round}:{_view.Combat?.Turn}:{_view.Combat?.IsYourTurn}:{_view.Combat?.You.ActionAvailable}:{_view.Combat?.You.InteractionAvailable}|{_view.Coins}|"
+			+ $"{_view.Combat?.Round}:{_view.Combat?.Turn}:{_view.Combat?.IsYourTurn}:{_view.Combat?.You.ActionAvailable}:{_view.Combat?.You.BonusActionAvailable}:{_view.Combat?.You.InteractionAvailable}|{_view.Coins}|"
 			+ string.Join(";", _view.Equipment.Select(e => $"{e.Slot}:{e.Item}:{e.Name}")) + "|"
 			+ string.Join(";", _view.Inventory.Select(i => $"{i.Item}:{i.Name}:{i.Count}:{i.Equipped}")) + "|"
 			+ string.Join(";", _view.GroundItems.Select(i => $"{i.At}:{i.Item}:{i.Name}:{i.Count}"));
@@ -117,6 +123,13 @@ public partial class VillageMap
 				menu.IdPressed += id => EquipItem(stack.Item.Value, (EquipmentSlot)id);
 				row.AddChild(equip);
 			}
+			if (stack.Item.Value == "basic-poison")
+			{
+				var poison = new Button { Text = "Applica", TooltipText = "Spalma il veleno sull'arma principale per un minuto. In scontro usa l'azione bonus.",
+					Disabled = !CanApplyWeaponPoison() };
+				poison.Pressed += ApplyWeaponPoison;
+				row.AddChild(poison);
+			}
 			var drop = new Button { Text = "Lascia 1", Disabled = _view.Dead || _view.Position is null
 				|| stack.Count <= stack.Equipped,
 				TooltipText = stack.Count <= stack.Equipped ? "È equipaggiato: non puoi lasciarlo finché non puoi cambiarlo." : "" };
@@ -137,6 +150,22 @@ public partial class VillageMap
 			_groundRows.AddChild(row);
 		}
 	}
+
+	private bool CanApplyWeaponPoison() => !_view.Dead && !_view.Unconscious
+		&& _view.Inventory.Any(i => i.Item.Value == "basic-poison" && i.Count > 0)
+		&& _view.Equipment.Any(e => e.Slot == EquipmentSlot.MainHand)
+		&& (_view.Combat is { } turn ? turn.IsYourTurn && turn.You.BonusActionAvailable : _view.Action is null);
+
+	private void ApplyWeaponPoison()
+	{
+		var result = _sim.Execute(new ApplyPoisonCommand { Actor = _sim.Player });
+		ShowMessage(result.Message);
+		Refresh();
+	}
+
+	internal void ApplyPoisonFromInventoryForSmoke() => _inventoryRows.GetChildren()
+		.OfType<HBoxContainer>().SelectMany(row => row.GetChildren().OfType<Button>())
+		.Single(button => button.Text == "Applica").EmitSignal(BaseButton.SignalName.Pressed);
 
 	private static void ClearRows(VBoxContainer rows)
 	{

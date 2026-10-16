@@ -65,6 +65,12 @@ public partial class VillageSmoke : Node
 			await R4ClientControls();
 			return;
 		}
+		if (OS.GetCmdlineUserArgs().Contains("--r5-ui-only"))
+		{
+			await Frames(3);
+			await R5ClientControls();
+			return;
+		}
 		if (OS.GetCmdlineUserArgs().Contains("--p5a-only"))
 		{
 			await Frames(3);
@@ -311,11 +317,14 @@ public partial class VillageSmoke : Node
 		Input.ParseInputEvent(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = false,
 			Position = exitPoint, GlobalPosition = exitPoint });
 		var travelDeadline = Time.GetTicksMsec() + 5000UL;
-		while (_map.View.Travel is null)
+		while (!_map.TravelChoiceOpenForSmoke)
 		{
-			Require(Time.GetTicksMsec() < travelDeadline, "Clicking the exit did not start the journey");
+			Require(Time.GetTicksMsec() < travelDeadline, "Clicking the exit did not offer a journey pace");
 			await Frames(1);
 		}
+		Capture("r5-travel-choice.png");
+		_map.ChooseTravelPaceForSmoke(TravelPace.Fast);
+		Require(_map.View.Travel is { Pace: TravelPace.Fast }, "R5b: fast pace was not sent to the journey");
 		await Frames(2);
 		Require(_map.OffMapPanelVisible, "The travel panel did not replace the village map");
 		Capture("8-travelling.png");
@@ -325,6 +334,8 @@ public partial class VillageSmoke : Node
 		Require(_map.OffMapPanelVisible, "The camp view is missing");
 		Capture("9-forest-camp.png");
 		_map.ReturnToVillage();
+		Require(_map.TravelChoiceOpenForSmoke, "R5b: the return journey did not offer a pace");
+		_map.ChooseTravelPaceForSmoke(TravelPace.Normal);
 		await UntilIdle(12);
 		Require(_map.View.Position == forestExit && _map.View.Map is not null,
 			"The return journey did not put the player back on the village exit");
@@ -347,6 +358,93 @@ public partial class VillageSmoke : Node
 		await R4ClientControls();
 		await InventoryPreview();
 		await InventoryCombat();
+		await R5ClientControls();
+	}
+
+	/// <summary>R5 client: only known hazards are drawn, and the controls send real Search, Disarm and Poison commands.</summary>
+	private async Task R5ClientControls()
+	{
+		var session = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
+		using var stream = new MemoryStream();
+		session.Save(stream);
+		var save = JsonNode.Parse(stream.ToArray())!.AsObject();
+		var actor = save["Actors"]!.AsArray().Single(a => a!["Id"]!.GetValue<string>() == MappedVillageScenario.Ids.Player.Value)!;
+		actor["Inventory"]!.AsArray().Add(new JsonObject { ["Item"] = "iron-spike", ["Count"] = 1 });
+		actor["Inventory"]!.AsArray().Add(new JsonObject { ["Item"] = "basic-poison", ["Count"] = 2 });
+		var hazard = new GridPos(3, 2);
+		Require(session.GetPlayerView().Map!.Rows[hazard.Y][hazard.X] != '#', "R5 fixture: trap square is a wall");
+		var area = session.GetPlayerView().Map!.Area.Value;
+		var mapped = save["Maps"]!.AsArray().Single(m => m!["Area"]!.GetValue<string>() == area)!;
+		mapped["Traps"] = new JsonArray(new JsonObject
+		{
+			["X"] = hazard.X, ["Y"] = hazard.Y, ["Kind"] = "Pit", ["Found"] = true,
+			["Sprung"] = false, ["Disarmed"] = false,
+		});
+		var fixture = System.IO.Path.Combine(_outputDir, "r5-client-hazard.json");
+		File.WriteAllText(fixture, save.ToJsonString());
+		_map.LoadGameFromPath(fixture);
+		await Frames(2);
+		Require(_map.NeedsTextForSmoke.Contains("acqua") && _map.View.Water is not null,
+			"R5a: the HUD omitted water and supplies");
+		Require(!_map.StatusCardExpandedForSmoke, "UX: the status card should start compact");
+		_map.ToggleStatusCardForSmoke();
+		Require(_map.StatusCardExpandedForSmoke, "UX: status details did not open");
+		await Frames(1);
+		Capture("ux-status-expanded.png");
+		_map.ToggleStatusCardForSmoke();
+		Require(_map.TrapMarkVisibleForSmoke(hazard), "R5c: a known pit has no map marker");
+		_map.SetPaused(false);
+		_map.SearchFromQuickbarForSmoke();
+		Require(_map.IsBusy, "R5c: Search in the quickbar did not start its activity");
+		await UntilIdle(5);
+		_map.OpenTrapMenuForSmoke(hazard);
+		Require(_map.TrapDisarmEnabledForSmoke, "R5c: the known nearby pit cannot be disarmed from its menu");
+		_map.DisarmTrapFromMenuForSmoke();
+		await UntilIdle(5);
+		Require(_map.View.KnownTraps.Single(t => t.At == hazard).Disarmed,
+			$"R5c: the client did not disarm the found pit: {_map.LastMessage}");
+		_map.OpenInventoryForSmoke();
+		_map.ApplyPoisonFromInventoryForSmoke();
+		Require(_map.View.WeaponPoisonedUntil is not null,
+			$"R5c: applying Basic Poison from the inventory failed: {_map.LastMessage}");
+		await Frames(2);
+		Capture("r5-hazard-ui.png");
+		_map.CloseInventoryForSmoke();
+		_map.ChooseItemsQuickDeckForSmoke();
+		Require(_map.PoisonQuickButtonVisibleForSmoke, "UX: the available poison is missing from the items deck");
+		await Frames(1);
+		Capture("ux-items-poison-ready.png");
+		_map.ApplyPoisonFromQuickbarForSmoke();
+		Require(_map.View.WeaponPoisonedUntil is not null
+			&& !_map.View.Inventory.Any(i => i.Item.Value == "basic-poison"),
+			"UX: the poison shortcut did not invoke the Sim command");
+		await Frames(1);
+		Capture("ux-items-poison.png");
+		_map.ChooseCommonQuickDeckForSmoke();
+		Capture("r5-hazard-map.png");
+
+		var pitSave = JsonNode.Parse(stream.ToArray())!.AsObject();
+		var fallen = pitSave["Actors"]!.AsArray().Single(a => a!["Id"]!.GetValue<string>() == MappedVillageScenario.Ids.Player.Value)!;
+		fallen["InPit"] = true;
+		var pitMap = pitSave["Maps"]!.AsArray().Single(m => m!["Area"]!.GetValue<string>() == area)!;
+		pitMap["Traps"] = new JsonArray(new JsonObject
+		{
+			["X"] = MappedVillageScenario.Ids.PlayerStart.X,
+			["Y"] = MappedVillageScenario.Ids.PlayerStart.Y,
+			["Kind"] = "Pit", ["Found"] = true, ["Sprung"] = true, ["Disarmed"] = false,
+		});
+		var pitFixture = System.IO.Path.Combine(_outputDir, "r5-client-in-pit.json");
+		File.WriteAllText(pitFixture, pitSave.ToJsonString());
+		_map.LoadGameFromPath(pitFixture);
+		await Frames(2);
+		Require(_map.View.InPit && _map.ClimbQuickActionVisibleForSmoke,
+			"R5c: the climb action must appear while the player is in a pit");
+		_map.ClimbFromQuickbarForSmoke();
+		Require(_map.IsBusy, "R5c: climb from the quickbar did not start its activity");
+		await UntilIdle(5);
+		Require(_map.View.RecentEvents.Any(e => e.Kind is "ClimbedOut" or "ClimbOutFailed"),
+			"R5c: the climb attempt did not reach the Sim");
+		Capture("r5-pit-ui.png");
 	}
 
 	/// <summary>C3b: spend the last thrown weapon, save/load, collect it through the client, and throw it again.</summary>
@@ -531,13 +629,27 @@ public partial class VillageSmoke : Node
 		File.WriteAllText(twoWeapons, fight.ToJsonString());
 		_map.LoadGameFromPath(twoWeapons);
 		await Frames(2);
+		Require(_map.QuickDeckSelectedForSmoke("Common") && _map.ActionQuickButtonVisibleForSmoke
+			&& _map.EndTurnFixedForSmoke,
+			"UX: combat should open the common deck with action icons and a fixed End Turn control");
+		_map.ChoosePaladinQuickDeckForSmoke();
 		_map.ChooseBonusQuickFilterForSmoke();
-		Require(_map.BonusQuickFilterSelectedForSmoke && _map.BonusQuickButtonVisibleForSmoke
+		Require(_map.QuickDeckSelectedForSmoke("Paladin") && _map.BonusQuickFilterSelectedForSmoke
+			&& _map.BonusQuickButtonVisibleForSmoke
 			&& !_map.ActionQuickButtonVisibleForSmoke,
-			"UX: Bonus filter should hide action icons and keep bonus icons");
+			"UX: Paladin/Bonus should show bonus class commands and hide common actions");
+		await Frames(1);
+		Capture("ux-paladin-bonus.png");
 		_map.ChooseAllQuickFilterForSmoke();
-		Require(_map.ActionQuickButtonVisibleForSmoke && _map.BonusQuickButtonVisibleForSmoke,
-			"UX: All filter should restore both kinds of icons");
+		Require(_map.BonusQuickButtonVisibleForSmoke, "UX: All should restore the class commands");
+		_map.ChooseItemsQuickDeckForSmoke();
+		Require(_map.QuickDeckSelectedForSmoke("Items") && !_map.BonusQuickButtonVisibleForSmoke,
+			"UX: the items deck should be independent from the class deck");
+		await Frames(1);
+		Capture("ux-items-combat.png");
+		_map.ChooseCommonQuickDeckForSmoke();
+		Require(_map.ActionQuickButtonVisibleForSmoke && !_map.BonusQuickButtonVisibleForSmoke,
+			"UX: returning to Common should restore tactical actions");
 		var enemy = MappedVillageScenario.Ids.Farmer;
 		Require(_map.View.Combat is { IsYourTurn: true, You.ActionAvailable: true }
 			&& _map.View.Combat.Targets.Any(t => t.Target == enemy && t.Attack == "Pugnale" && t.Valid),
