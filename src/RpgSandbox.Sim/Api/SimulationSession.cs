@@ -197,7 +197,7 @@ public sealed class SimulationSession
             ? new ActionView { Id = a.Id, Kind = a.Kind, StartedAt = a.StartedAt, CompletesAt = a.CompletesAt, Description = a.Description }
             : null,
         Travel = actor.CurrentAction is TravelAction t
-            ? new TravelView { Action = t.Id, Origin = t.Origin, Destination = t.Destination, DepartedAt = t.StartedAt, ArrivesAt = t.CompletesAt }
+            ? new TravelView { Action = t.Id, Origin = t.Origin, Destination = t.Destination, DepartedAt = t.StartedAt, ArrivesAt = t.CompletesAt, Pace = t.Pace }
             : null,
         Assignment = actor.Assignment is { } r
             ? new AssignmentView
@@ -297,6 +297,7 @@ public sealed class SimulationSession
             ChannelDivinity = _sim.ChannelDivinityPool(player) is { } channel ? new PoolView { Remaining = channel.Remaining, Max = channel.Max } : null,
             Subclass = player.Choices.Subclass,
             Hunger = player.DaysWithoutFood, Water = _sim.WaterOf(player),
+            TravelHoursToday = player.TravelSecondsToday / 3600.0,
             MasteryWeapons = Freeze((player.Choices.Masteries ?? (w.Content.Characters.TryGetValue(player.Build, out var definition)
                 ? definition.Masteries : Array.Empty<string>())).Select(i => new ItemId(i))),
             Move = MoveOf(player),
@@ -311,7 +312,7 @@ public sealed class SimulationSession
                 : null,
             Travel = travel is null
                 ? null
-                : new TravelView { Action = travel.Id, Origin = travel.Origin, Destination = travel.Destination, DepartedAt = travel.StartedAt, ArrivesAt = travel.CompletesAt },
+                : new TravelView { Action = travel.Id, Origin = travel.Origin, Destination = travel.Destination, DepartedAt = travel.StartedAt, ArrivesAt = travel.CompletesAt, Pace = travel.Pace },
             Area = area,
             Light = light,
             Daylight = Perception.DaylightAt(w.Now),
@@ -338,7 +339,7 @@ public sealed class SimulationSession
                 Faction = x.Faction,
                 Location = x.Location,
                 Travel = x.CurrentAction is TravelAction t
-                    ? new TravelView { Action = t.Id, Origin = t.Origin, Destination = t.Destination, DepartedAt = t.StartedAt, ArrivesAt = t.CompletesAt }
+                    ? new TravelView { Action = t.Id, Origin = t.Origin, Destination = t.Destination, DepartedAt = t.StartedAt, ArrivesAt = t.CompletesAt, Pace = t.Pace }
                     : null,
                 Doing = map is not null || (player.Location is { } here && x.Location == here) ? OutwardDoing(x, w) : null,
                 AtBarrier = x.CurrentAction is BarrierAction work ? new BarrierRefView { A = work.Target.A, B = work.Target.B } : null,

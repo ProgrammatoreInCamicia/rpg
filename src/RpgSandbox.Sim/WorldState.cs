@@ -240,6 +240,9 @@ internal sealed class Actor
     public int WaterPints { get; set; }
     public bool DrankToday { get; set; }
 
+    /// <summary>R5b: seconds travelled today (SRD Extended Travel: beyond 8 hours, Constitution saves).</summary>
+    public long TravelSecondsToday { get; set; }
+
     /// <summary>R2, SRD Exhaustion: 0..6; each level is −2 to d20 Tests and −5 feet of Speed; at 6 it dies.</summary>
     public int Exhaustion { get; set; }
 
@@ -505,6 +508,7 @@ internal sealed class TravelAction : PendingAction
     public override string Kind => "Travel";
     public required LocationId Origin { get; init; }
     public required LocationId Destination { get; init; }
+    public TravelPace Pace { get; init; }
 }
 
 /// <summary>P4a: picking a lock or forcing a door or window: a minute's work, its check at the end.</summary>

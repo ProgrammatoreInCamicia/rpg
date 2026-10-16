@@ -73,6 +73,9 @@ public sealed record PlayerView
     /// <summary>R5a: the water carried and whether today's need is met (SRD Dehydration).</summary>
     public WaterView? Water { get; init; }
 
+    /// <summary>R5b: hours travelled today (SRD Extended Travel: past 8, Constitution saves each hour).</summary>
+    public double TravelHoursToday { get; init; }
+
     /// <summary>Direction the character faces in map coordinates; null in legacy all-direction scenarios.</summary>
     public GridPos? Facing { get; init; }
 

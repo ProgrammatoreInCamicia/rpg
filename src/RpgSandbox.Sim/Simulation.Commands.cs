@@ -112,9 +112,10 @@ internal sealed partial class Simulation
             Id = World.AllocateActionId(),
             Actor = actor.Id,
             StartedAt = World.Now,
-            CompletesAt = World.Now.Plus(travelTime),
+            CompletesAt = World.Now.Plus(PacedTime(travelTime, command.Pace)), // R5b
             Origin = origin,
             Destination = destination.Id,
+            Pace = command.Pace,
             Description = $"In viaggio verso {destination.Name}",
         };
         var leftMap = MapOf(actor);
@@ -264,6 +265,7 @@ internal sealed partial class Simulation
         {
             case TravelAction travel:
                 World.RecordFact("TravelCompleted", $"{actor.Name} arriva a {World.Locations[travel.Destination].Name}.", actor.Id);
+                TravelAtArrival(actor, travel); // R5b
                 if (World.Maps.TryGetValue(World.Locations[travel.Destination].Area, out var arrivalMap))
                 {
                     // T6c: onto a map, on the exit square of the place; the arrival is noticed with the contacts.

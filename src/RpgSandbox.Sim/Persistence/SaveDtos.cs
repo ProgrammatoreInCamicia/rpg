@@ -155,6 +155,7 @@ internal sealed class ActorDto
     public int ThirstExhaustion { get; set; }
     public int WaterPints { get; set; }
     public bool DrankToday { get; set; }
+    public long TravelSecondsToday { get; set; }
     public List<string>? Defeated { get; set; }
 
     /// <summary>P1 (schema 23): the exact point where it stands, when not the centre of its square.</summary>
@@ -223,6 +224,7 @@ internal sealed class TravelActionDto : ActionDto
 {
     public string Origin { get; set; } = "";
     public string Destination { get; set; } = "";
+    public string? Pace { get; set; }
 }
 
 internal sealed class DepositFoodActionDto : ActionDto

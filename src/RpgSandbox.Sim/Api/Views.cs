@@ -35,6 +35,9 @@ public sealed record TravelView
     public required LocationId Destination { get; init; }
     public required GameTime DepartedAt { get; init; }
     public required GameTime ArrivesAt { get; init; }
+
+    /// <summary>R5b: the pace it travels at.</summary>
+    public TravelPace Pace { get; init; }
 }
 
 public sealed record ActorView

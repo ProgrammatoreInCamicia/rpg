@@ -49,6 +49,7 @@ internal sealed partial class Simulation
         if (player.Vitality.State == LifeState.Dead)
             return;
         TakeWater(player); // still at the water at midnight
+        TravelAtMidnight(player); // R5b
         if (player.Food > 0)
         {
             player.Food--;

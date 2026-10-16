@@ -1025,3 +1025,8 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 - Acqua: 8 pinte al giorno. Nuovo oggetto `waterskin` ("Otre", 4 pinte, 2 ma); il Paladino ne ha uno nel suo corredo. In un luogo con acqua (`Location.Water`; nello scenario `AddWater` o `"water": true`; locanda del villaggio vivo, locanda e granaio della scena principale) beve e riempie gli otri. Altrimenti, a mezzanotte, beve dagli otri: con meno di 4 pinte, 1 livello di Sfinimento. `PlayerView.Water` (`WaterView`: `Pints`, `Capacity`, `DrankToday`).
 - I livelli dovuti a fame o sete non scendono con il riposo lungo finché non si mangia, o non si beve, quanto serve per un giorno intero.
 - Nuovo lavoro di scheduler `DayEnds` (mezzanotte). Salvataggio schema 39; i vecchi salvataggi ricevono il lavoro al caricamento.
+
+## R5b — Andature di viaggio (SRD 5.2.1 Travel Pace, Extended Travel)
+
+- `TravelCommand.Pace` (`TravelPace`: Normal predefinita, Fast, Slow): il tempo di un percorso è a passo normale; veloce 3/4, lenta 3/2. `TravelView.Pace`. Gli effetti su Percezione, Sopravvivenza e Furtività durante il viaggio non hanno ancora nulla su cui agire (non ci sono incontri lungo i percorsi): li applicherà la mappa a esagoni.
+- Viaggio prolungato, solo il giocatore: oltre le 8 ore di viaggio di un giorno, alla fine di ogni ora in più un tiro salvezza su Costituzione CD 10 + le ore oltre le 8, o 1 livello di Sfinimento. `PlayerView.TravelHoursToday`; si azzera a mezzanotte (un viaggio a cavallo della mezzanotte conta per i due giorni). Salvataggio schema 40.

@@ -6080,3 +6080,7 @@ Sezione R5a del contratto. Per il client:
 - La scena principale (slice) ora ha acqua alla locanda e al granaio: senza, lo smoke che passa 9 giorni al granaio faceva morire il giocatore di sete.
 Verifiche: 630/630 (`NeedsTests` 5, con prove di mutazione; adattati due test che contavano le razioni); build 0/0; INTERIOR, VILLAGE e slice SMOKE OK. Schema 39.
 Proseguo con R5b (andature).
+
+[CLAUDE — R5b Sim pronta: andature]
+`TravelCommand.Pace` (Normal, Fast, Slow), `TravelView.Pace`, `PlayerView.TravelHoursToday`; tiri salvezza "la marcia forzata" oltre le 8 ore di viaggio al giorno (fatti `SavingThrow` ed `Exhaustion`). Gli effetti dell'andatura su Percezione e Furtività aspettano gli incontri di viaggio (la mappa a esagoni). Client: scelta dell'andatura quando parti per un viaggio. Verifiche: 633/633 (`TravelPaceTests` 3, con prove di mutazione); build 0/0; INTERIOR, VILLAGE e slice SMOKE OK. Schema 40.
+Proseguo con R5c (cadute, trappole, veleni).

@@ -10,6 +10,9 @@ public abstract record Command
 public sealed record TravelCommand : Command
 {
     public required LocationId Destination { get; init; }
+
+    /// <summary>R5b, SRD Travel Pace: Fast (3/4 of the time), Normal (the route's time), Slow (4/3 of it).</summary>
+    public TravelPace Pace { get; init; }
 }
 
 /// <summary>Hand over some of the actor's own rations to a store in the actor's current location.</summary>
@@ -333,3 +336,9 @@ public sealed record EquipCommand : Command
     public string? Item { get; init; }
     public required EquipmentSlot Slot { get; init; }
 }
+
+/// <summary>
+/// R5b, SRD Travel Pace: Fast (400 feet a minute: Disadvantage on Perception, Survival and Stealth), Normal (300: on
+/// Stealth), Slow (200: Advantage on Perception and Survival).
+/// </summary>
+public enum TravelPace { Normal, Fast, Slow }

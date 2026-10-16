@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 39;
+    public const int SchemaVersion = 40;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -225,6 +225,7 @@ internal static class SaveGame
             ChannelDivinitySpent = a.ChannelDivinitySpent, Subclass = a.Choices.Subclass,
             DaysWithoutFood = a.DaysWithoutFood, HungerExhaustion = a.HungerExhaustion, ThirstExhaustion = a.ThirstExhaustion,
             WaterPints = a.WaterPints, DrankToday = a.DrankToday,
+            TravelSecondsToday = a.TravelSecondsToday,
             Effects = a.Effects.Select(f => new SpellEffectDto { Spell = f.Spell, Caster = f.Caster.Value, Until = f.Until?.Ticks, Concentration = f.Concentration, Amount = f.Amount, Item = f.Item }).ToList(),
             Defeated = a.Defeated.Select(x => x.Value).ToList(),
             Lore = a.Lore.IsEmpty ? null : new LoreDto
@@ -376,7 +377,7 @@ internal static class SaveGame
         ActionDto? dto = action switch
         {
             null => null,
-            TravelAction t => new TravelActionDto { Origin = t.Origin.Value, Destination = t.Destination.Value },
+            TravelAction t => new TravelActionDto { Origin = t.Origin.Value, Destination = t.Destination.Value, Pace = t.Pace.ToString() },
             DepositFoodAction d => new DepositFoodActionDto { Store = d.Store.Value, Amount = d.Amount },
             TakeFoodAction k => new TakeFoodActionDto
             {
@@ -650,6 +651,8 @@ internal static class SaveGame
             Check(a.DaysWithoutFood >= 0 && a.HungerExhaustion >= 0 && a.ThirstExhaustion >= 0 && a.WaterPints >= 0, $"fame o sete di '{a.Id}' non valide");
             (actor.DaysWithoutFood, actor.HungerExhaustion, actor.ThirstExhaustion, actor.WaterPints, actor.DrankToday) =
                 (a.DaysWithoutFood, a.HungerExhaustion, a.ThirstExhaustion, a.WaterPints, a.DrankToday);
+            Check(a.TravelSecondsToday >= 0, $"viaggio di oggi di '{a.Id}' non valido");
+            actor.TravelSecondsToday = a.TravelSecondsToday;
             foreach (var f in a.Effects ?? new())
                 actor.Effects.Add(new SpellEffect
                 {
@@ -996,6 +999,8 @@ internal static class SaveGame
             {
                 Id = id, Actor = actor, StartedAt = started, CompletesAt = completes, Description = description,
                 Origin = new LocationId(t.Origin), Destination = new LocationId(t.Destination),
+                Pace = t.Pace is null ? TravelPace.Normal // R5b: older saves travelled at the normal pace
+                    : Enum.TryParse<TravelPace>(t.Pace, out var pace) && Enum.IsDefined(pace) ? pace : throw new InvalidDataException($"andatura sconosciuta '{t.Pace}'"),
             },
             DepositFoodActionDto dep => new DepositFoodAction
             {
