@@ -660,8 +660,14 @@ public partial class VillageSmoke : Node
 		Require(_map.View.Combat is { You.OffHandAttackAvailable: false, You.BonusActionAvailable: false }
 			&& _map.View.Combat.Log.Count(e => e.Kind == CombatLogKind.Attack && e.Actor == _map.View.Id) >= 2,
 			$"R4b: the off-hand attack was not sent from the action bar: {_map.LastMessage}");
-		await Seconds(0.16);
-		Require(_map.AttackSwingForSmoke(_map.View.Id), "Visuals: the live figure did not swing after the attack");
+		// The swing lasts 0.42 s: watch for it frame by frame instead of sampling one instant.
+		var swung = false;
+		for (var frame = 0; frame < 60 && !swung; frame++)
+		{
+			await Frames(1);
+			swung = _map.AttackSwingForSmoke(_map.View.Id);
+		}
+		Require(swung, "Visuals: the live figure did not swing after the attack");
 		Capture("r4-offhand-attack.png");
 
 		var original = System.IO.Path.Combine(_outputDir, "g13-guard-joined.json");
@@ -1620,6 +1626,19 @@ public partial class VillageSmoke : Node
 			$"R3b: concentration is not visible after casting Benedizione: {_map.LastMessage}");
 		await Frames(2);
 		Capture("r3bc-divine-concentration.png");
+		Require(_map.SpellOnHotbarForSmoke("bless") && _map.SpellOnHotbarForSmoke("cure-wounds"),
+			"Spells: the prepared spells are not slots on the hotbar");
+		_map.OpenSpellbookForSmoke("bless");
+		await Frames(2);
+		Require(_map.SpellbookRowsForSmoke == _map.View.Spells!.ClassSpells.Count && _map.SpellbookDetailForSmoke.Contains("1d4"),
+			"Spells: the spellbook should list every class spell and describe the one chosen");
+		Capture("spellbook.png");
+		_map.OpenSpellbookForSmoke("bless");
+		_map.ClickSpellForSmoke("cure-wounds");
+		Require(_map.CastPromptVisibleForSmoke, "Spells: a spell with a target should wait for it to be clicked");
+		await Frames(2);
+		Capture("spell-targeting.png");
+		_map.CancelCastingForSmoke();
 	}
 
 	/// <summary>G8: the player is seen stealing, the guard catches up, and the farmer reports the theft.</summary>

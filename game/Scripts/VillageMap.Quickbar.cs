@@ -339,7 +339,8 @@ public partial class VillageMap
 		QuickAction(QuickSection.Common, false, "journal", "Diario", UtilityAccent, ToggleJournal);
 		QuickAction(QuickSection.Paladin, false, "class", "Scheda del paladino", UtilityAccent,
 			() => { _classPanel.Visible = true; RebuildClassPanel(); });
-		_quickExploreMagic = QuickAction(QuickSection.Paladin, false, "magic", "Libro degli incantesimi", MagicAccent, ToggleSpellPanel);
+		_quickExploreMagic = QuickAction(QuickSection.Paladin, false, "spellbook",
+			"Libro degli incantesimi: tutta la lista, le descrizioni, la preparazione", MagicAccent, ToggleSpellPanel);
 		_quickExploreSense = QuickAction(QuickSection.Paladin, false, "eye", "Percezione divina", MagicAccent, UseDivineSense);
 		QuickAction(QuickSection.Items, false, "bag", "Inventario (I)", UtilityAccent,
 			() => _inventoryPanel.Visible = !_inventoryPanel.Visible);
@@ -373,8 +374,8 @@ public partial class VillageMap
 			ClimbOutOfPit, QuickFilter.Action);
 		_quickHeal = QuickAction(QuickSection.Paladin, true, "heal", "Imposizione delle mani · azione bonus", UtilityAccent,
 			() => { _classPanel.Visible = true; RebuildClassPanel(); }, QuickFilter.Bonus);
-		_quickMagic = QuickAction(QuickSection.Paladin, true, "magic", "Incantesimi · azione o azione bonus", MagicAccent,
-			ToggleSpellPanel);
+		_quickMagic = QuickAction(QuickSection.Paladin, true, "spellbook",
+			"Libro degli incantesimi: tutta la lista, le descrizioni, la preparazione", MagicAccent, ToggleSpellPanel);
 		_quickSense = QuickAction(QuickSection.Paladin, true, "eye", "Percezione divina · azione bonus", MagicAccent,
 			UseDivineSense, QuickFilter.Bonus);
 		QuickAction(QuickSection.Items, true, "bag", "Inventario (I)", UtilityAccent,
@@ -518,6 +519,7 @@ public partial class VillageMap
 			if (dimmed) _quickDimmed.Add(button);
 			button.Modulate = dimmed ? new Color(1, 1, 1, 0.22f) : Colors.White;
 		}
+		RefreshQuickSpells();
 		foreach (var (grid, empties) in _quickEmptySlots)
 		{
 			var used = grid.GetChildren().OfType<Button>().Count(b => b.Visible);
@@ -531,6 +533,10 @@ public partial class VillageMap
 			for (var i = 0; i < empties.Count; i++)
 				empties[i].Visible = i < capacity - used;
 		}
+		// Wider than its place (more spells): it grows to the left, short of the log on the right.
+		var width = _quickbarPanel.GetCombinedMinimumSize().X;
+		_quickbarPanel.OffsetLeft = Math.Max(16, Math.Min(224, 940 - width));
+		_quickbarPanel.OffsetRight = _quickbarPanel.OffsetLeft + Math.Max(width, 930 - 224);
 	}
 
 	private void BuildGameMenu(CanvasLayer ui)

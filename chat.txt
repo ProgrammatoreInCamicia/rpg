@@ -6149,3 +6149,13 @@ Cosa è cambiato in `VillageMap.Quickbar.cs`:
 - a destra un pulsante rotondo fisso: Fine turno in scontro, Pausa fuori.
 Le schede (`QuickDeck` e i loro metodi per lo smoke) non ci sono più. Le icone nuove "search" (Cerca trappole) e "options" (opzioni dell'attacco) sono in `ActionIcons.cs`. Lo smoke adesso verifica che tutte le sezioni siano visibili e che il filtro attenui i comandi; la cattura nuova è `ux-combat-bar.png`.
 Verifiche: build 0/0; VILLAGE, INTERIOR e slice SMOKE OK.
+
+[CLAUDE — incantesimi nella barra e libro degli incantesimi, su richiesta dell'utente]
+Sim: `SpellView.Description` e `SpellbookView.ClassSpells` (vedi il contratto).
+Client (`VillageMap.Spells.cs`, `VillageMap.Quickbar.cs`):
+- ogni incantesimo preparato è uno slot nella sezione Paladino, con icona propria, livello e costo;
+- clic sinistro: lancia con lo slot più basso libero; se ha bersagli, li clicchi sulla mappa (anche te stesso), con "Lancia" o "Annulla" nel riquadro sopra la barra; clic destro: scegli uno slot più alto;
+- Punizione divina, al clic, si prepara per il prossimo colpo in mischia con l'arma in mano;
+- il libro non serve più per lanciare: mostra tutta la lista della classe per livello, la descrizione di quello scelto, e la preparazione (le spunte per `PreparedSpells`, − e + per lo scambio dopo il riposo lungo).
+`CastSpellForSmoke` ora lancia dalla barra. Ho corretto anche il controllo "the live figure did not swing": ora attende il fendente frame per frame (prima falliva spesso).
+Verifiche: 642/642; build 0/0; VILLAGE, INTERIOR e slice SMOKE OK; catture nuove `spellbook.png` e `spell-targeting.png`.

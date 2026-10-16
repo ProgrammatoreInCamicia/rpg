@@ -202,8 +202,16 @@ public partial class VillageMap : Node2D
 		}
 		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape })
 		{
-			if (_attackArmed) { _attackArmed = false; RefreshAttackBars(); RefreshQuickbar(); }
+			if (_castingSpell is not null) { CancelCasting(); RefreshQuickbar(); }
+			else if (_attackArmed) { _attackArmed = false; RefreshAttackBars(); RefreshQuickbar(); }
 			else if (!CloseHudOverlay()) ToggleGameMenu();
+			return;
+		}
+		if (_castingSpell is not null && @event is InputEventMouseButton { Pressed: true } spellClick
+			&& spellClick.ButtonIndex is MouseButton.Left or MouseButton.Right)
+		{
+			if (spellClick.ButtonIndex == MouseButton.Right) { CancelCasting(); RefreshQuickbar(); }
+			else HandleSpellClick(GetGlobalTransformWithCanvas().AffineInverse() * spellClick.Position);
 			return;
 		}
 		if (_view.Combat is not null && HandleCombatInput(@event))
