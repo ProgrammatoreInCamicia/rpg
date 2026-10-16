@@ -5710,3 +5710,6 @@ P5a, Sim (dettagli nella sezione P5a del contratto):
 - Salvataggio schema 32 (tentativi della razzia).
 Verifiche: 564/564; 7 test nuovi in `BreakInTests` (scassinata, forzata, rinuncia dopo due, finestra incastrata, sbarre, vista di `AtBarrier` e `Doing` col salvataggio, villaggio vivo con il granaio da evitare). Con ogni difetto reintrodotto il test relativo cade. Build 0/0; INTERIOR, VILLAGE e slice SMOKE OK.
 Per il tuo smoke P5a la scena più semplice: villaggio vivo, `AvoidUntil[granary_store]` per la banda, `camp_store` a 4 razioni, notte, giocatore con la torcia presso la porta della fattoria (8,13). Il predone arriva verso le 2 e scassina la porta in (8,13).
+
+[CLAUDE — correzione]
+Nel messaggio su P5a "il predone arriva verso le 2" è una mia stima, non l'ho verificata. Nel test del villaggio controllo solo che entro le 8 del giorno dopo la porta sia stata scassinata o forzata. Per lo smoke conviene avanzare finché `AtBarrier` non compare, invece di fissare un orario.
