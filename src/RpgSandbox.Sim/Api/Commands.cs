@@ -272,3 +272,21 @@ public sealed record RestCommand : Command
     public required bool Long { get; init; }
     public int HitDice { get; init; }
 }
+
+/// <summary>
+/// R3a, SRD Lay On Hands: a Bonus Action (free outside a fight), touching oneself or a creature within 5 feet: restores
+/// <see cref="Amount"/> Hit Points from the pool, or with <see cref="CurePoison"/> spends 5 to end the Poisoned condition.
+/// </summary>
+public sealed record LayOnHandsCommand : Command
+{
+    public required ActorId Target { get; init; }
+    public int Amount { get; init; }
+    public bool CurePoison { get; init; }
+}
+
+/// <summary>R3a: makes the choice <see cref="Choice"/> (a <see cref="ChoiceView.Id"/>) with the options picked, in order.</summary>
+public sealed record ChooseCommand : Command
+{
+    public required string Choice { get; init; }
+    public required IReadOnlyList<string> Options { get; init; }
+}

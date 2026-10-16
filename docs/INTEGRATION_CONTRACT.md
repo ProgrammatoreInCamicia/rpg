@@ -970,3 +970,13 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 - Prove (scasso, forzare, Furtività, Intuizione, Studio, iniziativa): avvelenato o spaventato danno svantaggio; lo sfinimento toglie 2 per livello anche ai tiri d'attacco, ai tiri salvezza e contro la morte.
 - Padronanze: Sap (svantaggio al suo prossimo attacco, fino all'inizio del tuo turno), Slow (−10 piedi fino all'inizio del tuo turno), Vex (vantaggio al tuo prossimo attacco contro di lui, fino alla fine del tuo prossimo turno), Topple (tiro salvezza su Costituzione CD 8 + modificatore + competenza, o prono), Push (10 piedi lontano, senza attacchi di opportunità; ADATTAMENTO: sempre tutta la spinta che lo spazio permette), Cleave (una volta per turno, ADATTAMENTO: sul nemico dello scontro più vicino entro 5 piedi dal primo e a portata; danno senza modificatore). Nick con le due armi (R4).
 - Salvataggio schema 34.
+
+## R3a — Paladino: azione bonus, Imposizione delle mani, scelte di livello, Attacco extra (SRD 5.2.1 p. 53–56, 87–88)
+
+- `CombatSelfView.BonusActionAvailable`; `CombatSelfView.AttacksLeft` (Attacco extra: attacchi ancora da fare con l'azione Attacco già presa).
+- `LayOnHandsCommand { Target, Amount, CurePoison }`: azione bonus in scontro, libera fuori; a contatto (sé o entro 5 piedi). Riserva 5 × livello, piena dopo un riposo lungo; 5 punti tolgono Avvelenato. `PlayerView.LayOnHands` (`PoolView`).
+- Scelte: `PlayerView.PendingChoices` (`ChoiceView`: `Id`, `Kind`, `Title`, `Options`, `Picks`, `Optional`), `ChooseCommand { Choice, Options }`.
+  - "FightingStyle" al livello 2: "Archery" (+2 ai tiri con armi a distanza), "Defense" (+1 CA con un'armatura), "GreatWeaponFighting" (1 e 2 sui dadi di danno contano 3, armi da mischia a due mani o versatili impugnate a due mani). "TwoWeaponFighting" con R4.
+  - "AbilityScores" al livello 4: due scelte; la stessa caratteristica due volte vale +2; massimo 20.
+  - "WeaponMastery": facoltativa dopo ogni riposo lungo, due armi fra quelle in cui si è competenti.
+- `PlayerView.FightingStyle`, `PlayerView.MasteryWeapons`.

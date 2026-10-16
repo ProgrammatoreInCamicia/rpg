@@ -144,6 +144,12 @@ public sealed record CombatSelfView
     /// <summary>P4c: the free interaction with an object this turn is still there (a door, a window): a second one takes the action.</summary>
     public bool InteractionAvailable { get; init; }
 
+    /// <summary>R3a: the turn's Bonus Action is still free (only for whoever has something to use it on).</summary>
+    public bool BonusActionAvailable { get; init; }
+
+    /// <summary>R3a, Extra Attack: attacks still to make with the Attack action already taken this turn.</summary>
+    public int AttacksLeft { get; init; }
+
     /// <summary>SRD: one Reaction, regained at the start of one's own turn.</summary>
     public required bool ReactionAvailable { get; init; }
 

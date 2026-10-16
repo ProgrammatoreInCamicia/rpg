@@ -43,6 +43,18 @@ public sealed record PlayerView
     public IReadOnlyList<ConditionView> Conditions { get; init; } = Array.Empty<ConditionView>();
     public int Exhaustion { get; init; }
 
+    /// <summary>R3a: the Paladin's Lay On Hands pool (Hit Points left and the most it holds); null without the feature.</summary>
+    public PoolView? LayOnHands { get; init; }
+
+    /// <summary>R3a: choices the character has to make (Fighting Style, Ability Score Improvement) or may make now (weapon masteries after a Long Rest).</summary>
+    public IReadOnlyList<ChoiceView> PendingChoices { get; init; } = Array.Empty<ChoiceView>();
+
+    /// <summary>R3a: the Fighting Style chosen ("Archery", "Defense", "GreatWeaponFighting"), if any.</summary>
+    public string? FightingStyle { get; init; }
+
+    /// <summary>R3a: the weapons (item ids) whose mastery the character uses.</summary>
+    public IReadOnlyList<ItemId> MasteryWeapons { get; init; } = Array.Empty<ItemId>();
+
     /// <summary>Direction the character faces in map coordinates; null in legacy all-direction scenarios.</summary>
     public GridPos? Facing { get; init; }
 
@@ -303,4 +315,26 @@ public sealed record ConditionView
     public required ConditionKind Kind { get; init; }
     public ActorId? Source { get; init; }
     public GameTime? Until { get; init; }
+}
+
+/// <summary>R3a: a pool of points (Lay On Hands).</summary>
+public sealed record PoolView
+{
+    public required int Remaining { get; init; }
+    public required int Max { get; init; }
+}
+
+/// <summary>
+/// R3a: a choice to make with <see cref="ChooseCommand"/>: its <see cref="Id"/> and kind ("FightingStyle",
+/// "AbilityScores", "WeaponMastery", later "Subclass", "PreparedSpells"), the options and how many to pick.
+/// "AbilityScores": pick one ability twice (+2) or two abilities once (+1 each). An optional choice may be left alone.
+/// </summary>
+public sealed record ChoiceView
+{
+    public required string Id { get; init; }
+    public required string Kind { get; init; }
+    public required string Title { get; init; }
+    public required IReadOnlyList<string> Options { get; init; }
+    public required int Picks { get; init; }
+    public bool Optional { get; init; }
 }

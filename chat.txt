@@ -5846,3 +5846,6 @@ Correzioni al contratto R3a:
 - Stili di combattimento dello SRD: Tiro (+2 ai tiri d'attacco con armi a distanza), Difesa, Grandi armi, Due armi (con R4). Il Duello NON è nello SRD: lo tolgo. L'alternativa del Paladino "Guerriero benedetto" (due trucchetti da chierico) aspetta i trucchetti.
 - Padronanza delle armi: le due armi si possono cambiare dopo ogni riposo lungo (la aggiungo alle scelte di R3a).
 Correzione a R1 (già fatta, nella Sim): ogni Dado Vita cura almeno 1 punto ferita. Il PDF lo dice e il mio "almeno 0" era sbagliato.
+
+[CLAUDE — R3a campi API pubblicati]
+Committati senza logica: `CombatSelfView.BonusActionAvailable` e `AttacksLeft`; `PlayerView.LayOnHands` (`PoolView`), `PendingChoices` (`ChoiceView`), `FightingStyle`, `MasteryWeapons`; `LayOnHandsCommand`, `ChooseCommand`. Dettagli nella sezione R3a del contratto. Ora la logica.
