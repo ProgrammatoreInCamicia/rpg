@@ -551,9 +551,15 @@ public partial class VillageMap : Node2D
 
 	private void StopNow()
 	{
-		if (!_walking)
+		if (!_walking && _view.Action?.Kind != "Rest")
 			return;
 		var result = _sim.Execute(new StopCommand { Actor = _sim.Player });
+		if (!result.Success)
+		{
+			ShowMessage(result.Message);
+			Refresh();
+			return;
+		}
 		_running = null;
 		_walking = false;
 		_approaching = null;
@@ -565,7 +571,7 @@ public partial class VillageMap : Node2D
 	}
 
 	/// <summary>A fixed-length activity: plays out quickly, at most a few real seconds.</summary>
-	private void StartActivity(Command command) => Order("attività", walk: false, () =>
+	private void StartActivity(Command command, string label = "attività") => Order(label, walk: false, () =>
 	{
 		if (_running is not null)
 		{
@@ -638,6 +644,8 @@ public partial class VillageMap : Node2D
 			return;
 		}
 		_sim = result.Session!;
+		_observedRestStarted = null;
+		_restDiceInitialized = false;
 		if (_sim.GetPlayerView().Facing is null)
 			_sim.FacePlayer(1, 1); // saves made before directional vision
 		SyncFigureFacing(_sim.GetPlayerView().Facing);
@@ -708,6 +716,8 @@ public partial class VillageMap : Node2D
 			: onMap ? "strada" : "in viaggio";
 		_status.Text = _view.Dead ? "Sei morto. Carica un salvataggio per riprovare."
 			: _view.Combat is { } combat ? $"Scontro · round {combat.Round}. " + (combat.IsYourTurn ? "È il tuo turno." : "Agiscono gli altri.")
+			: _view.Action is { Kind: "Rest" } rest ? (_paused ? "IN PAUSA · " : "")
+				+ $"{rest.Description} fino alle {rest.CompletesAt.Hour:00}:{rest.CompletesAt.Minute:00}."
 			: (_paused ? $"IN PAUSA — ordini in coda: {_queue.Count}. " : "")
 			+ (_walking ? $"Cammini… ({where})" : _view.Travel is not null ? "Sei in viaggio."
 				: onMap ? $"Sei qui: {where}. Clicca dove vuoi andare." : $"Sei qui: {where}.");
@@ -752,7 +762,9 @@ public partial class VillageMap : Node2D
 		var hidden = _view.Sneaking is { } total ? $"Di soppiatto (Furtività {total}). "
 			: _view.Move is { Stealthy: true } ? "Vai piano, ma ti vedono: non sei nascosto. " : "";
 		_watched.Text = hidden + (watchers.Count > 0 ? $"Ti vede: {string.Join(", ", watchers)}." : _view.VisibleActors.Count > 0 ? "Nessuno di quelli che vedi ti vede." : "");
-		_stop.Disabled = !_walking;
+		_stop.Disabled = !_walking && _view.Action?.Kind != "Rest";
+		_stop.Text = _view.Action?.Kind == "Rest" ? "Interrompi riposo (X)" : "Fermati (X)";
+		RefreshRestUi();
 		ShadeMap();
 		RefreshBuildingVisibility();
 		RefreshVisionFeather();
@@ -833,7 +845,9 @@ public partial class VillageMap : Node2D
 		var me = (_view.Id, _view.Position, _view.Spot, _view.Move);
 		var figures = new List<(ActorId Id, string Name, string? Doing, string? Condition, bool Hostile, bool Player, GridPos? Position, Spot? Spot, MoveView? Move)>
 		{
-			(me.Id, "Tu", null, _view.Dead ? "morto" : null, false, true, me.Position, me.Spot, me.Move),
+			(me.Id, "Tu", _view.Action is { Kind: "Rest" } rest
+				? rest.Description.Contains("Dorm", StringComparison.OrdinalIgnoreCase) ? "Zzz · dorme" : "riposa"
+				: null, _view.Dead ? "morto" : null, false, true, me.Position, me.Spot, me.Move),
 		};
 		figures.AddRange(_view.VisibleActors.Select(a => (a.Id,
 			a.SeesYou == true ? $"{a.Name} · ti vede" : a.Name,
@@ -1335,6 +1349,7 @@ public partial class VillageMap : Node2D
 		_torch = new Button();
 		_torch.Pressed += ToggleTorch;
 		box.AddChild(_torch);
+		BuildRestUi(box);
 		BuildInventoryUi(ui, box);
 
 		_storeRow = new HBoxContainer();

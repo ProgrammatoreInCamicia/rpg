@@ -41,6 +41,12 @@ public partial class VillageSmoke : Node
 	private async Task Run()
 	{
 		Require(DirAccess.MakeDirRecursiveAbsolute(_outputDir) == Error.Ok, "Cannot create screenshot directory");
+		if (OS.GetCmdlineUserArgs().Contains("--r1-only"))
+		{
+			await Frames(3);
+			await RestAndHealing();
+			return;
+		}
 		if (OS.GetCmdlineUserArgs().Contains("--p5a-only"))
 		{
 			await Frames(3);
@@ -294,6 +300,7 @@ public partial class VillageSmoke : Node
 		Capture("10-village-return.png");
 		await NightRaid();
 		await NightFarmhouseBreakIn();
+		await RestAndHealing();
 		await DiscoveredTheft();
 		await DoorMemory();
 		await WindowGlassAndBars();
@@ -1113,6 +1120,69 @@ public partial class VillageSmoke : Node
 		_map.LoadGameFromPath(opened);
 		await Frames(3);
 		Capture("p5a-farmhouse-door-open.png");
+	}
+
+	/// <summary>R1: a wounded paladin spends one Hit Die, sleeps, and can stop a further rest through the UI.</summary>
+	private async Task RestAndHealing()
+	{
+		var session = SimulationSession.Create(MappedVillageScenario.CreateLivingVillage());
+		using var initial = new MemoryStream();
+		session.Save(initial);
+		var snapshot = JsonNode.Parse(initial.ToArray())!.AsObject();
+		var player = snapshot["Actors"]!.AsArray().Single(a => a!["Id"]!.GetValue<string>() == MappedVillageScenario.Ids.Player.Value)!;
+		player["Vitality"]!["Current"] = 4;
+		var wounded = System.IO.Path.Combine(_outputDir, "r1-wounded.json");
+		File.WriteAllText(wounded, snapshot.ToJsonString());
+		_map.SetPaused(false);
+		_map.LoadGameFromPath(wounded);
+		await Frames(3);
+		Require(_map.View.HitDice is { Remaining: 1, Max: 1, Die: 10 }
+			&& _map.RestResourcesForSmoke.Contains("1/1 (d10)")
+			&& _map.RestResourcesForSmoke.Contains("PF 4/11"),
+			"R1: the client did not show the paladin's Hit Points and Hit Dice");
+		Require(_map.RestButtonsEnabledForSmoke, "R1: rest controls unavailable while the paladin is standing idle");
+		Capture("r1-wounded-before-rest.png");
+
+		_map.StartRestForSmoke(longRest: false, dice: 1);
+		Require(_map.View.Action is { Kind: "Rest", Description: "Riposa" },
+			$"R1: short rest did not start: {_map.LastMessage}");
+		await Frames(2);
+		Capture("r1-short-rest.png");
+		await UntilIdle(7);
+		Require(_map.View.Action is null && _map.View.HitDice is { Remaining: 0 }
+			&& _map.EventText.Contains("finisce di riposare"),
+			$"R1: short rest did not finish and spend its Hit Die: {_map.LastMessage}");
+		var afterShort = System.IO.Path.Combine(_outputDir, "r1-after-short.json");
+		_map.SaveGameToPath(afterShort);
+		var shortHp = JsonNode.Parse(File.ReadAllText(afterShort))!["Actors"]!.AsArray()
+			.Single(a => a!["Id"]!.GetValue<string>() == MappedVillageScenario.Ids.Player.Value)!["Vitality"]!["Current"]!.GetValue<int>();
+		Require(shortHp > 4, $"R1: spending a Hit Die did not heal the paladin ({shortHp} PF)");
+		Require(_map.RestResourcesForSmoke.Contains($"PF {shortHp}/11"),
+			"R1: the client did not update Hit Points after the short rest");
+
+		_map.StartRestForSmoke(longRest: true, dice: 0);
+		Require(_map.View.Action is { Kind: "Rest", Description: "Dorme" },
+			$"R1: long rest did not start: {_map.LastMessage}");
+		await Frames(2);
+		Capture("r1-long-rest-asleep.png");
+		await UntilIdle(7);
+		Require(_map.View.Action is null && _map.View.HitDice is { Remaining: 1 }
+			&& _map.View.LongRestFrom is not null && _map.EventText.Contains("si sveglia riposato"),
+			$"R1: long rest did not restore the Hit Die and apply its cooldown: {_map.LastMessage}");
+		var afterLong = System.IO.Path.Combine(_outputDir, "r1-after-long.json");
+		_map.SaveGameToPath(afterLong);
+		var longHp = JsonNode.Parse(File.ReadAllText(afterLong))!["Actors"]!.AsArray()
+			.Single(a => a!["Id"]!.GetValue<string>() == MappedVillageScenario.Ids.Player.Value)!["Vitality"]!["Current"]!.GetValue<int>();
+		Require(longHp == 11, $"R1: long rest did not restore all PF ({longHp}/11)");
+		Require(_map.RestResourcesForSmoke.Contains("PF 11/11"),
+			"R1: the client did not update Hit Points after the long rest");
+		Capture("r1-after-long-rest.png");
+
+		_map.StartRestForSmoke(longRest: false, dice: 0);
+		Require(_map.View.Action is { Kind: "Rest" }, "R1: cannot start a rest to test interruption");
+		_map.Stop();
+		Require(_map.View.Action is null && _map.EventText.Contains("interrompe il riposo"),
+			$"R1: Stop did not interrupt the rest: {_map.LastMessage}");
 	}
 
 	/// <summary>G8: the player is seen stealing, the guard catches up, and the farmer reports the theft.</summary>
