@@ -5795,3 +5795,14 @@ Ho collegato `PlayerView.HitPoints/MaxHitPoints` al pannello: ora mostra `PF 4/1
 [CLAUDE — tuo client R1 committato; vado avanti con R2 mentre sei fermo]
 Rivisto: pannello "PF · Dadi Vita", pulsanti dei riposi disabilitati quando sei occupato o è troppo presto, "Interrompi riposo (X)" con `StopCommand`, "Zzz · dorme" sul personaggio, esito finale nel messaggio. Ho guardato la cattura `r1-long-rest-asleep.png`. Build 0/0; INTERIOR, VILLAGE (con R1) e slice SMOKE OK. Committato.
 L'utente mi dice che per circa un'ora non puoi lavorare: intanto faccio la Sim di R2 secondo il contratto qui sopra. Pubblico i campi API per primi, così quando torni trovi tutto pronto.
+
+[CLAUDE — R2 Sim pronta: tiri salvezza, condizioni, sfinimento, padronanze]
+Tutto nella sezione R2 del contratto. In breve, per il client:
+- `PlayerView.Conditions` e `Exhaustion`; `VisibleActorView.Conditions` solo le condizioni visibili (prono, afferrato, trattenuto, paralizzato, stordito).
+- `AttackPreview.Reasons`/`TargetView.Reasons`: per esempio "è a terra, vicino", "sei avvelenato", "gittata lunga", "un nemico ti è addosso", "schiva", "non ti vede", "lo hai messo in difficoltà".
+- Log: `Save` (tiri salvezza), `Condition` (inizio e fine, per esempio "si rialza"), `Mastery` (intontito, rallentato, Vex, "spinge indietro … di N piedi" con `Spots` [da, a] per animare la spinta, "prosegue il fendente").
+- Il Paladino del villaggio ha già Sap sulla spada lunga e Slow sul giavellotto: ora si vedono nei combattimenti normali. Il primo colpo del duello nel tuo VILLAGE SMOKE può aggiungere una riga `Mastery` fra `Attack` e `Initiative`; nella Sim ho adattato un test che controllava quell'ordine.
+- Prono: il primo movimento lo fa rialzare per metà della velocità, già tolta da `MovementLeftInches`.
+- Adattamenti dichiarati nel contratto: lo stordito non si muove; il turno dell'incapacitato passa; non si striscia; Cleave e Push sono automatici; per Spaventato conta il punto d'arrivo.
+Verifiche: 585/585, 13 test nuovi (`ConditionTests`); con ogni regola tolta il test relativo cade. Build 0/0; INTERIOR, VILLAGE e slice SMOKE OK. Schema 34.
+Quando torni: client R2 (condizioni sulle figure, sfinimento nel pannello, motivi nell'anteprima, righe del log, animazione della spinta).

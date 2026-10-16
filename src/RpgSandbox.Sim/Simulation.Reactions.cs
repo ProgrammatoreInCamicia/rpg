@@ -62,7 +62,7 @@ internal sealed partial class Simulation
     {
         CancelAction(npc, "inizia uno scontro");
         npc.LastHarmAt = World.Now;
-        var roll = Initiative.Roll(World.Rng, npc.Id.Value, ProfileOf(npc).InitiativeBonus);
+        var roll = InitiativeRoll(npc, surprised: false);
         var joiner = new Combatant
         {
             Actor = npc.Id, Side = side, Initiative = roll.Roll.Total, InitiativeBonus = roll.Bonus, JoinedInRound = e.Round,

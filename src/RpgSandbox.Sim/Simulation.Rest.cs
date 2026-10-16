@@ -66,6 +66,8 @@ internal sealed partial class Simulation
             // SRD Long Rest: all lost Hit Points and all spent Hit Point Dice are regained.
             var healed = actor.Vitality.Heal(actor.Vitality.Maximum);
             actor.HitDiceSpent = 0;
+            if (actor.Exhaustion > 0)
+                AddExhaustion(actor, -1, "ha dormito"); // R2, SRD Exhaustion: a Long Rest takes a level away
             actor.LastLongRestEnd = World.Now;
             World.RecordFact("RestCompleted", $"{actor.Name} si sveglia riposato: recupera {healed} punti ferita.", actor.Id);
         }

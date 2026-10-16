@@ -49,6 +49,8 @@ internal sealed partial class Simulation
         var from = CurrentSpot(actor)!.Value;
         if (from == to)
             return (RejectionReason.AlreadyThere, $"{actor.Name} è già lì.", null);
+        if (FearAhead(actor, to) is { } feared)
+            return (RejectionReason.Unreachable, $"Hai troppa paura per avvicinarti a {feared.Name}.", null); // R2
         var planner = CombatPlanner(e, actor);
         if (!planner.Fits(to))
             return (RejectionReason.NoRoom, "Lì non c'è spazio per stare in piedi.", null);
@@ -161,6 +163,7 @@ internal sealed partial class Simulation
     /// </summary>
     private (int Inches, string? Stopped) WalkFreeInCombat(Encounter e, Actor actor, SpotPath way)
     {
+        StandUp(e, actor); // R2
         var me = CombatantOf(e, actor.Id);
         var map = World.Maps[e.Area];
         actor.Sneak = null;

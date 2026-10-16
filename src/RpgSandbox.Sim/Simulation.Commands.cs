@@ -162,7 +162,7 @@ internal sealed partial class Simulation
         D20Roll? stealth = null;
         if (theft)
         {
-            stealth = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Stealth), disadvantage: actor.Sheet.StealthDisadvantage);
+            stealth = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Stealth) + CheckEdges(actor).Modifier, disadvantage: actor.Sheet.StealthDisadvantage || CheckEdges(actor).Disadvantage);
             World.RecordFact("Roll", $"{actor.Name}, Furtività: {stealth.Describe()} ({Perception.Describe(Perception.LightAt(World.Locations[store.Location], World.Now))}).", actor.Id);
         }
 

@@ -63,6 +63,19 @@ public sealed record CharacterSheet
 
     private readonly IReadOnlyList<string> _tools = Array.Empty<string>();
 
+    /// <summary>R2: the saving throws the character is proficient in (SRD: two by class; a creature's by its stat block).</summary>
+    public IReadOnlyList<Ability> SaveProficiencies
+    {
+        get => _saves;
+        init => _saves = Array.AsReadOnly(value.Distinct().Order().ToArray());
+    }
+
+    private readonly IReadOnlyList<Ability> _saves = Array.Empty<Ability>();
+
+    /// <summary>R2, SRD Saving Throws: the ability modifier, plus the Proficiency Bonus if proficient.</summary>
+    public int SaveBonus(Ability ability) =>
+        Abilities.Modifier(Score(ability)) + (SaveProficiencies.Contains(ability) ? ProficiencyBonus : 0);
+
     public bool IsProficientWith(string tool) => ToolProficiencies.Contains(tool);
 
     private readonly IReadOnlyList<Skill> _skills = Array.Empty<Skill>();

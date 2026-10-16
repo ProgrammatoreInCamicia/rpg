@@ -81,7 +81,10 @@ internal sealed partial class Simulation
         var (rejected, way) = PlanSpotWalk(actor, to);
         if (rejected is not null)
             return new SpotMovePreview { Valid = false, Reason = rejected.Rejection, Message = rejected.Message };
-        var speed = stealthy ? Math.Max(1, World.Actors[actor].Sheet.Speed * 2 / 3) : World.Actors[actor].Sheet.Speed;
+        var walking = WalkingSpeed(World.Actors[actor]);
+        if (walking == 0)
+            return new SpotMovePreview { Valid = false, Reason = RejectionReason.NoMovementLeft, Message = "Non riesci a muoverti." };
+        var speed = stealthy ? Math.Max(1, walking * 2 / 3) : walking;
         return new SpotMovePreview
         {
             Valid = true, Way = way!.Vertices, Feet = Math.Ceiling(way.Length / Spot.PerFoot * 10 - 1e-9) / 10,
@@ -141,14 +144,18 @@ internal sealed partial class Simulation
     {
         // Sneaking: SRD Slow pace and one Stealth check for as long as the actor keeps sneaking (no reroll per walk).
         // Hiding anew takes being out of everyone's sight (SRD Hide): watched, the actor only goes slowly.
-        var speed = stealthy ? Math.Max(1, actor.Sheet.Speed * 2 / 3) : actor.Sheet.Speed;
+        var walking = WalkingSpeed(actor);
+        if (walking == 0)
+            return CommandResult.Rejected(RejectionReason.NoMovementLeft, "Non riesci a muoverti."); // R2
+        RemoveCondition(null, actor, ConditionKind.Prone, "si rialza");
+        var speed = stealthy ? Math.Max(1, walking * 2 / 3) : walking;
         D20Roll? stealth = null;
         var watchedBy = new List<string>();
         if (!stealthy)
             actor.Sneak = null;
         else if (actor.Sneak is null && (watchedBy = WhoSeesOnMap(actor).Select(id => World.Actors[id].Name).Order(StringComparer.Ordinal).ToList()).Count == 0)
         {
-            stealth = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Stealth), disadvantage: actor.Sheet.StealthDisadvantage);
+            stealth = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Stealth) + CheckEdges(actor).Modifier, disadvantage: actor.Sheet.StealthDisadvantage || CheckEdges(actor).Disadvantage);
             actor.Sneak = stealth.Total;
             World.RecordFact("Roll", $"{actor.Name} si muove di soppiatto, Furtività: {stealth.Describe()}.", actor.Id);
         }

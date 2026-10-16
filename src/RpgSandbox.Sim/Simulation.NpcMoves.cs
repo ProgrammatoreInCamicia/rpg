@@ -24,6 +24,8 @@ internal sealed partial class Simulation
     /// </summary>
     private (SpotPath Way, int Limit)? PlanNpcApproach(Encounter e, Actor npc, Actor? target, Spot aim)
     {
+        if (FearAhead(npc, aim) is not null)
+            return null; // R2, SRD Frightened: it does not come closer to what it fears
         var map = World.Maps[e.Area];
         var from = CurrentSpot(npc)!.Value;
         var planner = CombatPlanner(e, npc);

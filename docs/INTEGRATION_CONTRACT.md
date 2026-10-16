@@ -961,3 +961,12 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 - `PlayerView.Exhaustion` (0..6): −2 per livello ai tiri d20, −5 piedi per livello alla velocità, al 6 si muore; un riposo lungo toglie un livello.
 - `AttackPreview.Reasons`, `TargetView.Reasons`: perché c'è vantaggio o svantaggio, in poche parole.
 - Padronanze: tutte e 8 per chi le ha (`CombatLogKind.Mastery`).
+- Effetti sugli attacchi: chi attacca accecato, avvelenato, prono, trattenuto, spaventato (con la fonte in vista), afferrato da un altro, intontito da Sap: svantaggio; invisibile: vantaggio. Contro un bersaglio accecato, paralizzato, trattenuto o stordito: vantaggio; prono: vantaggio entro 5 piedi, svantaggio oltre; invisibile: svantaggio; messo in difficoltà da Vex: vantaggio. Paralizzato entro 5 piedi: ogni colpo è critico.
+- Velocità: 0 se afferrato, trattenuto, paralizzato o stordito (ADATTAMENTO per lo stordito); −5 piedi per livello di sfinimento; −10 se rallentato da Slow. Fuori dallo scontro vale per i cammini (velocità 0: `NoMovementLeft`).
+- Prono: il primo movimento lo fa rialzare per metà della velocità (già tolta da `MovementLeftInches`); fuori dallo scontro ci si rialza gratis camminando. ADATTAMENTO: non si striscia.
+- Incapacitato (anche paralizzato, stordito): niente azioni né reazioni; ADATTAMENTO: il suo turno passa ("non può agire").
+- Spaventato: non si avvicina alla fonte che vede (ADATTAMENTO: si giudica il punto d'arrivo; rifiuto `Unreachable` "Hai troppa paura…"); un PNG spaventato non si avvicina.
+- Accecato non vede nessuno; nessuno vede l'invisibile. Affascinato non attacca chi l'ha affascinato.
+- Prove (scasso, forzare, Furtività, Intuizione, Studio, iniziativa): avvelenato o spaventato danno svantaggio; lo sfinimento toglie 2 per livello anche ai tiri d'attacco, ai tiri salvezza e contro la morte.
+- Padronanze: Sap (svantaggio al suo prossimo attacco, fino all'inizio del tuo turno), Slow (−10 piedi fino all'inizio del tuo turno), Vex (vantaggio al tuo prossimo attacco contro di lui, fino alla fine del tuo prossimo turno), Topple (tiro salvezza su Costituzione CD 8 + modificatore + competenza, o prono), Push (10 piedi lontano, senza attacchi di opportunità; ADATTAMENTO: sempre tutta la spinta che lo spazio permette), Cleave (una volta per turno, ADATTAMENTO: sul nemico dello scontro più vicino entro 5 piedi dal primo e a portata; danno senza modificatore). Nick con le due armi (R4).
+- Salvataggio schema 34.

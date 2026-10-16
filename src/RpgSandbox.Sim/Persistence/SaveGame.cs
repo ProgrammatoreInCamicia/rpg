@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 33;
+    public const int SchemaVersion = 34;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -213,6 +213,11 @@ internal static class SaveGame
             FoughtWith = a.FoughtWith.Select(f => f.Value).ToList(),
             Experience = a.Experience,
             HitDiceSpent = a.HitDiceSpent, LastLongRestEnd = a.LastLongRestEnd?.Ticks, LastHarmAt = a.LastHarmAt?.Ticks,
+            Conditions = a.Conditions.Select(c => new ConditionDto
+            {
+                Kind = c.Kind.ToString(), Source = c.Source?.Value, Until = c.Until?.Ticks, EndsAtTurnOf = c.EndsAtTurnOf?.Value,
+            }).ToList(),
+            Exhaustion = a.Exhaustion, SappedBy = a.SappedBy?.Value, SlowedBy = a.SlowedBy?.Value, Vexing = a.Vexing?.Value, VexFresh = a.VexFresh,
             Defeated = a.Defeated.Select(x => x.Value).ToList(),
             Lore = a.Lore.IsEmpty ? null : new LoreDto
             {
@@ -321,6 +326,7 @@ internal static class SaveGame
         Intelligence = s.Intelligence, Wisdom = s.Wisdom, Charisma = s.Charisma, ProficiencyBonus = s.ProficiencyBonus,
         SkillProficiencies = s.SkillProficiencies.Select(k => k.ToString()).ToList(), ArmorClass = s.ArmorClass,
         ToolProficiencies = s.ToolProficiencies.ToList(),
+        SaveProficiencies = s.SaveProficiencies.Select(a => a.ToString()).ToList(),
         StealthDisadvantage = s.StealthDisadvantage,
         Speed = s.Speed,
     };
@@ -333,6 +339,9 @@ internal static class SaveGame
             .Select(k => Enum.TryParse<Skill>(k, out var skill) && Enum.IsDefined(skill) ? skill : throw new InvalidDataException($"abilità sconosciuta '{k}'"))
             .ToArray(),
         ToolProficiencies = (s.ToolProficiencies ?? new()).Select(t => Required(t, "attrezzo")).ToArray(),
+        SaveProficiencies = (s.SaveProficiencies ?? new())
+            .Select(k => Enum.TryParse<Ability>(k, out var ability) && Enum.IsDefined(ability) ? ability : throw new InvalidDataException($"caratteristica sconosciuta '{k}'"))
+            .ToArray(),
         ArmorClass = s.ArmorClass,
         StealthDisadvantage = s.StealthDisadvantage,
         Speed = s.Speed,
@@ -593,6 +602,19 @@ internal static class SaveGame
             Check(actor.Experience >= 0 && (content.Characters.ContainsKey(actor.Build) || actor.Experience == 0)
                   && (a.IsPlayer || a.Defeated is not { Count: > 0 }), $"esperienza di '{a.Id}' non valida");
             actor.HitDiceSpent = a.HitDiceSpent;
+            foreach (var c in a.Conditions ?? new())
+                actor.Conditions.Add(new Condition
+                {
+                    Kind = Enum.TryParse<ConditionKind>(c.Kind, out var kind) && Enum.IsDefined(kind) ? kind : throw new InvalidDataException($"condizione sconosciuta '{c.Kind}'"),
+                    Source = c.Source is null ? null : new ActorId(c.Source), Until = c.Until is { } until ? Time(until) : null,
+                    EndsAtTurnOf = c.EndsAtTurnOf is null ? null : new ActorId(c.EndsAtTurnOf),
+                });
+            Check(a.Exhaustion is >= 0 and <= 6, $"sfinimento di '{a.Id}' non valido");
+            actor.Exhaustion = a.Exhaustion;
+            actor.SappedBy = a.SappedBy is null ? null : new ActorId(a.SappedBy);
+            actor.SlowedBy = a.SlowedBy is null ? null : new ActorId(a.SlowedBy);
+            actor.Vexing = a.Vexing is null ? null : new ActorId(a.Vexing);
+            actor.VexFresh = a.VexFresh;
             actor.LastLongRestEnd = a.LastLongRestEnd is { } rested ? Time(rested) : null;
             actor.LastHarmAt = a.LastHarmAt is { } harmed ? Time(harmed) : null;
             Check(a.HitDiceSpent >= 0 && (w.LevelOf(actor) is { } lvl ? a.HitDiceSpent <= lvl : a.HitDiceSpent == 0), $"Dadi Vita di '{a.Id}' non validi");
@@ -1036,7 +1058,7 @@ internal static class SaveGame
             Actor = c.Actor.Value, Side = c.Side, Initiative = c.Initiative, InitiativeBonus = c.InitiativeBonus,
             MovedFeet = c.MovedInches / Spot.PerFoot, MovedInches = c.MovedInches, ActionUsed = c.ActionUsed, ReactionUsed = c.ReactionUsed, OpeningSpent = c.OpeningSpent,
             LastSeenAt = c.LastSeenAt is { } at ? new PosDto { X = at.X, Y = at.Y } : null, JoinedInRound = c.JoinedInRound, Fleeing = c.Fleeing,
-            Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted,
+            Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved,
         }).ToList(),
         Log = e.Log.Select(RecordDto).ToList(),
     };
@@ -1114,7 +1136,7 @@ internal static class SaveGame
                         : c.LastSeenEnemy is { } seen ? Spot.CenterOf(new GridPos(seen.X, seen.Y)) : null,
                     JoinedInRound = c.JoinedInRound is { } joined && joined >= 1 && joined <= dto.Round ? joined
                         : c.JoinedInRound is null ? null : throw new InvalidDataException($"ingresso nello scontro di '{id}' non valido"),
-                    Fleeing = c.Fleeing, Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted,
+                    Fleeing = c.Fleeing, Dashes = c.Dashes, Disengaged = c.Disengaged, Dodging = c.Dodging, Interacted = c.Interacted, Cleaved = c.Cleaved,
                 });
             }
             Check(e.Order.Any(c => c.Side == 0) && e.Order.Any(c => c.Side == 1), $"scontro {dto.Id} senza due lati");

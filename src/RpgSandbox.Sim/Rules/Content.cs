@@ -39,6 +39,9 @@ public sealed record CreatureDefinition
     /// <summary>P5a: tools it is proficient with, by item id (thieves' tools: + Proficiency Bonus to pick a lock).</summary>
     public IReadOnlyList<string> Tools { get; init; } = Array.Empty<string>();
 
+    /// <summary>R2: the saving throws its stat block lists as proficient.</summary>
+    public IReadOnlyList<Ability> Saves { get; init; } = Array.Empty<Ability>();
+
     /// <summary>Items worn or wielded (one each) and other items carried (with how many).</summary>
     public required IReadOnlyList<string> Gear { get; init; }
     public required IReadOnlyList<(string Item, int Count)> Items { get; init; }
@@ -93,7 +96,11 @@ public sealed record CharacterDefinition
 
 /// <summary>SRD class core traits the rules use so far.</summary>
 public sealed record ClassDefinition(string Id, string Name, int HitDie, IReadOnlyList<WeaponCategory> Weapons,
-    IReadOnlyList<ArmorType> Armor, int Masteries);
+    IReadOnlyList<ArmorType> Armor, int Masteries)
+{
+    /// <summary>R2: the saving throws the class is proficient in.</summary>
+    public IReadOnlyList<Ability> Saves { get; init; } = Array.Empty<Ability>();
+}
 
 /// <summary>The six ability scores.</summary>
 public sealed record AbilityScores(int Strength, int Dexterity, int Constitution, int Intelligence, int Wisdom, int Charisma);
@@ -286,7 +293,10 @@ public sealed class ContentPack
         var where = $"{file}, classe '{id}'";
         return new ClassDefinition(id, Text(e, "name", where), Int(e, "hitDie", where),
             Array(e, "weapons", where).Select(x => EnumOf<WeaponCategory>(x, where)).ToArray(),
-            Array(e, "armor", where).Select(x => EnumOf<ArmorType>(x, where)).ToArray(), Int(e, "masteries", where));
+            Array(e, "armor", where).Select(x => EnumOf<ArmorType>(x, where)).ToArray(), Int(e, "masteries", where))
+        {
+            Saves = e.TryGetProperty("saves", out var saves) ? saves.EnumerateArray().Select(x => EnumOf<Ability>(x, where)).ToArray() : System.Array.Empty<Ability>(),
+        };
     }
 
     private static CreatureDefinition ReadCreature(JsonElement e, string file, IReadOnlyDictionary<string, ItemDefinition> items)
@@ -306,6 +316,7 @@ public sealed class ContentPack
             Gear = gear, Items = carried, Coins = e.TryGetProperty("coins", out var c) ? c.GetInt64() : 0, Attacks = attacks,
             Kind = Text(e, "kind", where), Tells = TellsOf(e, where),
             Tools = e.TryGetProperty("tools", out var tools) ? tools.EnumerateArray().Select(t => KnownItem(t.GetString(), items, where)).ToArray() : System.Array.Empty<string>(),
+            Saves = e.TryGetProperty("saves", out var saves) ? saves.EnumerateArray().Select(x => EnumOf<Ability>(x, where)).ToArray() : System.Array.Empty<Ability>(),
         };
         if (creature.HitPoints < 1 || creature.ArmorClass < 1 || creature.Speed < 0 || attacks.Length == 0 || creature.Experience < 0)
             throw new InvalidDataException($"contenuti: {where}: punti ferita, CA, velocità, attacchi o punti esperienza non validi");

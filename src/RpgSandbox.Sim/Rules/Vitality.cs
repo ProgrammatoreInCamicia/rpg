@@ -118,7 +118,7 @@ public sealed class Vitality
     /// SRD Death Saving Throw (at the start of a dying creature's turn): 1d20, 10 or more succeeds. A 20 brings it back
     /// with 1 Hit Point; a 1 counts as two failures. Three successes: Stable; three failures: dead.
     /// </summary>
-    internal DeathSaveOutcome RollDeathSave(SplitMix64 rng, out int rolled)
+    internal DeathSaveOutcome RollDeathSave(SplitMix64 rng, out int rolled, int modifier = 0)
     {
         if (State != LifeState.Dying)
             throw new InvalidOperationException("Only a dying creature makes Death Saving Throws.");
@@ -128,7 +128,7 @@ public sealed class Vitality
             Heal(1);
             return DeathSaveOutcome.RegainedConsciousness;
         }
-        if (rolled == 1 || rolled < 10)
+        if (rolled == 1 || rolled + modifier < 10) // R2: Exhaustion counts on this d20 Test too
         {
             DeathSaveFailures += rolled == 1 ? 2 : 1;
             if (DeathSaveFailures < 3)
@@ -191,6 +191,9 @@ public sealed class Vitality
         if (Current > 0)
             Current += amount;
     }
+
+    /// <summary>R2: death by something other than damage (SRD Exhaustion level 6).</summary>
+    public void Perish() => Die();
 
     private DamageOutcome Die()
     {

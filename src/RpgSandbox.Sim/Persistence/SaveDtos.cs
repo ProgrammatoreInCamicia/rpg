@@ -124,6 +124,13 @@ internal sealed class ActorDto
     public int HitDiceSpent { get; set; }
     public long? LastLongRestEnd { get; set; }
     public long? LastHarmAt { get; set; }
+    /// <summary>Schema 34 (R2): conditions, Exhaustion and the marks of Sap, Slow and Vex.</summary>
+    public List<ConditionDto>? Conditions { get; set; }
+    public int Exhaustion { get; set; }
+    public string? SappedBy { get; set; }
+    public string? SlowedBy { get; set; }
+    public string? Vexing { get; set; }
+    public bool VexFresh { get; set; }
     public List<string>? Defeated { get; set; }
 
     /// <summary>P1 (schema 23): the exact point where it stands, when not the centre of its square.</summary>
@@ -322,6 +329,7 @@ internal sealed class SheetDto
     public List<string> SkillProficiencies { get; set; } = new();
     /// <summary>P4a (schema 29): tool proficiencies by item id; absent before.</summary>
     public List<string>? ToolProficiencies { get; set; }
+    public List<string>? SaveProficiencies { get; set; }
     public int ArmorClass { get; set; }
     public bool StealthDisadvantage { get; set; }
     public int Speed { get; set; } = 30;
@@ -575,6 +583,7 @@ internal sealed class CombatantDto
     public int Dashes { get; set; }
     public bool Disengaged { get; set; }
     public bool Dodging { get; set; }
+    public bool Cleaved { get; set; }
     public bool Interacted { get; set; }
 }
 
@@ -689,4 +698,12 @@ internal sealed class LastFightDto
 {
     public string Area { get; set; } = "";
     public List<CombatRecordDto> Log { get; set; } = new();
+}
+
+internal sealed class ConditionDto
+{
+    public string Kind { get; set; } = "";
+    public string? Source { get; set; }
+    public long? Until { get; set; }
+    public string? EndsAtTurnOf { get; set; }
 }

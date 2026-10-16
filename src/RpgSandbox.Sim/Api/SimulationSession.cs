@@ -290,6 +290,7 @@ public sealed class SimulationSession
             HitDice = _sim.HitDiceOf(player) is { } dice
                 ? new HitDiceView { Remaining = dice.Max - player.HitDiceSpent, Max = dice.Max, Die = dice.Die } : null,
             LongRestFrom = _sim.LongRestFrom(player),
+            Conditions = Freeze(_sim.ConditionsOf(player, visibleOnly: false)), Exhaustion = player.Exhaustion,
             Move = MoveOf(player),
             Map = w.Maps.TryGetValue(area, out var areaMap) ? MapOf(areaMap, w) : null,
             MapLight = map is null ? null : Freeze(Enumerable.Range(0, map.Height).Select(y =>
@@ -333,6 +334,7 @@ public sealed class SimulationSession
                     : null,
                 Doing = map is not null || (player.Location is { } here && x.Location == here) ? OutwardDoing(x, w) : null,
                 AtBarrier = x.CurrentAction is BarrierAction work ? new BarrierRefView { A = work.Target.A, B = work.Target.B } : null,
+                Conditions = Freeze(_sim.ConditionsOf(x, visibleOnly: true)),
                 Position = PositionOf(x, w),
                 Spot = SpotOf(x, w),
                 Move = MoveOf(x),

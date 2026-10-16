@@ -81,7 +81,7 @@ public class CombatWorldTests
 
         var fight = Fight(s);
         Assert.Equal(new[] { CombatLogKind.Started, CombatLogKind.Attack, CombatLogKind.Initiative, CombatLogKind.Initiative },
-            fight.Log.Take(4).Select(l => l.Kind));
+            fight.Log.Where(l => l.Kind != CombatLogKind.Mastery).Take(4).Select(l => l.Kind)); // R2: a Sap after the blow may come between
         Assert.Equal(s.Player, fight.Log[1].Actor);
         Assert.Equal(2, TrueLog(s).Single(l => l.Kind == CombatLogKind.Initiative && l.Actor == Foe).D20.Count); // surprised: Disadvantage
         Assert.Empty(fight.Log.Single(l => l.Kind == CombatLogKind.Initiative && l.Actor == Foe).D20); // C5a: behind the screen

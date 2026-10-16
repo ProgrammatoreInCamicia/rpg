@@ -56,14 +56,14 @@ internal sealed partial class Simulation
         if (insight)
         {
             lore.Observed = true;
-            var roll = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Insight));
+            var roll = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Insight) + CheckEdges(actor).Modifier, disadvantage: CheckEdges(actor).Disadvantage);
             lines.Add($"Intuizione: {roll.Describe()}: " + Reveal(World.Content.Creatures.TryGetValue(target.Build, out var c) ? c.Tells : Array.Empty<Tell>(),
                 roll.Total, lore.Tells, "non noti nulla di utile"));
         }
         if (study)
         {
             kindLore.Studied = true;
-            var roll = D20.Roll(World.Rng, actor.Sheet.Bonus(kind.StudySkill));
+            var roll = D20.Roll(World.Rng, actor.Sheet.Bonus(kind.StudySkill) + CheckEdges(actor).Modifier, disadvantage: CheckEdges(actor).Disadvantage);
             lines.Add($"{SkillName(kind.StudySkill)}: {roll.Describe()}: " + Reveal(kind.Tells, roll.Total, kindLore.Tells, "non ricordi nulla di utile"));
         }
         var text = $"{actor.Name} osserva {target.Name}. {string.Join(" ", lines)}";

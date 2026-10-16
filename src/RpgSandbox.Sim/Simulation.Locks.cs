@@ -255,8 +255,8 @@ internal sealed partial class Simulation
             // SRD tools: proficiency with the tool adds the Proficiency Bonus; with the skill too, Advantage.
             var sheet = actor.Sheet;
             var proficient = sheet.IsProficientWith(ThievesTools);
-            var roll = D20.Roll(World.Rng, Abilities.Modifier(sheet.Dexterity) + (proficient ? sheet.ProficiencyBonus : 0),
-                advantage: proficient && sheet.IsProficient(Skill.SleightOfHand));
+            var roll = D20.Roll(World.Rng, Abilities.Modifier(sheet.Dexterity) + (proficient ? sheet.ProficiencyBonus : 0) + CheckEdges(actor).Modifier,
+                advantage: proficient && sheet.IsProficient(Skill.SleightOfHand), disadvantage: CheckEdges(actor).Disadvantage);
             var picked = roll.Total >= PickLockDc;
             if (picked)
                 barrier.Locked = false;
@@ -271,7 +271,7 @@ internal sealed partial class Simulation
             World.RecordFact("ForceFailed", $"{actor.Name} smette di forzare {Name(key)}: ormai si apre.", actor.Id);
             return;
         }
-        var force = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Athletics));
+        var force = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Athletics) + CheckEdges(actor).Modifier, disadvantage: CheckEdges(actor).Disadvantage);
         var forced = force.Total >= barrier.ForceDc;
         if (forced)
         {
@@ -320,7 +320,7 @@ internal sealed partial class Simulation
     /// <summary>P4b: a Strength (Athletics) check against the bars' DC; they come off for good. Loud, like any forcing.</summary>
     private void ForceBars(Actor actor, GridMap map, BarrierKey key, Barrier barrier)
     {
-        var force = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Athletics));
+        var force = D20.Roll(World.Rng, actor.Sheet.Bonus(Skill.Athletics) + CheckEdges(actor).Modifier, disadvantage: CheckEdges(actor).Disadvantage);
         var torn = force.Total >= barrier.BarsDc;
         Learn(actor, map, key, barrier); // as it found them: the bars' clue
         if (torn)

@@ -195,6 +195,24 @@ internal sealed class Actor
     /// <summary>R1: when it last took damage or was in a fight (an NPC heals after 8 hours without either).</summary>
     public GameTime? LastHarmAt { get; set; }
 
+    /// <summary>R2: its conditions (SRD Rules Glossary), each with its source and end.</summary>
+    public List<Condition> Conditions { get; } = new();
+
+    /// <summary>R2, SRD Exhaustion: 0..6; each level is −2 to d20 Tests and −5 feet of Speed; at 6 it dies.</summary>
+    public int Exhaustion { get; set; }
+
+    /// <summary>R2, Sap: Disadvantage on its next attack roll, until the start of this one's next turn.</summary>
+    public ActorId? SappedBy { get; set; }
+
+    /// <summary>R2, Slow: −10 feet of Speed until the start of this one's next turn.</summary>
+    public ActorId? SlowedBy { get; set; }
+
+    /// <summary>R2, Vex: Advantage on its next attack roll against this creature, before the end of its next turn.</summary>
+    public ActorId? Vexing { get; set; }
+
+    /// <summary>R2: the Vex was earned this turn (it lasts to the end of the next one).</summary>
+    public bool VexFresh { get; set; }
+
     /// <summary>C5b, the player only: the creatures it has already been rewarded for defeating (each one counts once).</summary>
     public SortedSet<ActorId> Defeated { get; } = new(Comparer<ActorId>.Create((a, b) => string.CompareOrdinal(a.Value, b.Value)));
 
@@ -706,6 +724,9 @@ internal sealed class Combatant
     public bool Disengaged { get; set; }
     public bool Dodging { get; set; }
 
+    /// <summary>R2, Cleave: its extra attack was made this turn (once a turn).</summary>
+    public bool Cleaved { get; set; }
+
     /// <summary>C3b: the turn's free interaction with an object (picking something up) is used.</summary>
     public bool Interacted { get; set; }
 }
@@ -900,3 +921,15 @@ internal sealed record RememberedDoor(bool Open, GameTime SeenAt);
 
 /// <summary>P2b: a finished fight's log, kept for the player on the map it was fought on.</summary>
 internal sealed record LastFight(AreaId Area, IReadOnlyList<CombatRecord> Log);
+
+/// <summary>
+/// R2: a condition on a creature (SRD 5.2.1 Rules Glossary): who caused it, and when it ends: at a time, at the start of
+/// someone's turn, or when removed (Prone: standing up).
+/// </summary>
+internal sealed class Condition
+{
+    public required ConditionKind Kind { get; init; }
+    public ActorId? Source { get; init; }
+    public GameTime? Until { get; init; }
+    public ActorId? EndsAtTurnOf { get; init; }
+}

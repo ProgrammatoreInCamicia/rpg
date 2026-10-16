@@ -207,6 +207,7 @@ internal sealed partial class Simulation
     internal bool Sees(GridMap map, Actor watcher, GridPos from, Actor target, GridPos at, Light light,
         bool ignoreFacing = false, Spot? fromSpot = null, Spot? atSpot = null) =>
         watcher.Conscious && !Asleep(watcher) && map.HasLineOfSight(from, at) // R1: asleep, it sees nothing
+        && !Has(watcher, ConditionKind.Blinded) && !Has(target, ConditionKind.Invisible) // R2
         && InFacing(watcher,
             fromSpot ?? (CurrentSpot(watcher) is { } eye && eye.Cell == from ? eye : Spot.CenterOf(from)),
             atSpot ?? (CurrentSpot(target) is { } there && there.Cell == at ? there : Spot.CenterOf(at)),

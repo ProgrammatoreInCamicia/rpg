@@ -2,6 +2,6 @@
   "source": "SRD 5.2.1 (Wizards of the Coast LLC), CC BY 4.0: Paladin (core traits). Only what the rules use so far.",
   "classes": [
     { "id": "paladin", "name": "Paladino", "hitDie": 10,
-      "weapons": ["Simple", "Martial"], "armor": ["Light", "Medium", "Heavy", "Shield"], "masteries": 2 }
+      "weapons": ["Simple", "Martial"], "armor": ["Light", "Medium", "Heavy", "Shield"], "masteries": 2, "saves": ["Wisdom", "Charisma"] }
   ]
 }

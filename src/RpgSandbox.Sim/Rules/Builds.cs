@@ -65,7 +65,7 @@ public static class Builds
             var creature = Creature(pack, build);
             return Scores(creature.Abilities) with
             {
-                Title = creature.Name, ProficiencyBonus = creature.ProficiencyBonus, SkillProficiencies = creature.Skills, ToolProficiencies = creature.Tools,
+                Title = creature.Name, ProficiencyBonus = creature.ProficiencyBonus, SkillProficiencies = creature.Skills, ToolProficiencies = creature.Tools, SaveProficiencies = creature.Saves,
                 ArmorClass = creature.ArmorClass, Speed = creature.Speed,
                 StealthDisadvantage = creature.Gear.Any(g => pack.Items[g].Armor is { StealthDisadvantage: true }),
             };
@@ -78,7 +78,7 @@ public static class Builds
         var speed = 30 - (armor is not null && c.Abilities.Strength < armor.Strength ? 10 : 0);
         return Scores(c.Abilities) with
         {
-            Title = c.Title, ProficiencyBonus = ProficiencyBonus(level ?? c.Level), SkillProficiencies = c.Skills,
+            Title = c.Title, ProficiencyBonus = ProficiencyBonus(level ?? c.Level), SkillProficiencies = c.Skills, SaveProficiencies = pack.Classes[c.Class].Saves,
             ArmorClass = ac, Speed = speed, StealthDisadvantage = armor?.StealthDisadvantage ?? false,
         };
     }

@@ -126,7 +126,7 @@ internal sealed partial class Simulation
         {
             Valid = rejected is null, Reason = rejected?.Rejection ?? RejectionReason.None, Message = rejected?.Message ?? "",
             Advantage = check?.Advantage ?? false, Disadvantage = check?.Disadvantage ?? false,
-            LongRange = check?.LongRange ?? false, AutoCritical = check?.AutoCritical ?? false, Cover = check?.Cover ?? CoverDegree.None,
+            LongRange = check?.LongRange ?? false, AutoCritical = check?.AutoCritical ?? false, Cover = check?.Cover ?? CoverDegree.None, Reasons = check?.Reasons ?? Array.Empty<string>(),
             // Review P2b: never where the player does not see someone (the preview would give away a hidden position).
             From = actor is not null && Shown(actor) ? check?.Origin ?? CurrentSpot(actor) : null,
             To = target is not null && Shown(target) ? check?.Aim ?? CurrentSpot(target) : null, // P3: the point aimed at
@@ -156,8 +156,8 @@ internal sealed partial class Simulation
         // SRD Initiative: a Dexterity check each; the surprised one rolls with Disadvantage.
         var rolls = new[]
         {
-            Initiative.Roll(World.Rng, actor.Id.Value, ProfileOf(actor).InitiativeBonus),
-            Initiative.Roll(World.Rng, target.Id.Value, ProfileOf(target).InitiativeBonus, surprised: !expects),
+            InitiativeRoll(actor, surprised: false),
+            InitiativeRoll(target, surprised: !expects),
         };
         var e = new Encounter { Id = World.NextEncounterId++, Area = actor.MapArea!.Value, RoundStart = World.Now };
         foreach (var roll in Initiative.Order(rolls))
@@ -207,6 +207,7 @@ internal sealed partial class Simulation
             return CommandResult.Rejected(RejectionReason.NotInCombat, "Non stai combattendo.");
         if (!IsTurnOf(e, actor))
             return CommandResult.Rejected(RejectionReason.NotYourTurn, "Non è il tuo turno.");
+        ConditionsAtTurnEnd(actor); // R2
         e.Turn++;
         RunTurns(e);
         return new CommandResult { Message = "Fine del turno." };
@@ -221,6 +222,8 @@ internal sealed partial class Simulation
         var left = MovementLeft(e, actor);
         if (left <= 0)
             return CommandResult.Rejected(RejectionReason.NoMovementLeft, "Non ti resta movimento in questo turno.");
+        if (FearAhead(actor, Spot.CenterOf(command.To)) is { } feared)
+            return CommandResult.Rejected(RejectionReason.Unreachable, $"Hai troppa paura per avvicinarti a {feared.Name}."); // R2
         if (PlanCombatMove(e, actor, command.To, command.StopNextTo, out var twoDoors) is not { } plan)
             return CommandResult.Rejected(RejectionReason.Unreachable, twoDoors ? TwoDoors : "Non si può raggiungere quel punto.");
         if (plan.Path.Count == 0)
@@ -294,6 +297,7 @@ internal sealed partial class Simulation
                 if (actor.IsPlayer)
                     return; // the world waits for the player's commands, then EndTurn
                 NpcTurn(e, c, actor);
+                ConditionsAtTurnEnd(actor); // R2
                 if (!World.Encounters.ContainsKey(e.Id))
                     return;
             }
@@ -310,6 +314,8 @@ internal sealed partial class Simulation
         c.Disengaged = false;
         c.Dodging = false; // C3a: a Dodge lasts until the start of one's next turn
         c.Interacted = false; // C3b
+        c.Cleaved = false; // R2
+        ConditionsAtTurnStart(e, actor); // R2: what lasts until the start of its turn ends
         c.ActionUsed = c.OpeningSpent;
         c.OpeningSpent = false;
         if (c.JoinedInRound == e.Round)
@@ -323,6 +329,11 @@ internal sealed partial class Simulation
         if (!actor.Conscious)
             return false;
         Record(e, CombatLogKind.TurnStarted, actor, null, (a, _) => $"Round {e.Round}: tocca a {a}.");
+        if (Incapacitated(actor)) // R2, SRD Incapacitated: no action; ADAPTATION: its turn passes
+        {
+            Record(e, CombatLogKind.TurnStarted, actor, null, (a, _) => $"{a} non può agire.");
+            return false;
+        }
 
         if (e.Opening is { } opening && opening.Attacker == actor.Id)
         {
@@ -346,7 +357,7 @@ internal sealed partial class Simulation
 
     private void DeathSave(Encounter? e, Actor actor)
     {
-        var outcome = actor.Vitality.RollDeathSave(World.Rng, out var rolled);
+        var outcome = actor.Vitality.RollDeathSave(World.Rng, out var rolled, ExhaustionPenalty(actor));
         var text = outcome switch
         {
             DeathSaveOutcome.RegainedConsciousness => "20 naturale: riprende i sensi con 1 punto ferita",
@@ -474,6 +485,9 @@ internal sealed partial class Simulation
         bool LongRange = false, bool AutoCritical = false, CoverDegree Cover = CoverDegree.None, Spot? Aim = null, Spot? Origin = null)
     {
         public bool Valid => Reason == RejectionReason.None;
+
+        /// <summary>R2: why the roll has Advantage or Disadvantage, in short words.</summary>
+        public IReadOnlyList<string> Reasons { get; init; } = Array.Empty<string>();
     }
 
     /// <summary>
@@ -488,6 +502,10 @@ internal sealed partial class Simulation
             return new(RejectionReason.NotHostile, $"{target.Name} è dalla tua parte.");
         if (target.Vitality.State == LifeState.Dead)
             return new(RejectionReason.AlreadyDone, $"{target.Name} è già morto.");
+        if (attacker.Conditions.Any(c => c.Kind == ConditionKind.Charmed && c.Source == target.Id) && Has(attacker, ConditionKind.Charmed))
+            return new(RejectionReason.NotHostile, $"Non puoi attaccare {target.Name}: ti ha affascinato."); // R2, SRD Charmed
+        if (Incapacitated(attacker))
+            return new(RejectionReason.NoActionLeft, $"{attacker.Name} non può agire."); // R2, SRD Incapacitated
         if (!SeesActor(attacker, target, ignoreFacing: e is null))
             return new(RejectionReason.NotVisible, $"Non vedi {target.Name}.");
         if (attack.Item is { } needed && attacker.Carried(needed) == 0) // C3b
@@ -522,14 +540,29 @@ internal sealed partial class Simulation
                 && SeesActor(foe, attacker, ignoreFacing: e is null));
             disadvantage = longRange || closeCombat;
         }
-        // C3a, SRD Dodge: attacks against a dodging target that sees the attacker have Disadvantage.
-        if (e?.Order.FirstOrDefault(c => c.Actor == target.Id) is { Dodging: true } && target.Conscious && SeesActor(target, attacker))
+        var reasons = new List<string>();
+        if (longRange)
+            reasons.Add("gittata lunga");
+        else if (disadvantage)
+            reasons.Add("un nemico ti è addosso");
+        // C3a, SRD Dodge: attacks against a dodging target that sees the attacker have Disadvantage (R2: not while Incapacitated).
+        if (e?.Order.FirstOrDefault(c => c.Actor == target.Id) is { Dodging: true } && target.Conscious && !Incapacitated(target)
+            && SeesActor(target, attacker))
+        {
             disadvantage = true;
+            reasons.Add("schiva");
+        }
+        var unseen = !SeesActor(target, attacker, ignoreFacing: e is null); // also an unconscious target: it sees nothing
+        if (unseen)
+            reasons.Add(target.Conscious ? "non ti vede" : "è privo di sensi");
+        var close = WithinFiveFeet(map, from, to);
+        var (advantage, worse, why) = ConditionEdges(attacker, target, close); // R2
+        reasons.AddRange(why);
         return new(RejectionReason.None, null,
-            Advantage: !SeesActor(target, attacker, ignoreFacing: e is null), // also an unconscious target: it sees nothing
-            Disadvantage: disadvantage, LongRange: longRange,
-            AutoCritical: target.Vitality.Unconscious && WithinFiveFeet(map, from, to),
-            Cover: CoverOf(map, attacker, target, origin!.Value, aim!.Value, blocked), Aim: aim, Origin: origin);
+            Advantage: unseen || advantage,
+            Disadvantage: disadvantage || worse, LongRange: longRange,
+            AutoCritical: (target.Vitality.Unconscious || Has(target, ConditionKind.Paralyzed)) && close, // R2: Paralyzed too
+            Cover: CoverOf(map, attacker, target, origin!.Value, aim!.Value, blocked), Aim: aim, Origin: origin) { Reasons = reasons };
     }
 
     /// <summary>
@@ -582,7 +615,11 @@ internal sealed partial class Simulation
     {
         var check = CheckAttack(e, attacker, target, attack, nonLethal);
         var cover = CoverBonus(check.Cover); // P3: cover raises the AC to beat
-        var result = Attacks.Roll(World.Rng, attack, ProfileOf(target).ArmorClass + cover, check.Advantage, check.Disadvantage, check.AutoCritical);
+        var result = Attacks.Roll(World.Rng, attack with { AttackBonus = attack.AttackBonus + ExhaustionPenalty(attacker) }, // R2
+            ProfileOf(target).ArmorClass + cover, check.Advantage, check.Disadvantage, check.AutoCritical);
+        attacker.SappedBy = null; // R2: Sap and Vex are for the next attack roll only
+        if (attacker.Vexing == target.Id)
+            attacker.Vexing = null;
         // P2b: who struck is seen as the blow comes, before it lands (one knocked out by it still saw who did it).
         var player = World.Actors[World.Player];
         var sawAttacker = attacker.IsPlayer || SeesActor(player, attacker);
@@ -620,6 +657,8 @@ internal sealed partial class Simulation
         LearnFrom(attacker, target, attack, result, cover); // C5a
         WitnessFight(e, attacker, target, opening: false, blow);
         Fell(e, target, attacker, outcome);
+        if (World.Encounters.ContainsKey(e.Id))
+            ApplyMastery(e, attacker, target, attack, result); // R2
         return $"{attacker.Name} {how} {target.Name}{extra}. {seen}.";
     }
 
@@ -670,7 +709,20 @@ internal sealed partial class Simulation
 
     /// <summary>P1b: inches of movement left this turn.</summary>
     private int MovementLeftInches(Encounter e, Actor actor) =>
-        ProfileOf(actor).Speed * Spot.PerFoot * (1 + CombatantOf(e, actor.Id).Dashes) - CombatantOf(e, actor.Id).MovedInches; // C3a: Dash adds Speed
+        CombatSpeed(actor) * Spot.PerFoot * (1 + CombatantOf(e, actor.Id).Dashes) - CombatantOf(e, actor.Id).MovedInches // C3a: Dash adds Speed
+        - (Has(actor, ConditionKind.Prone) ? CombatSpeed(actor) * Spot.PerFoot / 2 : 0); // R2: standing up first costs half the Speed
+
+    /// <summary>R2: the Speed in a fight, after conditions, Exhaustion and Slow.</summary>
+    private int CombatSpeed(Actor actor) => SpeedNow(actor, ProfileOf(actor).Speed);
+
+    /// <summary>R2, SRD Prone: a prone mover stands up first, for half its Speed (already left out of the movement left).</summary>
+    private void StandUp(Encounter e, Actor actor)
+    {
+        if (!Has(actor, ConditionKind.Prone))
+            return;
+        CombatantOf(e, actor.Id).MovedInches += CombatSpeed(actor) * Spot.PerFoot / 2;
+        RemoveCondition(e, actor, ConditionKind.Prone, "si rialza");
+    }
 
     /// <summary>
     /// The creatures a mover takes into account when planning: those it sees, allies included (there is no memory of
@@ -861,7 +913,7 @@ internal sealed partial class Simulation
         foreach (var c in e.Order)
         {
             var foe = World.Actors[c.Actor];
-            if (foe.Id == mover.Id || Allies(e, foe, mover) || !foe.Conscious || c.ReactionUsed
+            if (foe.Id == mover.Id || Allies(e, foe, mover) || !foe.Conscious || c.ReactionUsed || Incapacitated(foe)
                 || MeleeAttack(foe) is not { } attack || CurrentPosition(foe) is null)
                 continue;
             var at = StandingOf(foe);
@@ -883,7 +935,8 @@ internal sealed partial class Simulation
     {
         var me = CombatantOf(e, actor.Id);
         var map = World.Maps[e.Area];
-        var budget = ProfileOf(actor).Speed * (1 + me.Dashes); // C3a: a Dash counts
+        StandUp(e, actor); // R2
+        var budget = CombatSpeed(actor) * (1 + me.Dashes); // C3a: a Dash counts
         var everyone = CreaturesOn(map, actor, _ => true);
         actor.Sneak = null;
         var start = CurrentPosition(actor)!.Value;
@@ -1119,7 +1172,7 @@ internal sealed partial class Simulation
                 return new TargetView
                 {
                     Target = x.Id, Attack = a.Name, Valid = reason == RejectionReason.None, Reason = reason, Why = why,
-                    Advantage = check.Advantage, Disadvantage = check.Disadvantage, LongRange = check.LongRange, AutoCritical = check.AutoCritical,
+                    Advantage = check.Advantage, Disadvantage = check.Disadvantage, LongRange = check.LongRange, AutoCritical = check.AutoCritical, Reasons = check.Reasons,
                     Cover = check.Cover, // P3
                 };
             })).ToArray(),
