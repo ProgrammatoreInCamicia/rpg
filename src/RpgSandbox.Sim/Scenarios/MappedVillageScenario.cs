@@ -25,6 +25,7 @@ public static class MappedVillageScenario
         public static readonly ActorId Raider = new("raider");
         public static readonly StoreId GranaryStore = new("granary_store");
         public static readonly StoreId CampStore = new("camp_store");
+        public static readonly StoreId Pantry = new("pantry");
         public static readonly FactionId VillageFaction = new("village");
         public static readonly FactionId Bandits = new("bandits");
 
@@ -40,6 +41,8 @@ public static class MappedVillageScenario
         public static readonly GridPos HouseDoor = new(8, 13);
         public static readonly GridPos HouseLamp = new(4, 13);
         public static readonly GridPos ForestExit = new(23, 12);
+        public static readonly GridPos PantrySquare = new(7, 14);
+        public static readonly GridPos PantryAccess = new(6, 14);
     }
 
     public static readonly IReadOnlyList<string> Map = new[]
@@ -140,6 +143,11 @@ public static class MappedVillageScenario
             .AddStore(Ids.GranaryStore.Value, "Scorte del granaio", Ids.Granary.Value, food: 40,
                 ownerFactionId: Ids.VillageFaction.Value, at: (Ids.GranaryStoreSquare.X, Ids.GranaryStoreSquare.Y),
                 access: new[] { (Ids.GranaryAccess.X, Ids.GranaryAccess.Y) })
+            // P5a: behind the farmhouse's locked door; its id sorts after the granary's, so raiders take it only when
+            // the granary is to be avoided (guarded).
+            .AddStore(Ids.Pantry.Value, "Dispensa della fattoria", Ids.FarmerHouse.Value, food: 6,
+                ownerFactionId: Ids.VillageFaction.Value, at: (Ids.PantrySquare.X, Ids.PantrySquare.Y),
+                access: new[] { (Ids.PantryAccess.X, Ids.PantryAccess.Y) })
             .AddStore(Ids.CampStore.Value, "Scorte del campo", Ids.BanditCamp.Value, food: 14,
                 ownerFactionId: Ids.Bandits.Value)
             .AddActor(Ids.Player.Value, "Protagonista", Ids.Inn.Value, isPlayer: true, food: 10, build: "paladin",

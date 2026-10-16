@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 31;
+    public const int SchemaVersion = 32;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -172,6 +172,9 @@ internal static class SaveGame
                 {
                     Faction = r.Faction.Value, Target = r.Target.Value, Home = r.Home.Value, Amount = r.Amount,
                     AssignedAt = r.AssignedAt.Ticks, TakeAttempted = r.TakeAttempted, Aborted = r.Aborted,
+                    BreakInA = r.BreakIn is { } k ? new PosDto { X = k.A.X, Y = k.A.Y } : null,
+                    BreakInB = r.BreakIn is { } kb ? new PosDto { X = kb.B.X, Y = kb.B.Y } : null,
+                    BreakInTries = r.BreakInTries, Balked = r.Balked,
                 }
                 : null,
             LastDecision = ToDto(a.LastDecision),
@@ -549,6 +552,8 @@ internal static class SaveGame
                     {
                         Faction = new FactionId(r.Faction), Target = new StoreId(r.Target), Home = new StoreId(r.Home),
                         Amount = r.Amount, AssignedAt = Time(r.AssignedAt), TakeAttempted = r.TakeAttempted, Aborted = r.Aborted,
+                        BreakIn = r.BreakInA is { } ba && r.BreakInB is { } bb ? new BarrierKey(new GridPos(ba.X, ba.Y), new GridPos(bb.X, bb.Y)) : null,
+                        BreakInTries = r.BreakInTries, Balked = r.Balked,
                     }
                     : null,
                 Home = a.Home is null ? null : new LocationId(a.Home),

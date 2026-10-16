@@ -405,6 +405,14 @@ internal sealed class RaidAssignment
 
     /// <summary>Set when the member gave up (e.g. the target was guarded); it still has to go home and tell.</summary>
     public bool Aborted { get; set; }
+
+    /// <summary>P5a: the door or window it is breaking through, and how many tries it made there.</summary>
+    public BarrierKey? BreakIn { get; set; }
+
+    public int BreakInTries { get; set; }
+
+    /// <summary>P5a: it gave up because a door or window would not give way (not because of a guard).</summary>
+    public bool Balked { get; set; }
 }
 
 /// <summary>Why an NPC or a faction did what it did: rule, reason and the data it read.</summary>

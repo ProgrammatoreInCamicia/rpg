@@ -328,6 +328,7 @@ public sealed class SimulationSession
                     ? new TravelView { Action = t.Id, Origin = t.Origin, Destination = t.Destination, DepartedAt = t.StartedAt, ArrivesAt = t.CompletesAt }
                     : null,
                 Doing = map is not null || (player.Location is { } here && x.Location == here) ? OutwardDoing(x, w) : null,
+                AtBarrier = x.CurrentAction is BarrierAction work ? new BarrierRefView { A = work.Target.A, B = work.Target.B } : null,
                 Position = PositionOf(x, w),
                 Spot = SpotOf(x, w),
                 Move = MoveOf(x),
@@ -398,6 +399,14 @@ public sealed class SimulationSession
         DepositFoodAction or TakeFoodAction => "armeggia con le scorte",
         ReportAction r => $"parla con {w.Actors[r.Recipient].Name}",
         GuardAction => "sorveglia il deposito",
+        BarrierAction b => b.Work switch // P5a
+        {
+            BarrierWork.PickLock => "armeggia con la serratura",
+            BarrierWork.Force => b.Target.IsDoor ? "spinge con la spalla contro la porta" : "forza la finestra",
+            BarrierWork.BreakGlass => "rompe il vetro",
+            BarrierWork.ClearGlass => "toglie i vetri rotti",
+            _ => "scavalca la finestra",
+        },
         ConfiscateAction c => $"parla con {w.Actors[c.Target].Name}",
         WaitAction wait => wait.Description switch
         {

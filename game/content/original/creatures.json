@@ -8,7 +8,7 @@
       ],
       "abilities": { "str": 11, "dex": 15, "con": 12, "int": 10, "wis": 10, "cha": 9 }, "proficiency": 2, "skills": ["Stealth", "SleightOfHand"],
       "armorClass": 13, "hitPoints": 11, "speed": 30, "initiative": 2,
-      "gear": ["leather-armor", "light-crossbow", "scimitar"], "items": [["bolt", 20]],
+      "gear": ["leather-armor", "light-crossbow", "scimitar"], "items": [["bolt", 20], ["thieves-tools", 1]], "tools": ["thieves-tools"],
       "attacks": [
         { "name": "Scimitarra", "bonus": 4, "damage": "1d6", "damageBonus": 2, "type": "Slashing", "requires": "scimitar" },
         { "name": "Balestra leggera", "bonus": 4, "damage": "1d8", "damageBonus": 2, "type": "Piercing", "range": [80, 320],

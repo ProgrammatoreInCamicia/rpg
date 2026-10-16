@@ -922,8 +922,12 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
   - porta chiusa a chiave: la scassina con gli arnesi da scasso, altrimenti la forza;
   - porta incastrata: la forza;
   - finestra chiusa: la apre; se tiene, rompe il vetro; poi ci si arrampica. Le sbarre fermano il predone.
-- Un tentativo fallito si ripete una volta; al secondo fallimento la razzia finisce (`RaidAborted`).
+- Un tentativo fallito di scassinare o forzare si ripete una volta; poi la razzia finisce.
 - `VisibleActorView.AtBarrier` (`BarrierRefView`: `A`, `B`; `A == B` per una porta): la porta o finestra su cui lavora, se il giocatore lo vede. `Doing` dice il gesto.
+- Via: la più corta che attraversa anche le porte che tengono e le finestre senza sbarre (`GridMap.FindPath` con `climbs`; una finestra vale `WindowCrossingSteps` = 4 caselle). Il predone cammina furtivo fino alla prima barriera, poi ci lavora. Vale all'andata verso il deposito e al ritorno, verso il deposito di casa se è sulla stessa mappa, altrimenti verso le uscite.
+- Tentativi contati per porta (`RaidAssignment.BreakIn`, `BreakInTries`, salvati, schema 32). Al terzo il predone rinuncia: fatto `RaidBalked` ("… non cede"); a casa `RaidAborted` "… è chiuso troppo bene", e la banda evita quel bersaglio come uno sorvegliato. Al ritorno non rinuncia mai.
+- `Doing`: "armeggia con la serratura", "spinge con la spalla contro la porta", "forza la finestra", "rompe il vetro", "scavalca la finestra".
+- Contenuti: nel villaggio vivo la "Dispensa della fattoria" (`pantry`, 6 razioni, in (7,14), si usa da (6,14)) dietro la porta chiusa a chiave della fattoria. Il suo id viene dopo quello del granaio: la banda la sceglie solo quando il granaio è da evitare. Il predone (creatura `raider`) porta gli arnesi da scasso e ne ha la competenza (nuovo campo `tools` delle creature).
 
 ### P5b — `MoveCommand` a caselle in scontro
 - Come P4d: al massimo una porta chiusa aperta strada facendo come interazione gratuita del turno; una porta che tiene solo con la chiave in mano. Due porte: via senza porte, altrimenti `Unreachable` ("Servirebbe aprire più di una porta in questo turno."), anteprima compresa. `MovePreview.OpensDoor`.
@@ -933,4 +937,4 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 - In scontro, `PickUpCommand` con l'interazione gratuita già usata richiede l'azione (SRD, Utilizzare): "(usi l'azione)". Senza azione: `NoActionLeft`.
 
 ### P5d — Coperture lontane
-- I tiratori PNG cercano riparo su anelli più fitti: su ogni anello un multiplo delle 16 direzioni di prima (che restano tutte), con i punti a non più di 36 pollici (la larghezza di un corpo). Trovano tutti i ripari di prima e anche quelli sottili e lontani fra due direzioni. Nessuna API.
+- I tiratori PNG cercano riparo con più punti per anello (gli anelli restano ogni 30 pollici): su ogni anello un multiplo delle 16 direzioni di prima (che restano tutte), con i punti a non più di 36 pollici (la larghezza di un corpo). Trovano tutti i ripari di prima e anche quelli sottili e lontani fra due direzioni. Nessuna API.

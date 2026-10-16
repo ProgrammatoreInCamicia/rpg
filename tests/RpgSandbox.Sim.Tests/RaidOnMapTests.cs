@@ -88,7 +88,10 @@ public class RaidOnMapTests
         var leaves = facts.First(f => f.Kind == "TravelStarted" && f.At >= foiled).At;
         Assert.True(leaves.Since(foiled).Seconds < 120, $"left {leaves.Since(foiled).Seconds} s after being stopped");
         Assert.Equal(40 - 8, Food(s, GranaryStore)); // the second attempt was refused at the store
-        Assert.Equal(BanditCamp, s.GetWorldView().Actor(Raider).Location);
+        // Home again; P5a: with the granary to be avoided, the next raid of the night goes for the farmhouse pantry.
+        var raider = s.Engine.World.Actors[Raider];
+        Assert.True(raider.Location == BanditCamp || raider.Assignment?.Target == MappedVillageScenario.Ids.Pantry,
+            $"{raider.Location} {raider.Assignment?.Target}");
     }
 
     [Fact]

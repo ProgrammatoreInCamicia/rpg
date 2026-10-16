@@ -109,6 +109,8 @@
     "stores": [
       { "id": "granary_store", "name": "Scorte del granaio", "location": "granary", "food": 40, "owner": "village",
         "at": [17, 5], "access": [[16, 5]] },
+      { "id": "pantry", "name": "Dispensa della fattoria", "location": "farmer_house", "food": 6, "owner": "village",
+        "at": [7, 14], "access": [[6, 14]] },
       { "id": "camp_store", "name": "Scorte del campo", "location": "bandit_camp", "food": 14, "owner": "bandits" }
     ],
     "actors": [

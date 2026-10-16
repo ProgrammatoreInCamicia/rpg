@@ -417,6 +417,9 @@ internal sealed class GridMap
     private static readonly (int Dx, int Dy)[] Directions =
         { (0, -1), (1, 0), (0, 1), (-1, 0), (1, -1), (1, 1), (-1, 1), (-1, -1) };
 
+    /// <summary>P5a: getting through a window, in squares of a way: opening or breaking it, then climbing over (10 feet).</summary>
+    public const int WindowCrossingSteps = 4;
+
     /// <summary>
     /// Shortest path by the SRD grid rules: 8 directions, 1 square each, no diagonal across the corner of a blocked
     /// square; closed doors are walked through (opening one is free, SRD). <paramref name="extraCost"/> (never
@@ -427,7 +430,10 @@ internal sealed class GridMap
     /// </summary>
     /// <param name="opens">P4a: the doors the walker can open though they hold (locked, with its key); null: none. A closed door
     /// that holds and is not among them is a wall to this walker.</param>
-    public IReadOnlyList<GridPos>? FindPath(GridPos from, GridPos to, Func<GridPos, int>? extraCost = null, Func<GridPos, bool>? opens = null)
+    /// <param name="climbs">P5a: the windows (by their two squares) the walker would get through, straight across; each
+    /// costs <see cref="WindowCrossingSteps"/> squares. Null: windows are walls, as for any walk.</param>
+    public IReadOnlyList<GridPos>? FindPath(GridPos from, GridPos to, Func<GridPos, int>? extraCost = null, Func<GridPos, bool>? opens = null,
+        Func<GridPos, GridPos, bool>? climbs = null)
     {
         if (!IsWalkable(to) || !InBounds(from))
             return null;
@@ -450,13 +456,14 @@ internal sealed class GridMap
             foreach (var (dx, dy) in Directions)
             {
                 var next = new GridPos(here.X + dx, here.Y + dy);
-                if (!IsWalkable(next) || !StepOpen(here, next, sight: false))
+                var climb = climbs is not null && (dx == 0 || dy == 0) && IsWindow(here, next) && climbs(here, next);
+                if (!IsWalkable(next) || !climb && !StepOpen(here, next, sight: false))
                     continue;
                 if (dx != 0 && dy != 0 && (!IsWalkable(new GridPos(here.X + dx, here.Y)) || !IsWalkable(new GridPos(here.X, here.Y + dy))))
                     continue; // no cutting corners
                 if (ClosedDoorBetween(here, next) is { } door && DoorHolds(door) && opens?.Invoke(door) != true)
                     continue; // P4a: locked without its key, or stuck
-                var nextCost = (Steps: cost[here].Steps + 1 + (extraCost?.Invoke(next) ?? 0), Drift: cost[here].Drift + Drift(next));
+                var nextCost = (Steps: cost[here].Steps + (climb ? WindowCrossingSteps : 1) + (extraCost?.Invoke(next) ?? 0), Drift: cost[here].Drift + Drift(next));
                 if (cost.TryGetValue(next, out var known) && known.CompareTo(nextCost) <= 0)
                     continue;
                 if (cost.TryGetValue(next, out var old))

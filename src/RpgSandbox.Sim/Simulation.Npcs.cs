@@ -66,19 +66,23 @@ internal sealed partial class Simulation
         var target = World.Stores[raid.Target];
         inputs.Add($"Incarico: razzia di {target.Name} per {World.Factions[raid.Faction].Name}");
         // T6c-3: on a map a raider always sneaks, there and back.
+        // P5a: out of a house it broke into, through doors and windows too (no giving up on the way home).
         Plan GoHome(string rule, string reason) =>
-            new(rule, reason, () => Sneaking(StepToStore(npc, home, stealthy: true), stealthy: true) is { } step ? Execute(step) : null);
+            new(rule, reason, () => Sneaking(StepToStore(npc, home, stealthy: true), stealthy: true) is { } step ? Execute(step)
+                : MapOf(npc) is { } map && BreakInStep(npc, WaysOut(map, home), null, out _) is { } way ? ExecuteBreakIn(npc, way)
+                : null);
 
         if (raid.Aborted)
         {
             if (!InReach(npc, home))
-                return GoHome("Torna al campo", $"Rientra a mani vuote: {target.Name} è sorvegliato.");
+                return GoHome("Torna al campo", $"Rientra a mani vuote: {target.Name} è {(raid.Balked ? "chiuso troppo bene" : "sorvegliato")}.");
 
             // Only now, back home, does the faction learn that the target is guarded.
             var faction = World.Factions[raid.Faction];
             faction.AvoidUntil[target.Id] = World.Now.Plus(Tuning.AvoidGuardedTarget);
             npc.Assignment = null;
-            World.RecordFact("RaidAborted", $"{npc.Name} torna e riferisce ai {faction.Name}: {target.Name} è sorvegliato.");
+            World.RecordFact("RaidAborted", $"{npc.Name} torna e riferisce ai {faction.Name}: {target.Name} è "
+                + (raid.Balked ? "chiuso troppo bene." : "sorvegliato."));
             var next = Routine(npc);
             return next with { Rule = "Riferisce: bersaglio sorvegliato", Reason = $"Razzia annullata. Poi: {next.Reason}" };
         }
@@ -107,8 +111,24 @@ internal sealed partial class Simulation
                 NextTimeOfDay(Tuning.RaidAfterDark));
 
         if (!InReach(npc, target))
+        {
+            // P5a: with no way on foot to the store on this map, through the doors and windows that hold.
+            if (StepToStore(npc, target, stealthy: true) is null && target.Position is not null && MapOf(npc) is { } map
+                && map.Area == World.Locations[target.Location].Area)
+            {
+                var work = BreakInStep(npc, UseSquares(target, map), raid, out var balked);
+                if (balked)
+                {
+                    raid.Aborted = raid.Balked = true;
+                    World.RecordFact("RaidBalked", $"{npc.Name} rinuncia: {Name(raid.BreakIn!.Value)} non cede.", npc.Id);
+                    return GoHome("Desisti", $"{Capital(Name(raid.BreakIn!.Value))} non cede: torna al campo.");
+                }
+                return new Plan("Entra con la forza", $"Nessuna via libera fino a {target.Name}: passa per porte e finestre.",
+                    () => work is null ? null : ExecuteBreakIn(npc, work));
+            }
             return new Plan("Raggiungi il bersaglio", $"Va verso {World.Locations[target.Location].Name} per la razzia.",
                 () => StepToStore(npc, target, stealthy: true) is { } step ? Execute(step) : null);
+        }
 
         // On site the raider sees who is there: a guard on duty makes the theft impracticable. On a map, only a guard
         // it actually sees covering the store; off the maps, any guard on duty in the place.

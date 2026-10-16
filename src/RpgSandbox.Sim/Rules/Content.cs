@@ -36,6 +36,9 @@ public sealed record CreatureDefinition
     public required string Kind { get; init; }
     public IReadOnlyList<Tell> Tells { get; init; } = Array.Empty<Tell>();
 
+    /// <summary>P5a: tools it is proficient with, by item id (thieves' tools: + Proficiency Bonus to pick a lock).</summary>
+    public IReadOnlyList<string> Tools { get; init; } = Array.Empty<string>();
+
     /// <summary>Items worn or wielded (one each) and other items carried (with how many).</summary>
     public required IReadOnlyList<string> Gear { get; init; }
     public required IReadOnlyList<(string Item, int Count)> Items { get; init; }
@@ -302,6 +305,7 @@ public sealed class ContentPack
             Experience = Int(e, "xp", where),
             Gear = gear, Items = carried, Coins = e.TryGetProperty("coins", out var c) ? c.GetInt64() : 0, Attacks = attacks,
             Kind = Text(e, "kind", where), Tells = TellsOf(e, where),
+            Tools = e.TryGetProperty("tools", out var tools) ? tools.EnumerateArray().Select(t => KnownItem(t.GetString(), items, where)).ToArray() : System.Array.Empty<string>(),
         };
         if (creature.HitPoints < 1 || creature.ArmorClass < 1 || creature.Speed < 0 || attacks.Length == 0 || creature.Experience < 0)
             throw new InvalidDataException($"contenuti: {where}: punti ferita, CA, velocità, attacchi o punti esperienza non validi");

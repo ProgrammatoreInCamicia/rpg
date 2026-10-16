@@ -148,6 +148,12 @@ internal sealed class RaidAssignmentDto
     public long AssignedAt { get; set; }
     public bool TakeAttempted { get; set; }
     public bool Aborted { get; set; }
+
+    /// <summary>Schema 32 (P5a): the door or window it is breaking through and its tries there; given up on a barrier.</summary>
+    public PosDto? BreakInA { get; set; }
+    public PosDto? BreakInB { get; set; }
+    public int BreakInTries { get; set; }
+    public bool Balked { get; set; }
 }
 
 internal sealed class DecisionDto

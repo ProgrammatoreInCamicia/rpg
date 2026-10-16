@@ -65,7 +65,7 @@ public static class Builds
             var creature = Creature(pack, build);
             return Scores(creature.Abilities) with
             {
-                Title = creature.Name, ProficiencyBonus = creature.ProficiencyBonus, SkillProficiencies = creature.Skills,
+                Title = creature.Name, ProficiencyBonus = creature.ProficiencyBonus, SkillProficiencies = creature.Skills, ToolProficiencies = creature.Tools,
                 ArmorClass = creature.ArmorClass, Speed = creature.Speed,
                 StealthDisadvantage = creature.Gear.Any(g => pack.Items[g].Armor is { StealthDisadvantage: true }),
             };
