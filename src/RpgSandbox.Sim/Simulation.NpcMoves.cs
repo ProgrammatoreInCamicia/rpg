@@ -105,8 +105,17 @@ internal sealed partial class Simulation
         return new SpotPath(vertices, length);
     }
 
-    /// <summary>How far an NPC looks for cover, in inches, along each of the 16 directions (within its movement left).</summary>
+    /// <summary>How far an NPC looks for cover, in inches: rings 30 inches apart (within its movement left).</summary>
     private static readonly int[] CoverSteps = Enumerable.Range(1, 12).Select(k => 30 * k).ToArray();
+
+    /// <summary>
+    /// P5d: the points tried on a ring of cover: a multiple of the 16 directions (so those are always among them), no more
+    /// than <see cref="CoverGap"/> inches apart along it, so a thin shelter far out (a wall end) falls between two less often.
+    /// </summary>
+    private static int CoverRingPoints(int radius) => RingPoints * (int)Math.Ceiling(2 * Math.PI * radius / CoverGap / RingPoints);
+
+    /// <summary>P5d: at most a body's width between the points of a ring of cover.</summary>
+    private const int CoverGap = 2 * SpotPlanner.BodyRadius;
 
     /// <summary>
     /// P3b: an NPC about to shoot (no blow in reach, a shot valid from here) may first step, within the movement left and
@@ -125,10 +134,10 @@ internal sealed partial class Simulation
         var from = CurrentSpot(npc)!.Value;
         var there = CurrentSpot(target)!.Value;
         var planner = CombatPlanner(e, npc);
-        var candidates = Enumerable.Range(0, RingPoints)
-            .SelectMany(k => CoverSteps.Where(d => d <= left).Select(d => new Spot(
-                (int)Math.Round(from.X + d * Math.Cos(k * 2 * Math.PI / RingPoints), MidpointRounding.AwayFromZero),
-                (int)Math.Round(from.Y + d * Math.Sin(k * 2 * Math.PI / RingPoints), MidpointRounding.AwayFromZero))))
+        var candidates = CoverSteps.Where(d => d <= left)
+            .SelectMany(d => Enumerable.Range(0, CoverRingPoints(d)).Select(k => k * 2 * Math.PI / CoverRingPoints(d)).Select(a => new Spot(
+                (int)Math.Round(from.X + d * Math.Cos(a), MidpointRounding.AwayFromZero),
+                (int)Math.Round(from.Y + d * Math.Sin(a), MidpointRounding.AwayFromZero))))
             .Where(p => map.InBounds(p.Cell) && planner.Fits(p)).Distinct().ToList();
         var lengths = planner.LengthsTo(from, candidates);
         var (normal, longest) = shot.Range!.Value;

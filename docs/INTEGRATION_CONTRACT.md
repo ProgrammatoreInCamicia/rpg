@@ -771,7 +771,7 @@ Decisione dell'utente: precisione vera. Un solo orologio della Sim, a tick.
 - **P3b, i PNG che tirano cercano copertura** (solo Sim, nessuna API nuova):
   - Quando un PNG non può colpire in mischia ma ha un tiro valido, prima di tirare può spostarsi, nel movimento
     rimasto e senza Scatto.
-  - Candidati: 16 direzioni × passi di 30 pollici fino a 360, entro il movimento rimasto. Ogni candidato deve
+  - Candidati: anelli ogni 30 pollici fino a 360, entro il movimento rimasto; su ogni anello un multiplo delle 16 direzioni, con i punti a non più di 36 pollici l'uno dall'altro (P5d). Ogni candidato deve
     lasciare il corpo libero ed essere raggiungibile, con una sola ricerca per tutti (`SpotPlanner.LengthsTo`).
   - Scartati i punti da cui il tiro non è valido (bersaglio non visto, oltre la gittata lunga, nessun punto del corpo
     in vista) e quelli la cui via provoca un attacco di opportunità di un nemico che il PNG percepisce.
@@ -933,4 +933,4 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 - In scontro, `PickUpCommand` con l'interazione gratuita già usata richiede l'azione (SRD, Utilizzare): "(usi l'azione)". Senza azione: `NoActionLeft`.
 
 ### P5d — Coperture lontane
-- I tiratori PNG cercano riparo campionando 32 direzioni e più distanze. Nessuna API.
+- I tiratori PNG cercano riparo su anelli più fitti: su ogni anello un multiplo delle 16 direzioni di prima (che restano tutte), con i punti a non più di 36 pollici (la larghezza di un corpo). Trovano tutti i ripari di prima e anche quelli sottili e lontani fra due direzioni. Nessuna API.

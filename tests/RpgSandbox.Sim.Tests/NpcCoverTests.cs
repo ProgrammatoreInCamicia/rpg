@@ -156,4 +156,18 @@ public class NpcCoverTests
         Assert.DoesNotContain(log, l => l.Kind == CombatLogKind.OpportunityAttack);
         Assert.True(Of(s, Bandit).Spot!.Value.DistanceTo(Of(s, s.Player).Spot!.Value) - 36 <= 60, "it stayed within the player's reach");
     }
+
+    [Fact]
+    public void A_thin_shelter_far_off_between_the_sixteen_directions_is_found()
+    {
+        // P5d: one wall section down x = 14|15 at row 2, about 25 feet away and off the 16 directions from the bandit at
+        // (10,3): only the denser rings far out reach behind it.
+        var (s, turn) = BanditsTurn(seed => Yard(seed, 20, player: (2, 3), bandit: (10, 3), b =>
+            b.AddEdge("a", (14, 2), (15, 2), MapEdgeKind.Wall)));
+
+        Assert.Equal(CombatLogKind.Move, turn[0].Kind);
+        Assert.Equal(CombatLogKind.Attack, turn[1].Kind);
+        Assert.True(Of(s, Bandit).Spot!.Value.X > 15 * 60); // behind the wall section, seen from the player
+        Assert.True(s.PreviewAttack(s.Player, Bandit, Javelin).Cover > s.PreviewAttack(Bandit, s.Player, "Balestra leggera").Cover);
+    }
 }
