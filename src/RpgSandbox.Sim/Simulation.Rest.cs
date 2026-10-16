@@ -82,7 +82,7 @@ internal sealed partial class Simulation
     }
 
     /// <summary>
-    /// SRD Hit Point Dice: each one spent is rolled, plus the Constitution modifier (ADAPTATION: at least 0), in Hit Points.
+    /// SRD Short Rest: each Hit Point Die spent is rolled, plus the Constitution modifier (minimum of 1), in Hit Points.
     /// ADAPTATION: the dice are spent one at a time and no more once the Hit Points are full.
     /// </summary>
     private (int Healed, int Spent) SpendHitDice(Actor actor, int dice)
@@ -93,7 +93,7 @@ internal sealed partial class Simulation
         var (healed, spent) = (0, 0);
         while (spent < dice && actor.HitDiceSpent < of.Max && actor.Vitality.Current < actor.Vitality.Maximum)
         {
-            healed += actor.Vitality.Heal(Math.Max(0, World.Rng.Roll(of.Die) + constitution));
+            healed += actor.Vitality.Heal(Math.Max(1, World.Rng.Roll(of.Die) + constitution));
             actor.HitDiceSpent++;
             spent++;
         }

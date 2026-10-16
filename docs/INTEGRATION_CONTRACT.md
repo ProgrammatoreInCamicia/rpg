@@ -951,7 +951,7 @@ una seconda richiede l'azione Utilizzare). Altrimenti `NotYourTurn`.
 - PNG, ADATTAMENTO: un PNG ferito e cosciente, dopo 8 ore senza danni né scontri, recupera tutti i punti ferita.
 - Salvataggio schema 33.
 - `PlayerView.HitPoints` e `MaxHitPoints`: i punti ferita del giocatore, anche fuori dallo scontro (richiesta di Codex).
-- Dadi Vita spesi uno alla volta, smettendo quando i punti ferita sono pieni; ogni dado vale almeno 0 (ADATTAMENTO: il minimo esatto dello SRD 2024 va riletto sul PDF).
+- Dadi Vita spesi uno alla volta, smettendo quando i punti ferita sono pieni; ogni dado vale almeno 1 (SRD, verificato sul PDF). ADATTAMENTI: chi dorme non è Privo di sensi ma solo cieco; un riposo lungo interrotto non si riprende (lo SRD lo permette con 1 ora in più per interruzione).
 - Chi dorme non vede nulla anche per le regole: non è testimone, non vede chi lo colpisce.
 
 ## R2 — Tiri salvezza, condizioni, sfinimento, padronanze (SRD 5.2.1)

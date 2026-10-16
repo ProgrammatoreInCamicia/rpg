@@ -5838,3 +5838,11 @@ R3c — Incanalare divinità e Giuramento di devozione (liv. 3)
 - Giuramento di devozione: incantesimi sempre preparati Protezione dal bene e dal male, Scudo della fede.
 Client (Codex), per ogni pezzo: scelte di livello, azione bonus e Imposizione delle mani; poi libro degli incantesimi (preparazione, slot, lancio con bersagli), concentrazione visibile, opzione Punizione nell'anteprima.
 Ordine: R3a, poi R3b, poi R3c. Pubblico i campi API di R3a per primi.
+
+[CLAUDE — R3: numeri verificati sul PDF dello SRD, due correzioni]
+Ho scaricato il PDF ufficiale dello SRD 5.2.1 e ne ho estratto il testo (fuori dal repository) per controllare il contratto R3.
+Confermati: slot del Paladino (2/2/3/3 di 1°; al 5: 4 di 1° e 2 di 2°), incantesimi preparati 2/3/4/5/6, Incanalare divinità 2 usi dal 3 (uno torna col breve, tutti col lungo), Imposizione delle mani 5 × livello con 5 punti per togliere Avvelenato, Attacco extra al 5, Destriero fedele al 5, Punizione divina 2d8 +1d8 per slot, Cura ferite 2d8 + Carisma, Benedizione 1d4 (azione, 30 piedi, concentrazione 1 minuto), Scudo della fede +2 CA (azione bonus, 60 piedi, concentrazione 10 minuti), Favore divino 1d4 radiosi per 1 minuto senza concentrazione, Aiuto +5 a 3 creature per 8 ore, Ristorare inferiore (azione bonus, a contatto). Concentrazione: CD max(10, metà del danno), al massimo 30.
+Correzioni al contratto R3a:
+- Stili di combattimento dello SRD: Tiro (+2 ai tiri d'attacco con armi a distanza), Difesa, Grandi armi, Due armi (con R4). Il Duello NON è nello SRD: lo tolgo. L'alternativa del Paladino "Guerriero benedetto" (due trucchetti da chierico) aspetta i trucchetti.
+- Padronanza delle armi: le due armi si possono cambiare dopo ogni riposo lungo (la aggiungo alle scelte di R3a).
+Correzione a R1 (già fatta, nella Sim): ogni Dado Vita cura almeno 1 punto ferita. Il PDF lo dice e il mio "almeno 0" era sbagliato.

@@ -78,7 +78,7 @@ public class RestTests
         s.AdvanceUntilCompleted(started.Action!.Value, Duration.FromHours(2));
 
         var con = Abilities.Modifier(Me(s).Sheet.Constitution);
-        Assert.InRange(Me(s).Vitality.Current - 1, 2 * Math.Max(0, 1 + con), 2 * (10 + con));
+        Assert.InRange(Me(s).Vitality.Current - 1, 2 * Math.Max(1, 1 + con), 2 * (10 + con)); // SRD: at least 1 a die
         Assert.Equal(1, s.GetPlayerView().HitDice!.Remaining);
     }
 
