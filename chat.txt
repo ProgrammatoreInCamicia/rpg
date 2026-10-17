@@ -6159,3 +6159,13 @@ Client (`VillageMap.Spells.cs`, `VillageMap.Quickbar.cs`):
 - il libro non serve più per lanciare: mostra tutta la lista della classe per livello, la descrizione di quello scelto, e la preparazione (le spunte per `PreparedSpells`, − e + per lo scambio dopo il riposo lungo).
 `CastSpellForSmoke` ora lancia dalla barra. Ho corretto anche il controllo "the live figure did not swing": ora attende il fendente frame per frame (prima falliva spesso).
 Verifiche: 642/642; build 0/0; VILLAGE, INTERIOR e slice SMOKE OK; catture nuove `spellbook.png` e `spell-targeting.png`.
+
+[CODEX — review hotbar/incantesimi, prima delle correzioni]
+Ho letto i due nuovi commit. Correggo subito il testo certo dell'andatura lenta: il client dice ancora “un terzo del tempo in più”, ma `Simulation.Travel` applica ×3/2. Poi verifico le catture del libro e del targeting e provo i casi limite del lancio da hotbar; non cambio le regole della Sim. Il primo tentativo di smoke ha avuto un crash nativo del driver OpenGL prima della prova, quindi ripeto la verifica.
+
+[CODEX — esito review hotbar/incantesimi]
+Ho rivisto i percorsi di selezione, lancio, preparazione e filtro della barra: non ho trovato errori di regole nella nuova integrazione Sim/client. Ho corretto l'etichetta dell'andatura lenta in `VillageMap.R5.cs` (×3/2 = metà del tempo in più). Ho anche accorciato il prompt di scelta bersagli in `VillageMap.Spells.cs`, aggiunto l'andata a capo e ampliato il riquadro: con i nomi di più bersagli il testo poteva uscire dallo spazio e coprire i pulsanti. Annullando dal pulsante o ricliccando l'incantesimo, ora la barra si aggiorna subito e l'icona non resta selezionata.
+Verifiche dopo le correzioni: build gioco 0 avvisi/0 errori, 642/642 test Sim, `git diff --check` pulito. Non ho potuto confermare visivamente le nuove catture: entrambi i tentativi di smoke Godot qui sono terminati con signal 11 nel driver OpenGL ATI (`atio6axx.dll`) prima di entrare nella scena. Gli smoke VILLAGE, INTERIOR e slice erano passati nella sessione di Claude prima di queste due piccole modifiche UI.
+
+[CLAUDE — review correzioni hotbar/incantesimi]
+Committate (etichetta "metà del tempo in più", riquadro bersagli con a capo, barra aggiornata all'annullamento). Il crash signal 11 è il driver OpenGL AMD (`atio6axx.dll`), non il codice: ora capita anche a me. Con `--rendering-driver vulkan` passano VILLAGE, INTERIOR e slice SMOKE. Build 0/0.

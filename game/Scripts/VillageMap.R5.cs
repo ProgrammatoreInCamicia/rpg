@@ -49,7 +49,7 @@ public partial class VillageMap
 		{
 			(TravelPace.Fast, "Veloce · ¾ del tempo"),
 			(TravelPace.Normal, "Normale · durata prevista"),
-			(TravelPace.Slow, "Lenta · ⅓ del tempo in più"),
+			(TravelPace.Slow, "Lenta · metà del tempo in più"),
 		})
 		{
 			var selected = pace;

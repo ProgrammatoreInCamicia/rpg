@@ -113,20 +113,21 @@ public partial class VillageMap
 		_bookDetail.AddThemeFontSizeOverride("font_size", 13);
 		detailFrame.AddChild(_bookDetail);
 
-		_castPrompt = HudPanel(330, 900, -214, -166, bottomAnchored: true);
+		_castPrompt = HudPanel(330, 900, -230, -166, bottomAnchored: true);
 		_castPrompt.Visible = false;
 		_castPrompt.AddThemeStyleboxOverride("panel", SlotStyle(MagicAccent, new Color(0.08f, 0.07f, 0.1f, 0.96f), 1, 6));
 		ui.AddChild(_castPrompt);
 		var prompt = new HBoxContainer();
 		prompt.AddThemeConstantOverride("separation", 8);
 		_castPrompt.AddChild(prompt);
-		_castPromptText = new Label { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, VerticalAlignment = VerticalAlignment.Center };
+		_castPromptText = new Label { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+			VerticalAlignment = VerticalAlignment.Center, AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		prompt.AddChild(_castPromptText);
 		_castPromptGo = new Button { Text = "Lancia" };
 		_castPromptGo.Pressed += CastNow;
 		prompt.AddChild(_castPromptGo);
 		var cancel = new Button { Text = "Annulla" };
-		cancel.Pressed += CancelCasting;
+		cancel.Pressed += () => { CancelCasting(); RefreshQuickbar(); };
 		prompt.AddChild(cancel);
 
 		_castSlotMenu = new PopupMenu();
@@ -409,7 +410,7 @@ public partial class VillageMap
 		if (_view.Spells?.Prepared.FirstOrDefault(s => s.Id == id) is not { } spell) return;
 		if (SpellRefusal(spell) is { } why) { ShowMessage(why); RefreshQuickbar(); return; }
 		if (spell.Id == "divine-smite") { ToggleSmite(); return; }
-		if (_castingSpell?.Id == spell.Id) { CancelCasting(); return; }
+		if (_castingSpell?.Id == spell.Id) { CancelCasting(); RefreshQuickbar(); return; }
 		var lowest = _view.Spells.Slots.First(s => s.Level >= spell.Level && s.Remaining > 0).Level;
 		BeginCasting(spell, lowest);
 	}
@@ -448,11 +449,8 @@ public partial class VillageMap
 	{
 		_castPrompt.Visible = _castingSpell is not null;
 		if (_castingSpell is not { } spell) return;
-		var names = _castingTargets.Select(id => id == _view.Id ? "te stesso"
-			: _view.VisibleActors.FirstOrDefault(a => a.Id == id)?.Name ?? id.Value);
-		_castPromptText.Text = $"{spell.Name} (slot {_castingSlot}°): clicca "
-			+ (CastingLimit == 1 ? "il bersaglio" : $"fino a {CastingLimit} bersagli") + " sulla mappa, anche te stesso"
-			+ (_castingTargets.Count > 0 ? $" · {string.Join(", ", names)}" : "") + ". Esc annulla.";
+		_castPromptText.Text = $"{spell.Name} · slot {_castingSlot}° · "
+			+ $"{_castingTargets.Count}/{CastingLimit} bersagli (anche te). Clicca sulla mappa; Esc annulla.";
 		_castPromptGo.Disabled = _castingTargets.Count == 0;
 	}
 
