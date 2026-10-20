@@ -6176,3 +6176,9 @@ Due modifiche:
 - `VillageMap.cs`, `PersonAt`: i vivi hanno la precedenza sui morti, poi conta l'ordine sullo schermo come prima;
 - `VillageMap.Targeting.cs`: se il bersaglio non è tra quelli dello scontro, il messaggio viene da `PreviewAttack` (per esempio "è già morto", "non fa parte di questo scontro", "Non vedi …"), e quello generico resta solo come ultima risorsa.
 Verifiche: build gioco 0/0; VILLAGE SMOKE OK con Vulkan.
+
+[CODEX — tetto intero nascosto quando si entra, prima del codice]
+Su richiesta dell'utente, cambio solo la presentazione del tetto in `VillageMap.Buildings.cs`: se il giocatore è in una zona interna, nascondo tutte le falde, le sfumature e i bordi del tetto di quell'edificio. Da fuori rimane il taglio parziale governato dalla visibilità, anche attraverso la finestra. Aggiorno `InteriorSmoke` per verificare che entrando scompaia tutto il tetto e uscendo ricompaia la facciata; non modifico le regole di vista della Sim.
+
+[CODEX — tetto intero nascosto, pronto per review]
+Implementato in `VillageMap.Buildings.cs`: dentro una zona interna, tutte le tessere, i bordi e le sfumature del tetto di quella zona sono nascosti; appena si esce, torna il taglio parziale legato alla vista, quindi la facciata copre le stanze ricordate. `InteriorSmoke` ora controlla due estremi distanti del tetto dopo l'ingresso oltre al vecchio controllo dopo l'uscita. Build gioco 0/0; INTERIOR SMOKE OK su `InteriorPrototype.tscn` con Vulkan. Catture `.tmp/roof-open/day-inside.png` e `day-outside-after-visit.png` riviste: dentro il tetto è assente, fuori ritorna. Luce e linea di vista della Sim non sono cambiate.

@@ -51,7 +51,7 @@ public partial class VillageMap
 			_roofs.AddChild(tile);
 			_roofTiles[cell] = tile;
 		}
-		// Keep the per-cell cutaway, but draw only the perimeter of the building, never grid lines.
+		// Outside, keep the per-cell cutaway; draw only the building perimeter, never grid lines.
 		foreach (var cell in _roofTiles.Keys)
 		foreach (var nearby in new[]
 		{
@@ -164,19 +164,22 @@ public partial class VillageMap
 		}
 		_roofs.Visible = true;
 		var daylight = _view.Daylight switch { Light.Bright => 1f, Light.Dim => 0.72f, _ => 0.42f };
+		var interior = IsIndoor(_view.Position.Value) ? ZoneAt(_view.Position.Value) : null;
+		bool OpenRoof(GridPos cell) => interior is { } zone && ZoneAt(cell) == zone;
 		foreach (var (cell, tile) in _roofTiles)
 		{
-			tile.Visible = visibility[cell.Y][cell.X] != '2';
+			tile.Visible = !OpenRoof(cell) && visibility[cell.Y][cell.X] != '2';
 			tile.Modulate = new Color(daylight, daylight, daylight);
 		}
 		foreach (var (covered, exposed, blend) in _roofBlends)
 		{
-			blend.Visible = visibility[covered.Y][covered.X] != '2' && visibility[exposed.Y][exposed.X] == '2';
+			blend.Visible = !OpenRoof(covered) && visibility[covered.Y][covered.X] != '2'
+				&& visibility[exposed.Y][exposed.X] == '2';
 			blend.Modulate = new Color(daylight, daylight, daylight);
 		}
 		foreach (var (cell, rim) in _roofRims)
 		{
-			rim.Visible = visibility[cell.Y][cell.X] != '2';
+			rim.Visible = !OpenRoof(cell) && visibility[cell.Y][cell.X] != '2';
 			rim.Modulate = new Color(daylight, daylight, daylight);
 		}
 		// The outside keeps its facade. Internal partitions are only drawn where the player can

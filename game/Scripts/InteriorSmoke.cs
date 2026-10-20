@@ -59,6 +59,9 @@ public partial class InteriorSmoke : Node
 			_map.SetPaused(true);
 			Require(_map.View.Doors.Single(d => d.At == InteriorPrototypeScenario.Door).Open == true,
 				"walking through the edge door did not open it");
+			Require(!_map.RoofVisibleForSmoke(new GridPos(4, 3))
+				&& !_map.RoofVisibleForSmoke(new GridPos(7, 5)),
+				"entering the house left part of its roof visible");
 			Capture("day-inside.png");
 			Require(_map.NpcLive3dLoadedForSmoke(MappedVillageScenario.Ids.Farmer),
 				"the visible inhabitant does not use the live 3D figure");
