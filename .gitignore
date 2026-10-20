@@ -15,3 +15,13 @@ tools/
 
 # Local review harnesses and evidence (Codex)
 .review/
+
+# User's local experiments and references (not part of the game)
+game/Scenes/CharacterPrototypeV2.tscn
+game/Scenes/CharacterRigPrototype.tscn
+art/
+.tmp/
+docs/*.pdf
+docs/*.zip
+docs/*.png
+docs/*.webp
