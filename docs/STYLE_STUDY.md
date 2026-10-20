@@ -2,6 +2,8 @@
 
 Questa è una **prova visiva**, separata dalla demo. La casa generata non è una mappa giocabile e la tavola dei personaggi non contiene animazioni o direzioni coerenti. Serve a decidere materiali, palette, silhouette e leggibilità prima di costruire un set modulare. La scena reale continua a usare tetti, vista, luce e personaggi implementati in Godot.
 
+La prima scena **giocabile** costruita da questa direzione è descritta in [INTERIOR_ART_PILOT.md](INTERIOR_ART_PILOT.md).
+
 ## Come guardarlo
 
 Aprire `game/Scenes/StyleStudyPreview.tscn` in Godot, oppure dalla root del repository:

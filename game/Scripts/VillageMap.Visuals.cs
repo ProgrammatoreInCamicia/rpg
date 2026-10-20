@@ -31,6 +31,7 @@ public partial class VillageMap
 	private Texture2D? _woodTexture;
 	private Texture2D? _grassTexture;
 	private Texture2D? _stoneWallTexture;
+	private Texture2D? _pilotFlagstoneTexture;
 
 	private void LoadGroundTextures()
 	{
@@ -38,13 +39,17 @@ public partial class VillageMap
 		_woodTexture = GD.Load<Texture2D>("res://Assets/G15/Ground/wood.png");
 		_grassTexture = GD.Load<Texture2D>("res://Assets/G15/Ground/grass.png");
 		_stoneWallTexture = GD.Load<Texture2D>("res://Assets/G15/Ground/stone-wall.png");
+		if (InteriorArtPilot)
+			_pilotFlagstoneTexture = GD.Load<Texture2D>("res://Assets/StyleStudy/interior-flagstone.png");
 	}
 
 	private void ApplyGroundTexture(Polygon2D tile, char symbol, LocationId? zone, GridPos cell, float shade)
 	{
 		if (symbol == '#')
 			return;
-		var texture = symbol == '.' ? _roadTexture
+		var texture = InteriorArtPilot && zone == MappedVillageScenario.Ids.FarmerHouse
+			? cell.X <= 8 ? _pilotFlagstoneTexture : _woodTexture
+			: symbol == '.' ? _roadTexture
 			: zone == MappedVillageScenario.Ids.Inn || zone == MappedVillageScenario.Ids.FarmerHouse ? _woodTexture
 			: _grassTexture;
 		if (texture is null)
@@ -59,10 +64,29 @@ public partial class VillageMap
 			new Vector2(x, y - radius), new Vector2(x + radius, y),
 			new Vector2(x, y + radius), new Vector2(x - radius, y),
 		};
-		tile.Color = Colors.White.Darkened(shade * 0.5f);
+		tile.Color = InteriorArtPilot && zone == MappedVillageScenario.Ids.FarmerHouse
+			? new Color(0.94f, 0.88f, 0.79f).Darkened(shade * 0.35f)
+			: Colors.White.Darkened(shade * 0.5f);
 	}
 
-	private static Node2D MakeEdgePanel(MapEdgeView edge)
+	private static void DressPilotFloor(Polygon2D tile)
+	{
+		var rug = Diamond(0.70f);
+		tile.AddChild(new Polygon2D { Polygon = rug, Color = new Color(0.39f, 0.19f, 0.16f, 0.92f) });
+		tile.AddChild(new Line2D
+		{
+			Points = new[] { rug[0], rug[1], rug[2], rug[3], rug[0] },
+			Width = 2f, DefaultColor = new Color(0.67f, 0.43f, 0.24f), Antialiased = true,
+		});
+		var inset = Diamond(0.51f);
+		tile.AddChild(new Line2D
+		{
+			Points = new[] { inset[0], inset[1], inset[2], inset[3], inset[0] },
+			Width = 1f, DefaultColor = new Color(0.65f, 0.39f, 0.25f, 0.8f), Antialiased = true,
+		});
+	}
+
+	private static Node2D MakeEdgePanel(MapEdgeView edge, bool styledInterior)
 	{
 		var origin = CellToScreen(edge.A);
 		var diamond = Diamond();
@@ -74,7 +98,9 @@ public partial class VillageMap
 		var node = new Node2D { Position = origin + center };
 		first -= center;
 		second -= center;
-		var height = edge.Kind == MapEdgeKind.Window ? 17f : WallHeight;
+		var height = styledInterior
+			? edge.Kind == MapEdgeKind.Window ? 30f : PilotWallHeight
+			: edge.Kind == MapEdgeKind.Window ? 17f : WallHeight;
 		var color = edge.Kind == MapEdgeKind.Door ? DoorWood : Wall;
 		node.AddChild(new Polygon2D
 		{
@@ -85,6 +111,8 @@ public partial class VillageMap
 		var frame = new Line2D { Points = new[] { first + Vector2.Up * height, second + Vector2.Up * height },
 			Width = edge.Kind == MapEdgeKind.Window ? 3f : 2f, DefaultColor = color.Lightened(0.18f) };
 		node.AddChild(frame);
+		if (styledInterior)
+			DressInteriorEdge(node, edge, first, second, height);
 		if (edge.Kind == MapEdgeKind.Window)
 		{
 			node.AddChild(new Line2D { Points = new[] { first, second }, Width = 5f, DefaultColor = Wall });
@@ -109,6 +137,81 @@ public partial class VillageMap
 				Width = 3f, DefaultColor = Wall.Lightened(0.2f), Visible = false });
 		}
 		return node;
+	}
+
+	private static void DressInteriorEdge(Node2D node, MapEdgeView edge, Vector2 first, Vector2 second, float height)
+	{
+		var beam = new Color(0.25f, 0.16f, 0.105f);
+		var beamLight = new Color(0.46f, 0.29f, 0.16f);
+		var up = Vector2.Up * height;
+		if (edge.Kind == MapEdgeKind.Wall)
+		{
+			var plaster = node.GetNode<Polygon2D>("Panel");
+			plaster.Color = new Color(0.61f, 0.55f, 0.46f);
+			// The stone skirt and timber posts give each thin edge a visible height and scale.
+			node.AddChild(new Polygon2D
+			{
+				Polygon = new[] { first, second, second + Vector2.Up * 6f, first + Vector2.Up * 6f },
+				Color = new Color(0.37f, 0.35f, 0.31f),
+			});
+			AddStroke(first + up, second + up, 4f, beamLight);
+			AddStroke(first + Vector2.Up * (height - 7f), second + Vector2.Up * (height - 7f), 2f, beam);
+			AddStroke(first, first + up, 3f, beam);
+			AddStroke(second, second + up, 3f, beam);
+			if (edge.A == new GridPos(12, 5) && edge.B == new GridPos(13, 5))
+			{
+				var mount = first.Lerp(second, 0.5f) + Vector2.Up * 18f;
+				AddStroke(mount, mount + Vector2.Down * 8f, 3f, beam);
+				node.AddChild(new Polygon2D
+				{
+					Polygon = new[] { mount + new Vector2(0, -7), mount + new Vector2(4, 0),
+						mount + new Vector2(0, 2), mount + new Vector2(-4, 0) },
+					Color = new Color(1f, 0.73f, 0.31f),
+				});
+			}
+			if (edge.A == new GridPos(6, 3) && edge.B == new GridPos(6, 4))
+			{
+				var left = first.Lerp(second, 0.16f) + Vector2.Up * 16f;
+				var right = first.Lerp(second, 0.84f) + Vector2.Up * 16f;
+				AddStroke(left, right, 3f, beamLight);
+				for (var i = 0; i < 2; i++)
+				{
+					var middle = left.Lerp(right, (i + 1f) / 3f);
+					node.AddChild(new Polygon2D { Polygon = new[]
+					{
+						middle + new Vector2(-3, 0), middle + new Vector2(3, 0),
+						middle + new Vector2(2, -7), middle + new Vector2(-2, -7),
+					}, Color = new Color(0.44f, 0.29f, 0.19f) });
+				}
+			}
+		}
+		else if (edge.Kind == MapEdgeKind.Door)
+		{
+			node.GetNode<Polygon2D>("Panel").Color = new Color(0.35f, 0.21f, 0.12f);
+			for (var i = 1; i <= 3; i++)
+			{
+				var along = first.Lerp(second, i / 4f);
+				AddStroke(along + Vector2.Up * 2f, along + up + Vector2.Down * 3f, 1.3f, beam);
+			}
+			AddStroke(first + up, second + up, 4f, beamLight);
+			AddStroke(first, second, 3f, beam);
+			var latch = first.Lerp(second, 0.72f) + Vector2.Up * (height * 0.48f);
+			node.AddChild(new Polygon2D { Position = latch, Polygon = Diamond(0.065f),
+				Color = new Color(0.79f, 0.62f, 0.30f) });
+		}
+		else
+		{
+			// The opening stays transparent and uses the existing open/broken/barred state.
+			AddStroke(first, second, 4f, new Color(0.37f, 0.35f, 0.31f));
+			AddStroke(first + up, second + up, 4f, beamLight);
+			AddStroke(first, first + up, 3f, beam);
+			AddStroke(second, second + up, 3f, beam);
+			var middle = first.Lerp(second, 0.5f);
+			AddStroke(middle, middle + up, 2f, beamLight);
+		}
+		void AddStroke(Vector2 from, Vector2 to, float width, Color color) =>
+			node.AddChild(new Line2D { Points = new[] { from, to }, Width = width,
+				DefaultColor = color, Antialiased = true });
 	}
 
 	private static void SetWindowPanel(Node2D panel, MapEdgeView edge)

@@ -14,9 +14,11 @@ namespace RpgSandbox.Game;
 public partial class VillageMap : Node2D
 {
 	[Export] public bool InteriorPrototype { get; set; }
+	[Export] public bool InteriorArtPilot { get; set; }
 	private const float TileW = 64f;
 	private const float TileH = 32f;
 	private const float WallHeight = 26f;
+	private const float PilotWallHeight = 42f;
 	private const string SavePath = "user://village.json";
 
 	/// <summary>Longest real time a fixed-length activity (deposit, conversation) takes to play out on screen.</summary>
@@ -40,7 +42,7 @@ public partial class VillageMap : Node2D
 	private GridPos? _smokeFocus;
 	private Polygon2D _hover = null!;
 	private readonly Dictionary<GridPos, CanvasItem> _lit = new(); // floor, walls and stores, shaded by their square's light
-	private readonly List<(GridPos Cell, CanvasItem Item)> _edgeLit = new();
+	private readonly List<(MapEdgeView Edge, CanvasItem Item)> _edgeLit = new();
 	private readonly Dictionary<(GridPos A, GridPos B), Node2D> _windowPanels = new();
 	private float[,] _glow = new float[0, 0];
 	private string _lightKey = "";
@@ -97,12 +99,13 @@ public partial class VillageMap : Node2D
 
 	public override void _Ready()
 	{
-		var interior = InteriorPrototype || OS.GetCmdlineUserArgs().Contains("--interior-prototype");
+		var interior = InteriorArtPilot || InteriorPrototype || OS.GetCmdlineUserArgs().Contains("--interior-prototype");
 		_freeMovementEnabled = true;
-		_sim = SimulationSession.Create(interior ? InteriorPrototypeScenario.Create() : ScenarioFile.Load("living-village"));
+		_sim = SimulationSession.Create(InteriorArtPilot ? InteriorArtPilotScenario.Create()
+			: interior ? InteriorPrototypeScenario.Create() : ScenarioFile.Load("living-village"));
 		if (interior)
 			_sim.Advance(Duration.FromHours(13)); // the playable scene opens in daylight; the smoke also checks night
-		_sim.FacePlayer(1, 1); // starts looking into the village, towards the guard and the road
+		_sim.FacePlayer(InteriorArtPilot ? -1 : 1, InteriorArtPilot ? 0 : 1);
 		_view = _sim.GetPlayerView();
 		SyncFigureFacing(_view.Facing);
 
@@ -117,6 +120,9 @@ public partial class VillageMap : Node2D
 		var interiorSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--interior-smoke="));
 		if (interiorSmoke is not null)
 			AddChild(new InteriorSmoke(this, interiorSmoke["--interior-smoke=".Length..]));
+		var artSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--art-pilot-smoke="));
+		if (InteriorArtPilot && artSmoke is not null)
+			AddChild(new InteriorArtPilotSmoke(this, artSmoke["--art-pilot-smoke=".Length..]));
 	}
 
 	public override void _Process(double delta)
@@ -1018,7 +1024,8 @@ public partial class VillageMap : Node2D
 		if (_view.MapLight is not { } rows)
 			return;
 		var key = string.Concat(rows) + "|" + string.Concat(_view.MapVisibility ?? Array.Empty<string>())
-			+ "|" + string.Join(",", _view.Doors.Select(d => $"{d.At}:{d.Open}"));
+			+ "|" + string.Join(",", _view.Doors.Select(d => $"{d.At}:{d.Open}"))
+			+ (InteriorArtPilot ? $"|{_view.Position}" : "");
 		if (key == _lightKey)
 			return;
 		_lightKey = key;
@@ -1049,8 +1056,8 @@ public partial class VillageMap : Node2D
 		}
 		foreach (var (cell, item) in _lit)
 			item.Modulate = Shade(cell);
-		foreach (var (cell, item) in _edgeLit)
-			item.Modulate = Shade(cell);
+		foreach (var (edge, item) in _edgeLit)
+			item.Modulate = Shade(BuildingShadeCell(edge));
 	}
 
 	private static readonly Color Night = new(0.22f, 0.25f, 0.42f);
@@ -1185,6 +1192,8 @@ public partial class VillageMap : Node2D
 			var shade = (x + y) % 2 == 0 ? 0f : 0.05f;
 			var tile = new Polygon2D { Polygon = Diamond(), Position = CellToScreen(cell), Color = color.Darkened(shade) };
 			ApplyGroundTexture(tile, c, map.Zones.TryGetValue(c, out var floorZone) ? floorZone : null, cell, shade);
+			if (InteriorArtPilot && c == 'H' && x == 11 && y == 7)
+				DressPilotFloor(tile);
 			_floor.AddChild(tile);
 			_lit[cell] = tile;
 			if (c == '#')
@@ -1213,11 +1222,13 @@ public partial class VillageMap : Node2D
 
 		foreach (var edge in map.Edges)
 		{
-			var panel = MakeEdgePanel(edge);
+			var panel = MakeEdgePanel(edge, InteriorArtPilot);
 			_sorted.AddChild(panel);
 			if (edge.Kind is MapEdgeKind.Window or MapEdgeKind.Door)
-				AddBarrierMark(panel, edge.Kind == MapEdgeKind.Window ? 17f : WallHeight);
-			_edgeLit.Add((FacadeShadeCell(edge), panel));
+				AddBarrierMark(panel, InteriorArtPilot
+					? edge.Kind == MapEdgeKind.Window ? 30f : PilotWallHeight
+					: edge.Kind == MapEdgeKind.Window ? 17f : WallHeight);
+			_edgeLit.Add((edge, panel));
 			RegisterBuildingEdge(edge, panel);
 			if (edge.Kind == MapEdgeKind.Window)
 				_windowPanels[(edge.A, edge.B)] = panel;
@@ -1262,7 +1273,7 @@ public partial class VillageMap : Node2D
 		BuildSpotOverlay();
 		BuildShotLayer();
 
-		var zoom = _view.MapVisibility is null ? 1.2f : 1.08f;
+		var zoom = InteriorArtPilot ? 1.35f : _view.MapVisibility is null ? 1.2f : 1.08f;
 		_camera = new Camera2D { Position = CameraTarget(CellToScreen(_view.Position ?? new GridPos(0, 0))), Zoom = new Vector2(zoom, zoom) };
 		AddChild(_camera);
 		_camera.MakeCurrent();

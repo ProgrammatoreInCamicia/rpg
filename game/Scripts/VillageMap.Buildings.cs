@@ -19,6 +19,9 @@ public partial class VillageMap
 	private void BuildRoofLayer()
 	{
 		// Above wall panels and figures: the roof is the outside of the building, not a floor tint.
+		var roofColor = InteriorArtPilot ? new Color(0.33f, 0.28f, 0.25f) : RoofColor;
+		var roofTexture = InteriorArtPilot
+			? GD.Load<Texture2D>("res://Assets/StyleStudy/interior-roof-slate.png") : null;
 		_roofs = new Node2D { ZIndex = 20 };
 		AddChild(_roofs);
 		var map = _view.Map!;
@@ -41,13 +44,29 @@ public partial class VillageMap
 			var acrossX = bounds.MaxX - bounds.MinX < bounds.MaxY - bounds.MinY;
 			var across = acrossX ? cell.X : cell.Y;
 			var middle = acrossX ? (bounds.MinX + bounds.MaxX) / 2f : (bounds.MinY + bounds.MaxY) / 2f;
-			var plane = across < middle ? RoofColor.Lightened(0.08f) : RoofColor.Darkened(0.07f);
-			for (var side = 0; side < 4; side++)
-				tile.AddChild(new Polygon2D
+			var plane = across < middle ? roofColor.Lightened(0.08f) : roofColor.Darkened(0.07f);
+			if (roofTexture is not null)
+			{
+				var u = (cell.X - bounds.MinX + 1) * 96f;
+				var v = (cell.Y - bounds.MinY + 1) * 96f;
+				var face = new Polygon2D
 				{
-					Polygon = new[] { corners[side], corners[(side + 1) % 4], peak },
-					Color = plane,
-				});
+					Polygon = corners,
+					Texture = roofTexture,
+					UV = new[] { new Vector2(u - 48, v - 48), new Vector2(u + 48, v - 48),
+						new Vector2(u + 48, v + 48), new Vector2(u - 48, v + 48) },
+					Color = across < middle
+						? new Color(0.92f, 0.87f, 0.81f) : new Color(0.76f, 0.73f, 0.70f),
+				};
+				tile.AddChild(face);
+			}
+			else
+				for (var side = 0; side < 4; side++)
+					tile.AddChild(new Polygon2D
+					{
+						Polygon = new[] { corners[side], corners[(side + 1) % 4], peak },
+						Color = plane,
+					});
 			_roofs.AddChild(tile);
 			_roofTiles[cell] = tile;
 		}
@@ -70,8 +89,8 @@ public partial class VillageMap
 					Polygon = new[] { from, to, to + inward, from + inward },
 					VertexColors = new[]
 					{
-						RoofColor, RoofColor,
-						RoofColor with { A = 0 }, RoofColor with { A = 0 },
+						roofColor, roofColor,
+						roofColor with { A = 0 }, roofColor with { A = 0 },
 					},
 					Color = Colors.White,
 				};
@@ -81,7 +100,7 @@ public partial class VillageMap
 			else
 			{
 				var rim = new Line2D { Points = new[] { from, to }, Width = 2f,
-					DefaultColor = RoofColor.Darkened(0.32f) };
+					DefaultColor = roofColor.Darkened(0.32f) };
 				_roofs.AddChild(rim);
 				_roofRims.Add((cell, rim));
 			}
@@ -96,7 +115,7 @@ public partial class VillageMap
 		var end = acrossX ? bounds.MaxX + 0.5f : bounds.MaxY + 0.5f;
 		var along = acrossX ? x : y;
 		var distance = MathF.Max(0, MathF.Min(along - start, end - along));
-		return WallHeight + 5f + MathF.Min(19f, distance * 12f);
+		return (InteriorArtPilot ? PilotWallHeight : WallHeight) + 5f + MathF.Min(19f, distance * 12f);
 	}
 
 	private Vector2[] RoofCorners(GridPos cell)
@@ -154,6 +173,19 @@ public partial class VillageMap
 			new Vector2(TileW, WallHeight + TileH))));
 
 	private GridPos FacadeShadeCell(MapEdgeView edge) => IsIndoor(edge.A) && !IsIndoor(edge.B) ? edge.B : edge.A;
+
+	private GridPos BuildingShadeCell(MapEdgeView edge)
+	{
+		if (!InteriorArtPilot || _view.Position is not { } player || !IsIndoor(player))
+			return FacadeShadeCell(edge);
+		if (IsIndoor(edge.A) && IsIndoor(edge.B))
+		{
+			var visibility = _view.MapVisibility;
+			return visibility is not null && visibility[edge.B.Y][edge.B.X] == '2'
+				? edge.B : edge.A;
+		}
+		return IsIndoor(edge.A) ? edge.A : IsIndoor(edge.B) ? edge.B : FacadeShadeCell(edge);
+	}
 
 	private void RefreshBuildingVisibility()
 	{
