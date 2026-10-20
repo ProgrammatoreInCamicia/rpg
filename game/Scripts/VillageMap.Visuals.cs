@@ -112,6 +112,20 @@ public partial class VillageMap
 			Polygon = new[] { first, second, second + Vector2.Up * height, first + Vector2.Up * height },
 			Color = edge.Kind == MapEdgeKind.Window ? new Color(0.38f, 0.62f, 0.67f, 0.46f) : color,
 		});
+		if (styledInterior)
+		{
+			// The wall sits between cells: this top surface gives its vertical face real thickness.
+			var depth = (CellToScreen(edge.B) - CellToScreen(edge.A)).Normalized() * 8f;
+			var topA = first + Vector2.Up * height;
+			var topB = second + Vector2.Up * height;
+			node.AddChild(new Polygon2D
+			{
+				Polygon = new[] { topA, topB, topB + depth, topA + depth },
+				Color = new Color(0.34f, 0.23f, 0.15f),
+			});
+			node.AddChild(new Line2D { Points = new[] { topA + depth, topB + depth },
+				Width = 1.5f, DefaultColor = new Color(0.58f, 0.41f, 0.26f), Antialiased = true });
+		}
 		var frame = new Line2D { Points = new[] { first + Vector2.Up * height, second + Vector2.Up * height },
 			Width = edge.Kind == MapEdgeKind.Window ? 3f : 2f, DefaultColor = color.Lightened(0.18f) };
 		node.AddChild(frame);
@@ -160,11 +174,14 @@ public partial class VillageMap
 				plaster.UV = new[] { new Vector2(u, v + height), new Vector2(u + 64, v + height),
 					new Vector2(u + 64, v), new Vector2(u, v) };
 			}
-			// The stone skirt and timber posts give each thin edge a visible height and scale.
+			// Stone foundation continues under the plaster and timber posts.
 			node.AddChild(new Polygon2D
 			{
-				Polygon = new[] { first, second, second + Vector2.Up * 6f, first + Vector2.Up * 6f },
-				Color = new Color(0.37f, 0.35f, 0.31f),
+				Polygon = new[] { first, second, second + Vector2.Up * 9f, first + Vector2.Up * 9f },
+				Texture = _pilotPlasterTexture,
+				UV = new[] { new Vector2(220, 370), new Vector2(284, 370),
+					new Vector2(284, 361), new Vector2(220, 361) },
+				Color = new Color(0.62f, 0.61f, 0.57f),
 			});
 			AddStroke(first + up, second + up, 4f, beamLight);
 			AddStroke(first + Vector2.Up * (height - 7f), second + Vector2.Up * (height - 7f), 2f, beam);

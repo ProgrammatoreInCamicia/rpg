@@ -12,7 +12,7 @@ public partial class VillageMap
 	private readonly Dictionary<GridPos, Node2D> _roofTiles = new();
 	private readonly Dictionary<LocationId, (int MinX, int MaxX, int MinY, int MaxY)> _roofBounds = new();
 	private readonly List<(GridPos Covered, GridPos Exposed, Polygon2D Blend)> _roofBlends = new();
-	private readonly List<(GridPos Cell, Line2D Rim)> _roofRims = new();
+	private readonly List<(GridPos Cell, Node2D Rim)> _roofRims = new();
 	private readonly List<(MapEdgeView Edge, Node2D Panel)> _interiorEdges = new();
 	private readonly List<(Node2D Panel, Rect2 Bounds)> _occludingWalls = new();
 
@@ -22,6 +22,8 @@ public partial class VillageMap
 		var roofColor = InteriorArtPilot ? new Color(0.33f, 0.28f, 0.25f) : RoofColor;
 		var roofTexture = InteriorArtPilot
 			? GD.Load<Texture2D>("res://Assets/StyleStudy/interior-roof-slate.png") : null;
+		var gableTexture = InteriorArtPilot
+			? GD.Load<Texture2D>("res://Assets/StyleStudy/interior-plaster.png") : null;
 		_roofs = new Node2D { ZIndex = 20 };
 		AddChild(_roofs);
 		var map = _view.Map!;
@@ -99,8 +101,28 @@ public partial class VillageMap
 			}
 			else
 			{
-				var rim = new Line2D { Points = new[] { from, to }, Width = 2f,
-					DefaultColor = roofColor.Darkened(0.32f) };
+				var rim = new Node2D();
+				if (InteriorArtPilot)
+				{
+					// The pitched roof and the level wall have different top edges. Fill the gable
+					// between them instead of exposing the dark void under the roof plane.
+					var d = Diamond(1.012f);
+					var center = CellToScreen(cell) + Vector2.Up * PilotWallHeight;
+					var wallFrom = center + (nearby.X > cell.X ? d[1] : nearby.X < cell.X ? d[3]
+						: nearby.Y > cell.Y ? d[2] : d[0]);
+					var wallTo = center + (nearby.X > cell.X ? d[2] : nearby.X < cell.X ? d[0]
+						: nearby.Y > cell.Y ? d[3] : d[1]);
+					var u = 60 + (cell.X * 41 + cell.Y * 67) % 900;
+					rim.AddChild(new Polygon2D { Polygon = new[] { wallFrom, wallTo, to, from },
+						Texture = gableTexture,
+						UV = new[] { new Vector2(u, 400), new Vector2(u + 64, 400),
+							new Vector2(u + 64, 350), new Vector2(u, 350) },
+						Color = new Color(0.78f, 0.73f, 0.66f) });
+					rim.AddChild(new Polygon2D { Polygon = new[] { from, to, to + Vector2.Down * 6f,
+						from + Vector2.Down * 6f }, Color = new Color(0.27f, 0.19f, 0.14f) });
+				}
+				rim.AddChild(new Line2D { Points = new[] { from, to }, Width = 2f,
+					DefaultColor = roofColor.Darkened(0.32f) });
 				_roofs.AddChild(rim);
 				_roofRims.Add((cell, rim));
 			}
@@ -115,7 +137,7 @@ public partial class VillageMap
 		var end = acrossX ? bounds.MaxX + 0.5f : bounds.MaxY + 0.5f;
 		var along = acrossX ? x : y;
 		var distance = MathF.Max(0, MathF.Min(along - start, end - along));
-		return (InteriorArtPilot ? PilotWallHeight : WallHeight) + 5f + MathF.Min(19f, distance * 12f);
+		return (InteriorArtPilot ? PilotWallHeight : WallHeight + 5f) + MathF.Min(19f, distance * 12f);
 	}
 
 	private Vector2[] RoofCorners(GridPos cell)
@@ -181,7 +203,7 @@ public partial class VillageMap
 		if (IsIndoor(edge.A) && IsIndoor(edge.B))
 		{
 			var visibility = _view.MapVisibility;
-			return visibility is not null && visibility[edge.B.Y][edge.B.X] == '2'
+			return visibility is not null && visibility[edge.B.Y][edge.B.X] > visibility[edge.A.Y][edge.A.X]
 				? edge.B : edge.A;
 		}
 		return IsIndoor(edge.A) ? edge.A : IsIndoor(edge.B) ? edge.B : FacadeShadeCell(edge);
@@ -218,7 +240,8 @@ public partial class VillageMap
 		// currently see either side; remembered rooms must not leak their floor plan.
 		foreach (var (edge, panel) in _interiorEdges)
 		{
-			var inSight = visibility[edge.A.Y][edge.A.X] == '2' || visibility[edge.B.Y][edge.B.X] == '2';
+			var inSight = visibility[edge.A.Y][edge.A.X] == '2' || visibility[edge.B.Y][edge.B.X] == '2'
+				|| interior is not null && (visibility[edge.A.Y][edge.A.X] == '1' || visibility[edge.B.Y][edge.B.X] == '1');
 			var closedDoor = edge.DoorAt is not { } doorAt || _view.Doors.Any(d => d.At == doorAt
 				&& d.Open == false && d.Known != DoorKnowledge.Unknown);
 			panel.Visible = inSight && closedDoor;

@@ -47,6 +47,9 @@ public partial class InteriorArtPilotSmoke : Node
 			Require(_map.View.Position == new GridPos(7, 7), "player did not reach the second room");
 			Require(_map.View.Doors.Single(d => d.At == InteriorArtPilotScenario.RoomDoor).Open == true,
 				"the inner door did not open during movement");
+			Require(_map.View.MapVisibility![5][11] == '1'
+				&& _map.DisplayShadeAtForSmoke(new GridPos(11, 5)).R > 0.5f,
+				"the explored bedroom became dark after turning away");
 			Capture("inside-stone-room.png");
 			_map.SetPaused(false);
 			_map.MoveTo(new GridPos(13, 7));

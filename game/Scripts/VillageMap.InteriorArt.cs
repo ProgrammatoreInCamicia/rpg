@@ -41,7 +41,9 @@ public partial class VillageMap
 	private void RefreshInteriorArtVisibility()
 	{
 		if (_view.MapVisibility is not { } visibility) return;
+		var indoors = _view.Position is { } player && IsIndoor(player);
 		foreach (var (cell, sprite) in _interiorProps)
-			sprite.Visible = visibility[cell.Y][cell.X] == '2';
+			sprite.Visible = visibility[cell.Y][cell.X] == '2'
+				|| indoors && visibility[cell.Y][cell.X] == '1';
 	}
 }

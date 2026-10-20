@@ -1057,7 +1057,15 @@ public partial class VillageMap : Node2D
 		foreach (var (cell, item) in _lit)
 			item.Modulate = Shade(cell);
 		foreach (var (edge, item) in _edgeLit)
-			item.Modulate = Shade(BuildingShadeCell(edge));
+		{
+			var shadeCell = BuildingShadeCell(edge);
+			var tint = Shade(shadeCell);
+			if (InteriorArtPilot && IsIndoor(edge.A) != IsIndoor(edge.B)
+				&& _view.MapVisibility is { } seen && seen[shadeCell.Y][shadeCell.X] == '0')
+				tint = _view.Daylight == Light.Bright
+					? new Color(0.42f, 0.40f, 0.38f) : new Color(0.28f, 0.29f, 0.32f);
+			item.Modulate = tint;
+		}
 		foreach (var (cell, sprite) in _interiorProps)
 			sprite.Modulate = Shade(cell);
 	}
@@ -1070,7 +1078,12 @@ public partial class VillageMap : Node2D
 		{
 			var state = visibility[cell.Y][cell.X];
 			if (state == '0') return new Color(0.025f, 0.025f, 0.035f);
-			if (state == '1') return new Color(0.14f, 0.15f, 0.18f);
+			if (state == '1') return _view.Daylight switch
+			{
+				Light.Bright => new Color(0.61f, 0.59f, 0.55f),
+				Light.Dim => new Color(0.48f, 0.48f, 0.48f),
+				_ => new Color(0.34f, 0.37f, 0.43f),
+			};
 		}
 		return cell.X >= 0 && cell.Y >= 0 && cell.X < _glow.GetLength(0) && cell.Y < _glow.GetLength(1)
 			? Night.Lerp(Colors.White, _glow[cell.X, cell.Y]) : Colors.White;
@@ -1078,6 +1091,7 @@ public partial class VillageMap : Node2D
 
 	/// <summary>Visual glow, exposed to the village smoke to check that walls do not leak light.</summary>
 	internal float DisplayGlowAt(GridPos cell) => _glow[cell.X, cell.Y];
+	internal Color DisplayShadeAtForSmoke(GridPos cell) => Shade(cell);
 
 	private static string DayName(Light daylight) => daylight switch
 	{
