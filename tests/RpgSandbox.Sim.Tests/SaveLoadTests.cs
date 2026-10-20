@@ -22,6 +22,17 @@ public class SaveLoadTests
         Assert.Equal(first, second);
     }
 
+    [Fact]
+    public void Fixed_furniture_survives_a_save_and_reload()
+    {
+        var session = SimulationSession.Create(InteriorArtPilotScenario.Create());
+        var saved = session.SaveToString();
+        var loaded = session.SaveAndReload();
+        Assert.Equal(saved, loaded.SaveToString());
+        var obstacles = JsonNode.Parse(saved)!["Maps"]![0]!["Obstacles"]!.AsArray();
+        Assert.Contains(obstacles, p => (int)p!["X"]! == 11 && (int)p["Y"]! == 5);
+    }
+
     /// <summary>
     /// The decisive test: playing straight through and saving/loading along the way end in the same world,
     /// including reloads in the middle of a raid, a theft and a delivery.

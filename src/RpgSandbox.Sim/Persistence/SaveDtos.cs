@@ -397,6 +397,7 @@ internal sealed class MapDto
     public string Area { get; set; } = "";
     public List<string> Rows { get; set; } = new();
     public Dictionary<string, string> Zones { get; set; } = new();
+    public List<PosDto>? Obstacles { get; set; }
     public List<LightDto> Lights { get; set; } = new();
     public List<DoorDto> Doors { get; set; } = new();
     public List<MapEdgeDto>? Edges { get; set; }

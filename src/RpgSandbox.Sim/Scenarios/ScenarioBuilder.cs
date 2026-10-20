@@ -58,6 +58,7 @@ internal sealed record StoreDefinition(StoreId Id, string Name, LocationId Locat
     IReadOnlyList<GridPos>? Access = null);
 internal sealed record MapDefinition(AreaId Area, IReadOnlyList<string> Rows, IReadOnlyDictionary<char, LocationId> Zones)
 {
+    public List<GridPos> Obstacles { get; } = new();
     public List<LightSource> Lights { get; } = new();
     public List<(GridPos At, bool Open)> Doors { get; } = new();
     /// <summary>P4a: doors and windows that lock or stick.</summary>
@@ -220,6 +221,13 @@ public sealed class ScenarioBuilder
     {
         _maps.Add(new MapDefinition(new AreaId(areaId), rows.ToArray(),
             zones.ToDictionary(z => z.Key, z => new LocationId(z.Value))));
+        return this;
+    }
+
+    /// <summary>Reserves a floor square for fixed furniture without turning it into a wall.</summary>
+    public ScenarioBuilder AddObstacle(string areaId, (int X, int Y) at)
+    {
+        MapOf(areaId, "obstacles").Obstacles.Add(new GridPos(at.X, at.Y));
         return this;
     }
 
@@ -422,7 +430,7 @@ public sealed class ScenarioBuilder
             var storeSquares = _stores.Where(s => areaOf[s.Location] == map.Area && s.At is not null).Select(s => s.At!.Value);
             try
             {
-                maps[map.Area] = new GridMap(map.Area, map.Rows, map.Zones, storeSquares, map.Lights, map.Doors, map.Exits, map.Posts,
+                maps[map.Area] = new GridMap(map.Area, map.Rows, map.Zones, storeSquares.Concat(map.Obstacles), map.Lights, map.Doors, map.Exits, map.Posts,
                     map.Edges, map.IndoorZones, map.Barriers(), map.Glass);
                 foreach (var (at, item, count) in map.Ground) // P4a
                 {

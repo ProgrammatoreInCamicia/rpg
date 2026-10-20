@@ -1058,6 +1058,8 @@ public partial class VillageMap : Node2D
 			item.Modulate = Shade(cell);
 		foreach (var (edge, item) in _edgeLit)
 			item.Modulate = Shade(BuildingShadeCell(edge));
+		foreach (var (cell, sprite) in _interiorProps)
+			sprite.Modulate = Shade(cell);
 	}
 
 	private static readonly Color Night = new(0.22f, 0.25f, 0.42f);
@@ -1108,7 +1110,9 @@ public partial class VillageMap : Node2D
 	}
 
 	// Keep the compact interior in the viewport area beside the fixed left HUD.
-	private Vector2 CameraTarget(Vector2 worldPoint) => _view.MapVisibility is not null
+	private Vector2 CameraTarget(Vector2 worldPoint) => InteriorArtPilot
+		? CellToScreen(new GridPos(8, 7)) + new Vector2(-50f, -10f)
+		: _view.MapVisibility is not null
 		? worldPoint + new Vector2(_view.Combat is null ? -200f : -25f, 0f) : worldPoint;
 
 	/// <summary>World position of a square (used by the smoke runner to click on it).</summary>
@@ -1226,7 +1230,7 @@ public partial class VillageMap : Node2D
 			_sorted.AddChild(panel);
 			if (edge.Kind is MapEdgeKind.Window or MapEdgeKind.Door)
 				AddBarrierMark(panel, InteriorArtPilot
-					? edge.Kind == MapEdgeKind.Window ? 30f : PilotWallHeight
+					? PilotWallHeight
 					: edge.Kind == MapEdgeKind.Window ? 17f : WallHeight);
 			_edgeLit.Add((edge, panel));
 			RegisterBuildingEdge(edge, panel);
@@ -1235,6 +1239,7 @@ public partial class VillageMap : Node2D
 			if (edge.DoorAt is { } at)
 				_doorPanels[at] = panel;
 		}
+		BuildInteriorArt();
 
 		// Legacy square doors keep their wooden floor and panel.
 		foreach (var door in _view.Doors)
@@ -1273,7 +1278,7 @@ public partial class VillageMap : Node2D
 		BuildSpotOverlay();
 		BuildShotLayer();
 
-		var zoom = InteriorArtPilot ? 1.35f : _view.MapVisibility is null ? 1.2f : 1.08f;
+		var zoom = InteriorArtPilot ? 1.85f : _view.MapVisibility is null ? 1.2f : 1.08f;
 		_camera = new Camera2D { Position = CameraTarget(CellToScreen(_view.Position ?? new GridPos(0, 0))), Zoom = new Vector2(zoom, zoom) };
 		AddChild(_camera);
 		_camera.MakeCurrent();

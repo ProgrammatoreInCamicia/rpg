@@ -32,6 +32,15 @@ public partial class InteriorArtPilotSmoke : Node
 				&& !_map.RoofVisibleForSmoke(new GridPos(11, 7)), "roof did not open across the house");
 			Capture("inside-lamplit.png");
 			_map.SetPaused(false);
+			_map.MoveTo(new GridPos(10, 6));
+			await UntilIdle();
+			_map.SetPaused(true);
+			Capture("inside-bedroom.png");
+			_map.SetPaused(false);
+			_map.MoveTo(new GridPos(11, 5)); // the bed occupies this floor square
+			await Frames(3);
+			Require(_map.View.Position == new GridPos(10, 6) && !_map.IsBusy,
+				"the player could walk through the bed");
 			_map.MoveTo(new GridPos(7, 7));
 			await UntilIdle();
 			_map.SetPaused(true);

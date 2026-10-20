@@ -223,6 +223,7 @@ public partial class VillageMap
 				&& d.Open == false && d.Known != DoorKnowledge.Unknown);
 			panel.Visible = inSight && closedDoor;
 		}
+		RefreshInteriorArtVisibility();
 	}
 
 	private void UpdateBuildingOcclusion(float delta)

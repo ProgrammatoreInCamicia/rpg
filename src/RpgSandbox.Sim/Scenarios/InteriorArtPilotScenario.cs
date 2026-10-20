@@ -30,6 +30,13 @@ public static class InteriorArtPilotScenario
                 ['H'] = MappedVillageScenario.Ids.FarmerHouse.Value,
                 ['Y'] = Yard.Value,
             })
+            .AddObstacle(Area.Value, (11, 5))
+            .AddObstacle(Area.Value, (12, 5))
+            .AddObstacle(Area.Value, (10, 8))
+            .AddObstacle(Area.Value, (12, 8))
+            .AddObstacle(Area.Value, (6, 6))
+            .AddObstacle(Area.Value, (7, 5))
+            .AddObstacle(Area.Value, (10, 5))
             .AddInterior(Area.Value, MappedVillageScenario.Ids.FarmerHouse.Value)
             .AddLight(Area.Value, (11, 6), brightFeet: 20, dimFeet: 30)
             .AddActor(MappedVillageScenario.Ids.Player.Value, "Protagonista", Yard.Value,

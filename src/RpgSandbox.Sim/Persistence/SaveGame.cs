@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 41;
+    public const int SchemaVersion = 42;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -276,6 +276,8 @@ internal static class SaveGame
         Maps = w.Maps.Values.Select(m => new MapDto
         {
             Area = m.Area.Value, Rows = m.Rows.ToList(), Zones = m.Zones.ToDictionary(z => z.Key.ToString(), z => z.Value.Value),
+            Obstacles = m.Occupied.Where(p => !w.Stores.Values.Any(s => s.Position == p && w.Locations[s.Location].Area == m.Area))
+                .OrderBy(p => p.Y).ThenBy(p => p.X).Select(p => new PosDto { X = p.X, Y = p.Y }).ToList(),
             Lights = m.Lights.Select(l => new LightDto { X = l.At.X, Y = l.At.Y, Bright = l.BrightFeet, Dim = l.DimFeet }).ToList(),
             Doors = m.Doors.Select(d => new DoorDto { X = d.Key.X, Y = d.Key.Y, Open = d.Value }).ToList(),
             Edges = m.Edges.Select(e => new MapEdgeDto { AX = e.A.X, AY = e.A.Y, BX = e.B.X, BY = e.B.Y,
@@ -469,7 +471,10 @@ internal static class SaveGame
             Check(w.Areas.ContainsKey(area), $"mappa di un'area sconosciuta '{area}'");
             var zones = m.Zones!.ToDictionary(z => z.Key[0], z => new LocationId(z.Value));
             Check(zones.Values.All(z => w.Locations.TryGetValue(z, out var l) && l.Area == area), $"zone della mappa '{area}' non valide");
-            var occupied = w.Stores.Values.Where(s => s.Position is not null && w.Locations[s.Location].Area == area).Select(s => s.Position!.Value);
+            Check(d.Version < 42 || m.Obstacles is not null && m.Obstacles.All(p => p is not null),
+                $"arredi fissi della mappa '{area}' non validi");
+            var occupied = w.Stores.Values.Where(s => s.Position is not null && w.Locations[s.Location].Area == area)
+                .Select(s => s.Position!.Value).Concat((m.Obstacles ?? new()).Select(p => new GridPos(p.X, p.Y)));
             Check(m.Lights is not null && m.Lights.All(l => l is not null), $"luci della mappa '{area}' non valide");
             var lights = m.Lights!.Select(l => new LightSource(new GridPos(l.X, l.Y), l.Bright, l.Dim));
             Check(m.Doors is not null && m.Doors.All(d => d is not null), $"porte della mappa '{area}' non valide");

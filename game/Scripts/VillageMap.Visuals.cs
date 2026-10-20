@@ -32,6 +32,7 @@ public partial class VillageMap
 	private Texture2D? _grassTexture;
 	private Texture2D? _stoneWallTexture;
 	private Texture2D? _pilotFlagstoneTexture;
+	private static Texture2D? _pilotPlasterTexture;
 
 	private void LoadGroundTextures()
 	{
@@ -40,7 +41,10 @@ public partial class VillageMap
 		_grassTexture = GD.Load<Texture2D>("res://Assets/G15/Ground/grass.png");
 		_stoneWallTexture = GD.Load<Texture2D>("res://Assets/G15/Ground/stone-wall.png");
 		if (InteriorArtPilot)
+		{
 			_pilotFlagstoneTexture = GD.Load<Texture2D>("res://Assets/StyleStudy/interior-flagstone.png");
+			_pilotPlasterTexture = GD.Load<Texture2D>("res://Assets/StyleStudy/interior-plaster.png");
+		}
 	}
 
 	private void ApplyGroundTexture(Polygon2D tile, char symbol, LocationId? zone, GridPos cell, float shade)
@@ -99,7 +103,7 @@ public partial class VillageMap
 		first -= center;
 		second -= center;
 		var height = styledInterior
-			? edge.Kind == MapEdgeKind.Window ? 30f : PilotWallHeight
+			? PilotWallHeight
 			: edge.Kind == MapEdgeKind.Window ? 17f : WallHeight;
 		var color = edge.Kind == MapEdgeKind.Door ? DoorWood : Wall;
 		node.AddChild(new Polygon2D
@@ -147,7 +151,15 @@ public partial class VillageMap
 		if (edge.Kind == MapEdgeKind.Wall)
 		{
 			var plaster = node.GetNode<Polygon2D>("Panel");
-			plaster.Color = new Color(0.61f, 0.55f, 0.46f);
+			plaster.Color = new Color(0.86f, 0.81f, 0.73f);
+			if (_pilotPlasterTexture is not null)
+			{
+				var u = 40 + (edge.A.X * 97 + edge.A.Y * 53) % 900;
+				var v = 60 + (edge.A.X * 31 + edge.A.Y * 79) % 900;
+				plaster.Texture = _pilotPlasterTexture;
+				plaster.UV = new[] { new Vector2(u, v + height), new Vector2(u + 64, v + height),
+					new Vector2(u + 64, v), new Vector2(u, v) };
+			}
 			// The stone skirt and timber posts give each thin edge a visible height and scale.
 			node.AddChild(new Polygon2D
 			{
@@ -201,7 +213,15 @@ public partial class VillageMap
 		}
 		else
 		{
-			// The opening stays transparent and uses the existing open/broken/barred state.
+			// A real aperture has masonry above and below the glass, a sill, and timber jambs.
+			var sill = Vector2.Up * 12f;
+			var lintel = Vector2.Up * (height - 8f);
+			node.AddChild(new Polygon2D { Polygon = new[] { first, second, second + sill, first + sill },
+				Color = new Color(0.68f, 0.61f, 0.51f) });
+			node.AddChild(new Polygon2D { Polygon = new[] { first + lintel, second + lintel, second + up, first + up },
+				Color = new Color(0.71f, 0.64f, 0.54f) });
+			AddStroke(first + sill, second + sill, 4f, beamLight);
+			AddStroke(first + lintel, second + lintel, 4f, beam);
 			AddStroke(first, second, 4f, new Color(0.37f, 0.35f, 0.31f));
 			AddStroke(first + up, second + up, 4f, beamLight);
 			AddStroke(first, first + up, 3f, beam);
