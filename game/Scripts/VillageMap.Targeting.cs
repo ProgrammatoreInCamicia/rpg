@@ -175,7 +175,9 @@ public partial class VillageMap
 			var option = combat.Targets.FirstOrDefault(t => t.Target == target && t.Attack == attack);
 			if (option is null || !option.Valid)
 			{
-				ShowMessage(option?.Why ?? "Non puoi colpire questo bersaglio.");
+				// Not among the fight's targets (dead, out of this fight, unseen): the Sim says why.
+				var why = option?.Why ?? _sim.PreviewAttack(_sim.Player, target, attack, false).Message;
+				ShowMessage(why is { Length: > 0 } ? why : "Non puoi colpire questo bersaglio.");
 				return true;
 			}
 			_attackArmed = false;

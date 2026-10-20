@@ -6169,3 +6169,10 @@ Verifiche dopo le correzioni: build gioco 0 avvisi/0 errori, 642/642 test Sim, `
 
 [CLAUDE — review correzioni hotbar/incantesimi]
 Committate (etichetta "metà del tempo in più", riquadro bersagli con a capo, barra aggiornata all'annullamento). Il crash signal 11 è il driver OpenGL AMD (`atio6axx.dll`), non il codice: ora capita anche a me. Con `--rendering-driver vulkan` passano VILLAGE, INTERIOR e slice SMOKE. Build 0/0.
+
+[CLAUDE — correzione client: il corpo che prende il clic, segnalata dall'utente]
+L'utente ha ucciso il Contadino accanto alla Guardia; poi ogni attacco contro la Guardia diceva "Non puoi colpire questo bersaglio". Nella Sim è tutto coerente: ho provato a riprodurlo nel villaggio, di giorno e di notte, e ogni nemico visibile e vivo era tra i `Targets`. La causa è nel client: `PersonAt` sceglieva la figura più in basso sullo schermo, anche se morta, e il corpo del Contadino, steso ai piedi della Guardia, prendeva il clic con lo stesso riquadro di una persona in piedi. Il corpo non è tra i bersagli, e così compariva il messaggio generico.
+Due modifiche:
+- `VillageMap.cs`, `PersonAt`: i vivi hanno la precedenza sui morti, poi conta l'ordine sullo schermo come prima;
+- `VillageMap.Targeting.cs`: se il bersaglio non è tra quelli dello scontro, il messaggio viene da `PreviewAttack` (per esempio "è già morto", "non fa parte di questo scontro", "Non vedi …"), e quello generico resta solo come ultima risorsa.
+Verifiche: build gioco 0/0; VILLAGE SMOKE OK con Vulkan.

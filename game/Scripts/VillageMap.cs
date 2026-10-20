@@ -1145,11 +1145,13 @@ public partial class VillageMap : Node2D
 	}
 
 	/// <summary>The visible person (not you) whose figure is under a world point, the nearest in front if several.</summary>
+	// The living before the dead: a body lying at someone's feet must not take the click meant for that one.
 	private ActorId? PersonAt(Vector2 point) =>
 		_view.VisibleActors
 			.Where(a => _tokens.TryGetValue(a.Id, out var t) && t.Visible
 						&& new Rect2(t.Position + new Vector2(-12, -38), new Vector2(24, 44)).HasPoint(point))
-			.OrderByDescending(a => _tokens[a.Id].Position.Y)
+			.OrderBy(a => a.Condition == "morto")
+			.ThenByDescending(a => _tokens[a.Id].Position.Y)
 			.Select(a => (ActorId?)a.Id)
 			.FirstOrDefault();
 
