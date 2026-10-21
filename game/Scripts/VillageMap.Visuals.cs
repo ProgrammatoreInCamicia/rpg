@@ -90,7 +90,7 @@ public partial class VillageMap
 		});
 	}
 
-	private static Node2D MakeEdgePanel(MapEdgeView edge, bool styledInterior)
+	private Node2D MakeEdgePanel(MapEdgeView edge, bool styledInterior)
 	{
 		var origin = CellToScreen(edge.A);
 		var diamond = Diamond();
@@ -102,9 +102,9 @@ public partial class VillageMap
 		var node = new Node2D { Position = origin + center };
 		first -= center;
 		second -= center;
-		var height = styledInterior
-			? PilotWallHeight
-			: edge.Kind == MapEdgeKind.Window ? 17f : WallHeight;
+		if (styledInterior)
+			return MakePilotEdge(node, edge, first, second);
+		var height = edge.Kind == MapEdgeKind.Window ? 17f : WallHeight;
 		var color = edge.Kind == MapEdgeKind.Door ? DoorWood : Wall;
 		node.AddChild(new Polygon2D
 		{
@@ -112,25 +112,9 @@ public partial class VillageMap
 			Polygon = new[] { first, second, second + Vector2.Up * height, first + Vector2.Up * height },
 			Color = edge.Kind == MapEdgeKind.Window ? new Color(0.38f, 0.62f, 0.67f, 0.46f) : color,
 		});
-		if (styledInterior)
-		{
-			// The wall sits between cells: this top surface gives its vertical face real thickness.
-			var depth = (CellToScreen(edge.B) - CellToScreen(edge.A)).Normalized() * 8f;
-			var topA = first + Vector2.Up * height;
-			var topB = second + Vector2.Up * height;
-			node.AddChild(new Polygon2D
-			{
-				Polygon = new[] { topA, topB, topB + depth, topA + depth },
-				Color = new Color(0.34f, 0.23f, 0.15f),
-			});
-			node.AddChild(new Line2D { Points = new[] { topA + depth, topB + depth },
-				Width = 1.5f, DefaultColor = new Color(0.58f, 0.41f, 0.26f), Antialiased = true });
-		}
 		var frame = new Line2D { Points = new[] { first + Vector2.Up * height, second + Vector2.Up * height },
 			Width = edge.Kind == MapEdgeKind.Window ? 3f : 2f, DefaultColor = color.Lightened(0.18f) };
 		node.AddChild(frame);
-		if (styledInterior)
-			DressInteriorEdge(node, edge, first, second, height);
 		if (edge.Kind == MapEdgeKind.Window)
 		{
 			node.AddChild(new Line2D { Points = new[] { first, second }, Width = 5f, DefaultColor = Wall });
@@ -157,99 +141,210 @@ public partial class VillageMap
 		return node;
 	}
 
-	private static void DressInteriorEdge(Node2D node, MapEdgeView edge, Vector2 first, Vector2 second, float height)
+	private Node2D MakePilotEdge(Node2D node, MapEdgeView edge, Vector2 first, Vector2 second)
 	{
-		var beam = new Color(0.25f, 0.16f, 0.105f);
-		var beamLight = new Color(0.46f, 0.29f, 0.16f);
-		var up = Vector2.Up * height;
+		var up = Vector2.Up * PilotWallHeight;
+		var beam = new Color(0.22f, 0.13f, 0.08f);
+		var litWood = new Color(0.50f, 0.32f, 0.18f);
+		var stone = new Color(0.70f, 0.67f, 0.60f);
+		var depth = (CellToScreen(edge.B) - CellToScreen(edge.A)).Normalized() * 8f;
+
+		void Stroke(Node2D parent, Vector2 a, Vector2 b, float width, Color color) =>
+			parent.AddChild(new Line2D { Points = new[] { a, b }, Width = width,
+				DefaultColor = color, Antialiased = true });
+		void Plaster(Polygon2D face)
+		{
+			face.Color = new Color(0.84f, 0.78f, 0.68f);
+			if (_pilotPlasterTexture is null) return;
+			var u = 40 + (edge.A.X * 97 + edge.A.Y * 53) % 900;
+			var v = 60 + (edge.A.X * 31 + edge.A.Y * 79) % 900;
+			face.Texture = _pilotPlasterTexture;
+			// A wider texture sample keeps the exposed stones legible at 32 screen pixels per segment.
+			face.UV = new[] { new Vector2(u, v + 120), new Vector2(u + 190, v + 120),
+				new Vector2(u + 190, v), new Vector2(u, v) };
+		}
+		void WallSurface()
+		{
+			var face = new Polygon2D { Name = "Panel",
+				Polygon = new[] { first, second, second + up, first + up } };
+			Plaster(face);
+			node.AddChild(face);
+			var baseFace = new Polygon2D
+			{
+				Polygon = new[] { first, second, second + Vector2.Up * 14f, first + Vector2.Up * 14f },
+				Color = stone.Lightened(0.16f),
+			};
+			if (_stoneWallTexture is not null)
+			{
+				var u = 18 + (edge.A.X * 83 + edge.A.Y * 47) % Math.Max(1, _stoneWallTexture.GetWidth() - 90);
+				var v = 18 + (edge.A.X * 29 + edge.A.Y * 61) % Math.Max(1, _stoneWallTexture.GetHeight() - 40);
+				baseFace.Texture = _stoneWallTexture;
+				baseFace.UV = new[] { new Vector2(u, v + 65), new Vector2(u + 160, v + 65),
+					new Vector2(u + 160, v), new Vector2(u, v) };
+			}
+			node.AddChild(baseFace);
+			Stroke(node, first + Vector2.Up * 14f, second + Vector2.Up * 14f, 2f, new Color(0.33f, 0.29f, 0.25f));
+			Stroke(node, first + Vector2.Up * 2f, second + Vector2.Up * 2f, 2f, new Color(0.35f, 0.32f, 0.29f));
+		}
+		void Timbers()
+		{
+			// Recessed plaster, a stone foot, and broad timber members follow the painted reference.
+			Stroke(node, first + up + Vector2.Down * 5f, second + up + Vector2.Down * 5f, 7f, beam);
+			Stroke(node, first + up + Vector2.Down * 7f, second + up + Vector2.Down * 7f, 1.6f, litWood);
+			var cap = new Polygon2D { Polygon = new[] { first + up, second + up,
+				second + up + depth, first + up + depth }, Color = new Color(0.34f, 0.21f, 0.12f) };
+			node.AddChild(cap);
+			Stroke(node, first + up + depth, second + up + depth, 2f, litWood);
+			var firstIndex = edge.B.X != edge.A.X ? edge.A.Y : edge.A.X;
+			for (var i = 0; i < 2; i++)
+			{
+				if (edge.Kind == MapEdgeKind.Wall && (firstIndex + i) % 2 != 0) continue;
+				var end = i == 0 ? first : second;
+				Stroke(node, end, end + up, 7f, beam);
+				Stroke(node, end + new Vector2(1f, 0), end + up + new Vector2(1f, 0), 1.6f, litWood);
+				node.AddChild(new Polygon2D { Polygon = new[] { end + up + new Vector2(-3, 0),
+					end + up + new Vector2(3, 0), end + up + depth + new Vector2(3, 0),
+					end + up + depth + new Vector2(-3, 0) }, Color = beam.Lightened(0.08f) });
+			}
+		}
+
 		if (edge.Kind == MapEdgeKind.Wall)
 		{
-			var plaster = node.GetNode<Polygon2D>("Panel");
-			plaster.Color = new Color(0.86f, 0.81f, 0.73f);
-			if (_pilotPlasterTexture is not null)
-			{
-				var u = 40 + (edge.A.X * 97 + edge.A.Y * 53) % 900;
-				var v = 60 + (edge.A.X * 31 + edge.A.Y * 79) % 900;
-				plaster.Texture = _pilotPlasterTexture;
-				plaster.UV = new[] { new Vector2(u, v + height), new Vector2(u + 64, v + height),
-					new Vector2(u + 64, v), new Vector2(u, v) };
-			}
-			// Stone foundation continues under the plaster and timber posts.
-			node.AddChild(new Polygon2D
-			{
-				Polygon = new[] { first, second, second + Vector2.Up * 9f, first + Vector2.Up * 9f },
-				Texture = _pilotPlasterTexture,
-				UV = new[] { new Vector2(220, 370), new Vector2(284, 370),
-					new Vector2(284, 361), new Vector2(220, 361) },
-				Color = new Color(0.62f, 0.61f, 0.57f),
-			});
-			AddStroke(first + up, second + up, 4f, beamLight);
-			AddStroke(first + Vector2.Up * (height - 7f), second + Vector2.Up * (height - 7f), 2f, beam);
-			AddStroke(first, first + up, 3f, beam);
-			AddStroke(second, second + up, 3f, beam);
+			WallSurface();
+			Timbers();
 			if (edge.A == new GridPos(12, 5) && edge.B == new GridPos(13, 5))
 			{
 				var mount = first.Lerp(second, 0.5f) + Vector2.Up * 18f;
-				AddStroke(mount, mount + Vector2.Down * 8f, 3f, beam);
-				node.AddChild(new Polygon2D
-				{
-					Polygon = new[] { mount + new Vector2(0, -7), mount + new Vector2(4, 0),
-						mount + new Vector2(0, 2), mount + new Vector2(-4, 0) },
-					Color = new Color(1f, 0.73f, 0.31f),
-				});
+				Stroke(node, mount, mount + Vector2.Down * 8f, 3f, beam);
+				node.AddChild(new Polygon2D { Polygon = new[] { mount + new Vector2(0, -7),
+					mount + new Vector2(4, 0), mount + new Vector2(0, 2), mount + new Vector2(-4, 0) },
+					Color = new Color(1f, 0.73f, 0.31f) });
 			}
 			if (edge.A == new GridPos(6, 3) && edge.B == new GridPos(6, 4))
 			{
-				var left = first.Lerp(second, 0.16f) + Vector2.Up * 16f;
-				var right = first.Lerp(second, 0.84f) + Vector2.Up * 16f;
-				AddStroke(left, right, 3f, beamLight);
+				var left = first.Lerp(second, 0.16f) + Vector2.Up * 18f;
+				var right = first.Lerp(second, 0.84f) + Vector2.Up * 18f;
+				Stroke(node, left, right, 4f, litWood);
 				for (var i = 0; i < 2; i++)
 				{
 					var middle = left.Lerp(right, (i + 1f) / 3f);
-					node.AddChild(new Polygon2D { Polygon = new[]
-					{
-						middle + new Vector2(-3, 0), middle + new Vector2(3, 0),
-						middle + new Vector2(2, -7), middle + new Vector2(-2, -7),
-					}, Color = new Color(0.44f, 0.29f, 0.19f) });
+					node.AddChild(new Polygon2D { Polygon = new[] { middle + new Vector2(-3, 0),
+						middle + new Vector2(3, 0), middle + new Vector2(2, -8), middle + new Vector2(-2, -8) },
+						Color = new Color(0.44f, 0.29f, 0.19f) });
 				}
 			}
+			return node;
 		}
-		else if (edge.Kind == MapEdgeKind.Door)
+
+		if (edge.Kind == MapEdgeKind.Window)
 		{
-			node.GetNode<Polygon2D>("Panel").Color = new Color(0.35f, 0.21f, 0.12f);
+			WallSurface();
+			var left = first.Lerp(second, 0.20f);
+			var right = first.Lerp(second, 0.80f);
+			var low = Vector2.Up * 15f;
+			var high = Vector2.Up * 34f;
+			// Deep dark reveal around a small, four-pane view, with outward shutters.
+			node.AddChild(new Polygon2D { Polygon = new[] { left + low, right + low,
+				right + high, left + high }, Color = new Color(0.13f, 0.11f, 0.09f) });
+			var paneLeft = first.Lerp(second, 0.26f);
+			var paneRight = first.Lerp(second, 0.74f);
+			var paneLow = Vector2.Up * 17f;
+			var paneHigh = Vector2.Up * 32f;
+			node.AddChild(new Polygon2D { Name = "Glass",
+				Polygon = new[] { paneLeft + paneLow, paneRight + paneLow,
+					paneRight + paneHigh, paneLeft + paneHigh },
+				Color = new Color(0.30f, 0.48f, 0.37f) });
+			var horizon = paneLeft.Lerp(paneRight, 0.50f);
+			Stroke(node, paneLeft + Vector2.Up * 23f, paneRight + Vector2.Up * 23f, 1f,
+				new Color(0.69f, 0.76f, 0.48f, 0.65f));
+			Stroke(node, horizon + paneLow, horizon + paneHigh, 2f, litWood);
+			Stroke(node, paneLeft + Vector2.Up * 24f, paneRight + Vector2.Up * 24f, 2f, litWood);
+			foreach (var end in new[] { left, right })
+				Stroke(node, end + low, end + high, 4f, beam);
+			Stroke(node, left + high, right + high, 4f, beam);
+			var sillA = first.Lerp(second, 0.15f) + Vector2.Up * 14f;
+			var sillB = first.Lerp(second, 0.85f) + Vector2.Up * 14f;
+			node.AddChild(new Polygon2D { Polygon = new[] { sillA, sillB,
+				sillB + depth * -0.55f, sillA + depth * -0.55f }, Color = stone.Lightened(0.16f) });
+			Stroke(node, sillA, sillB, 3f, new Color(0.43f, 0.39f, 0.32f));
+			foreach (var shutter in new[] { (From: first.Lerp(second, 0.04f), To: left),
+				(From: right, To: first.Lerp(second, 0.96f)) })
+			{
+				node.AddChild(new Polygon2D { Polygon = new[] { shutter.From + low,
+					shutter.To + low, shutter.To + high, shutter.From + high }, Color = beam });
+				for (var i = 0; i < 3; i++)
+					Stroke(node, shutter.From.Lerp(shutter.To, 0.20f) + Vector2.Up * (19 + i * 5),
+						shutter.From.Lerp(shutter.To, 0.80f) + Vector2.Up * (19 + i * 5), 1.5f, litWood);
+			}
+			Timbers();
+			var shards = new Node2D { Name = "Shards", Visible = false };
+			for (var i = 0; i < 4; i++)
+			{
+				var along = paneLeft.Lerp(paneRight, (i + 0.5f) / 4f);
+				Stroke(shards, along + paneLow, along + paneLow + new Vector2(i % 2 == 0 ? -3 : 3, -6 - i % 2 * 3),
+					1.3f, new Color(0.76f, 0.91f, 0.88f));
+			}
+			node.AddChild(shards);
+			var bars = new Node2D { Name = "Bars", Visible = edge.Barred == true };
 			for (var i = 1; i <= 3; i++)
 			{
-				var along = first.Lerp(second, i / 4f);
-				AddStroke(along + Vector2.Up * 2f, along + up + Vector2.Down * 3f, 1.3f, beam);
+				var along = paneLeft.Lerp(paneRight, i / 4f);
+				Stroke(bars, along + paneLow, along + paneHigh, 1.8f, new Color(0.25f, 0.24f, 0.20f));
 			}
-			AddStroke(first + up, second + up, 4f, beamLight);
-			AddStroke(first, second, 3f, beam);
-			var latch = first.Lerp(second, 0.72f) + Vector2.Up * (height * 0.48f);
-			node.AddChild(new Polygon2D { Position = latch, Polygon = Diamond(0.065f),
-				Color = new Color(0.79f, 0.62f, 0.30f) });
+			node.AddChild(bars);
+			node.AddChild(new Line2D { Name = "OpenSash", Visible = false,
+				Points = new[] { paneLeft + paneHigh, paneLeft + paneHigh + new Vector2(-9, -4),
+					paneLeft + paneLow + new Vector2(-9, -4), paneLeft + paneLow },
+				Width = 2f, DefaultColor = litWood, Antialiased = true });
+			return node;
 		}
-		else
+
+		// The frame stays in place; the leaf pivots into the room instead of vanishing.
+		Stroke(node, first + up, second + up, 8f, beam);
+		Stroke(node, first + up + Vector2.Down * 3f, second + up + Vector2.Down * 3f, 2f, litWood);
+		foreach (var end in new[] { first, second })
 		{
-			// A real aperture has masonry above and below the glass, a sill, and timber jambs.
-			var sill = Vector2.Up * 12f;
-			var lintel = Vector2.Up * (height - 8f);
-			node.AddChild(new Polygon2D { Polygon = new[] { first, second, second + sill, first + sill },
-				Color = new Color(0.68f, 0.61f, 0.51f) });
-			node.AddChild(new Polygon2D { Polygon = new[] { first + lintel, second + lintel, second + up, first + up },
-				Color = new Color(0.71f, 0.64f, 0.54f) });
-			AddStroke(first + sill, second + sill, 4f, beamLight);
-			AddStroke(first + lintel, second + lintel, 4f, beam);
-			AddStroke(first, second, 4f, new Color(0.37f, 0.35f, 0.31f));
-			AddStroke(first + up, second + up, 4f, beamLight);
-			AddStroke(first, first + up, 3f, beam);
-			AddStroke(second, second + up, 3f, beam);
-			var middle = first.Lerp(second, 0.5f);
-			AddStroke(middle, middle + up, 2f, beamLight);
+			Stroke(node, end, end + up, 7f, beam);
+			Stroke(node, end + new Vector2(1, 0), end + up + new Vector2(1, 0), 1.5f, litWood);
 		}
-		void AddStroke(Vector2 from, Vector2 to, float width, Color color) =>
-			node.AddChild(new Line2D { Points = new[] { from, to }, Width = width,
-				DefaultColor = color, Antialiased = true });
+		var closed = new Node2D { Name = "ClosedLeaf" };
+		var open = new Node2D { Name = "OpenLeaf", Visible = false };
+		var swing = (CellToScreen(edge.A) - CellToScreen(edge.B)).Normalized() * 23f;
+		DoorLeaf(closed, first, second, "Panel");
+		DoorLeaf(open, first, first + swing, "OpenPanel");
+		node.AddChild(closed);
+		node.AddChild(open);
+		return node;
+
+		void DoorLeaf(Node2D parent, Vector2 a, Vector2 b, string name)
+		{
+			parent.AddChild(new Polygon2D { Name = name,
+				Polygon = new[] { a + Vector2.Up * 2f, b + Vector2.Up * 2f,
+					b + up + Vector2.Down * 4f, a + up + Vector2.Down * 4f },
+				Color = new Color(0.38f, 0.22f, 0.12f) });
+			for (var i = 1; i <= 3; i++)
+			{
+				var along = a.Lerp(b, i / 4f);
+				Stroke(parent, along + Vector2.Up * 3f, along + up + Vector2.Down * 5f, 1.4f, beam);
+			}
+			Stroke(parent, a + Vector2.Up * 9f, b + Vector2.Up * 9f, 3f, litWood);
+			Stroke(parent, a + up + Vector2.Down * 10f, b + up + Vector2.Down * 10f, 3f, litWood);
+			Stroke(parent, a + Vector2.Up * 10f, b + up + Vector2.Down * 11f, 1.5f, beam);
+			var latch = a.Lerp(b, 0.78f) + Vector2.Up * 21f;
+			parent.AddChild(new Polygon2D { Polygon = new[] { latch + new Vector2(-2, 0),
+				latch + new Vector2(0, -2), latch + new Vector2(2, 0), latch + new Vector2(0, 2) },
+				Color = new Color(0.81f, 0.66f, 0.38f) });
+		}
 	}
+
+	private static void SetPilotDoorPanel(Node2D panel, bool open)
+	{
+		panel.GetNode<Node2D>("ClosedLeaf").Visible = !open;
+		panel.GetNode<Node2D>("OpenLeaf").Visible = open;
+	}
+
+	internal bool PilotDoorOpenForSmoke(GridPos at) =>
+		_doorPanels[at].Visible && _doorPanels[at].GetNode<Node2D>("OpenLeaf").Visible;
 
 	private static void SetWindowPanel(Node2D panel, MapEdgeView edge)
 	{

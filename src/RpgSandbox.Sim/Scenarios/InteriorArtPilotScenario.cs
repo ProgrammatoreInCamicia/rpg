@@ -36,7 +36,6 @@ public static class InteriorArtPilotScenario
             .AddObstacle(Area.Value, (12, 8))
             .AddObstacle(Area.Value, (6, 6))
             .AddObstacle(Area.Value, (7, 5))
-            .AddObstacle(Area.Value, (10, 5))
             .AddInterior(Area.Value, MappedVillageScenario.Ids.FarmerHouse.Value)
             .AddLight(Area.Value, (11, 6), brightFeet: 20, dimFeet: 30)
             .AddActor(MappedVillageScenario.Ids.Player.Value, "Protagonista", Yard.Value,
@@ -44,7 +43,7 @@ public static class InteriorArtPilotScenario
 
         for (var x = 5; x <= 12; x++)
         {
-            b.AddEdge(Area.Value, (x, 3), (x, 4), x == 7 || x == 11 ? MapEdgeKind.Window : MapEdgeKind.Wall);
+            b.AddEdge(Area.Value, (x, 3), (x, 4), x == 7 || x == 9 ? MapEdgeKind.Window : MapEdgeKind.Wall);
             b.AddEdge(Area.Value, (x, 9), (x, 10), MapEdgeKind.Wall);
         }
         for (var y = 4; y <= 9; y++)

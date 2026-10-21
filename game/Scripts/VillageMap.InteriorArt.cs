@@ -6,36 +6,57 @@ namespace RpgSandbox.Game;
 /// <summary>Static artwork for the playable interior sample. Collision is authored in its scenario.</summary>
 public partial class VillageMap
 {
-	private readonly List<(GridPos Cell, Sprite2D Sprite)> _interiorProps = new();
+	private readonly List<(GridPos Cell, Node2D Sprite)> _interiorProps = new();
 
 	private void BuildInteriorArt()
 	{
 		if (!InteriorArtPilot) return;
-		AddProp("interior-bed", new GridPos(11, 5), 110f);
+		// The bed blocks two cells; its feet sit between their centres rather than over the first one.
+		AddProp("interior-bed", new GridPos(11, 5), 110f, new Vector2(16, 8));
 		AddProp("interior-table", new GridPos(10, 8), 75f);
 		AddProp("interior-chest", new GridPos(12, 8), 49f);
 		AddProp("interior-table", new GridPos(6, 6), 75f);
 		AddProp("interior-cabinet", new GridPos(7, 5), 57f);
-		AddProp("interior-cabinet", new GridPos(10, 5), 53f);
 	}
 
-	private void AddProp(string asset, GridPos cell, float width)
+	private void AddProp(string asset, GridPos cell, float width, Vector2? floorOffset = null)
 	{
 		var source = GD.Load<Texture2D>($"res://Assets/StyleStudy/{asset}.png");
 		if (source is null) throw new InvalidOperationException($"Missing art prop {asset}");
 		var rect = source.GetImage().GetUsedRect();
 		if (rect.Size.X <= 0 || rect.Size.Y <= 0) throw new InvalidOperationException($"Empty art prop {asset}");
+		var anchor = new Node2D { Name = asset, Position = CellToScreen(cell) + (floorOffset ?? Vector2.Zero) };
+		var shadowRadius = asset switch
+		{
+			"interior-bed" => new Vector2(46, 11),
+			"interior-table" => new Vector2(26, 8),
+			"interior-chest" => new Vector2(17, 6),
+			_ => new Vector2(18, 6),
+		};
+		foreach (var (radius, alpha) in new[] { (1.25f, 0.09f), (1f, 0.19f), (0.72f, 0.15f) })
+		{
+			anchor.AddChild(new Polygon2D
+			{
+				Polygon = Enumerable.Range(0, 24).Select(i =>
+				{
+					var angle = i * Mathf.Tau / 24f;
+					return new Vector2(Mathf.Cos(angle) * shadowRadius.X * radius,
+						Mathf.Sin(angle) * shadowRadius.Y * radius);
+				}).ToArray(),
+				Color = new Color(0.08f, 0.06f, 0.045f, alpha),
+			});
+		}
 		var sprite = new Sprite2D
 		{
-			Name = asset,
-			Position = CellToScreen(cell),
+			Name = "Artwork",
 			Texture = new AtlasTexture { Atlas = source, Region = rect },
 			TextureFilter = CanvasItem.TextureFilterEnum.Linear,
 			Scale = Vector2.One * (width / rect.Size.X),
 			Offset = new Vector2(0, -rect.Size.Y * 0.5f),
 		};
-		_sorted.AddChild(sprite);
-		_interiorProps.Add((cell, sprite));
+		anchor.AddChild(sprite);
+		_sorted.AddChild(anchor);
+		_interiorProps.Add((cell, anchor));
 	}
 
 	private void RefreshInteriorArtVisibility()

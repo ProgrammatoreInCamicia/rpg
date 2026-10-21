@@ -804,7 +804,9 @@ public partial class VillageMap : Node2D
 		{
 			if (!_doorPanels.TryGetValue(door.At, out var panel))
 				continue;
-			panel.Visible = door.Known != DoorKnowledge.Unknown && door.Open == false;
+			panel.Visible = door.Known != DoorKnowledge.Unknown && (InteriorArtPilot || door.Open == false);
+			if (InteriorArtPilot && panel.GetNodeOrNull<Node2D>("OpenLeaf") is not null)
+				SetPilotDoorPanel(panel, door.Open == true);
 			if (_doorFloors.TryGetValue(door.At, out var floor) && _doorOutlines.TryGetValue(door.At, out var outline))
 			{
 				floor.Color = door.Known == DoorKnowledge.Unknown ? Road

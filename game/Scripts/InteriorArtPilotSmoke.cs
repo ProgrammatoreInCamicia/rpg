@@ -28,6 +28,8 @@ public partial class InteriorArtPilotSmoke : Node
 			await UntilIdle();
 			_map.SetPaused(true);
 			Require(_map.View.Position == new GridPos(11, 7), "player did not enter the first room");
+			Require(_map.PilotDoorOpenForSmoke(InteriorArtPilotScenario.Entrance),
+				"the entrance leaf vanished instead of opening");
 			Require(!_map.RoofVisibleForSmoke(new GridPos(6, 5))
 				&& !_map.RoofVisibleForSmoke(new GridPos(11, 7)), "roof did not open across the house");
 			Capture("inside-lamplit.png");
@@ -47,6 +49,8 @@ public partial class InteriorArtPilotSmoke : Node
 			Require(_map.View.Position == new GridPos(7, 7), "player did not reach the second room");
 			Require(_map.View.Doors.Single(d => d.At == InteriorArtPilotScenario.RoomDoor).Open == true,
 				"the inner door did not open during movement");
+			Require(_map.PilotDoorOpenForSmoke(InteriorArtPilotScenario.RoomDoor),
+				"the inner door leaf vanished instead of opening");
 			Require(_map.View.MapVisibility![5][11] == '1'
 				&& _map.DisplayShadeAtForSmoke(new GridPos(11, 5)).R > 0.5f,
 				"the explored bedroom became dark after turning away");

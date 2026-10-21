@@ -244,7 +244,7 @@ public partial class VillageMap
 				|| interior is not null && (visibility[edge.A.Y][edge.A.X] == '1' || visibility[edge.B.Y][edge.B.X] == '1');
 			var closedDoor = edge.DoorAt is not { } doorAt || _view.Doors.Any(d => d.At == doorAt
 				&& d.Open == false && d.Known != DoorKnowledge.Unknown);
-			panel.Visible = inSight && closedDoor;
+			panel.Visible = inSight && (InteriorArtPilot || closedDoor);
 		}
 		RefreshInteriorArtVisibility();
 	}
