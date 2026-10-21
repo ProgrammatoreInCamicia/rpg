@@ -2,10 +2,11 @@ using Godot;
 
 namespace RpgSandbox.Game;
 
-/// <summary>Small, code-native vector icons and a consistent visual language for the action bars.</summary>
+/// <summary>Painted action icons, with code-native vector fallbacks for commands without artwork.</summary>
 public partial class VillageMap
 {
 	private static readonly Dictionary<string, Texture2D> ActionIcons = new();
+	private const string PaintedIconRoot = "res://Assets/Ui/ActionIcons/";
 	private static readonly Color MovementAccent = new("4baea2");
 	private static readonly Color DefenseAccent = new("779dc7");
 	private static readonly Color AttackAccent = new("cf7760");
@@ -15,6 +16,21 @@ public partial class VillageMap
 	private static Texture2D ActionIcon(string kind)
 	{
 		if (ActionIcons.TryGetValue(kind, out var cached)) return cached;
+		var paintedFile = kind switch
+		{
+			"sword" => "attack", "dash" => "dash", "disengage" => "disengage",
+			"dodge" => "dodge", "interact" => "interact", "heal" => "cure-wounds",
+			"smite" => "divine-smite", "torch" => "torch", "search" => "search-traps",
+			"sneak" => "sneak", "stop" => "stop", "bag" => "inventory",
+			"journal" => "journal", "spellbook" => "spellbook", "rest" => "rest",
+			"eye" => "divine-sense", _ => null,
+		};
+		if (paintedFile is not null)
+		{
+			var path = $"{PaintedIconRoot}{paintedFile}.png";
+			if (ResourceLoader.Exists(path) && GD.Load<Texture2D>(path) is { } painted)
+				return ActionIcons[kind] = painted;
+		}
 		var drawing = kind switch
 		{
 			"sword" => "<path d='M7 25 25 7l-1-3-3 1L5 23l2 2Zm-5-6 11 11M3 29l5-5' />",
@@ -23,6 +39,9 @@ public partial class VillageMap
 			"mace" => "<path d='M7 27 21 13M16 8l8-3 4 4-3 8-8 1-5-5 4-5ZM5 25l3 3' />",
 			"bow" => "<path d='M8 3c15 7 15 19 0 26M8 3v26M4 28 27 5m-7 0h7v7' />",
 			"dash" => "<path d='M4 23h8l4-5 4 2 7-8M20 20l-2 7h-7M5 11h9M2 16h8' />",
+			"disengage" => "<path d='M6 7h14v18H6zM13 16h15m-5-5 5 5-5 5' />",
+			"dodge" => "<path d='M16 3 28 8v8c0 8-5 12-12 15C9 28 4 24 4 16V8L16 3Z' /><path d='m10 17 4 4 8-9' />",
+			"interact" => "<path d='M7 8h18v20H7zM16 15v6m0-3h5' />",
 			"escape" => "<path d='M6 7h14v18H6zM13 16h15m-5-5 5 5-5 5' />",
 			"shield" => "<path d='M16 3 28 8v8c0 8-5 12-12 15C9 28 4 24 4 16V8L16 3Z' /><path d='m10 17 4 4 8-9' />",
 			"more" => "<circle cx='6' cy='16' r='2'/><circle cx='16' cy='16' r='2'/><circle cx='26' cy='16' r='2' />",

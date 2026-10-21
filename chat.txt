@@ -6230,3 +6230,21 @@ L'utente vuole che il clic su una finestra/porta visibile provochi avvicinamento
 
 [CODEX - interazione a distanza, pronta per review]
 Nel client, clic su finestra/porta visibile fuori dal combattimento: la Sim prova subito l'interazione se e a portata; se risponde OutOfReach il client sceglie con PreviewMoveToSpot un lato noto e raggiungibile, cammina e ripete il comando dopo l'arrivo. Le finestre pilot rispondono anche su cornice/imposte, le porte pilot anche sull'anta aperta. Stop, altro cammino, caricamento, combattimento o interruzione non lasciano una interazione pendente; se nessun lato e raggiungibile appare un messaggio di percorso impossibile. Nessuna modifica alla Sim. Verifiche: build 0 avvisi/0 errori, smoke pilot (clic cornice distante, porta interna distante, chiusura vicina, Stop, anta aperta), InteriorSmoke e VillageSmoke tutti OK con Vulkan. Combattimento resta con il menu e il costo dell'azione esistenti.
+
+[CODEX - ricerca e piano UX, nessun codice]
+Su richiesta dell'utente ho confrontato BG I/II, BG3, Pathfinder e Solasta con la barra e il feedback correnti. Analisi, fonti ufficiali, problemi osservati e fasi UX0-UX4 sono in `docs/UX_RESEARCH_PLAN.md`. La priorita proposta e: feedback/stati e anteprime contestuali prima di sostituire le icone. La barra approvata (sezioni affiancate, ritratto/mani, Azione/Bonus, Fine turno), il log traslucido e il menu Esc restano la base. Primo lotto di prova: otto icone coerenti verificate a 42 px; nessun asset o modifica Sim richiesti ora. Non ho toccato il client.
+
+[CODEX - campione icone UX per valutazione]
+Ho generato otto pittogrammi raster originali per la prova di stile, in `docs/ux-icon-study/`, con `preview.png` alla scala reale di 42 px e `README.md` con prompt e prima valutazione. Non sono collegati alla demo: la barra continua a usare le icone vettoriali correnti. Aspetto il giudizio dell'utente sulla direzione prima di estendere il set o integrare gli asset.
+
+[UTENTE / CODEX - direzione icone approvata]
+L'utente ha approvato lo stile del campione: «molto belle, lo stile mi va benissimo». Da ora `docs/ux-icon-study/` è la reference visiva per la hotbar. Prima dell'integrazione servono una passata di leggibilità a 42 px sulle icone più complesse e il completamento del set, mantenendo palette e tratto coerenti. Nessuna modifica al client in questo passaggio.
+
+[CODEX - secondo lotto icone e peso reale]
+Ho aggiunto otto icone (Trappole, Furtivo, Fermati, Inventario, Diario, Libro magico, Riposo, Percezione divina) nello stile approvato. `docs/ux-icon-study/preview-v2.png` le mostra a 42/84 px; i PNG sorgente e i prompt sono documentati nel README. Ho esportato tutte le 16 icone a 128×128 px in `optimized-128/`: 289.643 byte in totale invece dei 19.347.137 byte dei sorgenti, riduzione del 98,5%. Non sono ancora integrate nel client; la prossima prova grafica utile è nella hotbar reale, soprattutto per contrasto di Inventario e leggibilità di Disimpegno/Interagisci del primo lotto.
+
+[CODEX - integrazione delle icone approvate, prima del codice]
+L'utente chiede se le icone sono gia nel gioco: finora no, quindi collego ora i 16 export leggeri alla demo. Copio i PNG 128x128 in `game/Assets/Ui/ActionIcons/`, modifico `VillageMap.ActionIcons.cs` per caricare solo le chiavi corrispondenti con fallback vettoriale, e `VillageMap.Quickbar.cs` per distinguere Disimpegno da Risali e Schivata dallo scudo equipaggiato. Mantengo le regole e i comandi invariati. Verifico build, smoke Village con Vulkan e una cattura a 1280x720; poi segnalo eventuali icone poco leggibili alla scala reale.
+
+[CODEX - icone nella demo, verifica]
+Le icone sono ora nella hotbar del Village: `ActionIcon` carica i 128x128 da `game/Assets/Ui/ActionIcons/` per le chiavi disponibili e mantiene il vettoriale per le altre. Disimpegno e Schivata hanno chiavi proprie; gli slot di scudo e Risali continuano a usare il loro simbolo vettoriale. Ho ridotto i margini interni degli slot e rimosso la tinta avorio delle immagini per farle leggere a 42 px. `interact.png` è predisposta, ma non esiste ancora un pulsante generico cui assegnarla. Build gioco 0/0, VILLAGE SMOKE completo OK con Vulkan; catture controllate `.tmp/icons-game-final/1-start.png` e `ux-combat-bar.png`. Le regole Sim non sono cambiate.

@@ -77,7 +77,7 @@ public partial class VillageMap
 		BorderWidthLeft = width, BorderWidthRight = width, BorderWidthTop = width, BorderWidthBottom = width,
 		CornerRadiusTopLeft = radius, CornerRadiusTopRight = radius,
 		CornerRadiusBottomLeft = radius, CornerRadiusBottomRight = radius,
-		ContentMarginLeft = 7, ContentMarginRight = 7, ContentMarginTop = 7, ContentMarginBottom = 7,
+		ContentMarginLeft = 1, ContentMarginRight = 1, ContentMarginTop = 1, ContentMarginBottom = 1,
 	};
 
 	/// <summary>A square slot with its icon: a dark inset, the rim in the command's colour, gold when held or armed.</summary>
@@ -97,10 +97,10 @@ public partial class VillageMap
 		button.AddThemeStyleboxOverride("hover_pressed", SlotStyle(BarGold, accent.Darkened(0.6f), 2, radius));
 		button.AddThemeStyleboxOverride("disabled", SlotStyle(new Color(0.19f, 0.17f, 0.15f), new Color(0.075f, 0.07f, 0.065f), 1, radius));
 		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-		button.AddThemeColorOverride("icon_normal_color", new Color(0.90f, 0.86f, 0.78f));
+		button.AddThemeColorOverride("icon_normal_color", Colors.White);
 		button.AddThemeColorOverride("icon_hover_color", Colors.White);
-		button.AddThemeColorOverride("icon_pressed_color", BarGold.Lightened(0.3f));
-		button.AddThemeColorOverride("icon_hover_pressed_color", BarGold.Lightened(0.3f));
+		button.AddThemeColorOverride("icon_pressed_color", Colors.White);
+		button.AddThemeColorOverride("icon_hover_pressed_color", Colors.White);
 		button.AddThemeColorOverride("icon_disabled_color", new Color(0.36f, 0.34f, 0.31f));
 	}
 
@@ -356,9 +356,9 @@ public partial class VillageMap
 		_quickAttack.ToggleMode = true;
 		_quickDash = QuickAction(QuickSection.Common, true, "dash", CombatActionTip(CombatAction.Dash), MovementAccent,
 			() => ExecuteCombatAction(CombatAction.Dash), QuickFilter.Action);
-		_quickDisengage = QuickAction(QuickSection.Common, true, "escape", CombatActionTip(CombatAction.Disengage), DefenseAccent,
+		_quickDisengage = QuickAction(QuickSection.Common, true, "disengage", CombatActionTip(CombatAction.Disengage), DefenseAccent,
 			() => ExecuteCombatAction(CombatAction.Disengage), QuickFilter.Action);
-		_quickDodge = QuickAction(QuickSection.Common, true, "shield", CombatActionTip(CombatAction.Dodge), DefenseAccent,
+		_quickDodge = QuickAction(QuickSection.Common, true, "dodge", CombatActionTip(CombatAction.Dodge), DefenseAccent,
 			() => ExecuteCombatAction(CombatAction.Dodge), QuickFilter.Action);
 		_quickMore = (MenuButton)QuickAction(QuickSection.Common, true, "more", "Altre azioni", UtilityAccent, () => { },
 			QuickFilter.Action, new MenuButton());
