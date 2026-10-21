@@ -149,6 +149,7 @@ public partial class VillageMap : Node2D
 			_approaching = null;
 			_exitAfterWalking = null;
 			_attackAfterWalking = null;
+			_pendingBarrier = null;
 			_pendingTicks = 0;
 			Refresh();
 		}
@@ -161,6 +162,8 @@ public partial class VillageMap : Node2D
 				_pendingTicks -= ticks;
 				ActorId? arrived = null;
 				LocationId? exitReached = null;
+				PendingBarrierUse? barrierReached = null;
+				PendingBarrierUse? barrierInterrupted = null;
 				if (_running is { } action)
 				{
 					var result = _sim.AdvanceUntilCompleted(action, Duration.FromTicks(ticks));
@@ -173,9 +176,13 @@ public partial class VillageMap : Node2D
 						{
 							arrived = _approaching;
 							exitReached = _exitAfterWalking;
+							barrierReached = _pendingBarrier;
 						}
+						else
+							barrierInterrupted = _pendingBarrier;
 						_approaching = null;
 						_exitAfterWalking = null;
+						_pendingBarrier = null;
 					}
 				}
 				else
@@ -190,6 +197,11 @@ public partial class VillageMap : Node2D
 				}
 				if (exitReached is { } exit)
 					BeginExitJourney(exit);
+				if (barrierReached is { } barrier)
+					FinishBarrierApproach(barrier);
+				if (barrierInterrupted is { } interrupted && _view.Combat is null)
+					ShowMessage(interrupted.Door is null ? "Non riesci a raggiungere la finestra."
+						: "Non riesci a raggiungere la porta.");
 			}
 		}
 		UpdateShotVisuals();
@@ -265,10 +277,10 @@ public partial class VillageMap : Node2D
 				OpenTrapMenu(trap, mouse.Position);
 			else if (PersonAt(point) is { } target)
 				OpenPersonMenu(target);
-			else if (DoorAt(point) is { } door)
-				OpenDoorMenu(door);
 			else if (WindowAt(point) is { } window)
 				OpenWindowMenu(window);
+			else if (DoorAt(point) is { } door)
+				OpenDoorMenu(door);
 			else
 				FaceToward(point);
 			return;
@@ -286,6 +298,8 @@ public partial class VillageMap : Node2D
 					ShowMessage("Scegli un bersaglio per l'attacco. Esc annulla.");
 				else if (_view.Map.Exits.FirstOrDefault(e => e.At == ScreenToCell(point)) is { } exit)
 					GoToExit(exit);
+				else if (WindowAt(point) is { } window)
+					ClickWindow(window);
 				else if (DoorAt(point) is { } door)
 				{
 					if (mouse.ShiftPressed)
@@ -293,8 +307,6 @@ public partial class VillageMap : Node2D
 					else
 						ClickDoor(door);
 				}
-				else if (WindowAt(point) is { } window)
-					ClickWindow(window);
 				else if (GroundItemAt(ScreenToCell(point)) is { } item)
 					PickUp(item);
 				else if (_freeMovementEnabled)
@@ -415,35 +427,57 @@ public partial class VillageMap : Node2D
 		}
 	});
 
-	/// <summary>Click on a door: next to it, open or close it; from afar, walk there (walking opens it anyway).</summary>
-	internal void ClickDoor(GridPos door) => Order("usa la porta", walk: false, () =>
+	/// <summary>Click on a door: operate it now or walk to a reachable side and operate it on arrival.</summary>
+	internal void ClickDoor(GridPos door) => Order("usa la porta", walk: true, () =>
 	{
-		if (_view.Position is { } here && (here == door && _view.Map?.Edges.Any(e => e.DoorAt == door) == true
-			|| here != door && Math.Max(Math.Abs(here.X - door.X), Math.Abs(here.Y - door.Y)) == 1))
+		if (_view.Doors.FirstOrDefault(d => d.At == door) is not { Open: { } open } known
+			|| known.Known == DoorKnowledge.Unknown)
 		{
-			var knowledge = _view.Doors.FirstOrDefault(d => d.At == door);
-			if (knowledge is not { Known: DoorKnowledge.Seen, Open: { } open })
-			{
-				MoveTo(door); // walking to the door follows the usual movement rules; do not toggle stale knowledge
-				return;
-			}
-			var result = _sim.Execute(new DoorCommand { Actor = _sim.Player, At = door, Open = !open });
-			ShowMessage(result.Message);
-			Refresh();
+			MoveTo(door); // Preserve the old exploration behaviour for a still-unknown door.
 			return;
 		}
-		MoveTo(door);
+		var edge = _view.Map?.Edges.FirstOrDefault(e => e.DoorAt == door);
+		var target = new PendingBarrierUse(door, edge?.A ?? door, edge?.B ?? door, !open);
+		if (_view.Combat is null && (_walking || known.Known != DoorKnowledge.Seen))
+		{
+			ApproachBarrier(target);
+			return;
+		}
+		var result = _sim.Execute(new DoorCommand { Actor = _sim.Player, At = door, Open = !open });
+		if (_view.Combat is null && result.Rejection == RejectionReason.OutOfReach)
+			ApproachBarrier(target);
+		else
+		{
+			ShowMessage(result.Message);
+			Refresh();
+		}
 	});
 
-	internal void ClickWindow(MapEdgeView window) => Order("usa la finestra", walk: false, () =>
+	internal void ClickWindow(MapEdgeView window) => Order("usa la finestra", walk: true, () =>
 	{
 		if (_view.Map?.Edges.FirstOrDefault(e => e.Kind == MapEdgeKind.Window
 			&& e.A == window.A && e.B == window.B) is not { Open: { } open } current)
 			return;
+		if (current.Glass is WindowGlass.Broken or WindowGlass.Cleared)
+		{
+			ShowMessage("Il vetro è rotto: la finestra resta aperta.");
+			return;
+		}
+		var target = new PendingBarrierUse(null, current.A, current.B, !open);
+		if (_view.Combat is null && _walking)
+		{
+			ApproachBarrier(target);
+			return;
+		}
 		var result = _sim.Execute(new WindowCommand { Actor = _sim.Player,
 			A = current.A, B = current.B, Open = !open });
-		ShowMessage(result.Message);
-		Refresh();
+		if (_view.Combat is null && result.Rejection == RejectionReason.OutOfReach)
+			ApproachBarrier(target);
+		else
+		{
+			ShowMessage(result.Message);
+			Refresh();
+		}
 	});
 
 	private void RequestTorchToggle()
@@ -475,6 +509,11 @@ public partial class VillageMap : Node2D
 		foreach (var door in _view.Doors)
 		{
 			if (door.At == cell)
+				return door.At;
+			if (InteriorArtPilot && door.Open == true && _doorPanels.TryGetValue(door.At, out var openPanel)
+				&& openPanel.Visible && openPanel.GetNodeOrNull<Node2D>("OpenLeaf") is { Visible: true } leaf
+				&& leaf.GetNodeOrNull<Polygon2D>("OpenPanel") is { } art
+				&& Geometry2D.IsPointInPolygon(point - openPanel.Position, art.Polygon))
 				return door.At;
 			if (door.Open == false && _doorPanels.TryGetValue(door.At, out var panel)
 				&& new Rect2(panel.Position + new Vector2(-TileW / 4f, -WallHeight - TileH / 2f), new Vector2(TileW / 2f, WallHeight + TileH)).HasPoint(point))
@@ -540,11 +579,15 @@ public partial class VillageMap : Node2D
 			Order("cambia andatura", walk: true, () =>
 			{
 				var approaching = _approaching;
+				var barrier = _pendingBarrier;
 				var resumed = move.Spots is { } spots
 					? Walk(new MoveToSpotCommand { Actor = _sim.Player, To = spots[^1], Stealthy = on })
 					: Walk(new MoveCommand { Actor = _sim.Player, To = move.Path[^1], Stealthy = on });
 				if (resumed)
+				{
 					_approaching = approaching;
+					_pendingBarrier = barrier;
+				}
 			});
 	}
 
@@ -552,6 +595,7 @@ public partial class VillageMap : Node2D
 	{
 		if (_running is not null && !_walking)
 			return false; // busy with a fixed-length activity
+		_pendingBarrier = null;
 		var result = _sim.Execute(command);
 		if (!result.Success)
 		{
@@ -609,6 +653,7 @@ public partial class VillageMap : Node2D
 		_running = null;
 		_walking = false;
 		_approaching = null;
+		_pendingBarrier = null;
 		_attackAfterWalking = null;
 		_exitAfterWalking = null;
 		_pendingTicks = 0;
@@ -701,6 +746,7 @@ public partial class VillageMap : Node2D
 		_lightKey = "";
 		_journalOpen = false;
 		_approaching = null;
+		_pendingBarrier = null;
 		_attackAfterWalking = null;
 		_exitAfterWalking = null;
 		_talkingTo = null;
@@ -745,6 +791,7 @@ public partial class VillageMap : Node2D
 			_running = null;
 			_walking = false;
 			_approaching = null;
+			_pendingBarrier = null;
 			_attackAfterWalking = null;
 			_exitAfterWalking = null;
 			_queue.Clear();

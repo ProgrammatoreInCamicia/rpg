@@ -482,15 +482,15 @@ public partial class VillageMap
 			ShowMessage("Scegli un bersaglio per l'attacco. Esc annulla.");
 			return true;
 		}
+		if (WindowAt(point) is { } window)
+		{
+			OpenWindowMenu(window);
+			return true;
+		}
 		if (DoorAt(point) is { } door && (mouse.ButtonIndex == MouseButton.Right
 			|| _view.Doors.FirstOrDefault(d => d.At == door)?.Open == false))
 		{
 			OpenDoorMenu(door);
-			return true;
-		}
-		if (WindowAt(point) is { } window)
-		{
-			OpenWindowMenu(window);
 			return true;
 		}
 		if (mouse.ButtonIndex == MouseButton.Right)

@@ -346,6 +346,16 @@ public partial class VillageMap
 	internal bool PilotDoorOpenForSmoke(GridPos at) =>
 		_doorPanels[at].Visible && _doorPanels[at].GetNode<Node2D>("OpenLeaf").Visible;
 
+	internal void ClickPilotOpenDoorForSmoke(GridPos at)
+	{
+		var panel = _doorPanels[at];
+		var leaf = panel.GetNode<Node2D>("OpenLeaf").GetNode<Polygon2D>("OpenPanel");
+		var point = panel.Position + leaf.Polygon.Aggregate(Vector2.Zero, (sum, vertex) => sum + vertex)
+			/ leaf.Polygon.Length;
+		_UnhandledInput(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true,
+			Position = GetGlobalTransformWithCanvas() * point });
+	}
+
 	private static void SetWindowPanel(Node2D panel, MapEdgeView edge)
 	{
 		panel.GetNode<Polygon2D>("Glass").Visible = edge.Open == false && edge.Glass == WindowGlass.Intact;
@@ -367,6 +377,15 @@ public partial class VillageMap
 				continue;
 			var local = point - panel.Position;
 			var glass = panel.GetNode<Polygon2D>("Glass");
+			if (InteriorArtPilot)
+			{
+				var min = new Vector2(glass.Polygon.Min(p => p.X) - 10f,
+					glass.Polygon.Min(p => p.Y) - 6f);
+				var max = new Vector2(glass.Polygon.Max(p => p.X) + 10f,
+					glass.Polygon.Max(p => p.Y) + 6f);
+				if (new Rect2(min, max - min).HasPoint(local))
+					return edge;
+			}
 			if (Geometry2D.IsPointInPolygon(local, glass.Polygon)
 				|| DistanceToSegment(local, glass.Polygon[0], glass.Polygon[1]) <= 7f
 				|| DistanceToSegment(local, glass.Polygon[2], glass.Polygon[3]) <= 7f)
@@ -389,6 +408,14 @@ public partial class VillageMap
 		var at = panel.Position + glass.Aggregate(Vector2.Zero, (sum, point) => sum + point) / glass.Length;
 		_UnhandledInput(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true,
 			Position = GetGlobalTransformWithCanvas() * at });
+	}
+
+	internal void ClickWindowFrameForSmoke(GridPos a, GridPos b)
+	{
+		var panel = _windowPanels[(a, b)];
+		var frame = panel.GetNode<Polygon2D>("Glass").Polygon[0] + new Vector2(-5, -2);
+		_UnhandledInput(new InputEventMouseButton { ButtonIndex = MouseButton.Left, Pressed = true,
+			Position = GetGlobalTransformWithCanvas() * (panel.Position + frame) });
 	}
 
 	internal void RightClickWindowForSmoke(GridPos a, GridPos b)

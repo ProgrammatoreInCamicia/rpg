@@ -34,11 +34,36 @@ public partial class InteriorArtPilotSmoke : Node
 				&& !_map.RoofVisibleForSmoke(new GridPos(11, 7)), "roof did not open across the house");
 			Capture("inside-lamplit.png");
 			_map.SetPaused(false);
+			_map.ClickDoor(InteriorArtPilotScenario.RoomDoor);
+			Require(_map.IsWalking, $"a distant inner-door click did not start an approach: {_map.LastMessage}");
+			await UntilIdle();
+			Require(_map.View.Doors.Single(d => d.At == InteriorArtPilotScenario.RoomDoor).Open == true,
+				$"the inner door did not open after the approach: {_map.LastMessage}");
 			_map.MoveTo(new GridPos(10, 6));
 			await UntilIdle();
 			_map.SetPaused(true);
 			Capture("inside-bedroom.png");
 			_map.SetPaused(false);
+			_map.ClickWindowFrameForSmoke(new GridPos(9, 3), new GridPos(9, 4));
+			Require(_map.IsWalking, "clicking a distant window frame walked on the ground or stopped");
+			await UntilIdle();
+			Require(_map.View.Map!.Edges.Single(e => e.Kind == MapEdgeKind.Window
+				&& e.A == new GridPos(9, 3)).Open == true,
+				$"the window did not open after the approach: {_map.LastMessage}");
+			_map.ClickWindowForSmoke(new GridPos(9, 3), new GridPos(9, 4));
+			await Frames(2);
+			Require(_map.View.Map!.Edges.Single(e => e.Kind == MapEdgeKind.Window
+				&& e.A == new GridPos(9, 3)).Open == false,
+				"the nearby click did not close the window");
+			_map.MoveTo(new GridPos(10, 6));
+			await UntilIdle();
+			_map.ClickWindowFrameForSmoke(new GridPos(9, 3), new GridPos(9, 4));
+			Require(_map.IsWalking, "a second distant click did not begin walking");
+			_map.Stop();
+			await Frames(3);
+			Require(!_map.IsWalking && _map.View.Map!.Edges.Single(e => e.Kind == MapEdgeKind.Window
+				&& e.A == new GridPos(9, 3)).Open == false,
+				"Stop left a queued window interaction behind");
 			_map.MoveTo(new GridPos(11, 5)); // the bed occupies this floor square
 			await Frames(3);
 			Require(_map.View.Position == new GridPos(10, 6) && !_map.IsBusy,
@@ -51,6 +76,12 @@ public partial class InteriorArtPilotSmoke : Node
 				"the inner door did not open during movement");
 			Require(_map.PilotDoorOpenForSmoke(InteriorArtPilotScenario.RoomDoor),
 				"the inner door leaf vanished instead of opening");
+			_map.SetPaused(false);
+			_map.ClickPilotOpenDoorForSmoke(InteriorArtPilotScenario.RoomDoor);
+			await Frames(2);
+			_map.SetPaused(true);
+			Require(_map.View.Doors.Single(d => d.At == InteriorArtPilotScenario.RoomDoor).Open == false,
+				$"clicking the open door leaf selected the floor behind it: {_map.LastMessage}");
 			Require(_map.View.MapVisibility![5][11] == '1'
 				&& _map.DisplayShadeAtForSmoke(new GridPos(11, 5)).R > 0.5f,
 				"the explored bedroom became dark after turning away");
