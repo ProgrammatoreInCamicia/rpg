@@ -101,6 +101,7 @@ public partial class VillageMap
 	private void FaceToward(Vector2 worldPoint)
 	{
 		if (_view.Position is null) return;
+		CancelSliceWait("Attesa interrotta.");
 		var from = _view.Spot ?? Spot.CenterOf(_view.Position.Value);
 		var to = ScreenToSpot(worldPoint);
 		var dx = to.X - from.X;

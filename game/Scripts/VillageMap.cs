@@ -119,6 +119,12 @@ public partial class VillageMap : Node2D
 		var sliceEntrySmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-entry-smoke="));
 		if (PlayableSliceMode && sliceEntrySmoke is not null)
 			RunSliceEntrySmoke(sliceEntrySmoke["--slice-entry-smoke=".Length..]);
+		var sliceWaitSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-wait-smoke="));
+		if (PlayableSliceMode && sliceWaitSmoke is not null)
+			RunSliceWaitSmoke(sliceWaitSmoke["--slice-wait-smoke=".Length..]);
+		var sliceGuideSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-guide-smoke="));
+		if (PlayableSliceMode && sliceGuideSmoke is not null)
+			RunSliceGuideSmoke(sliceGuideSmoke["--slice-guide-smoke=".Length..]);
 
 		var smoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--village-smoke="));
 		if (smoke is not null)
@@ -136,7 +142,8 @@ public partial class VillageMap : Node2D
 		Pan(delta);
 		UpdateHover();
 		UpdateSpotPreview();
-		if (_view.Combat?.NextRoundAt is { } nextRound && !_view.Dead)
+		var sliceWaitFrame = ProcessSliceWaitFrame();
+		if (!sliceWaitFrame && _view.Combat?.NextRoundAt is { } nextRound && !_view.Dead)
 		{
 			// NPC turns are already resolved by EndTurn. This closes the six-second round and starts the next
 			// player turn; Advance deliberately stops at that turn instead of consuming any later world time.
@@ -146,7 +153,7 @@ public partial class VillageMap : Node2D
 
 		// The world goes on whether the player moves or not (real time with pause, as in BG1/BG2): the exploration pace
 		// while walking or standing, a fast-forward during fixed-length activities. Only the pause stops the clock.
-		if (!_paused && _view.Combat is null && !_view.Dead && _view.Unconscious)
+		if (!sliceWaitFrame && !_paused && _view.Combat is null && !_view.Dead && _view.Unconscious)
 		{
 			// No one is there to tend the player: the hours it lies senseless pass at once, the world going on meanwhile.
 			_sim.AdvanceWhileUnconscious(Duration.FromHours(24));
@@ -159,7 +166,7 @@ public partial class VillageMap : Node2D
 			_pendingTicks = 0;
 			Refresh();
 		}
-		else if (!_paused && _view.Combat is null && !_view.Dead)
+		else if (!sliceWaitFrame && !_paused && _view.Combat is null && !_view.Dead)
 		{
 			_pendingTicks += delta * (_running is not null && !_walking ? _speed : _pace) * GameTime.TicksPerSecond;
 			var ticks = (long)_pendingTicks;
@@ -294,6 +301,7 @@ public partial class VillageMap : Node2D
 		switch (mouse.ButtonIndex)
 		{
 			case MouseButton.Left:
+				CancelSliceWait("Attesa interrotta.");
 				var point = GetGlobalTransformWithCanvas().AffineInverse() * mouse.Position;
 				// A figure stands above its square: clicking on its body means that person, not the square behind.
 				if (PersonAt(point) is { } person)
@@ -488,6 +496,7 @@ public partial class VillageMap : Node2D
 
 	private void RequestTorchToggle()
 	{
+		CancelSliceWait("Attesa interrotta.");
 		if (_view.TorchLitUntil is null && _view.Torches > 0
 			&& _view.Equipment.Any(e => e.Slot == EquipmentSlot.Shield))
 		{
@@ -533,6 +542,7 @@ public partial class VillageMap : Node2D
 	/// <summary>Pause or resume the world. Orders given while paused start when it resumes.</summary>
 	internal void SetPaused(bool paused)
 	{
+		if (paused) CancelSliceWait("Attesa interrotta.");
 		_paused = paused;
 		_pause.SetPressedNoSignal(paused);
 		if (!paused)
@@ -555,6 +565,7 @@ public partial class VillageMap : Node2D
 	/// </summary>
 	private void Order(string label, bool walk, Action run)
 	{
+		CancelSliceWait("Attesa interrotta.");
 		if (!_paused || _view.Combat is not null)
 		{
 			run();
@@ -572,6 +583,7 @@ public partial class VillageMap : Node2D
 	/// <summary>Change the exploration pace; a walk in progress speeds up or slows down at once.</summary>
 	internal void SetPace(double pace)
 	{
+		CancelSliceWait("Attesa interrotta.");
 		_pace = pace;
 		foreach (var (value, button) in _paceButtons)
 			button.SetPressedNoSignal(value == pace);
@@ -580,6 +592,7 @@ public partial class VillageMap : Node2D
 	/// <summary>Switch between walking and sneaking; a walk in progress carries on to the same square in the new way.</summary>
 	internal void SetSneak(bool on)
 	{
+		CancelSliceWait("Attesa interrotta.");
 		_sneak = on;
 		_sneakToggle.SetPressedNoSignal(on);
 		if (_walking && _view.Move is { } move)
@@ -669,7 +682,8 @@ public partial class VillageMap : Node2D
 	}
 
 	/// <summary>A fixed-length activity: plays out quickly, at most a few real seconds.</summary>
-	private void StartActivity(Command command, string label = "attività") => Order(label, walk: false, () =>
+	private void StartActivity(Command command, string label = "attività",
+		Func<CommandResult, string>? describeRejection = null) => Order(label, walk: false, () =>
 	{
 		if (_running is not null)
 		{
@@ -677,7 +691,7 @@ public partial class VillageMap : Node2D
 			return;
 		}
 		var result = _sim.Execute(command);
-		ShowMessage(result.Message);
+		ShowMessage(!result.Success && describeRejection is not null ? describeRejection(result) : result.Message);
 		if (result.Success && result.Action is { } action)
 		{
 			_running = action;
@@ -741,6 +755,7 @@ public partial class VillageMap : Node2D
 			ShowMessage($"Caricamento non riuscito: {result.Error}");
 			return;
 		}
+		CancelSliceWait("Attesa interrotta.");
 		_sim = result.Session!;
 		ResetHudLog();
 		_attackArmed = false;
@@ -902,9 +917,16 @@ public partial class VillageMap : Node2D
 		// Store controls where a store is in sight; the core decides whether it is within reach.
 		_storeRow.Visible = onMap && _view.Combat is null && !_view.Dead
 			&& _view.VisibleStores.Any(s => s.Id == MappedVillageScenario.Ids.GranaryStore);
-		foreach (var store in _view.VisibleStores)
-			if (_storeLabels.TryGetValue(store.Id, out var label))
-				label.Text = $"{store.Name}: {store.Food}";
+		foreach (var (storeId, label) in _storeLabels)
+		{
+			var visible = _view.VisibleStores.FirstOrDefault(store => store.Id == storeId);
+			label.Visible = visible is not null;
+			if (visible is not null)
+			{
+				var atAccess = _view.Position is { } player && visible.Access.Contains(player);
+				label.Text = atAccess ? $"{visible.Name}: {visible.Food}" : visible.Name;
+			}
+		}
 
 		RefreshPeople();
 		_people.Visible = _view.Combat is null && !_view.Dead;
@@ -919,6 +941,8 @@ public partial class VillageMap : Node2D
 		RefreshInventoryUi();
 		PlaceGroundItems();
 		PlaceTokens();
+		RefreshSliceWaitUi();
+		RefreshSliceGuidance();
 	}
 
 	private void RefreshPeople()

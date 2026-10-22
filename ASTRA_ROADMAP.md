@@ -1,6 +1,6 @@
 # ASTRA — percorso minimo verso una slice giocabile
 
-Analisi del 21 ottobre 2026. Repository esaminato sul commit `faf05e2`, con file locali non versionati già presenti. Questo documento propone il prossimo incremento; **non certifica che la slice descritta sotto sia già realizzata**. La sessione iniziale ha analizzato e verificato i sistemi senza implementare gameplay. Aggiornamento del 22 ottobre: Task 1 completato nella Sim con factory e test; Task 2 completato nel client con scena d'ingresso e smoke; Task 3–9 non iniziati.
+Analisi del 21 ottobre 2026. Repository esaminato sul commit `faf05e2`, con file locali non versionati già presenti. Questo documento propone il prossimo incremento; **non certifica che la slice descritta sotto sia già realizzata**. La sessione iniziale ha analizzato e verificato i sistemi senza implementare gameplay. Aggiornamento del 22 ottobre: Task 1 completato nella Sim con factory e test; Task 2 completato nel client con scena d'ingresso e smoke; Task 3 completato nel client con attesa accelerata e smoke; Task 4 completato nel client con indicazioni, accesso al deposito e smoke; Task 5–9 non iniziati.
 
 ## 1. Decisione principale
 
@@ -247,11 +247,11 @@ La suite finale comprende **648 test superati, zero falliti e zero ignorati**, i
 
 `game/Scenes/PlayableSlice.tscn` riusa `VillageMap` con `PlayableSliceMode = true`. La modalità sceglie `PlayableSlice.CreateSession()` prima di costruire mappa e UI, mostra l'introduzione «Una sera al granaio» e apre alle 19:27 in pausa. «Comincia» riprende il tempo e chiude il pannello; Spazio usa la pausa esistente. L'inquadratura iniziale comprende il protagonista presso la locanda e il granaio. La main scene resta `Village.tscn`.
 
-Build client: zero avvisi/errori. `--slice-entry-smoke=<dir>` ha verificato che il tempo rimane fermo per 30 frame mentre si leggono le istruzioni e avanza dopo il pulsante; la cattura `entry-paused.png` è stata controllata a 1280×720. Smoke R5 di Village e INTERIOR ART PILOT riusciti con Vulkan. Nessun accesso UI a `WorldState`; nessuna prova del loop completo o dell'attesa accelerata, che restano ai task successivi. I file della factory e dei test del Task 1 sono ancora locali non versionati: vanno inclusi insieme al client prima di considerare la scena riproducibile da checkout pulito.
+Build client: zero avvisi/errori. `--slice-entry-smoke=<dir>` ha verificato che il tempo rimane fermo per 30 frame mentre si leggono le istruzioni e avanza dopo il pulsante; la cattura `entry-paused.png` è stata controllata a 1280×720. Smoke R5 di Village e INTERIOR ART PILOT riusciti con Vulkan. Nessun accesso UI a `WorldState`; nessuna prova del loop completo o dell'attesa accelerata, che restano ai task successivi. I file della factory e dei test del Task 1, inizialmente locali, sono stati poi committati con il client nei commit `6d8af0a` e `5746251`.
 
 ### Task 3 — Attendere senza perdere il furto
 
-**Stato:** da fare. **Tipo:** reasoning mirato su tempo/input; modello forte consigliato. **Dipendenze:** 1, 2.
+**Stato:** completato il 22 ottobre 2026. **Tipo:** reasoning mirato su tempo/input; modello forte consigliato. **Dipendenze:** 1, 2.
 
 **Obiettivo:** rendere breve l'osservazione senza cambiare scheduler o regole.
 
@@ -263,9 +263,17 @@ Build client: zero avvisi/errori. `--slice-entry-smoke=<dir>` ha verificato che 
 
 **Completato quando:** verifica di interruzione, pausa e mancato doppio avanzamento nello stesso frame; il comportamento finale della Sim coincide con l'avanzamento ordinario a parità di comandi/tempo. La durata reale soddisfa il budget della slice. Nessuna API temporale nuova salvo necessità dimostrata.
 
+#### Risultati effettivi del Task 3 — 22 ottobre 2026
+
+Nella sola `PlayableSlice` compare «Attendi fino a 5 minuti». Il client avanza la sessione tramite `SimulationSession.Advance` per un massimo di un secondo simulato per frame, poi aggiorna `PlayerView` e si ferma alla prima nuova osservazione conosciuta dal giocatore. Si ferma anche su combattimento, morte/incoscienza, pausa, pulsante «Interrompi attesa» o nuovo ordine; il ramo del clock normale non avanza nello stesso frame. L'attesa è stato UI transitorio, non un `WaitCommand` e non occupa l'attore: i comandi di movimento possono partire subito. Il ritmo esplorativo scelto resta invariato e riprende al termine. Nessuna API o regola Sim nuova.
+
+Lo smoke `--slice-wait-smoke=<dir>` ha verificato: pulsante disabilitato durante l'introduzione; pausa che ferma il tempo; nuovo ordine di cammino che interrompe l'attesa e avvia il movimento; assenza di doppio avanzamento nei frame di attesa. Due attese dall'interno della locanda lasciano avvenire il furto autonomo (40 → 32 razioni) senza aggiungere osservazioni al giocatore. A pari checkpoint, gli snapshot completi coincidono con una copia avanzata con il normale `Advance`. Dal punto `(16,7)`, con porta chiusa, sguardo verso nord e torcia, la seconda attesa si interrompe alla notizia `Theft` vista e identificata, alle **19:33:12 + 3 tick**; il diario mostra le razioni sottratte. Dalla posizione preparata fino alla notizia, le due attese hanno impiegato **10,8 secondi reali** nello smoke Vulkan locale. Cattura controllata: `.tmp/astra-task3/theft-observed.png` a 1280×720.
+
+Verifiche: `dotnet build game/RpgSandbox.Game.csproj --no-restore -v:q` senza avvisi/errori; 648/648 test Sim; smoke SLICE WAIT, SLICE ENTRY e R5 VILLAGE riusciti con Vulkan. Il posizionamento della prova automatica usa le API pubbliche della Sim, come il test del Task 1: non dimostra ancora che un nuovo giocatore trovi da solo il punto d'osservazione e le azioni necessarie, né sostituisce il playtest dei task successivi.
+
 ### Task 4 — Rendere raggiungibili e comprensibili i comandi essenziali
 
-**Stato:** da fare. **Tipo:** implementazione ordinaria. **Dipendenze:** 2.
+**Stato:** completato il 22 ottobre 2026. **Tipo:** implementazione ordinaria. **Dipendenze:** 2.
 
 **Obiettivo:** trovare granaio, guardia, diario e consegna senza spiegazioni esterne.
 
@@ -276,6 +284,12 @@ Build client: zero avvisi/errori. `--slice-entry-smoke=<dir>` ha verificato che 
 **Risultato verificabile:** si cammina al deposito, si trasferiscono 3 razioni e si raggiunge la guardia. Un rifiuto non cambia scorte e spiega cosa fare.
 
 **Completato quando:** comandi leggibili a 1280×720; nessuna nuova icona; nessun pulsante coperto dal log; nessuna posizione nascosta di NPC rivelata dal suggerimento. Test di conservazione del trasferimento esistente riusato, non duplicato senza motivo.
+
+#### Risultati effettivi del Task 4 — 22 ottobre 2026
+
+Nella scena `PlayableSlice`, «Comincia» ha un aspetto da pulsante. Un riquadro breve indica la strada del granaio, come parlare alla guardia quando è visibile e dove aprire il diario; si nasconde durante il dialogo per non coprirlo. Il nome del deposito può apparire quando la sua cassa è visibile, mentre il numero corrente delle scorte compare solo dal suo accesso. Vicino alla cassa, se il deposito è nella vista, un rombo sul terreno segnala la casella d'accesso già conosciuta e un pulsante offre «Consegna 3 razioni». Il comando usa `DepositFoodCommand`; un rifiuto per distanza indica di raggiungere il rombo senza muovere automaticamente il personaggio. Nessuna nuova icona o modifica della Sim.
+
+Verifiche effettive: build client senza avvisi/errori; 648/648 test Sim superati; smoke Godot Vulkan `--slice-guide-smoke` riuscito con cammino al deposito, rifiuto da un lato fuori portata senza variazioni delle due scorte, consegna di 3 razioni dall'accesso (giocatore 10 → 7, deposito 40 → 43), ritorno alla locanda e dialogo con la guardia. Smoke `--slice-entry-smoke`, `--slice-wait-smoke` e `--village-smoke` riusciti. Catture `.tmp/astra-task4/entry-guide.png`, `too-far.png`, `delivered.png`, `guard-talk.png` controllate a 1280×720: testo e pulsanti leggibili, log separato dal pulsante, dialogo non coperto dalle indicazioni. La guida della guardia usa solo `VisibleActors`; il riquadro di consegna compare solo vicino al deposito visibile. Resta utile un playtest umano per giudicare quanto intuitiva sia la ricerca del percorso; non è stato fatto in questa verifica.
 
 ### Task 5 — Collegare chiaramente notizia, rapporto ed esito
 
@@ -381,4 +395,4 @@ Dopo il collaudo, decidere sulla base di ciò che il giocatore ha capito e trova
 
 ## Primo task consigliato
 
-**Task 3: attendere senza perdere il furto.** La factory e la scena d'ingresso sono pronte; ora il giocatore deve poter attendere l'evento senza consumare due minuti reali né saltare una nuova osservazione. Il Task 4 può procedere separatamente dopo il Task 2, coordinando le modifiche al client.
+**Task 5: collegare chiaramente notizia, rapporto ed esito.** L'ingresso, l'attesa e i comandi essenziali sono pronti; il ramo rapporto resta da rendere leggibile secondo la scheda del Task 5.
