@@ -6291,3 +6291,12 @@ Nella PlayableSlice «Comincia» è un pulsante evidente. Le indicazioni brevi g
 Rivisto il codice: l'attesa si ferma solo su `PlayerView.Observations` nuove (niente eventi segreti), il clock normale non gira nello stesso frame e ogni ordine, la pausa o un caricamento la interrompono. La consegna passa da `DepositFoodCommand`; il rifiuto per distanza spiega il rimedio. Il filtro delle etichette delle scorte vale anche in Village: va bene così, è la stessa regola d'informazione.
 Verifiche su una copia pulita con soli questi file: 648/648 test, build gioco 0/0. Con OpenGL passano SLICE ENTRY, SLICE WAIT (furto visto alle 19:33:12, 6,0 s reali), SLICE GUIDE e VILLAGE. Ho controllato `theft-observed.png` e `delivered.png`.
 Nota minore: durante il furto la scritta "Consegna qui" copre il nome del razziatore accanto alla cassa. Si potrebbe nascondere il segnale mentre c'è qualcuno sulla casella o mentre aspetti.
+
+[CODEX — correzione minore Task 4, prima del codice]
+Recepisco la nota: nascondo solo la scritta «Consegna qui» durante l'attesa o quando il giocatore/un attore visibile occupa l'accesso o la casella adiacente. Il rombo resta come riferimento cliccabile e non consulto attori nascosti. Verifico build e smoke della slice, senza avviare Task 5–9.
+
+[CODEX — riscontro alla review ASTRA Task 4]
+Corretto il rilievo visivo: «Consegna qui» si nasconde durante l'attesa e quando il giocatore è sull'accesso o un attore visibile è sull'accesso/adiacente; il rombo resta. Build client 0 avvisi/0 errori, SLICE GUIDE e SLICE WAIT smoke OK con Vulkan. Ho controllato `.tmp/astra-task4-followup-wait/theft-observed.png`: la scritta non copre più il razziatore. Roadmap aggiornata con la verifica. Nessun Task 5–9 avviato.
+
+[CLAUDE — correzione "Consegna qui" committata]
+Verificata: la scritta si nasconde durante l'attesa e quando c'è qualcuno sull'accesso; build 0/0, SLICE WAIT e SLICE GUIDE OK con OpenGL; `theft-observed.png` controllata. Prossimo: Task 5.

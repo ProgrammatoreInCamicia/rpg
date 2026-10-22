@@ -17,6 +17,7 @@ public partial class VillageMap
 	private Label? _sliceDepositStatus;
 	private Button? _sliceDepositButton;
 	private Node2D? _sliceAccessMarker;
+	private Label? _sliceAccessLabel;
 	private bool _sliceWaiting;
 	private GameTime _sliceWaitUntil;
 	private HashSet<ObservationId> _sliceKnownObservations = new();
@@ -128,19 +129,20 @@ public partial class VillageMap
 		{
 			Polygon = Diamond(0.62f), Color = new Color(0.19f, 0.79f, 0.90f, 0.72f),
 		});
-		var accessLabel = new Label { Text = "Consegna qui", Position = new Vector2(-54, -40),
+		_sliceAccessLabel = new Label { Text = "Consegna qui", Position = new Vector2(-54, -40),
 			MouseFilter = Control.MouseFilterEnum.Ignore };
-		accessLabel.AddThemeFontSizeOverride("font_size", 12);
-		accessLabel.AddThemeConstantOverride("outline_size", 4);
-		accessLabel.AddThemeColorOverride("font_outline_color", Colors.Black);
-		_sliceAccessMarker.AddChild(accessLabel);
+		_sliceAccessLabel.AddThemeFontSizeOverride("font_size", 12);
+		_sliceAccessLabel.AddThemeConstantOverride("outline_size", 4);
+		_sliceAccessLabel.AddThemeColorOverride("font_outline_color", Colors.Black);
+		_sliceAccessMarker.AddChild(_sliceAccessLabel);
 		AddChild(_sliceAccessMarker);
 	}
 
 	private void RefreshSliceGuidance()
 	{
 		if (!PlayableSliceMode || _sliceGuidePanel is null || _sliceGuideText is null || _sliceDepositPanel is null
-			|| _sliceDepositStatus is null || _sliceDepositButton is null || _sliceAccessMarker is null) return;
+			|| _sliceDepositStatus is null || _sliceDepositButton is null || _sliceAccessMarker is null
+			|| _sliceAccessLabel is null) return;
 		_sliceGuidePanel.Visible = _talkingTo is null;
 		var store = _view.VisibleStores.FirstOrDefault(s => s.Id == MappedVillageScenario.Ids.GranaryStore);
 		var nearby = store?.Position is { } crate && _view.Position is { } player
@@ -163,7 +165,14 @@ public partial class VillageMap
 			&& access.X >= 0 && access.X < visibility[access.Y].Length
 			&& visibility[access.Y][access.X] != '0';
 		_sliceAccessMarker.Visible = nearby && accessKnown && _view.Combat is null && !_view.Dead;
-		if (accessKnown) _sliceAccessMarker.Position = CellToScreen(access);
+		if (accessKnown)
+		{
+			_sliceAccessMarker.Position = CellToScreen(access);
+			_sliceAccessLabel.Visible = !_sliceWaiting
+				&& _view.Position != access
+				&& !_view.VisibleActors.Any(actor => actor.Position is { } at
+					&& Math.Abs(at.X - access.X) + Math.Abs(at.Y - access.Y) <= 1);
+		}
 		_sliceDepositStatus.Text = _view.Food < 3 ? "Ti servono 3 razioni per la consegna."
 			: accessKnown ? "Clicca il rombo presso la cassa, poi consegna."
 			: "Avvicinati alla cassa per trovare il lato di consegna.";

@@ -291,6 +291,8 @@ Nella scena `PlayableSlice`, «Comincia» ha un aspetto da pulsante. Un riquadro
 
 Verifiche effettive: build client senza avvisi/errori; 648/648 test Sim superati; smoke Godot Vulkan `--slice-guide-smoke` riuscito con cammino al deposito, rifiuto da un lato fuori portata senza variazioni delle due scorte, consegna di 3 razioni dall'accesso (giocatore 10 → 7, deposito 40 → 43), ritorno alla locanda e dialogo con la guardia. Smoke `--slice-entry-smoke`, `--slice-wait-smoke` e `--village-smoke` riusciti. Catture `.tmp/astra-task4/entry-guide.png`, `too-far.png`, `delivered.png`, `guard-talk.png` controllate a 1280×720: testo e pulsanti leggibili, log separato dal pulsante, dialogo non coperto dalle indicazioni. La guida della guardia usa solo `VisibleActors`; il riquadro di consegna compare solo vicino al deposito visibile. Resta utile un playtest umano per giudicare quanto intuitiva sia la ricerca del percorso; non è stato fatto in questa verifica.
 
+Dopo la review di Claude, la scritta «Consegna qui» si nasconde durante l'attesa o se il protagonista/un attore visibile occupa l'accesso o una casella adiacente; il rombo resta. Build 0/0, smoke SLICE GUIDE e SLICE WAIT riusciti; `.tmp/astra-task4-followup-wait/theft-observed.png` controllata a 1280×720, senza sovrapposizione della scritta al nome del razziatore. La review di Claude su una copia pulita aveva già confermato Task 3 e 4 con 648/648 test, build 0/0 e smoke OpenGL SLICE ENTRY, SLICE WAIT, SLICE GUIDE e VILLAGE.
+
 ### Task 5 — Collegare chiaramente notizia, rapporto ed esito
 
 **Stato:** da fare. **Tipo:** implementazione ordinaria con attenzione al contratto informativo. **Dipendenze:** 1, 2, 4.
