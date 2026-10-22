@@ -6264,3 +6264,16 @@ Grazie, review recepita. Terrò `src/` e `tests/` nella tua area e annuncerò in
 
 [CODEX — riscontro alla review]
 Smoke R5: Cerca ora attende che `_map.IsBusy` diventi falso fino a 600 frame, senza limite di 5 s reali; il resto degli smoke resta invariato. I sette PNG usati a runtime nel pilot (quattro arredi, intonaco, pietra, tetto) sono stati ridotti a massimo 512 px mantenendo alfa e proporzioni: 16.529.741 → 2.677.775 byte complessivi. Cattura `inside-bedroom.png` del nuovo smoke controllata; arredi e materiali restano leggibili. Build gioco 0 avvisi/0 errori, smoke R5 client e INTERIOR ART PILOT con Vulkan OK. I PNG `interior-concept`, `interior-current` e `character-lineup` rimangono sorgenti delle scene di studio, non fanno parte dei sette asset runtime; le immagini grandi in `docs/ux-icon-study/` rimangono reference del campione e non vengono caricate nel gioco.
+[CODEX — ASTRA Task 2, prima del codice]
+L'utente mi ha assegnato il Task 2. Aggiungo `PlayableSlice.tscn` che riusa `VillageMap`, una modalità esportata che sceglie `PlayableSlice.CreateSession()` prima della costruzione di mappa/UI, e un piccolo pannello introduttivo dismissibile. La scena partirà in pausa con indicazioni su granaio, guardia, movimento e Spazio; Village e pilot restano invariati. Verifico build, avvio e pausa/ripresa senza accedere a `WorldState` dalla UI. Non avvio ancora i task 3–9.
+[CODEX — ASTRA Task 2, pronto per review]
+Scena `game/Scenes/PlayableSlice.tscn` aggiunta: riusa `VillageMap` con `PlayableSliceMode`, sceglie `PlayableSlice.CreateSession()` prima di mappa/UI, parte alle 19:27 in pausa e mostra invito e comandi minimi. Pulsante «Comincia» (o Spazio) chiude il pannello e riprende; inquadratura a 1280×720 controllata in `.tmp/astra-task2-final/entry-paused.png`, con protagonista, locanda e granaio in vista. Main scene e pilot invariati. Verifiche: solution build 0/0, 5 test `PlayableSliceTests`, `SLICE ENTRY SMOKE OK` (30 frame fermi, poi tempo che avanza dal pulsante), smoke R5 Village e INTERIOR ART PILOT OK con Vulkan. Ho aggiornato `ASTRA_ROADMAP.md`: Task 2 completato, Task 3 prossimo. Limite: non ci sono ancora attesa accelerata, istruzioni specifiche del percorso di osservazione o save dedicato; Task 1 (`PlayableSlice.cs` e relativi test) è ancora non versionato e va incluso prima di una consegna da checkout pulito.
+
+[CLAUDE — review ASTRA Task 1 e Task 2, committati]
+Task 1 (`PlayableSlice`, `PlayableSliceTests`, di Astra): i test usano solo le API pubbliche e controllano il caso positivo, quello senza osservazione e i due casi luce/porta; nessuna scorciatoia nello stato. Li prendo nella mia area.
+Task 2 (Codex): modalità esportata, partenza in pausa alle 19:27, introduzione che si chiude con Comincia o Spazio; Village e pilot invariati.
+Verifiche su una copia pulita con soli questi file: 648/648 test, build gioco 0/0. Con OpenGL passano SLICE ENTRY, VILLAGE e INTERIOR ART PILOT; ho controllato `entry-paused.png`.
+Note per i task successivi:
+- "Comincia" sembra testo semplice più che un pulsante: va reso riconoscibile (Task 4).
+- L'etichetta "Scorte del granaio: 40" è visibile prima che il giocatore ci arrivi: viene dalla vista onnisciente, come già segnala la roadmap. Va filtrata prima della slice consegnabile (Task 4 o 6).
+- La slice salva ancora in `user://village.json` (Task 7).

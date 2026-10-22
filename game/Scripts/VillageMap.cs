@@ -15,6 +15,7 @@ public partial class VillageMap : Node2D
 {
 	[Export] public bool InteriorPrototype { get; set; }
 	[Export] public bool InteriorArtPilot { get; set; }
+	[Export] public bool PlayableSliceMode { get; set; }
 	private const float TileW = 64f;
 	private const float TileH = 32f;
 	private const float WallHeight = 26f;
@@ -101,8 +102,9 @@ public partial class VillageMap : Node2D
 	{
 		var interior = InteriorArtPilot || InteriorPrototype || OS.GetCmdlineUserArgs().Contains("--interior-prototype");
 		_freeMovementEnabled = true;
-		_sim = SimulationSession.Create(InteriorArtPilot ? InteriorArtPilotScenario.Create()
-			: interior ? InteriorPrototypeScenario.Create() : ScenarioFile.Load("living-village"));
+		_sim = PlayableSliceMode ? PlayableSlice.CreateSession()
+			: SimulationSession.Create(InteriorArtPilot ? InteriorArtPilotScenario.Create()
+				: interior ? InteriorPrototypeScenario.Create() : ScenarioFile.Load("living-village"));
 		if (interior)
 			_sim.Advance(Duration.FromHours(13)); // the playable scene opens in daylight; the smoke also checks night
 		_sim.FacePlayer(InteriorArtPilot ? -1 : 1, InteriorArtPilot ? 0 : 1);
@@ -112,7 +114,11 @@ public partial class VillageMap : Node2D
 		BuildMap();
 		BuildR5Map();
 		BuildUi();
+		if (PlayableSliceMode) SetPaused(true);
 		Refresh();
+		var sliceEntrySmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-entry-smoke="));
+		if (PlayableSliceMode && sliceEntrySmoke is not null)
+			RunSliceEntrySmoke(sliceEntrySmoke["--slice-entry-smoke=".Length..]);
 
 		var smoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--village-smoke="));
 		if (smoke is not null)
@@ -531,6 +537,7 @@ public partial class VillageMap : Node2D
 		_pause.SetPressedNoSignal(paused);
 		if (!paused)
 		{
+			HideSliceIntro();
 			var orders = _queue.ToList();
 			_queue.Clear();
 			foreach (var order in orders)
@@ -1173,7 +1180,9 @@ public partial class VillageMap : Node2D
 	}
 
 	// Keep the compact interior in the viewport area beside the fixed left HUD.
-	private Vector2 CameraTarget(Vector2 worldPoint) => InteriorArtPilot
+	private Vector2 CameraTarget(Vector2 worldPoint) => PlayableSliceMode
+		? worldPoint + new Vector2(70f, 90f)
+		: InteriorArtPilot
 		? CellToScreen(new GridPos(8, 7)) + new Vector2(-50f, -10f)
 		: _view.MapVisibility is not null
 		? worldPoint + new Vector2(_view.Combat is null ? -200f : -25f, 0f) : worldPoint;
@@ -1341,7 +1350,7 @@ public partial class VillageMap : Node2D
 		BuildSpotOverlay();
 		BuildShotLayer();
 
-		var zoom = InteriorArtPilot ? 1.85f : _view.MapVisibility is null ? 1.2f : 1.08f;
+		var zoom = InteriorArtPilot ? 1.85f : PlayableSliceMode ? 0.9f : _view.MapVisibility is null ? 1.2f : 1.08f;
 		_camera = new Camera2D { Position = CameraTarget(CellToScreen(_view.Position ?? new GridPos(0, 0))), Zoom = new Vector2(zoom, zoom) };
 		AddChild(_camera);
 		_camera.MakeCurrent();
@@ -1613,6 +1622,7 @@ public partial class VillageMap : Node2D
 		BuildHudLog(ui);
 		BuildQuickbarUi(ui);
 		BuildR5Ui(ui);
+		if (PlayableSliceMode) BuildSliceIntro(ui);
 
 		_offMapPanel = new PanelContainer { OffsetLeft = 440, OffsetRight = 840, OffsetTop = 100, OffsetBottom = 245,
 			Visible = false };
