@@ -128,7 +128,7 @@ internal sealed class SpotPlanner
     {
         if (from == to)
             return new SpotPath(new[] { from }, 0);
-        if (Clear(from, to))
+        if (Clear(from, to, escapeFrom: from))
             return new SpotPath(new[] { from, to }, from.DistanceTo(to));
 
         var nodes = new List<Spot> { from, to };
@@ -152,7 +152,7 @@ internal sealed class SpotPlanner
                 if (closed[v])
                     continue;
                 var cost = g[u] + nodes[u].DistanceTo(nodes[v]);
-                if (cost >= g[v] || !Clear(nodes[u], nodes[v]))
+                if (cost >= g[v] || !Clear(nodes[u], nodes[v], escapeFrom: u == 0 ? from : null))
                     continue;
                 g[v] = cost;
                 previous[v] = u;
@@ -192,7 +192,7 @@ internal sealed class SpotPlanner
                 if (closed[v])
                     continue;
                 var cost = g[u] + nodes[u].DistanceTo(nodes[v]);
-                if (cost >= g[v] || !Clear(nodes[u], nodes[v]))
+                if (cost >= g[v] || !Clear(nodes[u], nodes[v], escapeFrom: u == 0 ? from : null))
                     continue;
                 g[v] = cost;
                 open.Enqueue(v, (cost, v));
@@ -236,7 +236,7 @@ internal sealed class SpotPlanner
                 if (closed[v])
                     continue;
                 var cost = g[u] + nodes[u].DistanceTo(nodes[v]);
-                if (cost >= g[v] || !Clear(nodes[u], nodes[v]))
+                if (cost >= g[v] || !Clear(nodes[u], nodes[v], escapeFrom: u == 0 ? from : null))
                     continue;
                 g[v] = cost;
                 previous[v] = u;
@@ -278,7 +278,7 @@ internal sealed class SpotPlanner
     }
 
     /// <summary>A body can go straight from <paramref name="a"/> to <paramref name="b"/>.</summary>
-    private bool Clear(Spot a, Spot b)
+    private bool Clear(Spot a, Spot b, Spot? escapeFrom = null)
     {
         double need = BodyRadius - Slack;
         int minX = Math.Min(a.X, b.X) - BodyRadius * 2, maxX = Math.Max(a.X, b.X) + BodyRadius * 2;
@@ -293,8 +293,16 @@ internal sealed class SpotPlanner
             if (box.X1 >= minX && box.X0 <= maxX && box.Y1 >= minY && box.Y0 <= maxY && SegmentBox(a, b, box) < need)
                 return false;
         foreach (var c in _blockers)
+        {
+            // A moving NPC may have entered the mover's occupied spot before combat began. The mover must be able
+            // to step away from that overlap, but may not continue through another body or circle back through it.
+            if (escapeFrom == a && a.DistanceTo(c) < 2 * BodyRadius - Slack
+                && (long)(a.X - c.X) * (b.X - a.X) + (long)(a.Y - c.Y) * (b.Y - a.Y) >= 0
+                && b.DistanceTo(c) >= 2 * BodyRadius - Slack)
+                continue;
             if (PointSegment(c, a, b) < 2 * BodyRadius - Slack)
                 return false;
+        }
         return true;
     }
 

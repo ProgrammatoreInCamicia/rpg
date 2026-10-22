@@ -451,7 +451,9 @@ public partial class VillageMap
 		var pending = combat.PendingOpeningAttack is { } opening
 			? $"\nAttacco iniziale in attesa: {opening.Attack}." : "";
 		return (combat.IsYourTurn
-			? _freeMovementEnabled
+			? combat.You.MovementLeftInches <= 0
+				? "Movimento esaurito. Premi Fine turno per continuare."
+				: _freeMovementEnabled
 				? "Terreno: percorso e movimento · Clic destro: porte e finestre"
 				: "Casella verde: percorso e movimento · Clic destro: porte e finestre"
 			: "Attendi il tuo turno.") + pending;
@@ -479,8 +481,9 @@ public partial class VillageMap
 		}
 		if (mouse.ButtonIndex == MouseButton.Left && _attackArmed)
 		{
-			ShowMessage("Scegli un bersaglio per l'attacco. Esc annulla.");
-			return true;
+			_attackArmed = false;
+			RefreshAttackBars();
+			RefreshQuickbar();
 		}
 		if (WindowAt(point) is { } window)
 		{

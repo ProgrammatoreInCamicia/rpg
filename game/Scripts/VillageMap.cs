@@ -129,6 +129,9 @@ public partial class VillageMap : Node2D
 		var sliceReportSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-report-smoke="));
 		if (PlayableSliceMode && sliceReportSmoke is not null)
 			RunSliceReportSmoke(sliceReportSmoke["--slice-report-smoke=".Length..]);
+		var sliceCombatSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-combat-smoke="));
+		if (PlayableSliceMode && sliceCombatSmoke is not null)
+			RunSliceCombatSmoke(sliceCombatSmoke["--slice-combat-smoke=".Length..]);
 
 		var smoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--village-smoke="));
 		if (smoke is not null)
@@ -312,25 +315,32 @@ public partial class VillageMap : Node2D
 				{
 					if (!UseArmedAttack(person)) TalkTo(person);
 				}
-				else if (_attackArmed)
-					ShowMessage("Scegli un bersaglio per l'attacco. Esc annulla.");
-				else if (_view.Map.Exits.FirstOrDefault(e => e.At == ScreenToCell(point)) is { } exit)
-					GoToExit(exit);
-				else if (WindowAt(point) is { } window)
-					ClickWindow(window);
-				else if (DoorAt(point) is { } door)
-				{
-					if (mouse.ShiftPressed)
-						MoveTo(door); // walk onto an adjacent door instead of operating it
-					else
-						ClickDoor(door);
-				}
-				else if (GroundItemAt(ScreenToCell(point)) is { } item)
-					PickUp(item);
-				else if (_freeMovementEnabled)
-					MoveToSpot(ScreenToSpot(point));
 				else
-					MoveTo(ScreenToCell(point));
+				{
+					if (_attackArmed)
+					{
+						_attackArmed = false;
+						RefreshAttackBars();
+						RefreshQuickbar();
+					}
+					if (_view.Map.Exits.FirstOrDefault(e => e.At == ScreenToCell(point)) is { } exit)
+						GoToExit(exit);
+					else if (WindowAt(point) is { } window)
+						ClickWindow(window);
+					else if (DoorAt(point) is { } door)
+					{
+						if (mouse.ShiftPressed)
+							MoveTo(door); // walk onto an adjacent door instead of operating it
+						else
+							ClickDoor(door);
+					}
+					else if (GroundItemAt(ScreenToCell(point)) is { } item)
+						PickUp(item);
+					else if (_freeMovementEnabled)
+						MoveToSpot(ScreenToSpot(point));
+					else
+						MoveTo(ScreenToCell(point));
+				}
 				break;
 			case MouseButton.WheelUp:
 				_camera.Zoom = (_camera.Zoom * 1.1f).Clamp(new Vector2(0.5f, 0.5f), new Vector2(3f, 3f));
@@ -852,7 +862,9 @@ public partial class VillageMap : Node2D
 			_returnToVillage.Visible = _view.Travel is null && _view.Location == MappedVillageScenario.Ids.BanditCamp;
 		}
 		var now = _view.Now;
-		_clock.Text = $"G{now.Day + 1} · {now.Hour:00}:{now.Minute:00} · {DayName(_view.Daylight)}";
+		_clock.Text = $"G{now.Day + 1} · {now.Hour:00}:{now.Minute:00}"
+			+ (PlayableSliceMode ? $":{now.Second:00}" : "")
+			+ $" · {DayName(_view.Daylight)}";
 		_clock.TooltipText = $"Giorno {now.Day + 1}, {now.Hour:00}:{now.Minute:00}:{now.Second:00} · {HereName(_view.Light)}";
 		var where = _view.Location is { } here ? _view.Locations.Single(l => l.Id == here).Name
 			: onMap ? "strada" : "in viaggio";

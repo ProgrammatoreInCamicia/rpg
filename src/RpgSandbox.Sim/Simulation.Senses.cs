@@ -295,7 +295,11 @@ internal sealed partial class Simulation
             var everInSight = take.Sight.ContainsKey(witness.Id);
             var light = everInSight ? BestLightInSight(take, witness.Id) : LightOn(map, thiefSquare);
             var senses = Perception.Witness(witness.Sheet, light, stealth);
-            var seen = everInSight && senses.SawActor;
+            // At arm's reach, an actor visibly handling the store cannot conceal that ongoing deed with a
+            // Stealth roll. This matches the visible Doing shown to the player; darkness and walls still hide it.
+            var closeSeen = here.IsAdjacentOrSame(thiefSquare) && CanSee(map, witness, here, thiefSquare)
+                && !Has(witness, ConditionKind.Blinded) && !Has(thief, ConditionKind.Invisible);
+            var seen = closeSeen || (everInSight && senses.SawActor);
             var heard = senses.HearingPerception >= stealth && WithinEarshot(map, here, thiefSquare);
             if (!seen && !heard)
             {

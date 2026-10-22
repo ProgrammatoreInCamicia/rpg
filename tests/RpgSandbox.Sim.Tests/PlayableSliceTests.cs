@@ -121,6 +121,38 @@ public class PlayableSliceTests(ITestOutputHelper output)
         Assert.Null(session.GetWorldView().Actor(Guard).GuardDuty);
     }
 
+    [Fact]
+    public void Adjacent_witness_who_sees_the_raider_working_notices_the_theft_without_a_torch()
+    {
+        var session = PlayableSlice.CreateSession();
+        Walk(session, new GridPos(16, 6));
+        session.FacePlayer(0, -1);
+        AdvanceUntil(session, () => session.GetWorldView().Actor(Raider).Action?.Kind == "TakeFood", At(1, 19, 32));
+        var raider = Assert.Single(session.GetPlayerView().VisibleActors, a => a.Id == Raider);
+        Assert.NotNull(raider.Doing);
+        Assert.Equal('1', session.GetPlayerView().MapLight![5][16]); // dim evening light, no torch
+
+        AdvanceUntil(session, () => session.Now >= At(1, 19, 35), At(1, 19, 35));
+        var observed = Assert.Single(session.GetPlayerView().Observations);
+        Assert.Equal("Seen", observed.Perceived);
+        Assert.Equal(GranaryStore, observed.Store);
+        Assert.Equal(Raider, observed.Culprit);
+    }
+
+    [Fact]
+    public void Player_overlapped_by_the_raider_at_the_access_can_step_away_but_not_through_him()
+    {
+        var session = PlayableSlice.CreateSession();
+        Walk(session, GranaryAccess);
+        AdvanceUntil(session, () => session.GetWorldView().Actor(Raider).Action?.Kind == "TakeFood", At(1, 19, 33));
+        var start = session.GetPlayerView().Spot!.Value;
+        var raider = session.GetPlayerView().VisibleActors.Single(a => a.Id == Raider).Spot!.Value;
+        Assert.True(start.DistanceTo(raider) < 36, $"Expected an overlap: player {start}, raider {raider}.");
+
+        Assert.True(session.PreviewMoveToSpot(session.Player, Spot.CenterOf(new GridPos(16, 7))).Valid); // away
+        Assert.False(session.PreviewMoveToSpot(session.Player, raider).Valid); // onto him
+    }
+
     private void Observe(SimulationSession session)
     {
         PrepareLookout(session, torch: true, closeDoor: true);

@@ -143,7 +143,7 @@ public partial class VillageMap
 		if (!PlayableSliceMode || _sliceGuidePanel is null || _sliceGuideText is null || _sliceDepositPanel is null
 			|| _sliceDepositStatus is null || _sliceDepositButton is null || _sliceAccessMarker is null
 			|| _sliceAccessLabel is null) return;
-		_sliceGuidePanel.Visible = _talkingTo is null;
+		_sliceGuidePanel.Visible = _talkingTo is null && _view.Combat is null;
 		var store = _view.VisibleStores.FirstOrDefault(s => s.Id == MappedVillageScenario.Ids.GranaryStore);
 		var nearby = store?.Position is { } crate && _view.Position is { } player
 			&& Math.Abs(player.X - crate.X) + Math.Abs(player.Y - crate.Y) <= 4;
@@ -281,7 +281,12 @@ public partial class VillageMap
 			|| _view.Unconscious || _view.Action is not null || _view.Move is not null || _running is not null);
 		var remaining = Math.Max(0, _sliceWaitUntil.Since(_view.Now).Seconds);
 		_sliceWaitStatus.Text = _sliceWaiting ? $"Rimangono {remaining / 60}:{remaining % 60:00} · si ferma se noti qualcosa."
-			: "Attesa accelerata e interrompibile.";
+			: _view.Combat is { IsYourTurn: false } ? "Scontro a turni: attendi il tuo turno."
+			: _view.Combat is { You.MovementLeftInches: <= 0 }
+				? "Movimento esaurito: premi Fine turno per far agire gli altri."
+			: _view.Combat is not null ? "Scontro a turni: clicca il terreno per muoverti; Fine turno fa agire gli altri."
+			: _paused ? "In pausa: premi Spazio o Riprendi."
+			: $"Tempo normale ×{_pace:0.#}. Per far passare altri 5 minuti, premi Attendi.";
 	}
 
 	private async void RunSliceEntrySmoke(string outputDir)
