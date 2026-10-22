@@ -323,7 +323,7 @@ Secondo riscontro del playtest: senza torcia, dalla casella adiacente il giocato
 
 ### Task 6 — Mostrare una conclusione basata su ciò che si sa
 
-**Stato:** da fare. **Tipo:** implementazione ordinaria; reasoning forte solo se manca un dato pubblico necessario. **Dipendenze:** 3, 5.
+**Stato:** completato da Claude il 22 ottobre 2026 (vedi nota sotto). **Tipo:** implementazione ordinaria; reasoning forte solo se manca un dato pubblico necessario. **Dipendenze:** 3, 5.
 
 **Obiettivo:** far percepire la conseguenza e permettere di fermarsi dopo una prova breve.
 
@@ -334,6 +334,14 @@ Secondo riscontro del playtest: senza torcia, dalla casella adiacente il giocato
 **Risultato verificabile:** i due rami hanno riepiloghi corretti, e il rapporto non viene presentato come restituzione o eliminazione dei banditi. Si può chiudere il riepilogo e continuare.
 
 **Completato quando:** nessuna dipendenza dal parsing di frasi italiane o dal conteggio del log volatile per stabilire la verità del mondo. Se aggiunto un campo pubblico, test positivo/negativo di visibilità. Non aggiungere stato persistente di quest per una checklist: preferire dati già salvati e riepiloghi ricostruibili.
+
+#### Nota di completamento — 22 ottobre 2026
+
+Nella Sim c'è un campo additivo, `VisibleActorView.GuardingStore`: il deposito che un attore visibile sta sorvegliando in quel momento, con il filtro di `Doing`. Il presidio previsto ma non ancora preso non compare. Test `A_guard_is_shown_guarding_only_while_seen_keeping_the_post`: positivo al posto e in vista; negativi in vista ma non di guardia, in servizio ma ancora in cammino, e di guardia ma fuori vista (giocatore dentro la locanda con la porta chiusa).
+
+Nel client c'è `VillageMap.SliceSummary.cs`. Il pulsante «Riepilogo» nel riquadro d'attesa mette in pausa e ricostruisce il testo dalla PlayerView. Le righe dicono come si è saputo il furto (visto, sentito o raccontato), le razioni e il colpevole se riconosciuto. Il rapporto risulta completato solo da `ToldTo`; se manca dice «Altri potrebbero saperlo comunque». Seguono le razioni del giocatore e le scorte del granaio, contate solo dalla casella di consegna. Infine la guardia vista al presidio, solo da `GuardingStore`. «Termina la prova» è una scelta esplicita: mostra «Prova conclusa» con «Continua a esplorare» ed «Esci». Nessuno stato di quest salvato.
+
+Verifiche in un worktree pulito: 651/651 test Sim, build client 0/0, smoke OpenGL SLICE SUMMARY (nuovo), COMBAT, ENTRY, WAIT, GUIDE, REPORT e VILLAGE OK. Ho controllato le catture `summary-ignored.png` e `summary-reported.png`.
 
 ### Task 7 — Riprovare e salvare senza contaminare altri scenari
 

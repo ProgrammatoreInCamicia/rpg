@@ -140,6 +140,27 @@ public class PlayableSliceTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_guard_is_shown_guarding_only_while_seen_keeping_the_post()
+    {
+        var session = PlayableSlice.CreateSession();
+        var atInn = Assert.Single(session.GetPlayerView().VisibleActors, a => a.Id == Guard);
+        Assert.Null(atInn.GuardingStore); // seen, but not on guard
+
+        PrepareLookout(session, torch: true, closeDoor: false); // the guard sees the theft herself and takes the post
+        AdvanceUntil(session, () => session.GetWorldView().Actor(Guard).GuardDuty is not null, At(1, 19, 35));
+        Assert.Null(session.GetPlayerView().VisibleActors.SingleOrDefault(a => a.Id == Guard)?.GuardingStore); // duty, not yet kept
+        AdvanceUntil(session, () => session.GetWorldView().Actor(Guard).Action?.Kind == "Guard", At(1, 20, 0));
+        var atPost = Assert.Single(session.GetPlayerView().VisibleActors, a => a.Id == Guard);
+        Assert.Equal(GranaryStore, atPost.GuardingStore);
+
+        Walk(session, new GridPos(6, 3)); // back inside the inn, by the door
+        var closed = session.Execute(new DoorCommand { Actor = session.Player, At = InnDoor, Open = false });
+        Assert.True(closed.Success, closed.Message);
+        Assert.Equal("Guard", session.GetWorldView().Actor(Guard).Action?.Kind);
+        Assert.DoesNotContain(session.GetPlayerView().VisibleActors, a => a.Id == Guard);
+    }
+
+    [Fact]
     public void Player_overlapped_by_the_raider_at_the_access_can_step_away_but_not_through_him()
     {
         var session = PlayableSlice.CreateSession();

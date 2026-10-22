@@ -104,7 +104,7 @@ public partial class VillageMap
 		{
 			AnchorLeft = 1, AnchorRight = 1,
 			OffsetLeft = -308, OffsetRight = -18,
-			OffsetTop = 165, OffsetBottom = 275,
+			OffsetTop = 203, OffsetBottom = 313,
 			Visible = false,
 		};
 		_sliceDepositPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
@@ -195,7 +195,7 @@ public partial class VillageMap
 		{
 			AnchorLeft = 1, AnchorRight = 1,
 			OffsetLeft = -308, OffsetRight = -18,
-			OffsetTop = 70, OffsetBottom = 156,
+			OffsetTop = 70, OffsetBottom = 194,
 		};
 		panel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
 		{
@@ -213,6 +213,7 @@ public partial class VillageMap
 		_sliceWaitStatus = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		_sliceWaitStatus.AddThemeFontSizeOverride("font_size", 11);
 		content.AddChild(_sliceWaitStatus);
+		BuildSliceSummaryUi(ui, content);
 	}
 
 	private void ToggleSliceWait()

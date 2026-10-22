@@ -129,6 +129,9 @@ public partial class VillageMap : Node2D
 		var sliceReportSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-report-smoke="));
 		if (PlayableSliceMode && sliceReportSmoke is not null)
 			RunSliceReportSmoke(sliceReportSmoke["--slice-report-smoke=".Length..]);
+		var sliceSummarySmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-summary-smoke="));
+		if (PlayableSliceMode && sliceSummarySmoke is not null)
+			RunSliceSummarySmoke(sliceSummarySmoke["--slice-summary-smoke=".Length..]);
 		var sliceCombatSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-combat-smoke="));
 		if (PlayableSliceMode && sliceCombatSmoke is not null)
 			RunSliceCombatSmoke(sliceCombatSmoke["--slice-combat-smoke=".Length..]);
@@ -976,6 +979,7 @@ public partial class VillageMap : Node2D
 		PlaceTokens();
 		RefreshSliceWaitUi();
 		RefreshSliceGuidance();
+		RefreshSliceSummary();
 	}
 
 	private void RefreshPeople()

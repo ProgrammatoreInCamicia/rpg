@@ -344,6 +344,7 @@ public sealed class SimulationSession
                     ? new TravelView { Action = t.Id, Origin = t.Origin, Destination = t.Destination, DepartedAt = t.StartedAt, ArrivesAt = t.CompletesAt, Pace = t.Pace }
                     : null,
                 Doing = map is not null || (player.Location is { } here && x.Location == here) ? OutwardDoing(x, w) : null,
+                GuardingStore = (map is not null || player.Location is { } there && x.Location == there) && x.CurrentAction is GuardAction g ? g.Store : null,
                 AtBarrier = x.CurrentAction is BarrierAction work ? new BarrierRefView { A = work.Target.A, B = work.Target.B } : null,
                 Conditions = Freeze(_sim.ConditionsOf(x, visibleOnly: true, player)),
                 Position = PositionOf(x, w),

@@ -215,6 +215,12 @@ public sealed record VisibleActorView
     public string? Doing { get; init; }
 
     /// <summary>
+    /// The store this actor is seen standing guard over right now (its outward gesture is "sorveglia il deposito"),
+    /// under the same visibility as <see cref="Doing"/>; null otherwise. Duty assigned but not being kept does not show.
+    /// </summary>
+    public StoreId? GuardingStore { get; init; }
+
+    /// <summary>
     /// P5a: the door or window it is working on (picking, forcing, breaking glass, climbing), when the player sees it;
     /// null otherwise. <see cref="Doing"/> says the gesture.
     /// </summary>

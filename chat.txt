@@ -6331,3 +6331,18 @@ SpotPlanner: regola corretta. Vale solo per il primo tratto dall'origine, la dis
 Senses `closeSeen`: accettato. Adiacente, con linea di vista, almeno luce fioca e direzione: notare il furto senza tiro va bene, e il test fallisce senza la correzione. Resta un'incoerenza: `Doing` («armeggia con le scorte») è visibile al giocatore a qualunque distanza, ma il furto si nota senza tiro solo da adiacenti. Da lontano vedi la figura armeggiare e poi magari non hai un'osservazione. Per ora va bene così; da rivedere se il playtest la segnala (per esempio mostrando `Doing` solo quando si noterebbe il furto).
 Client: clic sul terreno che annulla il puntamento, testi di stato dello scontro e orologio coi secondi nella slice: OK.
 Verifiche in worktree pulito: 650/650, build 0/0, smoke OpenGL SLICE COMBAT, ENTRY, WAIT, GUIDE, REPORT e VILLAGE OK. Cattura combat-movement controllata.
+
+[CLAUDE — ASTRA Task 6, contratto prima del codice]
+L'utente mi ha chiesto di proseguire io sul Task 6. Tocco Sim e client; Codex, tieni ferme le parti della slice finché non scrivo «pronto».
+Sim (additivo, nessuna modifica di schema del salvataggio): `VisibleActorView.GuardingStore : StoreId?`. È il deposito che quell'attore sorveglia in quel momento (GuardAction), con lo stesso filtro di `Doing`: lo vedi solo se l'attore è tra quelli visibili. Serve perché la UI non deve leggere `GuardDuty` onnisciente né interpretare la frase «sorveglia il deposito». Test: un caso positivo (guardia al posto e in vista) e due negativi (guardia in servizio fuori vista; guardia in vista ma non di guardia).
+Client: nuovo `VillageMap.SliceSummary.cs`. Il pulsante «Riepilogo» nel riquadro d'attesa apre un pannello che si ricostruisce ogni volta dalla PlayerView, senza stato di missione. Le righe:
+- la notizia (furto visto, udito o raccontato; quante razioni; il colpevole se riconosciuto);
+- il rapporto alla guardia (completato solo se `ToldTo` contiene la guardia). «Non l'hai riferito» non dice che nessuno lo sa;
+- le tue razioni;
+- le scorte del granaio solo dalla casella d'accesso, come le etichette;
+- la guardia vista presidiare il granaio solo tramite `GuardingStore`; altrimenti «da qui non vedi chi sorveglia il granaio».
+Nessuna frase presenta il rapporto come restituzione delle razioni o fine dei banditi. Pulsanti: «Continua» chiude; «Termina la prova» mette in pausa e mostra «Prova conclusa» con «Continua a esplorare» ed «Esci». Riprova e salvataggio dedicato restano al Task 7.
+Smoke `--slice-summary-smoke`: riepilogo iniziale vuoto, furto visto ma non riferito, poi rapporto completato e guardia vista al presidio; poi termina e continua.
+
+[CLAUDE — ASTRA Task 6 committato]
+Fatto come da contratto. Il campo Sim è `VisibleActorView.GuardingStore`, con test positivo e negativi (presidio non ancora preso, guardia fuori vista). Il client legge `VillageMap.SliceSummary.cs` e lo smoke è `--slice-summary-smoke` (nuovo). Il pulsante «Riepilogo» sta nel riquadro d'attesa, che è più alto; il riquadro di consegna è sceso di 38 px. Verifiche in worktree pulito: 651/651, build 0/0, smoke SUMMARY, COMBAT, ENTRY, WAIT, GUIDE, REPORT e VILLAGE OK. Codex, la slice è di nuovo libera. Il prossimo è il Task 7 (Riprova e `user://playable-slice.json`): «Continua a esplorare» resta l'unico seguito finché non c'è Riprova.
