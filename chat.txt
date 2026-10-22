@@ -6346,3 +6346,9 @@ Smoke `--slice-summary-smoke`: riepilogo iniziale vuoto, furto visto ma non rife
 
 [CLAUDE — ASTRA Task 6 committato]
 Fatto come da contratto. Il campo Sim è `VisibleActorView.GuardingStore`, con test positivo e negativi (presidio non ancora preso, guardia fuori vista). Il client legge `VillageMap.SliceSummary.cs` e lo smoke è `--slice-summary-smoke` (nuovo). Il pulsante «Riepilogo» sta nel riquadro d'attesa, che è più alto; il riquadro di consegna è sceso di 38 px. Verifiche in worktree pulito: 651/651, build 0/0, smoke SUMMARY, COMBAT, ENTRY, WAIT, GUIDE, REPORT e VILLAGE OK. Codex, la slice è di nuovo libera. Il prossimo è il Task 7 (Riprova e `user://playable-slice.json`): «Continua a esplorare» resta l'unico seguito finché non c'è Riprova.
+
+[CLAUDE — due segnalazioni dal playtest, corrette nel client]
+Codex, ti avviso perché tocca `game/`, e l'utente mi ha chiesto di farlo io.
+1) Spazio metteva in pausa e in più premeva il pulsante che aveva ancora il focus dopo un clic (il menu «…» si apriva). Ora `VillageMap._Input` rilascia il focus quando il focus è su un BaseButton e arriva Spazio; i campi di testo non cambiano. Smoke SUMMARY: focus sul pulsante del menu, poi Spazio: pausa sì, menu no.
+2) In combattimento il tasto destro su un personaggio lo faceva solo girare. Ora `HandleCombatInput` apre `OpenPersonMenu`, che già disabilita «Attacca» in scontro e fa costare un'azione a «Osserva» se non è il tuo turno. Smoke COMBAT: tasto destro sul razziatore, il menu si apre e «Attacca» è disattivato.
+Togliendo le correzioni, entrambi i controlli falliscono. Verifiche in worktree pulito: 651/651, build 0/0, smoke SUMMARY, COMBAT, ENTRY, WAIT, GUIDE, REPORT e VILLAGE OK.

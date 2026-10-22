@@ -234,6 +234,16 @@ public partial class VillageMap : Node2D
 		UpdateTargetingHover();
 	}
 
+	/// <summary>
+	/// Space is the pause key, not "press the last button clicked": a button that kept the focus after a click would
+	/// otherwise fire again (the game menu opened while pausing). Text fields keep their focus.
+	/// </summary>
+	public override void _Input(InputEvent @event)
+	{
+		if (@event is InputEventKey { Keycode: Key.Space } && GetViewport().GuiGetFocusOwner() is BaseButton)
+			GetViewport().GuiReleaseFocus();
+	}
+
 	public override void _UnhandledInput(InputEvent @event)
 	{
 		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.I })

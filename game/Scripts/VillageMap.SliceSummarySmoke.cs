@@ -22,6 +22,12 @@ public partial class VillageMap
 				"The opening summary claims knowledge the player does not have.");
 			_sliceSummaryContinue!.EmitSignal(BaseButton.SignalName.Pressed);
 			SliceRequire(!_paused && _sliceSummary is { Visible: false }, "Continue did not give time back.");
+			_gameMenuButton.GrabFocus(); // as after a click on it
+			Input.ParseInputEvent(new InputEventKey { Keycode = Key.Space, Pressed = true });
+			Input.ParseInputEvent(new InputEventKey { Keycode = Key.Space, Pressed = false });
+			await SliceFrames(3);
+			SliceRequire(_paused && !_gameMenu.Visible, "Space pressed the focused menu button instead of only pausing.");
+			SetPaused(false);
 
 			// Branch 1: the theft is seen and kept to oneself.
 			ResetSliceSmokeSession();

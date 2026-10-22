@@ -479,6 +479,11 @@ public partial class VillageMap
 			if (!UseArmedAttack(person)) SelectCombatant(person);
 			return true;
 		}
+		if (mouse.ButtonIndex == MouseButton.Right && PersonAt(point) is { } inspected)
+		{
+			OpenPersonMenu(inspected); // what one knows of them helps choose the next move
+			return true;
+		}
 		if (mouse.ButtonIndex == MouseButton.Left && _attackArmed)
 		{
 			_attackArmed = false;

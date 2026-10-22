@@ -75,6 +75,24 @@ public partial class VillageMap
 			await SliceFrames(3);
 			if (DisplayServer.GetName() != "headless")
 				CaptureSliceGuide(outputDir, "combat-movement.png");
+			_personMenu.Visible = false;
+			var raiderFeet = _tokens[raider].Position + new Vector2(0, -16);
+			HandleCombatInput(new InputEventMouseButton
+			{
+				Pressed = true, ButtonIndex = MouseButton.Right, Position = GetGlobalTransformWithCanvas() * raiderFeet,
+			});
+			SliceRequire(_personMenu.Visible && _loreTarget == raider && _personAttack.Disabled,
+				"A right click on a combatant did not open what the player knows of it.");
+			_personMenu.Visible = false;
+
+			_gameMenu.Visible = false;
+			_gameMenuButton.GrabFocus();
+			Input.ParseInputEvent(new InputEventKey { Keycode = Key.Space, Pressed = true });
+			Input.ParseInputEvent(new InputEventKey { Keycode = Key.Space, Pressed = false });
+			await SliceFrames(3);
+			SliceRequire(!_gameMenu.Visible, "Space pressed the focused menu button.");
+			_gameMenuButton.ReleaseFocus();
+
 			var beforeTurn = _view.Now;
 			EndCombatTurn();
 			await SliceFrames(5);
