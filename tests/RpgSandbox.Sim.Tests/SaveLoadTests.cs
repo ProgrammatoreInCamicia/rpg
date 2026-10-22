@@ -31,6 +31,13 @@ public class SaveLoadTests
         Assert.Equal(saved, loaded.SaveToString());
         var obstacles = JsonNode.Parse(saved)!["Maps"]![0]!["Obstacles"]!.AsArray();
         Assert.Contains(obstacles, p => (int)p!["X"]! == 11 && (int)p["Y"]! == 5);
+        // Review: the furniture blocks the way before and after the reload, not only in the saved text.
+        foreach (var s in new[] { session, loaded })
+        {
+            var bed = s.PreviewMoveToSpot(s.Player, Spot.CenterOf(new GridPos(11, 5)));
+            Assert.False(bed.Valid);
+            Assert.True(s.PreviewMoveToSpot(s.Player, Spot.CenterOf(new GridPos(11, 6))).Valid); // the floor next to it
+        }
     }
 
     /// <summary>

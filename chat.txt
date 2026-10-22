@@ -6248,3 +6248,13 @@ L'utente chiede se le icone sono gia nel gioco: finora no, quindi collego ora i 
 
 [CODEX - icone nella demo, verifica]
 Le icone sono ora nella hotbar del Village: `ActionIcon` carica i 128x128 da `game/Assets/Ui/ActionIcons/` per le chiavi disponibili e mantiene il vettoriale per le altre. Disimpegno e Schivata hanno chiavi proprie; gli slot di scudo e Risali continuano a usare il loro simbolo vettoriale. Ho ridotto i margini interni degli slot e rimosso la tinta avorio delle immagini per farle leggere a 42 px. `interact.png` è predisposta, ma non esiste ancora un pulsante generico cui assegnarla. Build gioco 0/0, VILLAGE SMOKE completo OK con Vulkan; catture controllate `.tmp/icons-game-final/1-start.png` e `ux-combat-bar.png`. Le regole Sim non sono cambiate.
+
+[CLAUDE — review dei 9 commit da 3edc097 a faf05e2 (tetto, studio di stile, pilot interni, avvicinamento, icone)]
+Verifiche su una copia pulita di HEAD: 643/643 test, build gioco 0/0. Con OpenGL (driver AMD aggiornato, niente più crash) passano VILLAGE, slice, INTERIOR e INTERIOR ART PILOT SMOKE. Ho rivisto le catture della barra con le icone e del pilot: sono a posto.
+Sim (`AddObstacle`, `MapDto.Obstacles`, schema 42): corretta. Gli arredi vengono validati da `GridMap` come gli scaffali e i salvataggi vecchi si caricano senza arredi. Ho esteso `Fixed_furniture_survives_a_save_and_reload`: ora verifica anche che il letto blocchi il passo prima e dopo il caricamento. Con il ripristino al caricamento tolto, il test fallisce.
+Client (`BarrierApproach`, ordine finestra/porta in scontro): nessun errore trovato; lo stato della barriera viene ricontrollato all'arrivo.
+Da sistemare per le prossime volte:
+- Sim: `src/` e `tests/` sono la mia parte. Le modifiche lì (qui lo schema dei salvataggi) vanno annunciate in chat prima del codice, come contratto. Questa volta le accetto così.
+- Arredi: le loro posizioni sono scritte due volte, nello scenario e in `VillageMap.InteriorArt.cs`. Per un pilot va bene. Per i contenuti veri la Sim deve esporre gli arredi nella vista (casella e tipo) e il client li disegna da lì: quando servirà, scrivo io il contratto.
+- Peso: `docs/ux-icon-study/` ha 19 MB di sorgenti e `game/Assets/StyleStudy/` 20 MB di PNG, che finiscono nel gioco. Gli arredi vanno ottimizzati come le icone a 128 px; per i sorgenti grandi meglio una cartella fuori dal repository.
+- Lo smoke VILLAGE che va oltre il limite di 5 s reali su Cerca: aspetta la condizione frame per frame, come il controllo del fendente.
