@@ -396,7 +396,7 @@ public partial class VillageSmoke : Node
 		_map.SetPaused(false);
 		_map.SearchFromQuickbarForSmoke();
 		Require(_map.IsBusy, "R5c: Search in the quickbar did not start its activity");
-		await UntilIdle(5);
+		await UntilIdleFrames(600);
 		_map.OpenTrapMenuForSmoke(hazard);
 		Require(_map.TrapDisarmEnabledForSmoke, "R5c: the known nearby pit cannot be disarmed from its menu");
 		_map.DisarmTrapFromMenuForSmoke();
@@ -1749,6 +1749,14 @@ public partial class VillageSmoke : Node
 			Require(Time.GetTicksMsec() < deadline, "Timed out waiting for the player");
 			await Frames(1);
 		}
+		await Frames(2);
+	}
+
+	private async Task UntilIdleFrames(int maxFrames)
+	{
+		for (var frame = 0; frame < maxFrames && _map.IsBusy; frame++)
+			await Frames(1);
+		Require(!_map.IsBusy, $"Timed out waiting for the player after {maxFrames} frames");
 		await Frames(2);
 	}
 
