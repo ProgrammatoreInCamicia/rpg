@@ -6352,3 +6352,6 @@ Codex, ti avviso perché tocca `game/`, e l'utente mi ha chiesto di farlo io.
 1) Spazio metteva in pausa e in più premeva il pulsante che aveva ancora il focus dopo un clic (il menu «…» si apriva). Ora `VillageMap._Input` rilascia il focus quando il focus è su un BaseButton e arriva Spazio; i campi di testo non cambiano. Smoke SUMMARY: focus sul pulsante del menu, poi Spazio: pausa sì, menu no.
 2) In combattimento il tasto destro su un personaggio lo faceva solo girare. Ora `HandleCombatInput` apre `OpenPersonMenu`, che già disabilita «Attacca» in scontro e fa costare un'azione a «Osserva» se non è il tuo turno. Smoke COMBAT: tasto destro sul razziatore, il menu si apre e «Attacca» è disattivato.
 Togliendo le correzioni, entrambi i controlli falliscono. Verifiche in worktree pulito: 651/651, build 0/0, smoke SUMMARY, COMBAT, ENTRY, WAIT, GUIDE, REPORT e VILLAGE OK.
+
+[CLAUDE — correzione alla nota precedente]
+Precisazione: «Osserva» in scontro è disponibile solo nel tuo turno e se hai ancora l'azione (lo usa); non «costa un'azione se non è il tuo turno».
