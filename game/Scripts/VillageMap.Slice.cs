@@ -153,7 +153,7 @@ public partial class VillageMap
 			: "Granaio in vista: cerca il rombo davanti alla cassa.")
 			+ "\n" + (guardVisible ? "Guardia in vista: clicca la sua figura." : "Guardia: parlale quando la vedi alla locanda.")
 			+ "\nDiario: icona libro nella barra.";
-		_sliceDepositPanel.Visible = nearby && _view.Combat is null && !_view.Dead;
+		_sliceDepositPanel.Visible = nearby && _view.Combat is null && !_view.Dead && !_journalOpen;
 		if (store is null)
 		{
 			_sliceAccessMarker.Visible = false;
@@ -164,7 +164,7 @@ public partial class VillageMap
 			&& access.Y >= 0 && access.Y < visibility.Count
 			&& access.X >= 0 && access.X < visibility[access.Y].Length
 			&& visibility[access.Y][access.X] != '0';
-		_sliceAccessMarker.Visible = nearby && accessKnown && _view.Combat is null && !_view.Dead;
+		_sliceAccessMarker.Visible = nearby && accessKnown && _view.Combat is null && !_view.Dead && !_journalOpen;
 		if (accessKnown)
 		{
 			_sliceAccessMarker.Position = CellToScreen(access);

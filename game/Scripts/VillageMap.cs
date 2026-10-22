@@ -67,6 +67,7 @@ public partial class VillageMap : Node2D
 	private SpinBox _amount = null!;
 	private VBoxContainer _people = null!;
 	private ScrollContainer _peopleScroll = null!;
+	private Panel _peopleBackdrop = null!;
 	private Label _message = null!;
 	private Label _events = null!;
 	private PanelContainer _eventsPanel = null!;
@@ -125,6 +126,9 @@ public partial class VillageMap : Node2D
 		var sliceGuideSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-guide-smoke="));
 		if (PlayableSliceMode && sliceGuideSmoke is not null)
 			RunSliceGuideSmoke(sliceGuideSmoke["--slice-guide-smoke=".Length..]);
+		var sliceReportSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-report-smoke="));
+		if (PlayableSliceMode && sliceReportSmoke is not null)
+			RunSliceReportSmoke(sliceReportSmoke["--slice-report-smoke=".Length..]);
 
 		var smoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--village-smoke="));
 		if (smoke is not null)
@@ -683,7 +687,8 @@ public partial class VillageMap : Node2D
 
 	/// <summary>A fixed-length activity: plays out quickly, at most a few real seconds.</summary>
 	private void StartActivity(Command command, string label = "attività",
-		Func<CommandResult, string>? describeRejection = null) => Order(label, walk: false, () =>
+		Func<CommandResult, string>? describeRejection = null,
+		Func<CommandResult, string>? describeAccepted = null) => Order(label, walk: false, () =>
 	{
 		if (_running is not null)
 		{
@@ -691,7 +696,8 @@ public partial class VillageMap : Node2D
 			return;
 		}
 		var result = _sim.Execute(command);
-		ShowMessage(!result.Success && describeRejection is not null ? describeRejection(result) : result.Message);
+		ShowMessage(result.Success && describeAccepted is not null ? describeAccepted(result)
+			: !result.Success && describeRejection is not null ? describeRejection(result) : result.Message);
 		if (result.Success && result.Action is { } action)
 		{
 			_running = action;
@@ -710,8 +716,20 @@ public partial class VillageMap : Node2D
 
 	internal void TakeViaUi(int amount) => Take(amount); // same handler as the Prendi button, used by the village smoke
 
-	private void Tell(ActorId listener, TopicView topic) =>
-		StartActivity(new ReportCommand { Actor = _sim.Player, Recipient = listener, Observation = topic.Observation });
+	private void Tell(ActorId listener, TopicView topic)
+	{
+		var command = new ReportCommand { Actor = _sim.Player, Recipient = listener, Observation = topic.Observation };
+		if (PlayableSliceMode && listener == MappedVillageScenario.Ids.Guard && IsSliceTheftTopic(topic))
+			StartActivity(command, "riferisci il furto", describeAccepted: result =>
+			{
+				_sliceReportAction = result.Action;
+				_sliceReportObservation = topic.Observation;
+				_sliceReportRecipient = listener;
+				_sliceReportStartedAt = _sim.Now;
+				return "Rapporto avviato: stai raccontando il furto alla guardia. Attendi la conclusione.";
+			});
+		else StartActivity(command);
+	}
 
 	private void SaveGame() => SaveGameToPath(ProjectSettings.GlobalizePath(SavePath));
 
@@ -756,6 +774,7 @@ public partial class VillageMap : Node2D
 			return;
 		}
 		CancelSliceWait("Attesa interrotta.");
+		ClearSliceReport();
 		_sim = result.Session!;
 		ResetHudLog();
 		_attackArmed = false;
@@ -801,6 +820,7 @@ public partial class VillageMap : Node2D
 	{
 		ClearBarrierActivity();
 		_view = _sim.GetPlayerView();
+		RefreshSliceReportState();
 		_spotPreviewAt = null; // doors, light and newly explored squares can change a route within one second
 		if (_view.Combat is null && _view.LastFight is null)
 			_combatVisualTracks.Clear();
@@ -931,6 +951,7 @@ public partial class VillageMap : Node2D
 		RefreshPeople();
 		_people.Visible = _view.Combat is null && !_view.Dead;
 		_peopleScroll.Visible = _people.Visible && _view.PeopleHere.Count > 0;
+		_peopleBackdrop.Visible = PlayableSliceMode && _peopleScroll.Visible;
 		RefreshJournal();
 		RefreshCreatureCard();
 		RefreshCombatUi();
@@ -954,7 +975,7 @@ public partial class VillageMap : Node2D
 		_eventsPanel.Visible = false;
 		var key = string.Join("|", _view.PeopleHere.Select(p =>
 			$"{p.Id}:{p.Doing}:{string.Join(',', p.Topics.Select(t => $"{t.Kind}:{t.Observation}:{t.Summary}"))}"))
-			+ "#" + _view.UnseenNearby + "#" + _talkingTo;
+			+ "#" + _view.UnseenNearby + "#" + _talkingTo + "#" + _view.Action?.Id;
 		if (key == _peopleKey)
 			return;
 		_peopleKey = key;
@@ -971,13 +992,27 @@ public partial class VillageMap : Node2D
 			var title = new Label { Text = $"Parli con {person.Name}{doing}" };
 			title.AddThemeFontSizeOverride("font_size", 16);
 			_people.AddChild(title);
-			if (person.Topics.Count == 0)
+			if (PlayableSliceMode && person.Id == MappedVillageScenario.Ids.Guard)
+				_people.AddChild(new Label { Text = SliceReportPrompt(person),
+					AutowrapMode = TextServer.AutowrapMode.WordSmart });
+			if (person.Topics.Count == 0 && !(PlayableSliceMode && person.Id == MappedVillageScenario.Ids.Guard))
 				_people.AddChild(new Label { Text = "  Non hai niente di nuovo da raccontare." });
 			foreach (var topic in person.Topics)
 			{
 				var id = person.Id;
-				var tell = new Button { Text = $"Racconta {TopicKind(topic)}: {topic.Summary}",
+				var sliceTheft = PlayableSliceMode && person.Id == MappedVillageScenario.Ids.Guard
+					&& IsSliceTheftTopic(topic);
+				if (sliceTheft && _view.Action is not null) continue;
+				var tell = new Button { Text = sliceTheft ? $"Riferisci il furto: {topic.Summary}"
+					: $"Racconta {TopicKind(topic)}: {topic.Summary}",
 					AutowrapMode = TextServer.AutowrapMode.WordSmart };
+				if (sliceTheft)
+				{
+					tell.CustomMinimumSize = new Vector2(0, 36);
+					tell.AddThemeStyleboxOverride("normal", SliceButtonStyle(new Color(0.38f, 0.27f, 0.14f)));
+					tell.AddThemeStyleboxOverride("hover", SliceButtonStyle(new Color(0.51f, 0.36f, 0.17f)));
+				}
+				tell.Disabled = _view.Action is not null;
 				tell.Pressed += () => Tell(id, topic);
 				_people.AddChild(tell);
 			}
@@ -1598,8 +1633,20 @@ public partial class VillageMap : Node2D
 		_storeRow.AddChild(take);
 		actions.AddChild(_storeRow);
 
-		_peopleScroll = new ScrollContainer { OffsetLeft = 16, OffsetRight = 350,
-			OffsetTop = 234, OffsetBottom = 410, Visible = false };
+		_peopleBackdrop = new Panel { OffsetLeft = 16, OffsetRight = 350,
+			OffsetTop = 234, OffsetBottom = 410, Visible = false,
+			MouseFilter = Control.MouseFilterEnum.Ignore };
+		_peopleBackdrop.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+		{
+			BgColor = new Color(0.08f, 0.09f, 0.11f, 0.91f),
+			ContentMarginLeft = 8, ContentMarginTop = 8,
+			ContentMarginRight = 8, ContentMarginBottom = 8,
+		});
+		ui.AddChild(_peopleBackdrop);
+		_peopleScroll = new ScrollContainer { OffsetLeft = PlayableSliceMode ? 24 : 16,
+			OffsetRight = PlayableSliceMode ? 342 : 350,
+			OffsetTop = PlayableSliceMode ? 242 : 234,
+			OffsetBottom = PlayableSliceMode ? 402 : 410, Visible = false };
 		_people = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		_peopleScroll.AddChild(_people);
 		ui.AddChild(_peopleScroll);

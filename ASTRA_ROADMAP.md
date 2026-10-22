@@ -1,6 +1,6 @@
 # ASTRA — percorso minimo verso una slice giocabile
 
-Analisi del 21 ottobre 2026. Repository esaminato sul commit `faf05e2`, con file locali non versionati già presenti. Questo documento propone il prossimo incremento; **non certifica che la slice descritta sotto sia già realizzata**. La sessione iniziale ha analizzato e verificato i sistemi senza implementare gameplay. Aggiornamento del 22 ottobre: Task 1 completato nella Sim con factory e test; Task 2 completato nel client con scena d'ingresso e smoke; Task 3 completato nel client con attesa accelerata e smoke; Task 4 completato nel client con indicazioni, accesso al deposito e smoke; Task 5–9 non iniziati.
+Analisi del 21 ottobre 2026. Repository esaminato sul commit `faf05e2`, con file locali non versionati già presenti. Questo documento propone il prossimo incremento; **non certifica che la slice descritta sotto sia già realizzata**. La sessione iniziale ha analizzato e verificato i sistemi senza implementare gameplay. Aggiornamento del 22 ottobre: Task 1 completato nella Sim con factory e test; Task 2 completato nel client con scena d'ingresso e smoke; Task 3 completato nel client con attesa accelerata e smoke; Task 4 completato nel client con indicazioni, accesso al deposito e smoke; Task 5 completato nel client con dialogo e diario del rapporto; Task 6–9 non iniziati.
 
 ## 1. Decisione principale
 
@@ -295,7 +295,7 @@ Dopo la review di Claude, la scritta «Consegna qui» si nasconde durante l'atte
 
 ### Task 5 — Collegare chiaramente notizia, rapporto ed esito
 
-**Stato:** da fare. **Tipo:** implementazione ordinaria con attenzione al contratto informativo. **Dipendenze:** 1, 2, 4.
+**Stato:** completato il 22 ottobre 2026. **Tipo:** implementazione ordinaria con attenzione al contratto informativo. **Dipendenze:** 1, 2, 4.
 
 **Obiettivo:** rendere il ramo rapporto comprensibile usando il dialogo già implementato.
 
@@ -306,6 +306,12 @@ Dopo la review di Claude, la scritta «Consegna qui» si nasconde durante l'atte
 **Risultato verificabile:** senza osservazione non si può riferire quel furto; con osservazione il rapporto parte, termina e conserva fonte/contenuto. Raccontare di nuovo non duplica la prova.
 
 **Completato quando:** il ramo del Task 1 si esegue via UI e il diario conserva la distinzione fra visto e riferito. Riusare la logica esistente di deduplicazione; aggiungere test soltanto per nuove condizioni effettivamente introdotte.
+
+#### Risultati effettivi del Task 5 — 22 ottobre 2026
+
+Nella sola `PlayableSlice`, il dialogo con la guardia spiega quando non esiste ancora una notizia del furto. Se la notizia è fra `PeopleHere.Topics`, offre il pulsante evidenziato «Riferisci il furto». Il clic mostra «Rapporto avviato» e il dialogo indica che il racconto è in corso; la conclusione è annunciata solo quando l'osservazione del giocatore contiene la guardia in `ToldTo`. Se il rapporto fallisce o si interrompe, il client non lo dichiara concluso. Dopo la conclusione il tema sparisce e il testo invita a osservare la reazione, senza anticipare un presidio. Il diario distingue «Furto visto», «Furto udito» o «Furto raccontato», conserva i dettagli e la fonte e indica separatamente lo stato del rapporto alla guardia. Dialogo e diario della slice hanno sfondi e posizioni leggibili a 1280×720. Nessuna modifica alla Sim, nessuna nuova quest e nessun riepilogo del Task 6.
+
+Verifiche effettive: `dotnet build game/RpgSandbox.Game.csproj --no-restore -v:q` senza avvisi/errori; 648/648 test Sim; smoke Vulkan `--slice-report-smoke` riuscito. Lo smoke ha verificato che inizialmente la guardia non offre il furto, poi ha osservato il furto tramite la preparazione e l'attesa già usate nel Task 3, raggiunto la guardia con movimento e porta esistenti e premuto il pulsante del dialogo: all'avvio `ToldTo` è ancora vuoto, alla fine contiene la guardia; origine, fonte, quantità, deposito e responsabile dell'osservazione restano invariati. Il tema non è più disponibile e la guardia ha una sola osservazione con quell'origine. Smoke `--slice-entry-smoke`, `--slice-guide-smoke`, `--slice-wait-smoke` e `--village-smoke` riusciti. Catture `.tmp/astra-task5/no-report.png`, `report-started.png`, `report-complete.png` controllate a 1280×720; il diario mostra «Furto visto» e «Rapporto alla guardia: completato». Non è stato eseguito un playtest umano; la reazione del mondo dopo il rapporto resta da rendere comprensibile nei task successivi.
 
 ### Task 6 — Mostrare una conclusione basata su ciò che si sa
 
@@ -397,4 +403,4 @@ Dopo il collaudo, decidere sulla base di ciò che il giocatore ha capito e trova
 
 ## Primo task consigliato
 
-**Task 5: collegare chiaramente notizia, rapporto ed esito.** L'ingresso, l'attesa e i comandi essenziali sono pronti; il ramo rapporto resta da rendere leggibile secondo la scheda del Task 5.
+**Task 6: mostrare una conclusione basata su ciò che si sa.** Il ramo del rapporto è ora leggibile; resta da offrire un riepilogo fedele alla vista del giocatore secondo la scheda del Task 6. Questo task non è stato iniziato nell'implementazione del Task 5.

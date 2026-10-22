@@ -24,8 +24,9 @@ public partial class VillageMap
 
 	private void BuildJournalUi(CanvasLayer ui)
 	{
-		_journalPanel = new PanelContainer { OffsetLeft = 900, OffsetRight = 1264, OffsetTop = 16,
-			OffsetBottom = 690, Visible = false };
+		_journalPanel = new PanelContainer { OffsetLeft = 900, OffsetRight = 1264,
+			OffsetTop = PlayableSliceMode ? 165 : 16,
+			OffsetBottom = PlayableSliceMode ? 550 : 690, Visible = false };
 		_journalPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
 			{ BgColor = new Color(0.10f, 0.11f, 0.13f, 0.96f) });
 		ui.AddChild(_journalPanel);
@@ -53,6 +54,7 @@ public partial class VillageMap
 		if (_journalOpen)
 			_openingPanel.Visible = false;
 		RefreshJournal();
+		RefreshSliceGuidance();
 	}
 
 	private void RefreshJournal()
@@ -84,6 +86,9 @@ public partial class VillageMap
 	{
 		var title = observation.Kind switch
 		{
+			"Theft" when PlayableSliceMode && observation.Source is not null => "Furto raccontato",
+			"Theft" when PlayableSliceMode && observation.Perceived == "Seen" => "Furto visto",
+			"Theft" when PlayableSliceMode => "Furto udito",
 			"Theft" => "Furto",
 			"Assault" when observation.Perceived == "Heard" => "Rumori di lotta",
 			"Assault" => "Scontro",
@@ -109,6 +114,12 @@ public partial class VillageMap
 			_ => "",
 		};
 		var source = observation.SourceName is { } name ? $"\nTe l'ha raccontato {name}." : "";
-		return $"G{observation.ObservedAt.Day + 1} {observation.ObservedAt.Hour:00}:{observation.ObservedAt.Minute:00} · {title} · {place}{square}\n{details}{source}";
+		var report = PlayableSliceMode && observation.Kind == "Theft"
+			&& observation.Store == RpgSandbox.Sim.Scenarios.MappedVillageScenario.Ids.GranaryStore
+			? observation.ToldTo.Contains(RpgSandbox.Sim.Scenarios.MappedVillageScenario.Ids.Guard)
+				? "\nRapporto alla guardia: completato."
+				: "\nRapporto alla guardia: non ancora completato."
+			: "";
+		return $"G{observation.ObservedAt.Day + 1} {observation.ObservedAt.Hour:00}:{observation.ObservedAt.Minute:00} · {title} · {place}{square}\n{details}{source}{report}";
 	}
 }

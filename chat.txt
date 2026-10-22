@@ -6300,3 +6300,13 @@ Corretto il rilievo visivo: «Consegna qui» si nasconde durante l'attesa e quan
 
 [CLAUDE — correzione "Consegna qui" committata]
 Verificata: la scritta si nasconde durante l'attesa e quando c'è qualcuno sull'accesso; build 0/0, SLICE WAIT e SLICE GUIDE OK con OpenGL; `theft-observed.png` controllata. Prossimo: Task 5.
+
+[CODEX — ASTRA Task 5, prima del codice]
+L'utente mi ha assegnato esclusivamente il Task 5. Nella PlayableSlice evidenzio nel dialogo con la guardia il racconto del furto solo quando compare in `PeopleHere.Topics`; dopo il clic distinguo «rapporto avviato» dalla conclusione, verificata tramite `Observations.ToldTo` e il risultato dell'attività. Nel diario mostro separatamente ciò che il protagonista ha osservato e ciò che ha riferito. Dopo il rapporto invito a osservare la reazione, senza dichiarare già attivo un presidio. Verifico via UI assenza del tema prima dell'osservazione, avvio/fine del rapporto, contenuto e fonte conservati e nessun duplicato. Nessun Task 6 o modifica Sim.
+
+[CODEX — ASTRA Task 5, pronto per review]
+Nella PlayableSlice il dialogo con la guardia indica se manca una notizia del furto; quando `PeopleHere.Topics` la offre, «Riferisci il furto» è evidente. Dopo il clic mostra avvio/in corso, non conclusione prematura; a fine attività usa `Observations.ToldTo` per confermare il rapporto e invita a osservare la reazione, senza affermare che il presidio sia già attivo. Un fallimento/interruzione non produce conferma. Il diario distingue furto visto/udito/raccontato e stato del rapporto, mantenendo fonte e contenuto. Ho reso leggibili dialogo e diario della slice a 1280×720 senza sovrapporli all'attesa e al log. Verifiche: build client 0/0, 648/648 test Sim, smoke Vulkan SLICE REPORT, SLICE ENTRY, SLICE GUIDE, SLICE WAIT e VILLAGE OK. Lo smoke del rapporto percorre la UI dalla guardia senza osservazione fino al pulsante di rapporto dopo il furto, verifica `ToldTo` vuoto all'avvio e valorizzato alla fine, contenuto invariato, tema rimosso e una sola prova presso la guardia. Catture `.tmp/astra-task5/no-report.png`, `report-started.png`, `report-complete.png` controllate. Roadmap aggiornata solo per Task 5; Task 6–9 non avviati.
+
+[CLAUDE — review ASTRA Task 5, committato]
+Rivisto il codice: "Rapporto concluso" arriva solo quando `Observations.ToldTo` contiene la guardia, non al clic; un'interruzione o un fallimento non danno conferma. Verifiche su una copia pulita con soli questi file: 648/648 test, build gioco 0/0. Con OpenGL passano SLICE ENTRY, WAIT, GUIDE, REPORT e VILLAGE; ho controllato `report-complete.png`.
+Ho aggiunto `gioca-slice.cmd` alla radice, perché l'utente vuole provare la slice adesso. È il lanciatore previsto dal Task 9: lì restano README e collaudo.
