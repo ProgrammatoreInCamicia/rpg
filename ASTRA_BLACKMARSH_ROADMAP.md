@@ -1,6 +1,6 @@
 # ASTRA — seconda vertical slice: La rimessa della vedetta
 
-Analisi del **23 ottobre 2026**, repository a **`cca04bb`**. Documento di proposta. **Stato aggiornato:** Task 1 e 2 completati nella Sim; Task 3 e 4 completati nel client (esiti in fondo al documento); Task 5–10 non iniziati, nessun criterio umano certificato. La descrizione dell'analisi iniziale sotto resta storica.
+Analisi del **23 ottobre 2026**, repository a **`cca04bb`**. Documento di proposta. **Stato aggiornato:** Task 1 e 2 completati nella Sim; Task 3–5 completati nel client (esiti in fondo al documento); Task 6–10 non iniziati, nessun criterio umano certificato. La descrizione dell'analisi iniziale sotto resta storica.
 
 ## 1. Decisione
 
@@ -300,7 +300,7 @@ Stato Git iniziale: soltanto gli otto file `Body.*`/texture/import non tracciati
 
 ## Primo task consigliato
 
-**Prossimo task: Task 5, interazione con la cassa selezionata.** I Task 1–4 hanno dimostrato il loop nella Sim, l'ingresso separato e la resa delle figure e dei pavimenti con i nuovi ID. Il Task 5 dovrà collegare la UI al deposito effettivamente selezionato; il tavolo e l'arredo visibile restano al Task 6.
+**Prossimo task: Task 6, rimessa completa.** I Task 1–5 hanno dimostrato il loop nella Sim, l'ingresso e la resa separati e il prelievo dalla cassa scelta nella UI. Il Task 6 dovrà aggiungere tavolo e arredo visibile, rifinire l'inquadratura e valutare il testo «Sulla strada» presso l'approdo, senza spostare la collisione fuori dalla Sim.
 
 ## Esito del Task 1 — 23 ottobre 2026
 
@@ -346,3 +346,11 @@ Completato senza regole Sim nuove: nessun controllo sugli ID Blackmarsh nel moto
 - Pareti, tetto, aperture, illuminazione e risposta del tetto agli interni usano il profilo grafico condiviso `StyledInterior`, che vale per pilot e Blackmarsh. Le decorazioni e la camera specifiche del pilot rimangono specifiche del pilot; tavolo, props e composizione finale dell'inquadratura sono ancora Task 6. Nessuna collisione grafica aggiunta o regola Sim cambiata.
 - Smoke Blackmarsh ampliato: controlla il vero tile con texture di pietra, il paladino live dopo rotazione e movimento, le alternative atlante/sprite, il Vasan visibile col modello 3D Raider e le due ripartenze. Catture `entry-paused.png` e `vasan-visible.png` ispezionate; il tetto e la figura sono leggibili, ma la scena non è ancora arredata e l'inquadratura ravvicinata al predone mostra sovrapposizioni di etichette, da affrontare nella composizione del Task 6.
 - Verifiche: build soluzione 0 errori/0 avvisi, Sim 670/670, smoke OpenGL BLACKMARSH ENTRY, INTERIOR ART PILOT, SLICE ENTRY e VILLAGE completi. Catture del pilot e Village ispezionate senza regressioni evidenti. Nessun Task 5/6 avviato né collaudo umano dichiarato.
+
+## Esito del follow-up Task 4 e del Task 5 — 23 ottobre 2026
+
+- Follow-up review Claude: ripristinata tramite `FloorLook.WarmTint` la tinta calda anche sulle caselle in legno del pilot; gli ID e la coordinata del pilot restano nella configurazione di presentazione. Smoke e cattura del pilot verificati. La dicitura HUD «Sulla strada» vicino all'approdo e l'inquadratura/etichette restano al Task 6, come suggerito nella review.
+- La barra depositi è ora un pannello visibile separato dalla vecchia barra esplorazione nascosta dalla quickbar. Elenca i soli `VisibleStores` della mappa, mostra il nome del deposito scelto e il comando «Prendi 4 razioni» all'ingresso Blackmarsh. Il bersaglio `StoreId` passa esplicitamente ai comandi `TakeFoodCommand`/`DepositFoodCommand`; non esiste un fallback verso il granaio. Portata, quantità, tempi e proprietà rimangono alla Sim; nessun avvicinamento automatico nuovo.
+- Quando il deposito scelto esce dalla vista, la selezione si cancella e non si ripristina da sola al ritorno. Dopo un load la UI riparte dalla nuova vista: con un solo deposito visibile può selezionarlo, con due visibili richiede una scelta esplicita e disabilita i pulsanti. Un comando senza scelta viene rifiutato dal client; il pulsante fuori portata riceve il rifiuto della Sim senza trasferimento o movimento.
+- Smoke OpenGL `--blackmarsh-store-smoke`: porta esterna con chiave, porta interna, cassa vista da una casella fuori accesso, rifiuto, perdita della vista, nuova selezione e prelievo dall'accesso tramite il vero pulsante. Risultato player 10→14, rimessa 4→0, nessun deposito Vasan usato dal comando; il suo cibo può scendere autonomamente alle 19:59 per consumo di fazione. Save/load all'accesso con due depositi visibili richiede la scelta; load sul sentiero cancella la selezione. Catture `too-far.png`, `taken-four.png`, `choose-store-after-load.png` ispezionate.
+- Regressioni: smoke `SLICE GUIDE` (consegna 3 razioni), `VILLAGE` completo e `INTERIOR ART PILOT` verdi a 1280×720; build soluzione 0 errori/0 avvisi, Sim 670/670. Nessun Task 6 avviato e nessun collaudo umano dichiarato.

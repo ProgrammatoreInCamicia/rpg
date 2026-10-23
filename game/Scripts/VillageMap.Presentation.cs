@@ -8,7 +8,7 @@ namespace RpgSandbox.Game;
 public partial class VillageMap
 {
 	private enum GroundMaterial { Grass, Road, Wood, Flagstone }
-	private readonly record struct FloorLook(Color Color, GroundMaterial Material);
+	private readonly record struct FloorLook(Color Color, GroundMaterial Material, bool WarmTint = false);
 	private sealed record PresentationProfile(
 		bool StyledInterior,
 		IReadOnlyDictionary<LocationId, Func<GridPos, FloorLook>> Floors,
@@ -36,7 +36,7 @@ public partial class VillageMap
 				new Dictionary<LocationId, Func<GridPos, FloorLook>>
 				{
 					[BlackmarshWatchhouse.Ids.Path] = _ => new(ForestRoad, GroundMaterial.Grass),
-					[BlackmarshWatchhouse.Ids.Shed] = _ => new(HouseFloor, GroundMaterial.Flagstone),
+					[BlackmarshWatchhouse.Ids.Shed] = _ => new(HouseFloor, GroundMaterial.Flagstone, true),
 					[BlackmarshWatchhouse.Ids.Landing] = _ => new(Yard, GroundMaterial.Road),
 				},
 				new Dictionary<ActorId, Paladin3DPrototype.CharacterStyle>
@@ -45,8 +45,8 @@ public partial class VillageMap
 				});
 		if (entry == SceneEntry.InteriorArtPilot)
 			villageFloors[MappedVillageScenario.Ids.FarmerHouse] = cell => cell.X <= 8
-				? new FloorLook(HouseFloor, GroundMaterial.Flagstone)
-				: new FloorLook(HouseFloor, GroundMaterial.Wood);
+				? new FloorLook(HouseFloor, GroundMaterial.Flagstone, true)
+				: new FloorLook(HouseFloor, GroundMaterial.Wood, true);
 		return new PresentationProfile(entry == SceneEntry.InteriorArtPilot, villageFloors, villageActors,
 			entry == SceneEntry.InteriorArtPilot ? new GridPos(11, 7) : null);
 	}

@@ -70,7 +70,7 @@ public partial class VillageMap
 			new Vector2(x, y - radius), new Vector2(x + radius, y),
 			new Vector2(x, y + radius), new Vector2(x - radius, y),
 		};
-		tile.Color = look.Material == GroundMaterial.Flagstone
+		tile.Color = look.WarmTint
 			? new Color(0.94f, 0.88f, 0.79f).Darkened(shade * 0.35f)
 			: Colors.White.Darkened(shade * 0.5f);
 	}

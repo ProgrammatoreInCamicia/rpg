@@ -92,7 +92,7 @@ public partial class VillageMap : Node2D
 	private readonly Dictionary<GridPos, Polygon2D> _doorFloors = new();
 	private readonly Dictionary<GridPos, Line2D> _doorOutlines = new();
 	private bool _sneak;
-	private HBoxContainer _storeRow = null!;
+	private VBoxContainer _storeRow = null!;
 	private SpinBox _amount = null!;
 	private VBoxContainer _people = null!;
 	private ScrollContainer _peopleScroll = null!;
@@ -150,6 +150,9 @@ public partial class VillageMap : Node2D
 		var blackmarshEntrySmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--blackmarsh-entry-smoke="));
 		if (BlackmarshWatchhouseMode && blackmarshEntrySmoke is not null)
 			RunBlackmarshEntrySmoke(blackmarshEntrySmoke["--blackmarsh-entry-smoke=".Length..]);
+		var blackmarshStoreSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--blackmarsh-store-smoke="));
+		if (BlackmarshWatchhouseMode && blackmarshStoreSmoke is not null)
+			RunBlackmarshStoreSmoke(blackmarshStoreSmoke["--blackmarsh-store-smoke=".Length..]);
 		var sliceEntrySmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-entry-smoke="));
 		if (PlayableSliceMode && sliceEntrySmoke is not null)
 			RunSliceEntrySmoke(sliceEntrySmoke["--slice-entry-smoke=".Length..]);
@@ -787,11 +790,9 @@ public partial class VillageMap : Node2D
 		Refresh();
 	});
 
-	internal void Deposit(int amount) =>
-		StartActivity(new DepositFoodCommand { Actor = _sim.Player, Store = MappedVillageScenario.Ids.GranaryStore, Amount = amount });
+	internal void Deposit(int amount) => UseSelectedStore(amount, take: false);
 
-	private void Take(int amount) =>
-		StartActivity(new TakeFoodCommand { Actor = _sim.Player, Store = MappedVillageScenario.Ids.GranaryStore, Amount = amount });
+	private void Take(int amount) => UseSelectedStore(amount, take: true);
 
 	internal void TakeViaUi(int amount) => Take(amount); // same handler as the Prendi button, used by the village smoke
 
@@ -879,6 +880,9 @@ public partial class VillageMap : Node2D
 		CancelCasting();
 		ResetHudLog();
 		_attackArmed = false;
+		_selectedStore = null;
+		_storeSelectionSuppressed = false;
+		_storeOptionsKey = "";
 		_observedRestStarted = null;
 		_restDiceInitialized = false;
 		if (_sim.GetPlayerView().Facing is null)
@@ -1041,8 +1045,7 @@ public partial class VillageMap : Node2D
 		}
 		RefreshBarrierActivity();
 		// Store controls where a store is in sight; the core decides whether it is within reach.
-		_storeRow.Visible = onMap && _view.Combat is null && !_view.Dead
-			&& _view.VisibleStores.Any(s => s.Id == MappedVillageScenario.Ids.GranaryStore);
+		RefreshStoreControls(onMap);
 		foreach (var (storeId, label) in _storeLabels)
 		{
 			var visible = _view.VisibleStores.FirstOrDefault(store => store.Id == storeId);
@@ -1723,17 +1726,31 @@ public partial class VillageMap : Node2D
 		_restPanel.AddChild(restBox);
 		BuildRestUi(restBox);
 
-		_storeRow = new HBoxContainer();
+		_storePanel = HudPanel(-385, -16, -248, -125, bottomAnchored: true, rightAnchored: true);
+		_storePanel.Visible = false;
+		_storePanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
+			{ BgColor = new Color(0.08f, 0.09f, 0.11f, 0.95f) });
+		ui.AddChild(_storePanel);
+		_storeRow = new VBoxContainer();
 		_storeRow.AddThemeConstantOverride("separation", 6);
-		_amount = new SpinBox { MinValue = 1, MaxValue = 99, Value = 1, Step = 1, CustomMinimumSize = new Vector2(80, 0) };
-		_storeRow.AddChild(_amount);
-		var deposit = new Button { Text = "Consegna" };
-		deposit.Pressed += () => Deposit((int)_amount.Value);
-		_storeRow.AddChild(deposit);
-		var take = new Button { Text = "Prendi" };
-		take.Pressed += () => Take((int)_amount.Value);
-		_storeRow.AddChild(take);
-		actions.AddChild(_storeRow);
+		_storePanel.AddChild(_storeRow);
+		_storeChoice = new OptionButton();
+		_storeChoice.ItemSelected += SelectStoreOption;
+		_storeRow.AddChild(_storeChoice);
+		var storeActions = new HBoxContainer();
+		storeActions.AddThemeConstantOverride("separation", 6);
+		_storeRow.AddChild(storeActions);
+		_amount = new SpinBox { MinValue = 1, MaxValue = 99, Value = BlackmarshWatchhouseMode ? 4 : 1,
+			Step = 1, CustomMinimumSize = new Vector2(70, 0) };
+		_amount.ValueChanged += _ => RefreshStoreButtonText();
+		storeActions.AddChild(_amount);
+		_storeDeposit = new Button();
+		_storeDeposit.Pressed += () => Deposit((int)_amount.Value);
+		storeActions.AddChild(_storeDeposit);
+		_storeTake = new Button();
+		_storeTake.Pressed += () => Take((int)_amount.Value);
+		storeActions.AddChild(_storeTake);
+		RefreshStoreButtonText();
 
 		_peopleBackdrop = new Panel { OffsetLeft = 16, OffsetRight = 350,
 			OffsetTop = 234, OffsetBottom = 410, Visible = false,
