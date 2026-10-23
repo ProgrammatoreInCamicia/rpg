@@ -64,6 +64,12 @@ public partial class VillageMap
 			_sliceBegin!.EmitSignal(BaseButton.SignalName.Pressed);
 			MoveTo(new GridPos(6, 2));
 			SliceRequire(_view.Move is not null, "The player did not begin walking.");
+			var departure = _view.Now;
+			var departureSpot = _view.Spot;
+			for (var frame = 0; frame < 90 && _view.Move is not null && _view.Spot == departureSpot; frame++)
+				await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+			SliceRequire(_view.Move is not null && _view.Now > departure && _view.Spot != departureSpot,
+				"The save was not taken after a real step and before arrival.");
 			SetPaused(true);
 			SaveGame();
 			var walkingAt = _view.Now;

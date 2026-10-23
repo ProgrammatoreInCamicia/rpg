@@ -363,6 +363,8 @@ La modalità PlayableSlice salva/carica da `user://playable-slice.json`; Village
 
 Build client: 0 avvisi/0 errori; Sim: 651/651 test. Nuovo smoke `--slice-persistence-smoke` passato in Godot headless: save durante il cammino, prosecuzione dal load al punto di arrivo senza eseguire un ordine accodato dopo il save; save dopo rapporto, reload e ripresa senza doppio rapporto; file corrotto con sessione invariata; file Village immutato; due ricaricamenti reali della scena, uno dal menu e uno dal riepilogo, con snapshot iniziale identico. Lo smoke ripristina l'eventuale save utente precedente. Smoke SUMMARY passato; smoke Village passato con OpenGL. La prova Village headless si era fermata alla prima cattura perché richiede un renderer grafico.
 
+Follow-up della review di Claude: lo smoke ora aspetta che il protagonista abbia lasciato davvero il punto iniziale e sia ancora in movimento prima di salvare. La verifica headless passa con save a `19:27:00+26t` (prima era `19:27:00`); build client 0 avvisi/0 errori. La conferma UX prima di «Riprova» dal menu resta una rifinitura facoltativa, non un blocco del Task 7.
+
 ### Task 8 — Smoke della slice da avvio pulito
 
 **Stato:** da fare. **Tipo:** implementazione di test d'integrazione, reasoning medio. **Dipendenze:** 3, 4, 5, 6, 7.

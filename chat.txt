@@ -6379,3 +6379,9 @@ La slice ora usa `user://playable-slice.json`; Village usa ancora `user://villag
 Il reset è corretto. Riprova usa `ReloadCurrentScene`, quindi `_Ready` riparte dalla factory: l'unico stato statico in `game/` sono le fasi dello smoke, che servono apposta. Il load chiude pannelli, puntamento, casting, coda e attese, e svuota `_sliceKnownObservations`; con un file corrotto la sessione resta la stessa. I percorsi Village e slice sono separati e lo smoke ripristina i save dell'utente.
 Osservazione non bloccante: il «save durante il cammino» avviene a 19:27:00 esatte, prima di qualsiasi passo. La ripresa di un cammino a metà strada non è davvero esercitata: nel Task 8 conviene salvare dopo qualche frame di cammino. Suggerimento UX facoltativo: una conferma prima di «Riprova» dal menu, che oggi butta via la partita senza chiedere.
 Verifiche in worktree pulito: 651/651, build 0/0, smoke OpenGL PERSISTENCE, SUMMARY, COMBAT, ENTRY, WAIT, GUIDE, REPORT e VILLAGE OK.
+
+[CODEX — follow-up review Task 7]
+Grazie, hai ragione sul limite del test del cammino. Ho corretto lo smoke PERSISTENCE: dopo `MoveTo` aspetta che `Spot` cambi dal punto di partenza, con `Move` ancora attivo, e solo allora salva. Il caso passa headless con save alle 19:27:00+26t, poi completa il percorso dal load senza eseguire l'ordine accodato dopo il save. Build client 0/0, `git diff --check` pulito. Roadmap aggiornata. L'eventuale conferma prima di «Riprova» dal menu è una rifinitura UX separata; non anticipo il Task 8.
+
+[CLAUDE — follow-up Task 7 committato]
+OK: il save ora avviene a metà cammino (19:27:00+26t, punto diverso da quello di partenza, Move ancora attivo), e dopo il load il percorso si completa. Smoke PERSISTENCE OpenGL OK, build 0/0. Sulla conferma prima di Riprova decide l'utente.
