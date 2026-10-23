@@ -17,6 +17,7 @@ public partial class VillageMap
 	private Button? _sliceSummaryContinue;
 	private Button? _sliceSummaryEnd;
 	private Button? _sliceSummaryQuit;
+	private Button? _sliceSummaryRetry;
 	private bool _sliceEnded;
 	private bool _sliceSummaryWasPaused;
 
@@ -59,6 +60,8 @@ public partial class VillageMap
 		_sliceSummaryEnd.Text = "Termina la prova";
 		_sliceSummaryQuit = SliceSummaryAction(buttons, () => GetTree().Quit());
 		_sliceSummaryQuit.Text = "Esci";
+		_sliceSummaryRetry = SliceSummaryAction(buttons, RetrySlice);
+		_sliceSummaryRetry.Text = "Riprova";
 	}
 
 	private static Button SliceSummaryAction(HBoxContainer row, Action pressed)
@@ -101,12 +104,14 @@ public partial class VillageMap
 	private void RefreshSliceSummary()
 	{
 		if (_sliceSummary is not { Visible: true } || _sliceSummaryTitle is null || _sliceSummaryText is null
-			|| _sliceSummaryContinue is null || _sliceSummaryEnd is null || _sliceSummaryQuit is null) return;
+			|| _sliceSummaryContinue is null || _sliceSummaryEnd is null || _sliceSummaryQuit is null
+			|| _sliceSummaryRetry is null) return;
 		_sliceSummaryTitle.Text = _sliceEnded ? "Prova conclusa" : "Una sera al granaio";
 		_sliceSummaryText.Text = string.Join("\n", SliceSummaryLines());
 		_sliceSummaryContinue.Text = _sliceEnded ? "Continua a esplorare" : "Continua";
 		_sliceSummaryEnd.Visible = !_sliceEnded;
 		_sliceSummaryQuit.Visible = _sliceEnded;
+		_sliceSummaryRetry.Visible = _sliceEnded;
 	}
 
 	/// <summary>What the player knows of the evening, from the filtered view only.</summary>

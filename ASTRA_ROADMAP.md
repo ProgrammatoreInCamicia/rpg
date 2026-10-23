@@ -345,7 +345,7 @@ Verifiche in un worktree pulito: 651/651 test Sim, build client 0/0, smoke OpenG
 
 ### Task 7 — Riprovare e salvare senza contaminare altri scenari
 
-**Stato:** da fare. **Tipo:** implementazione ordinaria; review attenta del reset. **Dipendenze:** 2.
+**Stato:** completato da Codex il 23 ottobre 2026. **Tipo:** implementazione ordinaria; review attenta del reset. **Dipendenze:** 2.
 
 **Obiettivo:** «Riprova» e save/load affidabili per questa stessa mappa.
 
@@ -356,6 +356,12 @@ Verifiche in un worktree pulito: 651/651 test Sim, build client 0/0, smoke OpenG
 **Risultato verificabile:** save durante movimento e dopo rapporto, load e prosecuzione; due Riprova producono lo stesso stato iniziale; il salvataggio Village resta separato.
 
 **Completato quando:** nessuna azione fantasma dopo load/reset, nessun doppio rapporto, nessuna nuova migrazione schema. Testare il percorso dedicato e un file corrotto, oltre ai test esistenti di persistenza. Non promettere caricamento arbitrario tra mappe diverse.
+
+#### Risultato e verifiche — 23 ottobre 2026
+
+La modalità PlayableSlice salva/carica da `user://playable-slice.json`; Village resta su `user://village.json`. «Riprova» è nel menu della slice e nel riepilogo concluso, e ricarica `PlayableSlice.tscn`: `_Ready` ricrea la sessione con `PlayableSlice.CreateSession`, compresi pausa e introduzione, senza conservare ordini o pannelli della scena precedente. Il load valido chiude i pannelli e gli stati UI transitori, ricostruisce il movimento/attività salvati e non richiama la factory né il preroll. Un JSON invalido mostra l'errore e lascia inalterata la sessione. Nessuna modifica a `SaveGame.cs` o allo schema.
+
+Build client: 0 avvisi/0 errori; Sim: 651/651 test. Nuovo smoke `--slice-persistence-smoke` passato in Godot headless: save durante il cammino, prosecuzione dal load al punto di arrivo senza eseguire un ordine accodato dopo il save; save dopo rapporto, reload e ripresa senza doppio rapporto; file corrotto con sessione invariata; file Village immutato; due ricaricamenti reali della scena, uno dal menu e uno dal riepilogo, con snapshot iniziale identico. Lo smoke ripristina l'eventuale save utente precedente. Smoke SUMMARY passato; smoke Village passato con OpenGL. La prova Village headless si era fermata alla prima cattura perché richiede un renderer grafico.
 
 ### Task 8 — Smoke della slice da avvio pulito
 

@@ -557,6 +557,8 @@ public partial class VillageMap
 		MenuItem(items, "Riprendi", () => _gameMenu.Visible = false);
 		MenuItem(items, "Salva", () => { SaveGame(); _gameMenu.Visible = false; });
 		MenuItem(items, "Carica", () => { LoadGame(); _gameMenu.Visible = false; });
+		if (PlayableSliceMode)
+			MenuItem(items, "Riprova", RetrySlice);
 		MenuItem(items, "Riposo", () => { _restPanel.Visible = true; _gameMenu.Visible = false; });
 		items.AddChild(new Label { Text = "Ritmo di esplorazione" });
 		var paces = new HBoxContainer();
@@ -576,6 +578,12 @@ public partial class VillageMap
 	}
 
 	private void ToggleGameMenu() => _gameMenu.Visible = !_gameMenu.Visible;
+
+	private void RetrySlice()
+	{
+		if (!PlayableSliceMode) return;
+		GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
+	}
 
 	/// <summary>On the bar and not dimmed by the Action or Bonus filter.</summary>
 	private bool QuickLit(Button button) => button.Visible && button.GetParent()?.GetParent()?.GetParent() is CanvasItem { Visible: true }

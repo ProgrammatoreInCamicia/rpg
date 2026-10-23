@@ -20,7 +20,9 @@ public partial class VillageMap : Node2D
 	private const float TileH = 32f;
 	private const float WallHeight = 26f;
 	private const float PilotWallHeight = 42f;
-	private const string SavePath = "user://village.json";
+	private const string VillageSavePath = "user://village.json";
+	private const string SliceSavePath = "user://playable-slice.json";
+	private string SavePath => PlayableSliceMode ? SliceSavePath : VillageSavePath;
 
 	/// <summary>Longest real time a fixed-length activity (deposit, conversation) takes to play out on screen.</summary>
 	private const double MaxActivityRealSeconds = 3;
@@ -135,6 +137,9 @@ public partial class VillageMap : Node2D
 		var sliceCombatSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-combat-smoke="));
 		if (PlayableSliceMode && sliceCombatSmoke is not null)
 			RunSliceCombatSmoke(sliceCombatSmoke["--slice-combat-smoke=".Length..]);
+		var slicePersistenceSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-persistence-smoke="));
+		if (PlayableSliceMode && slicePersistenceSmoke is not null)
+			RunSlicePersistenceSmoke(slicePersistenceSmoke["--slice-persistence-smoke=".Length..]);
 
 		var smoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--village-smoke="));
 		if (smoke is not null)
@@ -806,6 +811,28 @@ public partial class VillageMap : Node2D
 		CancelSliceWait("Attesa interrotta.");
 		ClearSliceReport();
 		_sim = result.Session!;
+		if (PlayableSliceMode)
+		{
+			_sliceIntro?.Hide();
+			_sliceSummary?.Hide();
+			_sliceEnded = false;
+			_sliceSummaryWasPaused = false;
+		}
+		_gameMenu.Hide();
+		_restPanel.Hide();
+		_personMenu.Hide();
+		_creaturePanel.Hide();
+		_inventoryPanel.Hide();
+		_classPanel.Hide();
+		_spellPanel.Hide();
+		_torchShieldConfirm.Hide();
+		_travelChoicePanel.Hide();
+		_attackOptionsPanel.Hide();
+		_openingConfirm.Hide();
+		_openingPanel.Hide();
+		_barrierMenu.Hide();
+		_journalPanel.Hide();
+		CancelCasting();
 		ResetHudLog();
 		_attackArmed = false;
 		_observedRestStarted = null;
@@ -816,6 +843,7 @@ public partial class VillageMap : Node2D
 		_peopleKey = "";
 		_lightKey = "";
 		_journalOpen = false;
+		_sliceKnownObservations.Clear();
 		_approaching = null;
 		_pendingBarrier = null;
 		_attackAfterWalking = null;
