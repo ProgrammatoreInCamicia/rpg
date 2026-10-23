@@ -1,0 +1,88 @@
+{
+  "source": "Adapted from Blackmarsh v11, hex 0912 (Robert Conley, 2011; CC BY 4.0, https://creativecommons.org/licenses/by/4.0/): a fishing island granted in exchange for standing watch against raiders, particularly Vasan Vikings. Original to this project: the store shed, its key, the four emergency rations, the single Vasan raider, his raid and the local layout. See docs/BLACKMARSH_WATCHHOUSE.md.",
+  "scenario": {
+    "id": "blackmarsh-watchhouse",
+    "areas": [
+      { "id": "bm_watch_island", "name": "Isola della vedetta" }
+    ],
+    "locations": [
+      { "id": "bm_watch_path", "name": "Sentiero", "area": "bm_watch_island" },
+      { "id": "bm_watch_shed", "name": "Rimessa della vedetta", "area": "bm_watch_island" },
+      { "id": "bm_watch_landing", "name": "Approdo Vasan", "area": "bm_watch_island" }
+    ],
+    "maps": [
+      {
+        "area": "bm_watch_island",
+        "rows": [
+          "##################",
+          "#PP.............##",
+          "#PP.............##",
+          "#PP.............##",
+          "#PP...SSSSSS....##",
+          "#PP...SSSSSS....##",
+          "#PP...SSSSSS....##",
+          "#PP...SSSSSS....##",
+          "#PP...SSSSSS....##",
+          "#PP...........AA##",
+          "#PP...........AA##",
+          "#PP...........AA##",
+          "#PP...........AA##",
+          "##################"
+        ],
+        "zones": { "P": "bm_watch_path", "S": "bm_watch_shed", "A": "bm_watch_landing" },
+        "lights": [
+          { "at": [10, 6], "bright": 15, "dim": 30 }
+        ],
+        "interiors": ["bm_watch_shed"],
+        "edges": [
+          {"a":[6,3],"b":[6,4],"kind":"Wall"},
+          {"a":[7,3],"b":[7,4],"kind":"Wall"},
+          {"a":[8,3],"b":[8,4],"kind":"Wall"},
+          {"a":[9,3],"b":[9,4],"kind":"Wall"},
+          {"a":[10,3],"b":[10,4],"kind":"Wall"},
+          {"a":[11,3],"b":[11,4],"kind":"Wall"},
+          {"a":[6,8],"b":[6,9],"kind":"Wall"},
+          {"a":[7,8],"b":[7,9],"kind":"Wall"},
+          {"a":[8,8],"b":[8,9],"kind":"Wall"},
+          {"a":[9,8],"b":[9,9],"kind":"Wall"},
+          {"a":[10,8],"b":[10,9],"kind":"Wall"},
+          {"a":[11,8],"b":[11,9],"kind":"Wall"},
+          {"a":[5,4],"b":[6,4],"kind":"Wall"},
+          {"a":[5,5],"b":[6,5],"kind":"Wall"},
+          {"a":[5,6],"b":[6,6],"kind":"Door","at":[6,6],"open":false,"lock":{"key":"bm-watch-shed-key","locked":true,"forceDc":15,"clue":"una porta di tavole robuste, con una serratura nuova"}},
+          {"a":[5,7],"b":[6,7],"kind":"Wall"},
+          {"a":[5,8],"b":[6,8],"kind":"Wall"},
+          {"a":[8,4],"b":[9,4],"kind":"Wall"},
+          {"a":[8,5],"b":[9,5],"kind":"Wall"},
+          {"a":[8,6],"b":[9,6],"kind":"Door","at":[9,6],"open":false},
+          {"a":[8,7],"b":[9,7],"kind":"Wall"},
+          {"a":[8,8],"b":[9,8],"kind":"Wall"},
+          {"a":[11,4],"b":[12,4],"kind":"Wall"},
+          {"a":[11,5],"b":[12,5],"kind":"Wall"},
+          {"a":[11,6],"b":[12,6],"kind":"Window","lock":{"stuck":true,"forceDc":10,"clue":"il telaio è gonfio di salsedine"}},
+          {"a":[11,7],"b":[12,7],"kind":"Wall"},
+          {"a":[11,8],"b":[12,8],"kind":"Wall"}
+        ]
+      }
+    ],
+    "factions": [
+      { "id": "bm_watch_islanders", "name": "Pescatori della vedetta", "homeStore": "bm_watch_shed_store" },
+      { "id": "bm_watch_vasan", "name": "Vasan", "homeStore": "bm_watch_vasan_cache", "dailyUpkeep": 4, "upkeepAt": "19:59",
+        "raids": { "threshold": 1, "amount": 4, "everyHours": 1 } }
+    ],
+    "enmities": [ ["bm_watch_islanders", "bm_watch_vasan"] ],
+    "stores": [
+      { "id": "bm_watch_shed_store", "name": "Cassa delle razioni d'emergenza", "location": "bm_watch_shed", "food": 4,
+        "owner": "bm_watch_islanders", "at": [11, 4], "access": [[11, 5]] },
+      { "id": "bm_watch_vasan_cache", "name": "Provviste dei Vasan", "location": "bm_watch_landing", "food": 4,
+        "owner": "bm_watch_vasan", "at": [15, 12], "access": [[14, 12]] }
+    ],
+    "actors": [
+      { "id": "bm_watch_player", "name": "Protagonista", "location": "bm_watch_path", "player": true, "food": 10,
+        "faction": "bm_watch_islanders", "build": "paladin", "at": [1, 6], "torches": 3,
+        "items": [["chain-mail", 1], ["shield", 1], ["longsword", 1], ["javelin", 6], ["waterskin", 1], ["bm-watch-shed-key", 1]] },
+      { "id": "bm_watch_vasan_raider", "name": "Predone vasan", "location": "bm_watch_landing", "faction": "bm_watch_vasan",
+        "build": "raider", "at": [14, 10] }
+    ]
+  }
+}

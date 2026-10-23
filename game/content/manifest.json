@@ -4,12 +4,14 @@
   "files": [
     "srd/items.json",
     "original/items.json",
+    "blackmarsh/items.json",
     "srd/classes.json",
     "srd/spells.json",
     "srd/creatures.json",
     "original/kinds.json",
     "original/creatures.json",
     "original/characters.json",
-    "scenarios/living-village.json"
+    "scenarios/living-village.json",
+    "scenarios/blackmarsh-watchhouse.json"
   ]
 }
