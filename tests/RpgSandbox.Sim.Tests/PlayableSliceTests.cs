@@ -139,6 +139,39 @@ public class PlayableSliceTests(ITestOutputHelper output)
         Assert.Equal(Raider, observed.Culprit);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Adjacent_witness_does_not_see_a_theft_while_blind_or_the_raider_is_invisible(bool invisibleRaider)
+    {
+        var session = PlayableSlice.CreateSession();
+        Walk(session, new GridPos(16, 6));
+        session.FacePlayer(0, -1);
+        session.Engine.AddCondition(null, session.Engine.World.Actors[invisibleRaider ? Raider : Player],
+            invisibleRaider ? ConditionKind.Invisible : ConditionKind.Blinded);
+
+        AdvanceUntil(session, () => session.Now >= At(1, 19, 35), At(1, 19, 35));
+        Assert.Equal(32, session.GetWorldView().Store(GranaryStore).Food);
+        Assert.DoesNotContain(session.GetPlayerView().Observations, o => o.Perceived == "Seen");
+    }
+
+    [Fact]
+    public void Arriving_next_to_the_raider_after_the_start_reveals_the_theft_but_not_its_author()
+    {
+        var session = PlayableSlice.CreateSession();
+        Walk(session, new GridPos(18, 7));
+        session.FacePlayer(0, 1); // the thief is outside the cone when the deed starts
+        AdvanceUntil(session, () => session.GetWorldView().Actor(Raider).Action?.Kind == "TakeFood", At(1, 19, 33));
+        Assert.DoesNotContain(session.GetPlayerView().VisibleActors, a => a.Id == Raider);
+        Walk(session, new GridPos(16, 6));
+        session.FacePlayer(0, -1);
+        AdvanceUntil(session, () => session.Now >= At(1, 19, 35), At(1, 19, 35));
+
+        var observed = Assert.Single(session.GetPlayerView().Observations);
+        Assert.Equal("Seen", observed.Perceived);
+        Assert.Null(observed.Culprit);
+    }
+
     [Fact]
     public void A_guard_is_shown_guarding_only_while_seen_keeping_the_post()
     {
@@ -148,7 +181,14 @@ public class PlayableSliceTests(ITestOutputHelper output)
 
         PrepareLookout(session, torch: true, closeDoor: false); // the guard sees the theft herself and takes the post
         AdvanceUntil(session, () => session.GetWorldView().Actor(Guard).GuardDuty is not null, At(1, 19, 35));
-        Assert.Null(session.GetPlayerView().VisibleActors.SingleOrDefault(a => a.Id == Guard)?.GuardingStore); // duty, not yet kept
+        var onTheWay = session.GetWorldView().Actor(Guard);
+        Assert.NotEqual("Guard", onTheWay.Action?.Kind);
+        // Move the test observer into the lamplit inn to distinguish an absent marker from an absent actor.
+        session.Engine.World.Actors[Player].Position = onTheWay.Position;
+        var visibleOnTheWay = Assert.Single(session.GetPlayerView().VisibleActors, a => a.Id == Guard);
+        Assert.Null(visibleOnTheWay.GuardingStore); // duty assigned, but post not yet kept
+        session.Engine.World.Actors[Player].Position = Lookout;
+        session.FacePlayer(0, -1);
         AdvanceUntil(session, () => session.GetWorldView().Actor(Guard).Action?.Kind == "Guard", At(1, 20, 0));
         var atPost = Assert.Single(session.GetPlayerView().VisibleActors, a => a.Id == Guard);
         Assert.Equal(GranaryStore, atPost.GuardingStore);
@@ -172,6 +212,25 @@ public class PlayableSliceTests(ITestOutputHelper output)
 
         Assert.True(session.PreviewMoveToSpot(session.Player, Spot.CenterOf(new GridPos(16, 7))).Valid); // away
         Assert.False(session.PreviewMoveToSpot(session.Player, raider).Valid); // onto him
+        Walk(session, new GridPos(16, 6));
+        var beyond = session.PreviewMoveToSpot(session.Player, Spot.CenterOf(new GridPos(16, 4)));
+        Assert.True(beyond.Valid, beyond.Message);
+        Assert.True(beyond.Way.Count > 2, "A straight path to the far side would pass through the raider.");
+        Assert.All(beyond.Way.Zip(beyond.Way.Skip(1)), segment =>
+            Assert.True(DistanceToSegment(raider, segment.First, segment.Second) >= 36,
+                $"The route crosses the raider between {segment.First} and {segment.Second}."));
+    }
+
+    private static double DistanceToSegment(Spot point, Spot start, Spot end)
+    {
+        var dx = end.X - start.X;
+        var dy = end.Y - start.Y;
+        var lengthSquared = dx * dx + dy * dy;
+        var progress = lengthSquared == 0 ? 0
+            : Math.Clamp(((point.X - start.X) * dx + (point.Y - start.Y) * dy) / (double)lengthSquared, 0, 1);
+        var x = start.X + progress * dx;
+        var y = start.Y + progress * dy;
+        return Math.Sqrt((point.X - x) * (point.X - x) + (point.Y - y) * (point.Y - y));
     }
 
     private void Observe(SimulationSession session)

@@ -57,6 +57,40 @@ public partial class VillageMap
 			var destination = new GridPos(16, 6);
 			SliceRequire(_sim.PreviewMoveToSpot(_sim.Player, Spot.CenterOf(destination)).Valid,
 				"The overlapping raider traps the player despite available movement.");
+			_sliceSummaryButton!.EmitSignal(BaseButton.SignalName.Pressed);
+			SliceRequire(_sliceSummary is { Visible: true } && _paused,
+				"The summary did not open and pause during combat.");
+			await SliceFrames(2);
+			if (DisplayServer.GetName() != "headless")
+				CaptureSliceGuide(outputDir, "combat-summary-open.png");
+			var frozenCombat = SliceCombatWorldSnapshot();
+			var floorClick = new InputEventMouseButton
+			{
+				Pressed = true, ButtonIndex = MouseButton.Left,
+				Position = GetGlobalTransformWithCanvas() * CellToScreen(destination),
+			};
+			_quickEndTurn.EmitSignal(BaseButton.SignalName.Pressed);
+			_combatEndTurn.EmitSignal(BaseButton.SignalName.Pressed);
+			Input.ParseInputEvent(floorClick); // the real viewport route must not reach the map behind the panel
+			HandleCombatInput(floorClick);
+			MoveTo(destination); // other UI actions use the common order route
+			await SliceFrames(3);
+			SliceRequire(SliceCombatWorldSnapshot() == frozenCombat && QueuedOrders == 0,
+				"Combat commands changed the world behind the open summary.");
+			_sliceSummaryEnd!.EmitSignal(BaseButton.SignalName.Pressed);
+			SliceRequire(_sliceEnded, "The combat summary did not reach the explicit ending.");
+			await SliceFrames(2);
+			if (DisplayServer.GetName() != "headless")
+				CaptureSliceGuide(outputDir, "combat-summary-ended.png");
+			_quickEndTurn.EmitSignal(BaseButton.SignalName.Pressed);
+			HandleCombatInput(floorClick);
+			MoveTo(destination);
+			await SliceFrames(3);
+			SliceRequire(SliceCombatWorldSnapshot() == frozenCombat && QueuedOrders == 0,
+				"Combat commands changed the world behind the concluded summary.");
+			_sliceSummaryContinue!.EmitSignal(BaseButton.SignalName.Pressed);
+			SliceRequire(!_paused && _sliceSummary is { Visible: false },
+				"Continuing after the combat summary did not restore control.");
 			var beforeMove = _view.Spot;
 			_armedAttack = attack!.Name;
 			_attackArmed = true;
@@ -95,8 +129,18 @@ public partial class VillageMap
 
 			var beforeTurn = _view.Now;
 			EndCombatTurn();
+			var nextRound = _view.Combat?.NextRoundAt;
+			SliceRequire(nextRound is not null,
+				"Ending the turn did not leave a round waiting to advance.");
+			_sliceSummaryButton.EmitSignal(BaseButton.SignalName.Pressed);
+			var frozenRound = SliceCombatWorldSnapshot();
 			await SliceFrames(5);
-			SliceRequire(_view.Now > beforeTurn, "End turn did not advance combat time.");
+			SliceRequire(SliceCombatWorldSnapshot() == frozenRound,
+				"The combat round advanced behind the open summary.");
+			_sliceSummaryContinue.EmitSignal(BaseButton.SignalName.Pressed);
+			await SliceFrames(5);
+			SliceRequire(_view.Now > beforeTurn && _view.Now >= nextRound!.Value,
+				"Closing the summary did not let the combat round advance.");
 			GD.Print("SLICE COMBAT SMOKE OK: ordinary-time raider arrival, overlapping bodies, attack, floor movement and end turn");
 			GetTree().Quit(0);
 		}
@@ -105,5 +149,12 @@ public partial class VillageMap
 			GD.PrintErr($"SLICE COMBAT SMOKE FAIL: {error}");
 			GetTree().Quit(1);
 		}
+	}
+
+	private string SliceCombatWorldSnapshot()
+	{
+		using var stream = new System.IO.MemoryStream();
+		_sim.Save(stream);
+		return Convert.ToBase64String(stream.ToArray());
 	}
 }

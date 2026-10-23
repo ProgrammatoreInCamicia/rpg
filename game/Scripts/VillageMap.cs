@@ -161,7 +161,8 @@ public partial class VillageMap : Node2D
 		UpdateHover();
 		UpdateSpotPreview();
 		var sliceWaitFrame = ProcessSliceWaitFrame();
-		if (!sliceWaitFrame && _view.Combat?.NextRoundAt is { } nextRound && !_view.Dead)
+		if (!sliceWaitFrame && _sliceSummary is not { Visible: true }
+			&& _view.Combat?.NextRoundAt is { } nextRound && !_view.Dead)
 		{
 			// NPC turns are already resolved by EndTurn. This closes the six-second round and starts the next
 			// player turn; Advance deliberately stops at that turn instead of consuming any later world time.
@@ -248,12 +249,20 @@ public partial class VillageMap : Node2D
 	/// </summary>
 	public override void _Input(InputEvent @event)
 	{
+		if (_sliceSummary is { Visible: true } summary)
+		{
+			// Keep the summary's own buttons usable, but consume all input aimed at the game behind it.
+			if (@event is InputEventMouse mouse && summary.GetGlobalRect().HasPoint(mouse.Position)) return;
+			GetViewport().SetInputAsHandled();
+			return;
+		}
 		if (@event is InputEventKey { Keycode: Key.Space } && GetViewport().GuiGetFocusOwner() is BaseButton)
 			GetViewport().GuiReleaseFocus();
 	}
 
 	public override void _UnhandledInput(InputEvent @event)
 	{
+		if (_sliceSummary is { Visible: true }) return;
 		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.I })
 		{
 			_inventoryPanel.Visible = !_inventoryPanel.Visible;
@@ -607,6 +616,7 @@ public partial class VillageMap : Node2D
 	/// </summary>
 	private void Order(string label, bool walk, Action run)
 	{
+		if (_sliceSummary is { Visible: true }) return;
 		CancelSliceWait("Attesa interrotta.");
 		if (!_paused || _view.Combat is not null)
 		{

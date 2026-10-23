@@ -46,6 +46,46 @@ public class SensesTests
         return s;
     }
 
+    [Fact]
+    public void Adjacent_witness_in_the_dark_does_not_see_the_theft()
+    {
+        var s = SimulationSession.Create(Yard((7, 2), playerAt: (8, 2)));
+        s.AdvanceTo(At(1, 2));
+        var take = s.Execute(new TakeFoodCommand { Actor = s.Player, Store = new StoreId("store"), Amount = 2 });
+        Assert.True(take.Success, take.Message);
+        Assert.Equal(AdvanceOutcome.Completed,
+            s.AdvanceUntilCompleted(take.Action!.Value, Duration.FromHours(1)).Outcome);
+        Assert.Equal(38, s.GetWorldView().Store(new StoreId("store")).Food);
+        Assert.DoesNotContain(s.GetWorldView().Actor(Watcher).Knowledge, o => o.Perceived == "Seen");
+    }
+
+    [Fact]
+    public void Diagonally_adjacent_witness_behind_a_blocked_corner_does_not_see_the_theft()
+    {
+        var scenario = new ScenarioBuilder()
+            .WithSeed(1)
+            .AddArea("a", "A")
+            .AddLocation("yard", "Cortile", "a")
+            .AddMap("a", new[] { "#####", "#Y#Y#", "##YY#", "#YYY#", "#####" },
+                new Dictionary<char, string> { ['Y'] = "yard" })
+            .AddFaction("village", "Villaggio", homeStoreId: "store", authorityId: Watcher.Value)
+            .AddStore("store", "Scorte", "yard", 40, "village", at: (3, 2), access: new[] { (2, 2) })
+            .AddActor("player", "Protagonista", "yard", isPlayer: true,
+                sheet: Sheets.Paladin(), at: (2, 2))
+            .AddActor(Watcher.Value, "Guardia", "yard", factionId: "village",
+                sheet: Sheets.VillageGuard(), at: (1, 1))
+            .Build();
+        var s = SimulationSession.Create(scenario);
+        s.AdvanceTo(At(1, 12));
+        Assert.False(s.Engine.World.Maps[new AreaId("a")].HasLineOfSight(new GridPos(1, 1), new GridPos(2, 2)));
+        var take = s.Execute(new TakeFoodCommand { Actor = s.Player, Store = new StoreId("store"), Amount = 2 });
+        Assert.True(take.Success, take.Message);
+        Assert.Equal(AdvanceOutcome.Completed,
+            s.AdvanceUntilCompleted(take.Action!.Value, Duration.FromHours(1)).Outcome);
+        Assert.Equal(38, s.GetWorldView().Store(new StoreId("store")).Food);
+        Assert.DoesNotContain(s.GetWorldView().Actor(Watcher).Knowledge, o => o.Perceived == "Seen");
+    }
+
     // ---------------------------------------------------------------- geometry
 
     private static GridMap Map() => new(new AreaId("a"), Rows,

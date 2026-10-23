@@ -1,6 +1,6 @@
 # ASTRA — percorso minimo verso una slice giocabile
 
-Analisi del 21 ottobre 2026. Repository esaminato sul commit `faf05e2`, con file locali non versionati già presenti. Questo documento propone il prossimo incremento; **non certifica che la slice descritta sotto sia già realizzata**. La sessione iniziale ha analizzato e verificato i sistemi senza implementare gameplay. Aggiornamento del 22 ottobre: Task 1 completato nella Sim con factory e test; Task 2 completato nel client con scena d'ingresso e smoke; Task 3 completato nel client con attesa accelerata e smoke; Task 4 completato nel client con indicazioni, accesso al deposito e smoke; Task 5 completato nel client con dialogo e diario del rapporto; Task 6–9 non iniziati.
+Analisi iniziale del 21 ottobre 2026 sul commit `faf05e2`; le schede dei task conservano anche i risultati storici. **Stato al 23 ottobre 2026:** Task 1–8 completati nel perimetro tecnico descritto sotto; Task 9 verificato tecnicamente, ma il playtest indipendente di comprensione e durata non è stato eseguito per scelta dell'utente. I punti F1–F3 di `ASTRA_FINAL_REVIEW.md` sono il follow-up circoscritto di questa tappa; il relativo esito è riportato in fondo al documento.
 
 ## 1. Decisione principale
 
@@ -439,6 +439,16 @@ Non completare prima l'intero piano UX: per questa prova servono soltanto chiare
 
 Dopo il collaudo, decidere sulla base di ciò che il giocatore ha capito e trovato interessante: un intervento armato breve nello stesso loop, oppure il trasferimento della meccanica a una singola situazione di Blackmarsh. Nessuno dei due è un prerequisito della consegna qui definita.
 
-## Primo task consigliato
+## Stato dopo la review finale e prossimo passo
 
-**Task 6: mostrare una conclusione basata su ciò che si sa.** Il ramo del rapporto è ora leggibile; resta da offrire un riepilogo fedele alla vista del giocatore secondo la scheda del Task 6. Questo task non è stato iniziato nell'implementazione del Task 5.
+Il Task 6 e i successivi interventi tecnici sono stati implementati. Il follow-up F1–F3 di `ASTRA_FINAL_REVIEW.md` affronta la pausa del riepilogo in combattimento, alcuni confini delle regole generali e le indicazioni di stato qui obsolete. Il criterio umano del Task 9 resta **non certificato**: il precedente giro dell'utente, già esperto della mappa, non equivale a un playtest autonomo di una persona nuova e non gli viene chiesto di ripeterlo.
+
+La prossima scelta di contenuto resta fra un breve intervento armato nello stesso scenario e una situazione di Blackmarsh, dopo aver valutato i risultati tecnici e quando sarà disponibile un riscontro di usabilità indipendente. Nessuno dei due percorsi è un prerequisito per il consolidamento F1–F3.
+
+### Follow-up F1–F3 — 23 ottobre 2026
+
+- **F1, riepilogo durante lo scontro:** lo smoke COMBAT ampliato ha riprodotto il difetto prima della correzione: con riepilogo aperto Fine turno e movimento alteravano il mondo. Ora gli input fuori dal pannello sono consumati, gli ordini e Fine turno non partono mentre è visibile, e il passaggio automatico al round successivo aspetta la chiusura. Lo smoke confronta lo snapshot completo durante il riepilogo aperto e dopo «Termina la prova», tenta pulsanti, input sul terreno e ordini, poi verifica il ritorno del controllo e l'avanzamento del round alla chiusura. Catture `combat-summary-open.png` e `combat-summary-ended.png` ispezionate a 1280×720.
+- **F2, confini delle regole generali:** aggiunti cinque casi Sim su buio, angolo bloccato, cecità/invisibilità e arrivo dopo l'inizio del furto; l'ultimo conferma che si vede il furto senza identificare retroattivamente l'autore. Il test di movimento verifica anche una destinazione oltre il razziatore e la distanza di tutti i segmenti del percorso dal suo corpo. Il test del presidio porta l'osservatore presso la guardia durante il viaggio e verifica che l'attore sia davvero visibile con `GuardingStore` nullo, prima del successivo caso positivo al posto.
+- **F3, istruzioni di stato:** sintesi iniziale e ultimo passo aggiornati; risultati storici dei task conservati. Il Task 9 mantiene esplicito il limite del playtest indipendente, senza richiedere all'utente un nuovo giro.
+
+**Verifiche effettive:** build soluzione 0 warning/0 errori; suite Sim **656/656**; smoke OpenGL COMBAT (inclusa F1), SUMMARY, composto SLICE e VILLAGE riusciti. Lo smoke composto, che scrive `user://playable-slice.json`, è passato fuori sandbox dopo che la prova in sandbox si era fermata al salvataggio per mancanza di accesso alla cartella dati di Godot. `git diff --check` pulito. Il test F1 è automatico e la scena è stata ispezionata dalle due catture; non costituisce un nuovo playtest umano.

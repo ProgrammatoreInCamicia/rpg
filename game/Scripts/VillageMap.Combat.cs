@@ -470,6 +470,7 @@ public partial class VillageMap
 
 	private bool HandleCombatInput(InputEvent @event)
 	{
+		if (_sliceSummary is { Visible: true }) return true;
 		if (@event is not InputEventMouseButton { Pressed: true } mouse
 			|| mouse.ButtonIndex is not (MouseButton.Left or MouseButton.Right))
 			return @event is InputEventKey { Keycode: Key.Space or Key.X or Key.F or Key.T };
@@ -584,6 +585,7 @@ public partial class VillageMap
 
 	private void EndCombatTurn()
 	{
+		if (_sliceSummary is { Visible: true }) return;
 		_combatVisualTracks.Clear();
 		var result = _sim.Execute(new EndTurnCommand { Actor = _sim.Player });
 		ShowMessage(result.Message);
