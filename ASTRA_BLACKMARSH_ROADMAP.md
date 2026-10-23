@@ -1,6 +1,6 @@
 # ASTRA — seconda vertical slice: La rimessa della vedetta
 
-Analisi del **23 ottobre 2026**, repository a **`cca04bb`**. Documento di proposta. **Stato aggiornato:** Task 1 e 2 completati nella Sim; Task 3 completato nel client (esiti in fondo al documento); Task 4–10 non iniziati, nessun criterio umano certificato. La descrizione dell'analisi iniziale sotto resta storica.
+Analisi del **23 ottobre 2026**, repository a **`cca04bb`**. Documento di proposta. **Stato aggiornato:** Task 1 e 2 completati nella Sim; Task 3 e 4 completati nel client (esiti in fondo al documento); Task 5–10 non iniziati, nessun criterio umano certificato. La descrizione dell'analisi iniziale sotto resta storica.
 
 ## 1. Decisione
 
@@ -300,7 +300,7 @@ Stato Git iniziale: soltanto gli otto file `Body.*`/texture/import non tracciati
 
 ## Primo task consigliato
 
-**Prossimo task: Task 4, identità e presentazione.** I Task 1–3 hanno dimostrato il loop nella Sim e l'ingresso separato nel client. Il Task 4 dovrà risolvere figure e materiali per i nuovi ID senza modificare le regole; il tavolo e l'arredo visibile restano al Task 6.
+**Prossimo task: Task 5, interazione con la cassa selezionata.** I Task 1–4 hanno dimostrato il loop nella Sim, l'ingresso separato e la resa delle figure e dei pavimenti con i nuovi ID. Il Task 5 dovrà collegare la UI al deposito effettivamente selezionato; il tavolo e l'arredo visibile restano al Task 6.
 
 ## Esito del Task 1 — 23 ottobre 2026
 
@@ -339,3 +339,10 @@ Completato senza regole Sim nuove: nessun controllo sugli ID Blackmarsh nel moto
 - Un solo enum esportato `Entry` seleziona i cinque ingressi (Village, prototipo, pilot, prima slice, Blackmarsh). I parametri d'ingresso — orientamento, preroll, pausa e percorso di salvataggio — sono separati nella configurazione del client. Il flag storico `--interior-prototype` resta compatibile soltanto sull'ingresso Village. Le proprietà derivate per la grafica legacy restano fino al Task 4, senza aggiungere booleani indipendenti alle scene.
 - Blackmarsh usa `user://blackmarsh-watchhouse.json`; «Riprova» nel menu ricarica la scena corrente. Lo smoke dedicato confronta il salvataggio completo dell'ingresso con due reload reali, verifica che otto frame in pausa non lo alterino, che il tempo riprenda, che il salvataggio Blackmarsh non tocchi quelli Village/slice e ripristina l'eventuale save Blackmarsh precedente.
 - Review Task 1–2: test mirati 23/23 e suite Sim completa 670/670; nessun difetto bloccante trovato. Build soluzione 0 errori/0 avvisi. Smoke OpenGL a 1280×720: BLACKMARSH ENTRY, VILLAGE, SLICE ENTRY, INTERIOR ART PILOT e INTERIOR PROTOTYPE tutti verdi. La cattura `entry-paused.png` è stata ispezionata: pausa e stato sono leggibili; figure/inquadratura/arredo di Blackmarsh sono ancora provvisori, da trattare nei Task 4 e 6. Nessun criterio umano certificato e nessun Task 4 avviato.
+
+## Esito del Task 4 — 23 ottobre 2026
+
+- Nuovo profilo client di presentazione per ingresso: materiali/colori dei luoghi e stili degli attori sono mappati localmente. Blackmarsh assegna pietra alla rimessa, terreno al sentiero, strada all'approdo e stile Raider al Vasan. Gli ID del villaggio usati per la resa sono confinati a questa configurazione; per ogni scena il protagonista è identificato tramite `_sim.Player`.
+- Pareti, tetto, aperture, illuminazione e risposta del tetto agli interni usano il profilo grafico condiviso `StyledInterior`, che vale per pilot e Blackmarsh. Le decorazioni e la camera specifiche del pilot rimangono specifiche del pilot; tavolo, props e composizione finale dell'inquadratura sono ancora Task 6. Nessuna collisione grafica aggiunta o regola Sim cambiata.
+- Smoke Blackmarsh ampliato: controlla il vero tile con texture di pietra, il paladino live dopo rotazione e movimento, le alternative atlante/sprite, il Vasan visibile col modello 3D Raider e le due ripartenze. Catture `entry-paused.png` e `vasan-visible.png` ispezionate; il tetto e la figura sono leggibili, ma la scena non è ancora arredata e l'inquadratura ravvicinata al predone mostra sovrapposizioni di etichette, da affrontare nella composizione del Task 6.
+- Verifiche: build soluzione 0 errori/0 avvisi, Sim 670/670, smoke OpenGL BLACKMARSH ENTRY, INTERIOR ART PILOT, SLICE ENTRY e VILLAGE completi. Catture del pilot e Village ispezionate senza regressioni evidenti. Nessun Task 5/6 avviato né collaudo umano dichiarato.

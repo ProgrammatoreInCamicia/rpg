@@ -24,7 +24,7 @@ public partial class VillageMap : Node2D
 	private const float TileW = 64f;
 	private const float TileH = 32f;
 	private const float WallHeight = 26f;
-	private const float PilotWallHeight = 42f;
+	private const float StyledWallHeight = 42f;
 	private const string VillageSavePath = "user://village.json";
 	private const string SliceSavePath = "user://playable-slice.json";
 	private const string BlackmarshSavePath = "user://blackmarsh-watchhouse.json";
@@ -133,6 +133,7 @@ public partial class VillageMap : Node2D
 		_activeEntry = Entry == SceneEntry.Village && OS.GetCmdlineUserArgs().Contains("--interior-prototype")
 			? SceneEntry.InteriorPrototype : Entry;
 		_entryOptions = OptionsFor(_activeEntry);
+		_presentation = PresentationFor(_activeEntry);
 		_freeMovementEnabled = true;
 		_sim = CreateEntrySession(_activeEntry);
 		if (_entryOptions.PrerollHours > 0)
@@ -599,7 +600,7 @@ public partial class VillageMap : Node2D
 		{
 			if (door.At == cell)
 				return door.At;
-			if (InteriorArtPilot && door.Open == true && _doorPanels.TryGetValue(door.At, out var openPanel)
+			if (StyledInterior && door.Open == true && _doorPanels.TryGetValue(door.At, out var openPanel)
 				&& openPanel.Visible && openPanel.GetNodeOrNull<Node2D>("OpenLeaf") is { Visible: true } leaf
 				&& leaf.GetNodeOrNull<Polygon2D>("OpenPanel") is { } art
 				&& Geometry2D.IsPointInPolygon(point - openPanel.Position, art.Polygon))
@@ -998,9 +999,9 @@ public partial class VillageMap : Node2D
 		{
 			if (!_doorPanels.TryGetValue(door.At, out var panel))
 				continue;
-			panel.Visible = door.Known != DoorKnowledge.Unknown && (InteriorArtPilot || door.Open == false);
-			if (InteriorArtPilot && panel.GetNodeOrNull<Node2D>("OpenLeaf") is not null)
-				SetPilotDoorPanel(panel, door.Open == true);
+			panel.Visible = door.Known != DoorKnowledge.Unknown && (StyledInterior || door.Open == false);
+			if (StyledInterior && panel.GetNodeOrNull<Node2D>("OpenLeaf") is not null)
+				SetStyledDoorPanel(panel, door.Open == true);
 			if (_doorFloors.TryGetValue(door.At, out var floor) && _doorOutlines.TryGetValue(door.At, out var outline))
 			{
 				floor.Color = door.Known == DoorKnowledge.Unknown ? Road
@@ -1248,7 +1249,7 @@ public partial class VillageMap : Node2D
 			return;
 		var key = string.Concat(rows) + "|" + string.Concat(_view.MapVisibility ?? Array.Empty<string>())
 			+ "|" + string.Join(",", _view.Doors.Select(d => $"{d.At}:{d.Open}"))
-			+ (InteriorArtPilot ? $"|{_view.Position}" : "");
+			+ (StyledInterior ? $"|{_view.Position}" : "");
 		if (key == _lightKey)
 			return;
 		_lightKey = key;
@@ -1283,7 +1284,7 @@ public partial class VillageMap : Node2D
 		{
 			var shadeCell = BuildingShadeCell(edge);
 			var tint = Shade(shadeCell);
-			if (InteriorArtPilot && IsIndoor(edge.A) != IsIndoor(edge.B)
+			if (StyledInterior && IsIndoor(edge.A) != IsIndoor(edge.B)
 				&& _view.MapVisibility is { } seen && seen[shadeCell.Y][shadeCell.X] == '0')
 				tint = _view.Daylight == Light.Bright
 					? new Color(0.42f, 0.40f, 0.38f) : new Color(0.28f, 0.29f, 0.32f);
@@ -1423,19 +1424,12 @@ public partial class VillageMap : Node2D
 		{
 			var c = map.Rows[y][x];
 			var cell = new GridPos(x, y);
-			var color = c switch
-			{
-				'#' => Wall.Darkened(0.2f),
-				'.' => Road,
-				'S' => Yard,
-				_ => map.Zones.TryGetValue(c, out var zone) ? zone == MappedVillageScenario.Ids.Inn ? InnFloor
-					: zone == MappedVillageScenario.Ids.FarmerHouse ? HouseFloor
-					: zone == MappedVillageScenario.Ids.ForestRoad ? ForestRoad : Yard : Yard,
-			};
+			var zone = map.Zones.TryGetValue(c, out var floorZone) ? floorZone : (LocationId?)null;
+			var look = FloorFor(c, zone, cell);
 			var shade = (x + y) % 2 == 0 ? 0f : 0.05f;
-			var tile = new Polygon2D { Polygon = Diamond(), Position = CellToScreen(cell), Color = color.Darkened(shade) };
-			ApplyGroundTexture(tile, c, map.Zones.TryGetValue(c, out var floorZone) ? floorZone : null, cell, shade);
-			if (InteriorArtPilot && c == 'H' && x == 11 && y == 7)
+			var tile = new Polygon2D { Polygon = Diamond(), Position = CellToScreen(cell), Color = look.Color.Darkened(shade) };
+			ApplyGroundTexture(tile, c, look, cell, shade);
+			if (_presentation.FloorAccent == cell)
 				DressPilotFloor(tile);
 			_floor.AddChild(tile);
 			_lit[cell] = tile;
@@ -1465,11 +1459,11 @@ public partial class VillageMap : Node2D
 
 		foreach (var edge in map.Edges)
 		{
-			var panel = MakeEdgePanel(edge, InteriorArtPilot);
+			var panel = MakeEdgePanel(edge, StyledInterior);
 			_sorted.AddChild(panel);
 			if (edge.Kind is MapEdgeKind.Window or MapEdgeKind.Door)
-				AddBarrierMark(panel, InteriorArtPilot
-					? PilotWallHeight
+				AddBarrierMark(panel, StyledInterior
+					? StyledWallHeight
 					: edge.Kind == MapEdgeKind.Window ? 17f : WallHeight);
 			_edgeLit.Add((edge, panel));
 			RegisterBuildingEdge(edge, panel);

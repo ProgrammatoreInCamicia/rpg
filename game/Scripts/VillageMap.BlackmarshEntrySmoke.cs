@@ -32,6 +32,11 @@ public partial class VillageMap
 			{
 				_blackmarshInitial = bytes;
 				await SliceFrames(8);
+				SliceRequire(StyledInterior && FloorFor('S', BlackmarshWatchhouse.Ids.Shed,
+					new GridPos(7, 5)).Material == GroundMaterial.Flagstone
+					&& ActorStyle(BlackmarshWatchhouse.Ids.Raider) == Paladin3DPrototype.CharacterStyle.Raider
+					&& PaladinLive3dLoadedForSmoke,
+					"Blackmarsh player, Vasan or shed floor is using the wrong presentation.");
 				SliceRequire(GetViewport().GetTexture().GetImage()
 					.SavePng(Path.Combine(outputDir, "entry-paused.png")) == Error.Ok,
 					"Could not capture the Blackmarsh opening scene.");
@@ -66,11 +71,52 @@ public partial class VillageMap
 					await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
 				SliceRequire(_view.Now > resumedAt,
 					"Blackmarsh clock did not resume.");
+				FaceForSmoke(-1, 0);
+				await SliceFrames(3);
+				SliceRequire(PaladinLive3dLoadedForSmoke, "The live paladin disappeared after turning.");
+				TogglePaladin3dPrototypeForSmoke();
+				await SliceFrames(3);
+				SliceRequire(Paladin3dLoadedForSmoke, "The atlas renderer did not recognize the Blackmarsh player.");
+				TogglePaladin3dPrototypeForSmoke();
+				TogglePaladinLive3dPrototypeForSmoke();
+				await SliceFrames(3);
+				SliceRequire(HasFigureSpriteForSmoke(_sim.Player),
+					"The painted sprite did not recognize the Blackmarsh player.");
+				TogglePaladinLive3dPrototypeForSmoke();
+				MoveTo(new GridPos(2, 6));
+				for (var frame = 0; frame < 180 && _running is not null; frame++)
+					await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+				SliceRequire(_running is null && _view.Position == new GridPos(2, 6)
+					&& PaladinLive3dLoadedForSmoke,
+					"The Blackmarsh player did not keep the live figure while walking.");
 				SetPaused(true);
 			}
 			else
 				SliceRequire(_blackmarshInitial is not null && bytes.SequenceEqual(_blackmarshInitial),
 					$"Blackmarsh retry {_blackmarshEntryPhase} did not reproduce the original session.");
+			if (_blackmarshEntryPhase == 2)
+			{
+				SliceRequire(_lit[new GridPos(7, 5)] is Polygon2D { Texture: { } floorTexture }
+					&& floorTexture == _pilotFlagstoneTexture,
+					"The Blackmarsh shed did not receive the styled indoor floor texture.");
+				var torch = _sim.Execute(new TorchCommand { Actor = _sim.Player, Lit = true, StowShield = true });
+				SliceRequire(torch.Success, torch.Message);
+				Refresh();
+				SetPaused(false);
+				MoveTo(new GridPos(13, 10));
+				for (var frame = 0; frame < 1200 && _running is not null; frame++)
+					await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+				SliceRequire(_running is null && _view.Position == new GridPos(13, 10),
+					"The player did not reach the Vasan's approach for the figure check.");
+				FaceForSmoke(1, 0);
+				await SliceFrames(5);
+				SliceRequire(_view.VisibleActors.Any(a => a.Id == BlackmarshWatchhouse.Ids.Raider)
+					&& NpcLive3dLoadedForSmoke(BlackmarshWatchhouse.Ids.Raider),
+					"The visible Vasan did not use the existing live raider model.");
+				SliceRequire(GetViewport().GetTexture().GetImage()
+					.SavePng(Path.Combine(outputDir, "vasan-visible.png")) == Error.Ok,
+					"Could not capture the Vasan figure.");
+			}
 			if (_blackmarshEntryPhase < 2)
 			{
 				_blackmarshEntryPhase++;

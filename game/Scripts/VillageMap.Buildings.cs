@@ -19,10 +19,10 @@ public partial class VillageMap
 	private void BuildRoofLayer()
 	{
 		// Above wall panels and figures: the roof is the outside of the building, not a floor tint.
-		var roofColor = InteriorArtPilot ? new Color(0.33f, 0.28f, 0.25f) : RoofColor;
-		var roofTexture = InteriorArtPilot
+		var roofColor = StyledInterior ? new Color(0.33f, 0.28f, 0.25f) : RoofColor;
+		var roofTexture = StyledInterior
 			? GD.Load<Texture2D>("res://Assets/StyleStudy/interior-roof-slate.png") : null;
-		var gableTexture = InteriorArtPilot
+		var gableTexture = StyledInterior
 			? GD.Load<Texture2D>("res://Assets/StyleStudy/interior-plaster.png") : null;
 		_roofs = new Node2D { ZIndex = 20 };
 		AddChild(_roofs);
@@ -102,12 +102,12 @@ public partial class VillageMap
 			else
 			{
 				var rim = new Node2D();
-				if (InteriorArtPilot)
+				if (StyledInterior)
 				{
 					// The pitched roof and the level wall have different top edges. Fill the gable
 					// between them instead of exposing the dark void under the roof plane.
 					var d = Diamond(1.012f);
-					var center = CellToScreen(cell) + Vector2.Up * PilotWallHeight;
+					var center = CellToScreen(cell) + Vector2.Up * StyledWallHeight;
 					var wallFrom = center + (nearby.X > cell.X ? d[1] : nearby.X < cell.X ? d[3]
 						: nearby.Y > cell.Y ? d[2] : d[0]);
 					var wallTo = center + (nearby.X > cell.X ? d[2] : nearby.X < cell.X ? d[0]
@@ -137,7 +137,7 @@ public partial class VillageMap
 		var end = acrossX ? bounds.MaxX + 0.5f : bounds.MaxY + 0.5f;
 		var along = acrossX ? x : y;
 		var distance = MathF.Max(0, MathF.Min(along - start, end - along));
-		return (InteriorArtPilot ? PilotWallHeight : WallHeight + 5f) + MathF.Min(19f, distance * 12f);
+		return (StyledInterior ? StyledWallHeight : WallHeight + 5f) + MathF.Min(19f, distance * 12f);
 	}
 
 	private Vector2[] RoofCorners(GridPos cell)
@@ -198,7 +198,7 @@ public partial class VillageMap
 
 	private GridPos BuildingShadeCell(MapEdgeView edge)
 	{
-		if (!InteriorArtPilot || _view.Position is not { } player || !IsIndoor(player))
+		if (!StyledInterior || _view.Position is not { } player || !IsIndoor(player))
 			return FacadeShadeCell(edge);
 		if (IsIndoor(edge.A) && IsIndoor(edge.B))
 		{
@@ -244,7 +244,7 @@ public partial class VillageMap
 				|| interior is not null && (visibility[edge.A.Y][edge.A.X] == '1' || visibility[edge.B.Y][edge.B.X] == '1');
 			var closedDoor = edge.DoorAt is not { } doorAt || _view.Doors.Any(d => d.At == doorAt
 				&& d.Open == false && d.Known != DoorKnowledge.Unknown);
-			panel.Visible = inSight && (InteriorArtPilot || closedDoor);
+			panel.Visible = inSight && (StyledInterior || closedDoor);
 		}
 		RefreshInteriorArtVisibility();
 	}

@@ -40,22 +40,24 @@ public partial class VillageMap
 		_woodTexture = GD.Load<Texture2D>("res://Assets/G15/Ground/wood.png");
 		_grassTexture = GD.Load<Texture2D>("res://Assets/G15/Ground/grass.png");
 		_stoneWallTexture = GD.Load<Texture2D>("res://Assets/G15/Ground/stone-wall.png");
-		if (InteriorArtPilot)
+		if (StyledInterior)
 		{
 			_pilotFlagstoneTexture = GD.Load<Texture2D>("res://Assets/StyleStudy/interior-flagstone.png");
 			_pilotPlasterTexture = GD.Load<Texture2D>("res://Assets/StyleStudy/interior-plaster.png");
 		}
 	}
 
-	private void ApplyGroundTexture(Polygon2D tile, char symbol, LocationId? zone, GridPos cell, float shade)
+	private void ApplyGroundTexture(Polygon2D tile, char symbol, FloorLook look, GridPos cell, float shade)
 	{
 		if (symbol == '#')
 			return;
-		var texture = InteriorArtPilot && zone == MappedVillageScenario.Ids.FarmerHouse
-			? cell.X <= 8 ? _pilotFlagstoneTexture : _woodTexture
-			: symbol == '.' ? _roadTexture
-			: zone == MappedVillageScenario.Ids.Inn || zone == MappedVillageScenario.Ids.FarmerHouse ? _woodTexture
-			: _grassTexture;
+		var texture = look.Material switch
+		{
+			GroundMaterial.Road => _roadTexture,
+			GroundMaterial.Wood => _woodTexture,
+			GroundMaterial.Flagstone => _pilotFlagstoneTexture,
+			_ => _grassTexture,
+		};
 		if (texture is null)
 			return;
 		// Sample a different patch of the source on each square so the same stone or knot does not repeat in a grid.
@@ -68,7 +70,7 @@ public partial class VillageMap
 			new Vector2(x, y - radius), new Vector2(x + radius, y),
 			new Vector2(x, y + radius), new Vector2(x - radius, y),
 		};
-		tile.Color = InteriorArtPilot && zone == MappedVillageScenario.Ids.FarmerHouse
+		tile.Color = look.Material == GroundMaterial.Flagstone
 			? new Color(0.94f, 0.88f, 0.79f).Darkened(shade * 0.35f)
 			: Colors.White.Darkened(shade * 0.5f);
 	}
@@ -103,7 +105,7 @@ public partial class VillageMap
 		first -= center;
 		second -= center;
 		if (styledInterior)
-			return MakePilotEdge(node, edge, first, second);
+			return MakeStyledEdge(node, edge, first, second);
 		var height = edge.Kind == MapEdgeKind.Window ? 17f : WallHeight;
 		var color = edge.Kind == MapEdgeKind.Door ? DoorWood : Wall;
 		node.AddChild(new Polygon2D
@@ -141,9 +143,9 @@ public partial class VillageMap
 		return node;
 	}
 
-	private Node2D MakePilotEdge(Node2D node, MapEdgeView edge, Vector2 first, Vector2 second)
+	private Node2D MakeStyledEdge(Node2D node, MapEdgeView edge, Vector2 first, Vector2 second)
 	{
-		var up = Vector2.Up * PilotWallHeight;
+		var up = Vector2.Up * StyledWallHeight;
 		var beam = new Color(0.22f, 0.13f, 0.08f);
 		var litWood = new Color(0.50f, 0.32f, 0.18f);
 		var stone = new Color(0.70f, 0.67f, 0.60f);
@@ -337,7 +339,7 @@ public partial class VillageMap
 		}
 	}
 
-	private static void SetPilotDoorPanel(Node2D panel, bool open)
+	private static void SetStyledDoorPanel(Node2D panel, bool open)
 	{
 		panel.GetNode<Node2D>("ClosedLeaf").Visible = !open;
 		panel.GetNode<Node2D>("OpenLeaf").Visible = open;
@@ -377,7 +379,7 @@ public partial class VillageMap
 				continue;
 			var local = point - panel.Position;
 			var glass = panel.GetNode<Polygon2D>("Glass");
-			if (InteriorArtPilot)
+			if (StyledInterior)
 			{
 				var min = new Vector2(glass.Polygon.Min(p => p.X) - 10f,
 					glass.Polygon.Min(p => p.Y) - 6f);
@@ -434,9 +436,13 @@ public partial class VillageMap
 	internal bool WindowBarsForSmoke(GridPos a, GridPos b) =>
 		_windowPanels[(a, b)].GetNode<Node2D>("Bars").Visible;
 
-	private static string? FigureAsset(ActorId id) => id == MappedVillageScenario.Ids.Player
-		? "paladin" : id == MappedVillageScenario.Ids.Guard ? "guard"
-		: id == MappedVillageScenario.Ids.Farmer ? "farmer" : null;
+	private string? FigureAsset(ActorId id) => id == _sim.Player
+		? "paladin" : ActorStyle(id) switch
+		{
+			Paladin3DPrototype.CharacterStyle.Guard => "guard",
+			Paladin3DPrototype.CharacterStyle.Farmer => "farmer",
+			_ => null,
+		};
 
 	private void AddFigureSprite(Node2D token, ActorId id)
 	{
@@ -478,9 +484,9 @@ public partial class VillageMap
 		token.GetNode<Polygon2D>("Prone").Visible = false;
 		var delta = token.Position - previousPosition;
 		var asset = FigureAsset(id);
-		var live = id == MappedVillageScenario.Ids.Player && _paladinLive3d && EnsurePaladinLiveModel() is { };
-		var liveNpc = id != MappedVillageScenario.Ids.Player;
-		var prototype = id == MappedVillageScenario.Ids.Player && _paladin3dPrototype && LoadPaladin3dFrames() is { };
+		var live = id == _sim.Player && _paladinLive3d && EnsurePaladinLiveModel() is { };
+		var liveNpc = id != _sim.Player;
+		var prototype = id == _sim.Player && _paladin3dPrototype && LoadPaladin3dFrames() is { };
 		var plannedTangent = (prototype || live || liveNpc) && moving ? WalkTangent(walk, token.Position) : null;
 		if (plannedTangent is { } tangent)
 		{
@@ -637,9 +643,7 @@ public partial class VillageMap
 	private Paladin3DPrototype EnsureNpcLiveModel(ActorId id)
 	{
 		if (_npcLiveModels.TryGetValue(id, out var model)) return model;
-		var style = id == MappedVillageScenario.Ids.Guard ? Paladin3DPrototype.CharacterStyle.Guard
-			: id == MappedVillageScenario.Ids.Farmer ? Paladin3DPrototype.CharacterStyle.Farmer
-			: Paladin3DPrototype.CharacterStyle.Raider;
+		var style = ActorStyle(id);
 		model = new Paladin3DPrototype { Name = $"LiveFigure_{id.Value}", LiveMode = true, Style = style };
 		AddChild(model);
 		_npcLiveModels[id] = model;
@@ -687,7 +691,7 @@ public partial class VillageMap
 	internal void TogglePaladin3dPrototypeForSmoke() => TogglePaladin3dPrototype();
 	internal void TogglePaladinLive3dPrototypeForSmoke() => TogglePaladinLive3dPrototype();
 	internal bool PaladinLive3dLoadedForSmoke => _paladinLive3d && _paladinLiveModel is not null
-		&& _tokens.TryGetValue(MappedVillageScenario.Ids.Player, out var token)
+		&& _tokens.TryGetValue(_sim.Player, out var token)
 		&& token.GetNodeOrNull<Sprite2D>("Figure") is { Texture: { } texture }
 		&& texture == _paladinLiveModel.LiveTexture;
 	internal bool NpcLive3dLoadedForSmoke(ActorId id) => _npcLiveModels.TryGetValue(id, out var model)
@@ -697,7 +701,7 @@ public partial class VillageMap
 	internal bool AttackSwingForSmoke(ActorId id) => id == _view.Id
 		? _paladinLiveModel?.Swinging == true : _npcLiveModels.TryGetValue(id, out var model) && model.Swinging;
 	internal bool Paladin3dLoadedForSmoke => _paladin3dFrames?.Length == 64
-		&& _tokens.TryGetValue(MappedVillageScenario.Ids.Player, out var token)
+		&& _tokens.TryGetValue(_sim.Player, out var token)
 		&& token.GetNodeOrNull<Sprite2D>("Figure") is { Texture: { } texture }
 		&& _paladin3dFrames.Contains(texture);
 
