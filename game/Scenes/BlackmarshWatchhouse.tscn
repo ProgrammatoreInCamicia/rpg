@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/VillageMap.cs" id="1_blackmarsh"]
+
+[node name="BlackmarshWatchhouse" type="Node2D"]
+script = ExtResource("1_blackmarsh")
+Entry = 4

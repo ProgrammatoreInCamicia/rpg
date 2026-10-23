@@ -1,6 +1,6 @@
 # ASTRA — seconda vertical slice: La rimessa della vedetta
 
-Analisi del **23 ottobre 2026**, repository a **`cca04bb`**. Documento di proposta. **Stato:** Task 1 e 2 completati nella Sim (esiti in fondo al documento); Task 3–10 non iniziati, nessun criterio umano certificato. La sessione ha letto codice e materiali locali ed eseguito verifiche dell'esistente, senza modificare codice, contenuti o scene.
+Analisi del **23 ottobre 2026**, repository a **`cca04bb`**. Documento di proposta. **Stato aggiornato:** Task 1 e 2 completati nella Sim; Task 3 completato nel client (esiti in fondo al documento); Task 4–10 non iniziati, nessun criterio umano certificato. La descrizione dell'analisi iniziale sotto resta storica.
 
 ## 1. Decisione
 
@@ -300,7 +300,7 @@ Stato Git iniziale: soltanto gli otto file `Body.*`/texture/import non tracciati
 
 ## Primo task consigliato
 
-**Task 1: dimostrare i due esiti nella Sim con nuovi ID e un vero incarico autonomo.** Riduce prima il rischio più costoso: scoprire dopo l'integrazione grafica che la nuova situazione richiede un'AI o un copione che non esistono. Se passa, il pilot non va completato in astratto: si trasferisce solo quanto serve per rendere quella singola rimessa giocabile.
+**Prossimo task: Task 4, identità e presentazione.** I Task 1–3 hanno dimostrato il loop nella Sim e l'ingresso separato nel client. Il Task 4 dovrà risolvere figure e materiali per i nuovi ID senza modificare le regole; il tavolo e l'arredo visibile restano al Task 6.
 
 ## Esito del Task 1 — 23 ottobre 2026
 
@@ -332,3 +332,10 @@ Completato senza regole Sim nuove: nessun controllo sugli ID Blackmarsh nel moto
   - dopo save/load ingombro e percorso sono identici;
   - test del Task 1 verdi. L'unico orario cambiato è l'arrivo del predone dalla porta aperta (20:00:29, furto alle 20:03:29); il ramo della finestra e il recupero non cambiano.
 - **Verifiche:** suite Sim **670/670**. Mutazione: senza la lettura di `obstacles` nel loader falliscono 8 test.
+
+## Esito del Task 3 — 23 ottobre 2026
+
+- Scena `game/Scenes/BlackmarshWatchhouse.tscn` collegata direttamente alla factory `BlackmarshWatchhouse.CreateSession()`. Ingresso alle 19:57 in pausa, protagonista a (1,6), 10 razioni, rimessa con 4. Nessun salvataggio o scena Village necessario per avviarla; `Village.tscn` resta la scena principale.
+- Un solo enum esportato `Entry` seleziona i cinque ingressi (Village, prototipo, pilot, prima slice, Blackmarsh). I parametri d'ingresso — orientamento, preroll, pausa e percorso di salvataggio — sono separati nella configurazione del client. Il flag storico `--interior-prototype` resta compatibile soltanto sull'ingresso Village. Le proprietà derivate per la grafica legacy restano fino al Task 4, senza aggiungere booleani indipendenti alle scene.
+- Blackmarsh usa `user://blackmarsh-watchhouse.json`; «Riprova» nel menu ricarica la scena corrente. Lo smoke dedicato confronta il salvataggio completo dell'ingresso con due reload reali, verifica che otto frame in pausa non lo alterino, che il tempo riprenda, che il salvataggio Blackmarsh non tocchi quelli Village/slice e ripristina l'eventuale save Blackmarsh precedente.
+- Review Task 1–2: test mirati 23/23 e suite Sim completa 670/670; nessun difetto bloccante trovato. Build soluzione 0 errori/0 avvisi. Smoke OpenGL a 1280×720: BLACKMARSH ENTRY, VILLAGE, SLICE ENTRY, INTERIOR ART PILOT e INTERIOR PROTOTYPE tutti verdi. La cattura `entry-paused.png` è stata ispezionata: pausa e stato sono leggibili; figure/inquadratura/arredo di Blackmarsh sono ancora provvisori, da trattare nei Task 4 e 6. Nessun criterio umano certificato e nessun Task 4 avviato.

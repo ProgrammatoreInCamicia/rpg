@@ -4,4 +4,4 @@
 
 [node name="InteriorArtPilot" type="Node2D"]
 script = ExtResource("1_art")
-InteriorArtPilot = true
+Entry = 2

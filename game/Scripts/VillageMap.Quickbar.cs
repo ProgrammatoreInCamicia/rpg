@@ -557,8 +557,8 @@ public partial class VillageMap
 		MenuItem(items, "Riprendi", () => _gameMenu.Visible = false);
 		MenuItem(items, "Salva", () => { SaveGame(); _gameMenu.Visible = false; });
 		MenuItem(items, "Carica", () => { LoadGame(); _gameMenu.Visible = false; });
-		if (PlayableSliceMode)
-			MenuItem(items, "Riprova", RetrySlice);
+		if (CanRetryScene)
+			MenuItem(items, "Riprova", RetryScene);
 		MenuItem(items, "Riposo", () => { _restPanel.Visible = true; _gameMenu.Visible = false; });
 		items.AddChild(new Label { Text = "Ritmo di esplorazione" });
 		var paces = new HBoxContainer();
@@ -579,9 +579,9 @@ public partial class VillageMap
 
 	private void ToggleGameMenu() => _gameMenu.Visible = !_gameMenu.Visible;
 
-	private void RetrySlice()
+	private void RetryScene()
 	{
-		if (!PlayableSliceMode) return;
+		if (!CanRetryScene) return;
 		GetTree().CallDeferred(SceneTree.MethodName.ReloadCurrentScene);
 	}
 

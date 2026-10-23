@@ -4,4 +4,4 @@
 
 [node name="InteriorPrototype" type="Node2D"]
 script = ExtResource("1_interior")
-InteriorPrototype = true
+Entry = 1

@@ -13,16 +13,43 @@ namespace RpgSandbox.Game;
 /// </summary>
 public partial class VillageMap : Node2D
 {
-	[Export] public bool InteriorPrototype { get; set; }
-	[Export] public bool InteriorArtPilot { get; set; }
-	[Export] public bool PlayableSliceMode { get; set; }
+	public enum SceneEntry { Village, InteriorPrototype, InteriorArtPilot, PlayableSlice, BlackmarshWatchhouse }
+	[Export] public SceneEntry Entry { get; set; } = SceneEntry.Village;
+	private SceneEntry _activeEntry;
+	private bool InteriorPrototype => _activeEntry == SceneEntry.InteriorPrototype;
+	private bool InteriorArtPilot => _activeEntry == SceneEntry.InteriorArtPilot;
+	private bool PlayableSliceMode => _activeEntry == SceneEntry.PlayableSlice;
+	private bool BlackmarshWatchhouseMode => _activeEntry == SceneEntry.BlackmarshWatchhouse;
+	private bool CanRetryScene => PlayableSliceMode || BlackmarshWatchhouseMode;
 	private const float TileW = 64f;
 	private const float TileH = 32f;
 	private const float WallHeight = 26f;
 	private const float PilotWallHeight = 42f;
 	private const string VillageSavePath = "user://village.json";
 	private const string SliceSavePath = "user://playable-slice.json";
-	private string SavePath => PlayableSliceMode ? SliceSavePath : VillageSavePath;
+	private const string BlackmarshSavePath = "user://blackmarsh-watchhouse.json";
+	private string SavePath => _entryOptions.SavePath;
+	private EntryOptions _entryOptions;
+	private readonly record struct EntryOptions(string SavePath, GridPos Facing, int PrerollHours,
+		bool StartsPaused);
+	private static EntryOptions OptionsFor(SceneEntry entry) => entry switch
+	{
+		SceneEntry.Village => new(VillageSavePath, new GridPos(1, 1), 0, false),
+		SceneEntry.InteriorPrototype => new(VillageSavePath, new GridPos(1, 1), 13, false),
+		SceneEntry.InteriorArtPilot => new(VillageSavePath, new GridPos(-1, 0), 13, false),
+		SceneEntry.PlayableSlice => new(SliceSavePath, new GridPos(1, 1), 0, true),
+		SceneEntry.BlackmarshWatchhouse => new(BlackmarshSavePath, new GridPos(1, 0), 0, true),
+		_ => throw new ArgumentOutOfRangeException(nameof(entry))
+	};
+	private static SimulationSession CreateEntrySession(SceneEntry entry) => entry switch
+	{
+		SceneEntry.Village => SimulationSession.Create(ScenarioFile.Load("living-village")),
+		SceneEntry.InteriorPrototype => SimulationSession.Create(InteriorPrototypeScenario.Create()),
+		SceneEntry.InteriorArtPilot => SimulationSession.Create(InteriorArtPilotScenario.Create()),
+		SceneEntry.PlayableSlice => PlayableSlice.CreateSession(),
+		SceneEntry.BlackmarshWatchhouse => BlackmarshWatchhouse.CreateSession(),
+		_ => throw new ArgumentOutOfRangeException(nameof(entry))
+	};
 
 	/// <summary>Longest real time a fixed-length activity (deposit, conversation) takes to play out on screen.</summary>
 	private const double MaxActivityRealSeconds = 3;
@@ -103,22 +130,25 @@ public partial class VillageMap : Node2D
 
 	public override void _Ready()
 	{
-		var interior = InteriorArtPilot || InteriorPrototype || OS.GetCmdlineUserArgs().Contains("--interior-prototype");
+		_activeEntry = Entry == SceneEntry.Village && OS.GetCmdlineUserArgs().Contains("--interior-prototype")
+			? SceneEntry.InteriorPrototype : Entry;
+		_entryOptions = OptionsFor(_activeEntry);
 		_freeMovementEnabled = true;
-		_sim = PlayableSliceMode ? PlayableSlice.CreateSession()
-			: SimulationSession.Create(InteriorArtPilot ? InteriorArtPilotScenario.Create()
-				: interior ? InteriorPrototypeScenario.Create() : ScenarioFile.Load("living-village"));
-		if (interior)
-			_sim.Advance(Duration.FromHours(13)); // the playable scene opens in daylight; the smoke also checks night
-		_sim.FacePlayer(InteriorArtPilot ? -1 : 1, InteriorArtPilot ? 0 : 1);
+		_sim = CreateEntrySession(_activeEntry);
+		if (_entryOptions.PrerollHours > 0)
+			_sim.Advance(Duration.FromHours(_entryOptions.PrerollHours));
+		_sim.FacePlayer(_entryOptions.Facing.X, _entryOptions.Facing.Y);
 		_view = _sim.GetPlayerView();
 		SyncFigureFacing(_view.Facing);
 
 		BuildMap();
 		BuildR5Map();
 		BuildUi();
-		if (PlayableSliceMode) SetPaused(true);
+		if (_entryOptions.StartsPaused) SetPaused(true);
 		Refresh();
+		var blackmarshEntrySmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--blackmarsh-entry-smoke="));
+		if (BlackmarshWatchhouseMode && blackmarshEntrySmoke is not null)
+			RunBlackmarshEntrySmoke(blackmarshEntrySmoke["--blackmarsh-entry-smoke=".Length..]);
 		var sliceEntrySmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-entry-smoke="));
 		if (PlayableSliceMode && sliceEntrySmoke is not null)
 			RunSliceEntrySmoke(sliceEntrySmoke["--slice-entry-smoke=".Length..]);

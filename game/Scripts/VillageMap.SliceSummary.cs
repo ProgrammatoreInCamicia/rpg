@@ -60,7 +60,7 @@ public partial class VillageMap
 		_sliceSummaryEnd.Text = "Termina la prova";
 		_sliceSummaryQuit = SliceSummaryAction(buttons, () => GetTree().Quit());
 		_sliceSummaryQuit.Text = "Esci";
-		_sliceSummaryRetry = SliceSummaryAction(buttons, RetrySlice);
+		_sliceSummaryRetry = SliceSummaryAction(buttons, RetryScene);
 		_sliceSummaryRetry.Text = "Riprova";
 	}
 

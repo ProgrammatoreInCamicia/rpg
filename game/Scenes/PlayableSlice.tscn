@@ -4,4 +4,4 @@
 
 [node name="PlayableSlice" type="Node2D"]
 script = ExtResource("1_slice")
-PlayableSliceMode = true
+Entry = 3
