@@ -367,7 +367,7 @@ Follow-up della review di Claude: lo smoke ora aspetta che il protagonista abbia
 
 ### Task 8 — Smoke della slice da avvio pulito
 
-**Stato:** da fare. **Tipo:** implementazione di test d'integrazione, reasoning medio. **Dipendenze:** 3, 4, 5, 6, 7.
+**Stato:** completato da Codex il 23 ottobre 2026. **Tipo:** implementazione di test d'integrazione, reasoning medio. **Dipendenze:** 3, 4, 5, 6, 7.
 
 **Obiettivo:** verificare l'esperienza composta senza fixture che saltino i passaggi fondamentali.
 
@@ -379,9 +379,15 @@ Follow-up della review di Claude: lo smoke ora aspetta che il protagonista abbia
 
 **Completato quando:** due esecuzioni pulite riuscite, build e suite Sim verdi, screenshot ispezionati. Il test rileva anche assenza di osservazione/rapporto invece di limitarsi a «la scena non crasha». Lo smoke non sostituisce il playtest umano del Task 9.
 
+#### Risultato e verifiche — 23 ottobre 2026
+
+Il nuovo `game/Scripts/PlayableSliceSmoke.cs` si avvia con `--slice-smoke=<dir>`. Il primo ramo comincia dalla factory, raggiunge il granaio, chiude la porta della locanda tramite UI, vede il furto senza torcia (8 razioni, colpevole non identificato), non riferisce la notizia e termina esplicitamente la prova. «Riprova» ricarica davvero la scena; il secondo ramo verifica lo snapshot iniziale identico, accende la torcia tramite UI, vede e identifica il razziatore, riferisce il furto tramite dialogo, salva e carica dalla UI, poi vede la guardia al presidio. Il test non esegue comandi Sim diretti né prepara WorldState o JSON. Attese limitate e fallimenti con exit code 1; lo smoke ripristina un eventuale save dell'utente.
+
+Due esecuzioni OpenGL pulite della versione finale, in `.tmp/astra-task8-final1` e `final2`, entrambe `SLICE SMOKE OK`: furto alle 19:33:12, ramo ignora circa 9,1–9,2 s reali, ramo rapporto circa 19,7–19,8 s reali dal secondo avvio, guardia vista al presidio alle 19:38:35. Build client 0 avvisi/0 errori; Sim 651/651; `git diff --check` pulito. Ispezionate in entrambe le esecuzioni `entry.png`, `observation.png`, `report.png`, `guard-at-post.png`, `resumed-from-save.png` e `ignored-ending.png`: diario e riepilogo corrispondono ai due rami. Note per il collaudo UX del Task 9 a 1280×720: nel pannello «Accanto a te» la descrizione lunga del razziatore/guardia risulta troncata; il diario aperto si sovrappone al riquadro d'attesa nella parte alta. Non bloccano lo smoke.
+
 ### Task 9 — Collaudare e rendere evidente l'avvio della prova
 
-**Stato:** da fare. **Tipo:** collaudo e implementazione ordinaria. **Dipendenze:** 8.
+**Stato:** parte tecnica verificata il 23 ottobre 2026; playtest indipendente non eseguito per scelta dell'utente, quindi criterio umano non certificato. **Tipo:** collaudo e implementazione ordinaria. **Dipendenze:** 8.
 
 **Obiettivo:** consegnare una prova che un'altra persona possa avviare e capire autonomamente.
 
@@ -392,6 +398,14 @@ Follow-up della review di Claude: lo smoke ora aspetta che il protagonista abbia
 **Risultato verificabile:** una piccola scheda di collaudo con tempi, passaggi riusciti e problemi. Un avvio da checkout pulito con prerequisiti documentati non dipende dagli esperimenti locali o da un save preesistente.
 
 **Completato quando:** criteri globali soddisfatti, nessun softlock o errore applicativo nel percorso; il giocatore sa spiegare cosa ha cambiato il proprio rapporto. Se il playtest umano non è disponibile, dichiarare la verifica pendente: non marcarla come superata da uno smoke. Correggere soltanto problemi bloccanti della slice; rinviare la rifinitura estetica.
+
+#### Risultato tecnico e limite del collaudo — 23 ottobre 2026
+
+`gioca-slice.cmd` era già versionato e apre esplicitamente `PlayableSlice.tscn`; non è stato ricreato né cambiata la main scene. Il README ora spiega prerequisiti, build, avvio, comandi, due scelte, diario, consegna, salvataggio dedicato e Riprova. La scheda `docs/PLAYABLE_SLICE_PLAYTEST.md` è pronta per una persona che non ha letto il codice: registra tempi, esiti, punti di esitazione e comprensione della conseguenza. Sul client, due correzioni localizzate a 1280×720: il testo di «Accanto a te» va a capo e il diario comincia sotto il riquadro d'attesa. Le catture a 1280×720 e 1920×1080 mostrano entrambe le correzioni leggibili.
+
+Verifiche automatizzate con OpenGL: `--slice-smoke` passa a 1280×720 e 1920×1080 in entrambi i rami, con save/load, Riprova, diario, rapporto e guardia visibile. Dopo «Comincia», furto osservato in circa 8,7 s reali a entrambe le risoluzioni; guardia al presidio in 19,6 s a 1280×720 e 19,7 s a 1920×1080. `--slice-guide-smoke` passa a entrambe le risoluzioni: rifiuto da lontano, consegna di 3 razioni (10→7 al player, 40→43 al deposito), dialogo guardia. A 1920×1080 passano anche `--slice-wait-smoke` (pausa/interruzione/attesa) e `--slice-persistence-smoke` (movimento, report, save/load, due Riprova). Build soluzione 0 avvisi/0 errori, Sim 651/651, `git diff --check` pulito. Le catture di osservazione, presidio e consegna sono state ispezionate a entrambe le risoluzioni. SDK .NET 8.0.412 e Godot locale presenti; launcher e scena sono tracciati da Git, mentre gli asset locali `Body.*` non sono referenziati dal percorso.
+
+**Esito umano disponibile e limite:** l'utente preferisce non ripetere ora il giro manuale, già svolto in precedenza e ricordato come rapido. Conosce però mappa e comandi: non sono stati registrati tempi, checklist o un test con una persona nuova. L'indicazione «sud-est» lo aveva inizialmente lasciato incerto; ripensando all'orientamento della mappa, la ritiene seguibile. La guida resta invariata. I tempi dello smoke non misurano il tempo di un nuovo giocatore; il criterio globale di 5–10 minuti e la comprensibilità autonoma per chi non conosce il gioco restano **non certificati**, senza richiedere all'utente un'altra prova. La scheda resta disponibile per un eventuale collaudo futuro. Il launcher è stato verificato per contenuto/percorso e tramite l'equivalente invocazione Godot degli smoke, non tramite doppio clic in questa sessione.
 
 ## 7. Allocazione del reasoning e dipendenze
 

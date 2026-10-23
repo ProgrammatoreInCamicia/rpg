@@ -19,6 +19,16 @@ tools/godot/                 editor Godot portabile (non versionato)
 - Godot **4.7.2 .NET** portabile, estratto in `tools/godot/Godot_v4.7.2-stable_mono_win64/`.
   `nuget.config` usa i pacchetti `Godot.NET.Sdk` inclusi nell'editor, così la build funziona anche offline.
 
+## Una sera al granaio — prova giocabile
+
+Questa prova breve usa il villaggio esistente: osservi un furto, puoi riferirlo alla guardia e vederne la reazione. Richiede Windows, il .NET SDK indicato in `global.json` e **Godot 4.7.2 .NET** estratto esattamente nella cartella `tools/godot/Godot_v4.7.2-stable_mono_win64/` (l'eseguibile deve essere `Godot_v4.7.2-stable_mono_win64.exe`). Da PowerShell, nella root del repository, esegui una volta `dotnet build game/RpgSandbox.Game.csproj`. Poi apri `gioca-slice.cmd` con doppio clic, oppure esegui `./gioca-slice.cmd` da PowerShell. Il launcher apre `PlayableSlice.tscn`; `gioca.cmd` e la scena principale restano il villaggio ordinario. Un salvataggio precedente non serve per iniziare.
+
+La scena inizia **in pausa alle 19:27**: leggi l'introduzione e premi **Comincia**. Clicca il terreno per camminare verso il granaio lungo la strada a sud-est. **Spazio** alterna pausa e ripresa; **X** ferma il cammino. Quando sei vicino al deposito, guarda il razziatore e usa **Attendi fino a 5 minuti** se vuoi far passare il tempo: l'attesa si interrompe quando noti qualcosa. La torcia, se accesa dall'icona nella barra, può aiutarti a identificare chi vedi; se impugni lo scudo, il gioco chiede conferma per riporlo. Il **Diario** contiene ciò che il personaggio ha visto o sentito, non tutti gli eventi del mondo.
+
+Puoi lasciare correre, oppure tornare dalla guardia presso la locanda, cliccarla e scegliere **Riferisci il furto**. Il rapporto richiede un breve tempo per concludersi; torna al granaio per osservare se la guardia prende servizio. Dal lato segnato dal rombo presso la cassa puoi anche usare **Consegna 3 razioni**. **Riepilogo** mette in pausa e mostra le informazioni note al personaggio; **Termina la prova** apre la conclusione e **Riprova** ricomincia dalla stessa situazione iniziale.
+
+Dal menu **Esc** o **⋯** puoi **Salva**, **Carica** e **Riprova**. Riprova ricomincia subito e scarta il progresso non salvato. La prova usa `user://playable-slice.json`, separato dal salvataggio di Village; il caricamento vale per questa stessa mappa. Per un collaudo senza leggere il codice, segui la [scheda di prova](docs/PLAYABLE_SLICE_PLAYTEST.md) e annota soprattutto dove esiti o non capisci cosa è successo.
+
 ## Comandi
 
 ```sh

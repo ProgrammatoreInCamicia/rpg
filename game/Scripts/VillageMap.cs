@@ -140,6 +140,9 @@ public partial class VillageMap : Node2D
 		var slicePersistenceSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-persistence-smoke="));
 		if (PlayableSliceMode && slicePersistenceSmoke is not null)
 			RunSlicePersistenceSmoke(slicePersistenceSmoke["--slice-persistence-smoke=".Length..]);
+		var sliceSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-smoke="));
+		if (PlayableSliceMode && sliceSmoke is not null)
+			RunPlayableSliceSmoke(sliceSmoke["--slice-smoke=".Length..]);
 
 		var smoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--village-smoke="));
 		if (smoke is not null)
@@ -1049,7 +1052,9 @@ public partial class VillageMap : Node2D
 			var doing = person.Doing is { } d ? $" ({d})" : "";
 			if (person.Id != _talkingTo)
 			{
-				_people.AddChild(new Label { Text = $"Accanto a te: {person.Name}{doing}. Clicca sul personaggio per parlare." });
+				_people.AddChild(new Label { Text = $"Accanto a te: {person.Name}{doing}. Clicca sul personaggio per parlare.",
+					AutowrapMode = TextServer.AutowrapMode.WordSmart,
+					SizeFlagsHorizontal = Control.SizeFlags.ExpandFill });
 				continue;
 			}
 			var title = new Label { Text = $"Parli con {person.Name}{doing}" };

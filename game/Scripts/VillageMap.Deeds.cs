@@ -25,7 +25,7 @@ public partial class VillageMap
 	private void BuildJournalUi(CanvasLayer ui)
 	{
 		_journalPanel = new PanelContainer { OffsetLeft = 900, OffsetRight = 1264,
-			OffsetTop = PlayableSliceMode ? 165 : 16,
+			OffsetTop = PlayableSliceMode ? 205 : 16,
 			OffsetBottom = PlayableSliceMode ? 550 : 690, Visible = false };
 		_journalPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
 			{ BgColor = new Color(0.10f, 0.11f, 0.13f, 0.96f) });
