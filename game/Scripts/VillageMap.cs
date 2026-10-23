@@ -569,6 +569,13 @@ public partial class VillageMap : Node2D
 	/// <summary>Pause or resume the world. Orders given while paused start when it resumes.</summary>
 	internal void SetPaused(bool paused)
 	{
+		if (!paused && _sliceSummary is { Visible: true })
+		{
+			// The summary is read at a frozen instant. Only closing it may restore the previous pace.
+			_pause.SetPressedNoSignal(true);
+			_quickPause?.SetPressedNoSignal(true);
+			return;
+		}
 		if (paused) CancelSliceWait("Attesa interrotta.");
 		_paused = paused;
 		_pause.SetPressedNoSignal(paused);
@@ -913,6 +920,8 @@ public partial class VillageMap : Node2D
 			: $"Torcie rimaste: {_view.Torches}.";
 		_torch.Disabled = _view.Dead || _view.TorchLitUntil is null && _view.Torches == 0;
 		_pause.Disabled = _view.Combat is not null || _view.Dead;
+		_pause.Text = _paused ? "Riprendi (Spazio)" : "Pausa (Spazio)";
+		_pause.Icon = ActionIcon(_paused ? "resume" : "pause");
 		_sneakToggle.Disabled = _view.Combat is not null || _view.Dead;
 		foreach (var door in _view.Doors)
 		{

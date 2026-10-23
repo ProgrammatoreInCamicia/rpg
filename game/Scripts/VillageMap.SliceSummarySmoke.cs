@@ -20,6 +20,16 @@ public partial class VillageMap
 				&& SliceSummaryText().Contains("non vedi nessuno sorvegliare")
 				&& !SliceSummaryText().Contains("Rapporto"),
 				"The opening summary claims knowledge the player does not have.");
+			var summaryAt = _view.Now;
+			Input.ParseInputEvent(new InputEventKey { Keycode = Key.Space, Pressed = true });
+			Input.ParseInputEvent(new InputEventKey { Keycode = Key.Space, Pressed = false });
+			await SliceFrames(3);
+			SliceRequire(_paused && _view.Now == summaryAt,
+				"Space resumed world time behind the open summary.");
+			_quickPause.EmitSignal(BaseButton.SignalName.Pressed);
+			await SliceFrames(3);
+			SliceRequire(_paused && _view.Now == summaryAt && _quickPause.ButtonPressed,
+				"The hotbar resumed world time behind the open summary.");
 			_sliceSummaryContinue!.EmitSignal(BaseButton.SignalName.Pressed);
 			SliceRequire(!_paused && _sliceSummary is { Visible: false }, "Continue did not give time back.");
 			_gameMenuButton.GrabFocus(); // as after a click on it
@@ -53,7 +63,8 @@ public partial class VillageMap
 			SliceRequire(_sliceSummaryTitle!.Text == "Prova conclusa" && _sliceSummaryQuit!.Visible && _paused,
 				"Ending the slice did not show the conclusion.");
 			await SliceFrames(3);
-			CaptureSliceGuide(outputDir, "summary-ignored.png");
+			if (DisplayServer.GetName() != "headless")
+				CaptureSliceGuide(outputDir, "summary-ignored.png");
 			_sliceSummaryContinue.EmitSignal(BaseButton.SignalName.Pressed);
 			SliceRequire(!_paused && !_sliceEnded && _sliceSummary!.Visible == false,
 				"Continuing after the end did not give the game back.");
@@ -84,7 +95,8 @@ public partial class VillageMap
 				&& !reported.Contains("restitu"),
 				$"The reported summary is wrong:\n{reported}");
 			await SliceFrames(3);
-			CaptureSliceGuide(outputDir, "summary-reported.png");
+			if (DisplayServer.GetName() != "headless")
+				CaptureSliceGuide(outputDir, "summary-reported.png");
 			GD.Print("SLICE SUMMARY SMOKE OK: empty start, kept-quiet branch with explicit end, reported branch with the guard seen at her post");
 			GetTree().Quit(0);
 		}

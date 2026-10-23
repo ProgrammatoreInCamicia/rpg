@@ -23,7 +23,8 @@ public partial class VillageMap
 			"smite" => "divine-smite", "torch" => "torch", "search" => "search-traps",
 			"sneak" => "sneak", "stop" => "stop", "bag" => "inventory",
 			"journal" => "journal", "spellbook" => "spellbook", "rest" => "rest",
-			"eye" => "divine-sense", _ => null,
+			"eye" => "divine-sense", "pause" => "pause", "resume" => "resume",
+			"turn" => "end-turn", _ => null,
 		};
 		if (paintedFile is not null)
 		{

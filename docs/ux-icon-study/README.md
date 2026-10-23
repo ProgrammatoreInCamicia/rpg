@@ -4,6 +4,12 @@ Generato con la modalità integrata `image_gen` il 21 ottobre 2026. I primi otto
 
 **Decisione utente:** la direzione visiva del campione è approvata. Usarla come riferimento per il resto del set; mantenere palette, tratto e silhouette. L'approvazione dello stile non elimina la verifica di leggibilità delle singole icone a 42 px.
 
+## Comandi di tempo e turno
+
+Tre nuovi export trasparenti da 128 px sono in `game/Assets/Ui/ActionIcons/`: `pause.png`, `resume.png` e `end-turn.png`. Riprendono ferro scuro, contorno oro antico e luci avorio del campione approvato. `controls-preview.png` li mostra a 42 px nei pulsanti tondi della barra. Pausa e Riprendi usano due barre e un triangolo distinti; Fine turno usa una freccia circolare. Il client cambia simbolo e tooltip quando si mette in pausa, mentre in combattimento usa Fine turno. Gli originali generati non sono aggiunti al repository: solo gli export leggeri e la descrizione della direzione visiva.
+
+Prompt comune: pittogramma fantasy medievale originale, metallo scuro inciso con bordo oro antico, luce avorio, un unico simbolo marcato leggibile a 42 px, circa 15% di margine trasparente, alfa reale, senza cornice, pulsante, testo o scena. Soggetti: due barre verticali per pausa, triangolo destro per riprendi, freccia circolare oraria per fine turno.
+
 ## Secondo lotto ed export
 
 Il secondo lotto aggiunge `search-traps.png`, `sneak.png`, `stop.png`, `inventory.png`, `journal.png`, `spellbook.png`, `rest.png` e `divine-sense.png`. La tavola `preview-v2.png` usa gli **export** a 42 px e 84 px. Le versioni `optimized-128/` sono copiate nel client; `interact.png` è predisposta ma non ancora associata a un pulsante generale di interazione.

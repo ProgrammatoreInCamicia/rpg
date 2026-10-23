@@ -462,7 +462,7 @@ public partial class VillageMap
 		_quickEndTurn.Visible = combat is not null;
 		_quickPause.Visible = combat is null;
 		_quickPause.SetPressedNoSignal(_paused);
-		_quickPause.Icon = ActionIcon(_paused ? "turn" : "pause");
+		_quickPause.Icon = ActionIcon(_paused ? "resume" : "pause");
 		_quickPause.TooltipText = _paused ? "Riprendi (Spazio)" : "Pausa (Spazio)";
 		_quickTorch.TooltipText = _view.TorchLitUntil is not null ? "Spegni la torcia (T)"
 			: off?.Slot == EquipmentSlot.Shield ? "Riponi lo scudo e accendi la torcia (T)"
