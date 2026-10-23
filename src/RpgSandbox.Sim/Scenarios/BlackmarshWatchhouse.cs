@@ -40,5 +40,7 @@ public static class BlackmarshWatchhouse
         public static readonly GridPos WindowInside = new(11, 6);
         public static readonly GridPos WindowOutside = new(12, 6);
         public static readonly GridPos StoreAccess = new(11, 5);
+        /// <summary>The table in the store room, under the lamp: furniture the Sim walks around, nothing more.</summary>
+        public static readonly GridPos Table = new(10, 6);
     }
 }

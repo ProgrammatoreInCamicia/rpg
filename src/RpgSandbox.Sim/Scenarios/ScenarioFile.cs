@@ -68,6 +68,8 @@ public static class ScenarioFile
                 b.AddGroundItem(area, r.Square(g, "at"), r.Text(g, "item"), r.OptInt(g, "count") ?? 1);
             foreach (var t in r.Objects(m, "traps")) // R5c
                 b.AddTrap(area, r.Square(t, "at"), r.Text(t, "kind"));
+            foreach (var o in r.Values(m, "obstacles")) // Blackmarsh Task 2: fixed furniture, [x, y]
+                b.AddObstacle(area, r.Pair(o));
         }
         foreach (var f in r.Objects(s, "factions"))
         {

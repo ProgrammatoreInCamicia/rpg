@@ -1,6 +1,6 @@
 # ASTRA — seconda vertical slice: La rimessa della vedetta
 
-Analisi del **23 ottobre 2026**, repository a **`cca04bb`**. Documento di proposta. **Stato:** Task 1 completato nella Sim (esito in fondo al documento); Task 2–10 non iniziati, nessun criterio umano certificato. La sessione ha letto codice e materiali locali ed eseguito verifiche dell'esistente, senza modificare codice, contenuti o scene.
+Analisi del **23 ottobre 2026**, repository a **`cca04bb`**. Documento di proposta. **Stato:** Task 1 e 2 completati nella Sim (esiti in fondo al documento); Task 3–10 non iniziati, nessun criterio umano certificato. La sessione ha letto codice e materiali locali ed eseguito verifiche dell'esistente, senza modificare codice, contenuti o scene.
 
 ## 1. Decisione
 
@@ -310,7 +310,7 @@ Completato senza regole Sim nuove: nessun controllo sugli ID Blackmarsh nel moto
 - **Factory:** `BlackmarshWatchhouse.CreateSession()`, apertura alle **19:57**. Ho anticipato di un minuto le 19:58 candidate: con le 19:58 il margine misurato era di circa 1:50.
 - **Razzia autonoma:** consumo dei Vasan alle 19:59 (4 → 0), ordine della politica di fazione alle 20:00. Con la porta serrata il predone rompe il vetro della finestra bloccata (nessuna prova, deterministico), scavalca e si taglia, è alla cassa alle 20:00:16, ruba alle 20:03:16 e deposita all'approdo alle 20:05:28.
 - **Recupero:** partendo subito il prelievo finisce alle 20:00:10, si torna al sentiero alle 20:00:20 e il predone rientra a mani vuote. Il recupero riesce anche partendo alle 19:59:45, quasi tre minuti dopo l'apertura.
-- **Aperture:** con la porta lasciata aperta il predone entra dalla porta, il vetro resta intatto e arriva alla cassa 11 secondi più tardi (20:00:27).
+- **Aperture:** con la porta lasciata aperta il predone entra dalla porta, il vetro resta intatto e arriva alla cassa 11 secondi più tardi (20:00:27; 20:00:29 con il tavolo del Task 2).
 - **Checkpoint comune alle 20:30:**
   - recupero: protagonista 14, rimessa 0, provviste dei Vasan 0;
   - rinuncia: protagonista 10, rimessa 0, provviste dei Vasan 4.
@@ -321,3 +321,14 @@ Completato senza regole Sim nuove: nessun controllo sugli ID Blackmarsh nel moto
   - Un NPC in cammino può ancora sovrapporsi allo spazio del protagonista (limite noto); il protagonista invece è respinto da un accesso occupato.
   - Gli attrezzi da scasso del predone non entrano in gioco con questa pianta.
   - Il margine umano resta da misurare nel Task 10.
+
+## Esito del Task 2 — 23 ottobre 2026
+
+- **Loader:** `ScenarioFile` legge l'elenco opzionale `obstacles` di una mappa (caselle `[x, y]`) e lo passa a `AddObstacle`, senza nuovi tipi. Il villaggio senza `obstacles` resta identico a quello costruito in codice (test esistente).
+- **Validazione:** il builder ora rifiuta un ostacolo ripetuto o sulla casella di un deposito. Le regole esistenti rifiutavano già un ostacolo nel muro, su una porta, su un accesso o sotto un attore; un test copre ciascun caso.
+- **Contenuto:** un solo tavolo a (10,6), nella stanza della cassa, sotto la lampada. Non blocca la vista, le porte o l'accesso (11,5).
+- **Risultati verificati:**
+  - posizione sul tavolo rifiutata; il percorso dalla porta interna alla cassa lo aggira;
+  - dopo save/load ingombro e percorso sono identici;
+  - test del Task 1 verdi. L'unico orario cambiato è l'arrivo del predone dalla porta aperta (20:00:29, furto alle 20:03:29); il ramo della finestra e il recupero non cambiano.
+- **Verifiche:** suite Sim **670/670**. Mutazione: senza la lettura di `obstacles` nel loader falliscono 8 test.

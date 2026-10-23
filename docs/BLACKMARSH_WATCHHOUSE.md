@@ -44,7 +44,8 @@ I muri della rimessa sono confini sottili fra le caselle, non caselle bloccate.
 | Porta esterna | confine (5,6)–(6,6), casella (6,6) | chiusa, serrata; chiave del protagonista |
 | Porta interna | confine (8,6)–(9,6), casella (9,6) | chiusa, senza serratura |
 | Finestra | confine (11,6)–(12,6), verso la riva | chiusa, telaio bloccato (salsedine) |
-| Lampada | (10,6) | luce intensa 15 ft, fioca 30 ft |
+| Lampada | (10,6), sul tavolo | luce intensa 15 ft, fioca 30 ft |
+| Tavolo | (10,6), ostacolo `obstacles` | ingombro Sim: non si attraversa, non blocca la vista, non è un contenitore |
 | Cassa delle razioni d'emergenza | (11,4), accesso da (11,5) | 4 razioni, proprietà dei Pescatori della vedetta |
 | Provviste dei Vasan | (15,12), accesso da (14,12) | 4 razioni |
 
@@ -60,8 +61,8 @@ Seed e factory sono quelli del file. Orari della Sim (giorno 1).
 | Consumo dei Vasan: provviste 4 → 0 | 19:59:00 | 19:59:00 |
 | La politica di fazione ordina la razzia | 20:00:00 | 20:00:00 |
 | Ingresso | vetro rotto alle 20:00:06, scavalca alle 20:00:14 (si taglia) | dalla porta alle 20:00:20 |
-| All'accesso della cassa | 20:00:16 | 20:00:27 |
-| Furto delle 4 razioni | 20:03:16 | 20:03:27 |
+| All'accesso della cassa | 20:00:16 | 20:00:29 |
+| Furto delle 4 razioni | 20:03:16 | 20:03:29 |
 | Consegna all'approdo | 20:05:28, di nuovo dalla finestra | dalla porta |
 
 **Recupero.** Partendo subito, il protagonista apre la porta con la chiave (si sblocca aprendola) e apre la porta interna. Comincia il prelievo alle 19:57:10, lo finisce alle 20:00:10 e torna al sentiero alle 20:00:20. Il predone, che ora trova la porta aperta, arriva alla cassa vuota e rientra a mani vuote.
@@ -90,4 +91,4 @@ Il predone ha gli attrezzi da scasso del suo profilo, ma nella pianta attuale no
 
 - **Sovrapposizione dei corpi.** Un NPC in cammino può entrare nello spazio del protagonista (limite noto della prima slice). Se il protagonista resta sull'accesso, il predone può cominciare il proprio prelievo sovrapposto. Il protagonista invece viene respinto da un accesso occupato.
 - **Ritmo umano non misurato.** Gli orari qui sopra sono tempi della Sim; la durata per una persona e la leggibilità del margine si misurano nel Task 10.
-- **Niente arredo.** Il tavolo arriva con il Task 2 (ostacoli nel loader JSON).
+- **Arredo minimo.** Solo il tavolo (Task 2): chi va dalla porta interna alla cassa gli gira intorno; chi entra dalla finestra no.

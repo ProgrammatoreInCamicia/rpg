@@ -428,6 +428,8 @@ public sealed class ScenarioBuilder
         foreach (var map in _maps)
         {
             var storeSquares = _stores.Where(s => areaOf[s.Location] == map.Area && s.At is not null).Select(s => s.At!.Value);
+            RequireUnique(map.Obstacles.Select(o => o.ToString()), $"obstacle of map '{map.Area}'");
+            Require(!map.Obstacles.Intersect(storeSquares).Any(), $"An obstacle of map '{map.Area}' is on a store's square.");
             try
             {
                 maps[map.Area] = new GridMap(map.Area, map.Rows, map.Zones, storeSquares.Concat(map.Obstacles), map.Lights, map.Doors, map.Exits, map.Posts,

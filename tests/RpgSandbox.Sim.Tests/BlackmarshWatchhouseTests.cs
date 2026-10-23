@@ -145,6 +145,28 @@ public class BlackmarshWatchhouseTests(ITestOutputHelper output)
         Assert.Equal(4, open.GetWorldView().Store(VasanCache).Food);
     }
 
+    [Fact]
+    public void The_table_is_walked_around_and_kept_by_a_save()
+    {
+        var session = BlackmarshWatchhouse.CreateSession();
+        Walk(session, new GridPos(5, 6));
+        Do(session, new DoorCommand { Actor = session.Player, At = ShedDoor, Open = true });
+        Walk(session, new GridPos(8, 6));
+        Do(session, new DoorCommand { Actor = session.Player, At = InnerDoor, Open = true });
+        Walk(session, InnerDoor);
+
+        var onTable = session.PreviewMoveToSpot(session.Player, Spot.CenterOf(Table));
+        Assert.False(onTable.Valid);
+        var around = session.PreviewMoveToSpot(session.Player, Spot.CenterOf(StoreAccess));
+        Assert.True(around.Valid, around.Message);
+        Assert.DoesNotContain(around.Way, spot => spot.Cell == Table);
+
+        var reloaded = session.SaveAndReload();
+        Assert.Contains(Table, reloaded.Engine.World.Maps[Island].Occupied);
+        Assert.False(reloaded.PreviewMoveToSpot(reloaded.Player, Spot.CenterOf(Table)).Valid);
+        Assert.Equal(around.Way, reloaded.PreviewMoveToSpot(reloaded.Player, Spot.CenterOf(StoreAccess)).Way);
+    }
+
     /// <summary>From the path: unlock and open the shed, open the inner door, take the four rations.</summary>
     private static void Recover(SimulationSession session)
     {

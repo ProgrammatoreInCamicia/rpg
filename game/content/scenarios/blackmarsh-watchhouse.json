@@ -33,6 +33,7 @@
         "lights": [
           { "at": [10, 6], "bright": 15, "dim": 30 }
         ],
+        "obstacles": [ [10, 6] ],
         "interiors": ["bm_watch_shed"],
         "edges": [
           {"a":[6,3],"b":[6,4],"kind":"Wall"},
