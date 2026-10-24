@@ -163,6 +163,9 @@ public partial class VillageMap : Node2D
 		var blackmarshPersistenceSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--blackmarsh-persistence-smoke="));
 		if (BlackmarshWatchhouseMode && blackmarshPersistenceSmoke is not null)
 			RunBlackmarshPersistenceSmoke(blackmarshPersistenceSmoke["--blackmarsh-persistence-smoke=".Length..]);
+		var blackmarshComposedSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--blackmarsh-composed-smoke="));
+		if (BlackmarshWatchhouseMode && blackmarshComposedSmoke is not null)
+			RunBlackmarshComposedSmoke(blackmarshComposedSmoke["--blackmarsh-composed-smoke=".Length..]);
 		var sliceEntrySmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-entry-smoke="));
 		if (PlayableSliceMode && sliceEntrySmoke is not null)
 			RunSliceEntrySmoke(sliceEntrySmoke["--slice-entry-smoke=".Length..]);
