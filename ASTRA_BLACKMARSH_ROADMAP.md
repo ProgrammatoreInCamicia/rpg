@@ -1,6 +1,6 @@
 # ASTRA — seconda vertical slice: La rimessa della vedetta
 
-Analisi del **23 ottobre 2026**, repository a **`cca04bb`**. Documento di proposta. **Stato aggiornato:** Task 1 e 2 completati nella Sim; Task 3–9 completati nel client (esiti in fondo al documento); Task 10 non iniziato, nessun criterio umano certificato. La descrizione dell'analisi iniziale sotto resta storica.
+Analisi del **23 ottobre 2026**, repository a **`cca04bb`**. Documento di proposta. **Stato aggiornato:** Task 1 e 2 completati nella Sim; Task 3–9 completati nel client (esiti in fondo al documento); Task 10 in corso dopo un collaudo dell'utente, criteri per un giocatore nuovo ancora non certificati. La descrizione dell'analisi iniziale sotto resta storica.
 
 ## 1. Decisione
 
@@ -300,7 +300,7 @@ Stato Git iniziale: soltanto gli otto file `Body.*`/texture/import non tracciati
 
 ## Primo task consigliato
 
-**Prossimo task: Task 10, collaudo del contenuto.** Il Task 9 ha verificato i percorsi composti e tre esiti informativi su scene reali a due risoluzioni. Resta il collaudo di una persona che non conosce il percorso, oltre alla documentazione d'avvio prevista dal Task 10; nessun criterio umano è certificato.
+**Task in corso: Task 10, collaudo del contenuto.** Il gioco dell'utente ha rivelato un clic inutile sui corpi e una cassa difficile da usare; Sim e client sono stati corretti e verificati in smoke. Resta il collaudo di una persona che non conosce il percorso, con tempi ed esitazioni registrati; quel criterio umano non è ancora certificato.
 
 ## Esito del Task 1 — 23 ottobre 2026
 
@@ -395,3 +395,11 @@ Completato senza regole Sim nuove: nessun controllo sugli ID Blackmarsh nel moto
 
 - Corretto il confine informativo della guida: «La cassa è vuota» appare solo se il protagonista è all'accesso oppure ha un proprio `FoodTaken` recente dalla stessa cassa in `PlayerView.RecentEvents`. Dalla finestra la guida invita a controllare le razioni dall'accesso e non rivela il numero. La Sim non ha ricevuto nuove regole e la guida non consulta `WorldView`.
 - Lo smoke composto controlla ora il testo della guida sia dopo il recupero sia alla finestra con cassa vuota, e applica l'assert di conservazione delle 18 razioni anche al ramo del furto visto. Build 0 avvisi/0 errori; BLACKMARSH COMPOSED e FLOW OpenGL a 1280×720 verdi. Le catture `witnessed-conclusion.png`, `recovery.png` e `recovered-conclusion.png` sono state riesaminate: guida completa e leggibile. Le etichette Vasan/cassa sovrapposte e l'assenza di reazione del Vasan alla presenza del paladino restano osservazioni per il Task 10, non risultati di collaudo umano.
+
+## Task 10 in corso: due problemi del collaudo dell'utente — 25 ottobre 2026
+
+- L'utente ha segnalato che il Vasan ucciso restava cliccabile per parlare e che il pannello dei depositi era difficile da scoprire. Claude ha corretto la Sim: `PeopleHere`/`ReportOptions` escludono chi non è cosciente e un racconto fallisce se il destinatario sviene. Tre nuovi test Sim; il corpo resta visibile.
+- Client: il clic sinistro su un attore visibile morto, morente o tramortito non accoda un cammino né apre la conversazione; mostra il suo stato. Il clic destro informativo resta. Il clic sinistro sulla figura o sul nome di un deposito visibile seleziona quel deposito. Se il protagonista non è sull'accesso, tenta un percorso valido fino a una sua casella d'accesso; all'arrivo il pannello a destra ha un bordo dorato e un messaggio indica Prendi/Consegna. Una porta chiusa o un ostacolo produce un rifiuto leggibile, senza cambiare le regole Sim né trasferire razioni automaticamente. Stop, ordine sostitutivo, combattimento e load cancellano l'intento d'avvicinamento.
+- Follow-up della review Task 9: la guida memorizza solo il conteggio visto dall'accesso. Dopo un prelievo parziale non legge il nuovo numero nascosto dalla finestra per dichiarare «vuota»; dopo load dimentica il conteggio precedente e lo rilegge solo se si trova all'accesso. La guida indica ora esplicitamente di cliccare la cassa per raggiungere l'accesso e dove usare il pannello.
+- Verifiche effettive: build soluzione 0 errori/0 avvisi, Sim **673/673**. Smoke OpenGL BLACKMARSH STORE (picking blocco e nome, clic instradato, Stop, avvicinamento, pannello, prelievo parziale e reset su load, clic sul corpo dopo un combattimento reale), BLACKMARSH COMPOSED/FLOW, SLICE REPORT/GUIDE e VILLAGE verdi a 1280×720. Catture `click-arrival.png` e `witnessed-conclusion.png` esaminate: bordo e guida leggibili. Gli smoke chiamano il dispatch dell'input e non equivalgono ancora a un nuovo collaudo umano di click e comprensione.
+- Resta da osservare nel Task 10 se il giocatore trova effettivamente il pannello con il nuovo clic, i tempi di un giro e la reazione percepita al Vasan ostile che continua a rubare accanto al paladino; non sono criteri già passati. Le etichette Vasan/cassa possono ancora sovrapporsi.

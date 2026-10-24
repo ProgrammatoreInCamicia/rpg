@@ -57,6 +57,26 @@ public partial class VillageMap
 				&& _message.Text.Contains("avvicinarsi", StringComparison.OrdinalIgnoreCase),
 				"A distant UI click transferred food or silently started approaching.");
 			CaptureBlackmarshStore(outputDir, "too-far.png");
+			var storeCell = _view.VisibleStores.Single(s => s.Id == shed).Position!.Value;
+			var blockClick = CellToScreen(storeCell) + new Vector2(0, -34);
+			var nameClick = CellToScreen(storeCell) + _storeLabels[shed].Position + new Vector2(12, 5);
+			SliceRequire(StoreAt(blockClick) == shed && StoreAt(nameClick) == shed,
+				"The visible chest or its name does not pick the shed store.");
+			_UnhandledInput(new InputEventMouseButton { Pressed = true, ButtonIndex = MouseButton.Left,
+				Position = GetGlobalTransformWithCanvas() * nameClick });
+			SliceRequire(_running is not null && _pendingStore == shed,
+				"Clicking the chest name did not begin an approach to its access.");
+			Stop();
+			SliceRequire(_running is null && !_walking && _pendingStore is null
+				&& _view.Position != BlackmarshWatchhouse.Ids.StoreAccess,
+				"Stop did not cancel the approach ordered by the chest click.");
+			_UnhandledInput(new InputEventMouseButton { Pressed = true, ButtonIndex = MouseButton.Left,
+				Position = GetGlobalTransformWithCanvas() * nameClick });
+			await UntilBlackmarshStoreIdle();
+			SliceRequire(_view.Position == BlackmarshWatchhouse.Ids.StoreAccess
+				&& _selectedStore == shed && !_storeTake.Disabled && _message.Text.Contains("pannello evidenziato"),
+				"The chest click did not reach the access and reveal the store actions.");
+			CaptureBlackmarshStore(outputDir, "click-arrival.png");
 			MoveTo(new GridPos(5, 6));
 			await UntilBlackmarshStoreIdle();
 			SliceRequire(_view.VisibleStores.All(s => s.Id != shed) && _selectedStore is null && !_storePanel.Visible,
@@ -97,11 +117,52 @@ public partial class VillageMap
 			SelectStoreOption(_storeOptionIds.IndexOf(shed) + 1);
 			SliceRequire(_selectedStore == shed && !_storeTake.Disabled,
 				"The player could not select the shed instead of the visible Vasan cache.");
+			_amount.Value = 2;
+			_storeTake.EmitSignal(BaseButton.SignalName.Pressed);
+			await UntilBlackmarshStoreIdle();
+			SliceRequire(_view.Food == 12 && _blackmarshKnownShedFood == 2,
+				"A partial take did not update the player's last counted amount.");
+			MoveTo(new GridPos(10, 5));
+			await UntilBlackmarshStoreIdle();
+			SliceRequire(!_blackmarshGuideText!.Text.Contains("cassa è vuota", StringComparison.Ordinal)
+				&& _blackmarshKnownShedFood == 2,
+				"A partial take caused the guide to claim that the shed is empty from afar.");
+			LoadGameFromPath(accessSave);
+			SliceRequire(_blackmarshKnownShedFood == 4,
+				"Loading at the access kept a stale store count from the previous session.");
 			LoadGameFromPath(initialSave);
 			SliceRequire(_view.Position == BlackmarshWatchhouse.Ids.PlayerStart && _view.Food == 10
 				&& _selectedStore is null && !_storePanel.Visible,
 				"Loading an unseen position kept the old store selection.");
-			GD.Print("BLACKMARSH STORE SMOKE OK: distant refusal, sight loss, four rations, load cleared selection");
+			UseTorch(stowShield: true);
+			MoveTo(new GridPos(13, 10));
+			await UntilBlackmarshStoreIdle();
+			var strike = _view.Attacks.FirstOrDefault(option =>
+				_sim.PreviewAttack(_sim.Player, BlackmarshWatchhouse.Ids.Raider, option.Name).Valid);
+			SliceRequire(strike is not null, "The nearby raider cannot be attacked through the combat handler.");
+			OpenCombatForSmoke(BlackmarshWatchhouse.Ids.Raider, strike!.Name);
+			_pace = 600;
+			for (var round = 0; round < 16 && _view.VisibleActors.FirstOrDefault(a => a.Id == BlackmarshWatchhouse.Ids.Raider)?.Condition != "morto"; round++)
+			{
+				if (_view.Combat is { IsYourTurn: true } combat)
+				{
+					var target = combat.Targets.FirstOrDefault(t => t.Target == BlackmarshWatchhouse.Ids.Raider && t.Valid && t.Attack == strike.Name);
+					if (target is not null) AttackCombatTargetForSmoke(target);
+					if (_view.Combat is { IsYourTurn: true }) EndCombatTurnForSmoke();
+				}
+				await SliceFrames(8);
+			}
+			var corpse = _view.VisibleActors.Single(a => a.Id == BlackmarshWatchhouse.Ids.Raider);
+			SliceRequire(corpse.Condition == "morto" && _view.PeopleHere.All(p => p.Id != corpse.Id),
+				"The dead raider is still offered as a listener.");
+			var corpsePoint = _tokens[corpse.Id].Position + new Vector2(0, -16);
+			SliceRequire(PersonAt(corpsePoint) == corpse.Id, "The visible fallen raider cannot be picked.");
+			_UnhandledInput(new InputEventMouseButton { Pressed = true, ButtonIndex = MouseButton.Left,
+				Position = GetGlobalTransformWithCanvas() * corpsePoint });
+			SliceRequire(_running is null && !_walking && _talkingTo is null && _queue.Count == 0
+				&& _message.Text.Contains("è morto", StringComparison.Ordinal),
+				"Clicking the dead raider still started walking or talking.");
+			GD.Print("BLACKMARSH STORE SMOKE OK: chest click/approach, four rations, load, dead actor click");
 			GetTree().Quit(0);
 		}
 		catch (Exception error)

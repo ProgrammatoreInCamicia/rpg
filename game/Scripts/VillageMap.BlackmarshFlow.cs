@@ -9,6 +9,7 @@ public partial class VillageMap
 {
 	private PanelContainer? _blackmarshGuidePanel;
 	private Label? _blackmarshGuideText;
+	private int? _blackmarshKnownShedFood;
 
 	private void BuildBlackmarshGuidanceUi(CanvasLayer ui)
 	{
@@ -40,12 +41,13 @@ public partial class VillageMap
 		var key = _view.Inventory.Any(item => item.Item.Value == BlackmarshWatchhouse.Ids.ShedKey && item.Count > 0);
 		var store = _view.VisibleStores.FirstOrDefault(s => s.Id == BlackmarshWatchhouse.Ids.ShedStore);
 		var countedAtAccess = store is not null && _view.Position is { } here && store.Access.Contains(here);
-		var tookFromShed = store is not null && _view.RecentEvents.Any(e => e.Kind == "FoodTaken"
-			&& e.Description.Contains(store.Name, StringComparison.Ordinal));
-		_blackmarshGuideText.Text = store is { Food: 0 } && (countedAtAccess || tookFromShed)
+		if (countedAtAccess) _blackmarshKnownShedFood = store!.Food;
+		_blackmarshGuideText.Text = store is not null && countedAtAccess && _blackmarshKnownShedFood == 0
 			? "La cassa è vuota. Torna sul sentiero o apri il riepilogo."
+			: store is not null && _blackmarshKnownShedFood == 0
+			? "All'ultimo controllo la cassa era vuota. Torna sul sentiero o apri il riepilogo."
 			: store is not null
-			? "Cassa in vista: raggiungi il lato d'accesso e controlla le razioni; se ci sono, usa «Prendi 4 razioni»."
+			? "Cassa in vista: cliccala per andare all'accesso; usa Prendi/Consegna nel pannello a destra."
 			: key ? "Rimessa a est: hai la chiave; clicca la porta per entrare."
 				: "Rimessa a est: controlla la chiave nell'inventario (I).";
 		_blackmarshGuideText.Text += "\nDiario: icona libro · Attesa e riepilogo: a destra.";

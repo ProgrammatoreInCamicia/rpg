@@ -229,6 +229,7 @@ public partial class VillageMap : Node2D
 			_exitAfterWalking = null;
 			_attackAfterWalking = null;
 			_pendingBarrier = null;
+			_pendingStore = null;
 			_pendingTicks = 0;
 			Refresh();
 		}
@@ -241,6 +242,8 @@ public partial class VillageMap : Node2D
 				_pendingTicks -= ticks;
 				ActorId? arrived = null;
 				LocationId? exitReached = null;
+				StoreId? storeReached = null;
+				StoreId? storeInterrupted = null;
 				PendingBarrierUse? barrierReached = null;
 				PendingBarrierUse? barrierInterrupted = null;
 				if (_running is { } action)
@@ -255,13 +258,18 @@ public partial class VillageMap : Node2D
 						{
 							arrived = _approaching;
 							exitReached = _exitAfterWalking;
+							storeReached = _pendingStore;
 							barrierReached = _pendingBarrier;
 						}
 						else
+						{
+							storeInterrupted = _pendingStore;
 							barrierInterrupted = _pendingBarrier;
+						}
 						_approaching = null;
 						_exitAfterWalking = null;
 						_pendingBarrier = null;
+						_pendingStore = null;
 					}
 				}
 				else
@@ -276,6 +284,10 @@ public partial class VillageMap : Node2D
 				}
 				if (exitReached is { } exit)
 					BeginExitJourney(exit);
+				if (storeReached is { } store)
+					FinishStoreApproach(store);
+				if (storeInterrupted is not null && _view.Combat is null)
+					ShowMessage("Non riesci a raggiungere la cassa.");
 				if (barrierReached is { } barrier)
 					FinishBarrierApproach(barrier);
 				if (barrierInterrupted is { } interrupted && _view.Combat is null)
@@ -413,6 +425,8 @@ public partial class VillageMap : Node2D
 					}
 					else if (GroundItemAt(ScreenToCell(point)) is { } item)
 						PickUp(item);
+					else if (StoreAt(point) is { } store)
+						ClickStore(store);
 					else if (_freeMovementEnabled)
 						MoveToSpot(ScreenToSpot(point));
 					else
@@ -515,22 +529,48 @@ public partial class VillageMap : Node2D
 	/// Click on someone: talk to them if they are next to you, otherwise walk up to them (the core picks the square
 	/// before theirs on the way) and talk on arrival.
 	/// </summary>
-	public void TalkTo(ActorId person) => Order("vai a parlare", walk: true, () =>
+	public void TalkTo(ActorId person)
 	{
-		if (_view.PeopleHere.Any(p => p.Id == person))
+		if (UnconsciousActorMessage(person) is { } message)
 		{
-			OpenTalk(person);
+			ShowMessage(message);
 			return;
 		}
-		if (_view.VisibleActors.FirstOrDefault(a => a.Id == person) is not { Position: { } there } seen)
-			return;
-		if (Walk(new MoveCommand { Actor = _sim.Player, To = there, StopNextTo = true, Stealthy = _sneak }))
+		Order("vai a parlare", walk: true, () =>
 		{
-			_exitAfterWalking = null;
-			_approaching = person;
-			ShowMessage($"Vai da {seen.Name}.");
-		}
-	});
+			if (UnconsciousActorMessage(person) is { } currentMessage)
+			{
+				ShowMessage(currentMessage);
+				return;
+			}
+			if (_view.PeopleHere.Any(p => p.Id == person))
+			{
+				OpenTalk(person);
+				return;
+			}
+			if (_view.VisibleActors.FirstOrDefault(a => a.Id == person) is not { Position: { } there } seen)
+				return;
+			if (Walk(new MoveCommand { Actor = _sim.Player, To = there, StopNextTo = true, Stealthy = _sneak }))
+			{
+				_exitAfterWalking = null;
+				_approaching = person;
+				ShowMessage($"Vai da {seen.Name}.");
+			}
+		});
+	}
+
+	private string? UnconsciousActorMessage(ActorId person)
+	{
+		var seen = _view.VisibleActors.FirstOrDefault(actor => actor.Id == person);
+		return seen?.Condition switch
+		{
+			"morto" => $"{seen.Name} è morto.",
+			"tramortito" => $"{seen.Name} è tramortito.",
+			"a terra, morente" => $"{seen.Name} è a terra, morente.",
+			"a terra, privo di sensi" => $"{seen.Name} è privo di sensi.",
+			_ => null,
+		};
+	}
 
 	/// <summary>Click on a door: operate it now or walk to a reachable side and operate it on arrival.</summary>
 	internal void ClickDoor(GridPos door) => Order("usa la porta", walk: true, () =>
@@ -699,6 +739,7 @@ public partial class VillageMap : Node2D
 			{
 				var approaching = _approaching;
 				var barrier = _pendingBarrier;
+				var store = _pendingStore;
 				var resumed = move.Spots is { } spots
 					? Walk(new MoveToSpotCommand { Actor = _sim.Player, To = spots[^1], Stealthy = on })
 					: Walk(new MoveCommand { Actor = _sim.Player, To = move.Path[^1], Stealthy = on });
@@ -706,6 +747,7 @@ public partial class VillageMap : Node2D
 				{
 					_approaching = approaching;
 					_pendingBarrier = barrier;
+					_pendingStore = store;
 				}
 			});
 	}
@@ -715,6 +757,7 @@ public partial class VillageMap : Node2D
 		if (_running is not null && !_walking)
 			return false; // busy with a fixed-length activity
 		_pendingBarrier = null;
+		_pendingStore = null;
 		var result = _sim.Execute(command);
 		if (!result.Success)
 		{
@@ -773,6 +816,7 @@ public partial class VillageMap : Node2D
 		_walking = false;
 		_approaching = null;
 		_pendingBarrier = null;
+		_pendingStore = null;
 		_attackAfterWalking = null;
 		_exitAfterWalking = null;
 		_pendingTicks = 0;
@@ -901,6 +945,7 @@ public partial class VillageMap : Node2D
 		_selectedStore = null;
 		_storeSelectionSuppressed = false;
 		_storeOptionsKey = "";
+		_blackmarshKnownShedFood = null;
 		_observedRestStarted = null;
 		_restDiceInitialized = false;
 		if (_sim.GetPlayerView().Facing is null)
@@ -912,6 +957,7 @@ public partial class VillageMap : Node2D
 		_sliceKnownObservations.Clear();
 		_approaching = null;
 		_pendingBarrier = null;
+		_pendingStore = null;
 		_attackAfterWalking = null;
 		_exitAfterWalking = null;
 		_talkingTo = null;
@@ -958,6 +1004,7 @@ public partial class VillageMap : Node2D
 			_walking = false;
 			_approaching = null;
 			_pendingBarrier = null;
+			_pendingStore = null;
 			_attackAfterWalking = null;
 			_exitAfterWalking = null;
 			_queue.Clear();
@@ -1410,7 +1457,7 @@ public partial class VillageMap : Node2D
 		var person = PersonAt(mouse);
 		var canUseBoundary = (_view.Combat is null || _view.Combat.IsYourTurn)
 			&& (DoorAt(mouse) is not null || WindowAt(mouse) is not null);
-		Input.SetDefaultCursorShape(person is not null || canUseBoundary
+		Input.SetDefaultCursorShape(person is not null || canUseBoundary || _view.Combat is null && StoreAt(mouse) is not null
 			? Input.CursorShape.PointingHand : Input.CursorShape.Arrow);
 		var cell = person is { } id && _tokens.TryGetValue(id, out var token) ? ScreenToCell(token.Position) : ScreenToCell(mouse);
 		var map = _view.Position is null ? null : _view.Map;
@@ -1473,7 +1520,8 @@ public partial class VillageMap : Node2D
 		{
 			var block = MakeBlock(store.Position!.Value, new Color(0.65f, 0.45f, 0.30f), 34f, _woodTexture);
 			// Keep the west access clear for the raider/guard labels during a raid.
-			var label = new Label { Text = store.Name, Position = new Vector2(24, -70) };
+			var label = new Label { Text = store.Name, Position = new Vector2(24, -70),
+				MouseFilter = Control.MouseFilterEnum.Ignore };
 			label.AddThemeFontSizeOverride("font_size", 12);
 			label.AddThemeConstantOverride("outline_size", 4);
 			label.AddThemeColorOverride("font_outline_color", Colors.Black);
@@ -1751,8 +1799,10 @@ public partial class VillageMap : Node2D
 
 		_storePanel = HudPanel(-435, -66, -280, -215, bottomAnchored: true, rightAnchored: true);
 		_storePanel.Visible = false;
-		_storePanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
-			{ BgColor = new Color(0.08f, 0.09f, 0.11f, 0.95f) });
+		_storePanelStyle = new StyleBoxFlat { BgColor = new Color(0.08f, 0.09f, 0.11f, 0.95f),
+			BorderColor = new Color(0.45f, 0.35f, 0.22f), BorderWidthLeft = 2,
+			BorderWidthTop = 2, BorderWidthRight = 2, BorderWidthBottom = 2 };
+		_storePanel.AddThemeStyleboxOverride("panel", _storePanelStyle);
 		ui.AddChild(_storePanel);
 		_storeRow = new VBoxContainer();
 		_storeRow.AddThemeConstantOverride("separation", 6);

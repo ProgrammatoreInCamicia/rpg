@@ -14,6 +14,8 @@ public partial class VillageMap
 	private OptionButton _storeChoice = null!;
 	private Button _storeDeposit = null!;
 	private Button _storeTake = null!;
+	private StoreId? _pendingStore;
+	private StyleBoxFlat _storePanelStyle = null!;
 
 	private void RefreshStoreControls(bool onMap)
 	{
@@ -45,6 +47,74 @@ public partial class VillageMap
 		_storeChoice.Select(selectedIndex);
 		_storeDeposit.Disabled = selectedIndex == 0;
 		_storeTake.Disabled = selectedIndex == 0;
+		_storePanelStyle.BorderColor = selectedIndex > 0 && _view.Position is { } at
+			&& stores[selectedIndex - 1].Access.Contains(at)
+			? new Color(0.93f, 0.71f, 0.32f) : new Color(0.45f, 0.35f, 0.22f);
+	}
+
+	/// <summary>Pick only a store exposed by the player's view, on its block or visible name.</summary>
+	private StoreId? StoreAt(Vector2 point) => _view.VisibleStores
+		.Where(store => store.Position is not null && _storeLabels.TryGetValue(store.Id, out var label)
+			&& label.Visible && StoreShapeContains(store.Position.Value, label, point))
+		.OrderByDescending(store => store.Position!.Value.Y)
+		.Select(store => (StoreId?)store.Id)
+		.FirstOrDefault();
+
+	private static bool StoreShapeContains(GridPos cell, Label label, Vector2 point)
+	{
+		var local = point - CellToScreen(cell);
+		return new Rect2(new Vector2(-TileW / 2f, -34f - TileH / 2f),
+			new Vector2(TileW, 34f + TileH)).HasPoint(local)
+			|| label.GetRect().HasPoint(local);
+	}
+
+	internal void ClickStore(StoreId id) => Order("vai alla cassa", walk: true, () =>
+	{
+		if (_view.VisibleStores.FirstOrDefault(store => store.Id == id) is not { Position: { } } store)
+		{
+			ShowMessage("La cassa non è più in vista.");
+			return;
+		}
+		_selectedStore = id;
+		_storeSelectionSuppressed = false;
+		RefreshStoreControls(onMap: true);
+		if (_view.Position is { } here && store.Access.Contains(here))
+		{
+			ShowMessage($"{store.Name}: usa Prendi o Consegna nel pannello evidenziato in basso a destra.");
+			return;
+		}
+		var access = store.Access
+			.Select(cell => (Cell: cell, Route: _sim.PreviewMoveToSpot(_sim.Player, Spot.CenterOf(cell), _sneak)))
+			.Where(option => option.Route.Valid)
+			.OrderBy(option => option.Route.Feet)
+			.Select(option => (GridPos?)option.Cell)
+			.FirstOrDefault();
+		if (access is not { } target)
+		{
+			ShowMessage($"Non riesci a raggiungere {store.Name}. Controlla porte e ostacoli.");
+			return;
+		}
+		if (Walk(new MoveToSpotCommand { Actor = _sim.Player, To = Spot.CenterOf(target), Stealthy = _sneak }))
+		{
+			_approaching = null;
+			_exitAfterWalking = null;
+			_pendingStore = id;
+			ShowMessage($"Vai alla cassa. All'arrivo usa Prendi o Consegna nel pannello in basso a destra.");
+		}
+	});
+
+	private void FinishStoreApproach(StoreId id)
+	{
+		var store = _view.VisibleStores.FirstOrDefault(visible => visible.Id == id);
+		if (store is null || _view.Position is not { } at || !store.Access.Contains(at))
+		{
+			ShowMessage("Non riesci a raggiungere la cassa.");
+			return;
+		}
+		_selectedStore = id;
+		_storeSelectionSuppressed = false;
+		RefreshStoreControls(onMap: true);
+		ShowMessage($"{store.Name}: usa Prendi o Consegna nel pannello evidenziato in basso a destra.");
 	}
 
 	private void SelectStoreOption(long option)
