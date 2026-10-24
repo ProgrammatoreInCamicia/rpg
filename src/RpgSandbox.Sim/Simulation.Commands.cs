@@ -477,7 +477,7 @@ internal sealed partial class Simulation
     private void CompleteReport(Actor reporter, ReportAction report)
     {
         var recipient = World.Actors[report.Recipient];
-        if (!CanTalk(reporter, recipient))
+        if (!CanTalk(reporter, recipient) || !recipient.Conscious)
         {
             World.RecordFact("ReportFailed", $"{reporter.Name} non trova più {recipient.Name} per parlargli.", reporter.Id, recipient.Id);
             return;

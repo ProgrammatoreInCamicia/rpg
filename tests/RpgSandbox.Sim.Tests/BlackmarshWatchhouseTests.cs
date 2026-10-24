@@ -169,6 +169,21 @@ public class BlackmarshWatchhouseTests(ITestOutputHelper output)
         Assert.Equal(around.Way, reloaded.PreviewMoveToSpot(reloaded.Player, Spot.CenterOf(StoreAccess)).Way);
     }
 
+    [Fact]
+    public void The_fallen_raider_lies_next_to_the_player_but_is_no_one_to_talk_to()
+    {
+        var session = BlackmarshWatchhouse.CreateSession();
+        Walk(session, new GridPos(13, 10));
+        Assert.Contains(session.GetPlayerView().PeopleHere, p => p.Id == Raider);
+
+        session.Engine.World.Actors[Raider].Vitality.TakeDamage(1000);
+
+        var view = session.GetPlayerView();
+        Assert.Equal("morto", view.VisibleActors.Single(a => a.Id == Raider).Condition);
+        Assert.DoesNotContain(view.PeopleHere, p => p.Id == Raider);
+        Assert.DoesNotContain(view.ReportOptions, o => o.Recipient == Raider);
+    }
+
     /// <summary>From the path: unlock and open the shed, open the inner door, take the four rations.</summary>
     private static void Recover(SimulationSession session)
     {

@@ -46,6 +46,39 @@ public class ConversationTests
     }
 
     [Fact]
+    public void Only_someone_conscious_is_offered_as_a_listener()
+    {
+        var s = WitnessAtInn();
+        s.Engine.World.Actors[Farmer].Vitality.Perish();
+        s.Engine.World.Actors[Guard].Vitality.TakeDamage(1000, knockOut: true);
+
+        var view = s.GetPlayerView();
+
+        // Still seen lying there, but nobody to talk to or to tell what happened.
+        Assert.Empty(view.PeopleHere);
+        Assert.Empty(view.ReportOptions);
+        Assert.Equal("morto", view.VisibleActors.Single(a => a.Id == Farmer).Condition);
+        Assert.Contains(view.VisibleActors, a => a.Id == Guard);
+    }
+
+    [Fact]
+    public void A_listener_who_dies_while_being_told_does_not_learn_it()
+    {
+        var s = WitnessAtInn();
+        var topic = Assert.Single(s.GetPlayerView().PeopleHere.Single(p => p.Id == Guard).Topics);
+        var report = s.Execute(new ReportCommand { Actor = s.Player, Recipient = Guard, Observation = topic.Observation });
+        Assert.True(report.Success, report.Message);
+
+        s.Engine.World.Actors[Guard].Vitality.Perish();
+        s.AdvanceUntilCompleted(report.Action!.Value, Duration.FromHours(1));
+
+        var view = s.GetWorldView();
+        Assert.Contains(view.RecentFacts, f => f.Kind == "ReportFailed");
+        Assert.Empty(view.Actor(Guard).Knowledge);
+        Assert.DoesNotContain(Guard, view.Actor(Player).Knowledge.Single().ToldTo);
+    }
+
+    [Fact]
     public void Someone_already_told_is_still_there_to_talk_to_but_has_no_news()
     {
         var s = WitnessAtInn();

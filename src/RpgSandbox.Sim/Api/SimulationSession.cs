@@ -256,9 +256,10 @@ public sealed class SimulationSession
         // Within talking distance: an adjacent square on a mapped area, the same place elsewhere.
         var nearby = w.Actors.Values.Where(a => a.Id != player.Id && _sim.CanTalk(player, a)).ToList();
         var present = nearby.Where(Visible).ToList();
+        var listeners = present.Where(a => a.Conscious).ToList(); // the dead and the senseless are seen, not talked to
         var light = map is not null && me is { } mine ? _sim.LightOn(map, mine)
             : player.Location is { } spot ? Perception.LightAt(w.Locations[spot], w.Now) : Perception.DaylightAt(w.Now);
-        var options = present
+        var options = listeners
             .SelectMany(recipient => player.Knowledge
                 .Where(o => !o.ToldTo.Contains(recipient.Id))
                 .Select(o => new ReportOptionView
@@ -394,7 +395,7 @@ public sealed class SimulationSession
             GroundItems = map is null ? Array.Empty<GroundItemView>() : Freeze(map.Ground
                 .Where(g => me is { } eye && (eye.IsAdjacentOrSame(g.Key) || _sim.CanSee(map, player, eye, g.Key)))
                 .SelectMany(g => g.Value.Select(i => new GroundItemView { At = g.Key, Item = i.Key, Name = NameOf(w.Content, i.Key), Count = i.Value }))),
-            PeopleHere = Freeze(present.Select(p => new PersonView
+            PeopleHere = Freeze(listeners.Select(p => new PersonView
             {
                 Id = p.Id,
                 Name = p.Name,
