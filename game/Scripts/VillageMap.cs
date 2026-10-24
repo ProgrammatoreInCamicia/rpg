@@ -65,6 +65,7 @@ public partial class VillageMap : Node2D
 
 	private SimulationSession _sim = null!;
 	private PlayerView _view = null!;
+	private MapView _builtMap = null!;
 
 	private Node2D _floor = null!;
 	private Node2D _sorted = null!;
@@ -159,6 +160,9 @@ public partial class VillageMap : Node2D
 		var blackmarshFlowSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--blackmarsh-flow-smoke="));
 		if (BlackmarshWatchhouseMode && blackmarshFlowSmoke is not null)
 			RunBlackmarshFlowSmoke(blackmarshFlowSmoke["--blackmarsh-flow-smoke=".Length..]);
+		var blackmarshPersistenceSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--blackmarsh-persistence-smoke="));
+		if (BlackmarshWatchhouseMode && blackmarshPersistenceSmoke is not null)
+			RunBlackmarshPersistenceSmoke(blackmarshPersistenceSmoke["--blackmarsh-persistence-smoke=".Length..]);
 		var sliceEntrySmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-entry-smoke="));
 		if (PlayableSliceMode && sliceEntrySmoke is not null)
 			RunSliceEntrySmoke(sliceEntrySmoke["--slice-entry-smoke=".Length..]);
@@ -859,6 +863,11 @@ public partial class VillageMap : Node2D
 			ShowMessage($"Caricamento non riuscito: {result.Error}");
 			return;
 		}
+		if (!SaveMatchesBuiltScene(result.Session!))
+		{
+			ShowMessage("Caricamento non riuscito: salvataggio di una mappa diversa.");
+			return;
+		}
 		CancelSliceWait("Attesa interrotta.");
 		ClearSliceReport();
 		_sim = result.Session!;
@@ -1424,6 +1433,7 @@ public partial class VillageMap : Node2D
 	private void BuildMap()
 	{
 		var map = _view.Map!;
+		_builtMap = map;
 		_floor = new Node2D { ZIndex = -10 };
 		AddChild(_floor);
 		_sorted = new Node2D { YSortEnabled = true };
@@ -1736,7 +1746,7 @@ public partial class VillageMap : Node2D
 		_restPanel.AddChild(restBox);
 		BuildRestUi(restBox);
 
-		_storePanel = HudPanel(-435, -66, -280, -205, bottomAnchored: true, rightAnchored: true);
+		_storePanel = HudPanel(-435, -66, -280, -215, bottomAnchored: true, rightAnchored: true);
 		_storePanel.Visible = false;
 		_storePanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
 			{ BgColor = new Color(0.08f, 0.09f, 0.11f, 0.95f) });

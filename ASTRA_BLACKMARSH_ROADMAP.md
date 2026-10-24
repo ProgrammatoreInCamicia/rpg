@@ -1,6 +1,6 @@
 # ASTRA — seconda vertical slice: La rimessa della vedetta
 
-Analisi del **23 ottobre 2026**, repository a **`cca04bb`**. Documento di proposta. **Stato aggiornato:** Task 1 e 2 completati nella Sim; Task 3–7 completati nel client (esiti in fondo al documento); Task 8–10 non iniziati, nessun criterio umano certificato. La descrizione dell'analisi iniziale sotto resta storica.
+Analisi del **23 ottobre 2026**, repository a **`cca04bb`**. Documento di proposta. **Stato aggiornato:** Task 1 e 2 completati nella Sim; Task 3–8 completati nel client (esiti in fondo al documento); Task 9–10 non iniziati, nessun criterio umano certificato. La descrizione dell'analisi iniziale sotto resta storica.
 
 ## 1. Decisione
 
@@ -300,7 +300,7 @@ Stato Git iniziale: soltanto gli otto file `Body.*`/texture/import non tracciati
 
 ## Primo task consigliato
 
-**Prossimo task: Task 8, persistenza delle nuove conseguenze.** I Task 1–7 hanno aggiunto il loop nella Sim, la rimessa attraversabile e un ingresso/conclusione giocabili. Rimangono da verificare salvataggi durante azioni, aperture, esiti e retry; nessun criterio umano è certificato.
+**Prossimo task: Task 9, prova composta dei due esiti.** Il Task 8 ha verificato salvataggi durante cammino e prelievo, aperture, stato concluso, file non validi e retry reali. Resta da verificare il percorso completo dall'avvio di due scene a due risoluzioni, senza fixture che sostituiscano le azioni del giocatore; nessun criterio umano è certificato.
 
 ## Esito del Task 1 — 23 ottobre 2026
 
@@ -373,3 +373,12 @@ Completato senza regole Sim nuove: nessun controllo sugli ID Blackmarsh nel moto
 - Nuovo smoke OpenGL `--blackmarsh-flow-smoke` a 1280×720: introduzione ferma, attesa avviata/interrotta, due attese entro cinque minuti ciascuna senza doppio clock; al checkpoint 20:07 il Vasan ha quattro razioni ma il protagonista sul sentiero non ha osservazioni e il riepilogo non le rivela. Secondo ramo dalla stessa sessione iniziale: porta con chiave, porta interna, accesso alla cassa, pulsante «Prendi 4 razioni» e riepilogo con protagonista a 14 e cassa a 0; tempo fermo anche dopo «Termina». «Continua» riprende; «Riprova» è disponibile e collegato all'handler già verificato dal Task 3. Catture `entry.png`, `unseen-conclusion.png`, `recovered-conclusion.png` ispezionate.
 - Verifiche effettive: Sim **670/670**, build soluzione **0 avvisi/0 errori**; smoke OpenGL BLACKMARSH FLOW/STORE/BUILDING/ENTRY, SLICE ENTRY/WAIT/SUMMARY/COMBAT/GUIDE e INTERIOR ART PILOT verdi. Lo smoke ENTRY è stato adeguato alla nuova introduzione; lo smoke BUILDING nasconde l'intro solo per lasciare libera la cattura artistica. Nessun Task 8 avviato.
 - Limiti dichiarati: il Task 7 testa la disponibilità di «Riprova» nella conclusione e riusa l'handler, ma i due retry reali dopo esiti e la persistenza di azioni/aperture sono del Task 8. Il playtest umano e il ramo di furto *osservato* nella prova composta restano ai Task 9–10; non sono marcati come verificati qui.
+
+## Esito del Task 8 e follow-up review Task 7 — 24 ottobre 2026
+
+- Follow-up Claude: la guida Blackmarsh passa a «La cassa è vuota. Torna sul sentiero o apri il riepilogo» quando vede zero razioni; la cattura `recovered-conclusion.png` è stata ricontrollata. L'etichetta della mappa mostra la quantità solo quando il protagonista è in `store.Access` (verificato anche in `too-far.png`), quindi concorda con il riepilogo: nessuna modifica alla regola. Ridotti ancora i margini vuoti di guida e pannello depositi.
+- Il load verifica **prima** di sostituire la sessione che il salvataggio appartenga alla scena costruita: identità del protagonista, aree/depositi e geometria statica della mappa (dimensioni, righe, zone, interni, lati di pareti/porte/finestre). Aperture e vetri restano stati dinamici, quindi non impediscono un load valido. Un save valido di PlayableSlice caricato nella scena Blackmarsh viene rifiutato con «salvataggio di una mappa diversa» e lascia la sessione corrente intatta. Nessun cambio allo schema di salvataggio.
+- Nuovo smoke OpenGL `--blackmarsh-persistence-smoke`: salvataggio dopo un passo reale con `Move` ancora attivo, ripresa e confronto dello snapshot completo al medesimo checkpoint col ramo continuo; click distante sulla finestra durante il cammino, save/load e verifica che l'intento UI «cammina poi interagisci» non parta dopo il load. Porta esterna e interna aperte, vetro rotto tramite menu: save/load conserva porte, vetro e `KnownBarriers`. Durante il prelievo da pulsante UI: save prima del trasferimento, continuazione e ripresa confrontate come snapshot completi al medesimo tempo, risultato 10→14/4→0, un solo fatto `FoodTaken`.
+- Dopo l'esito, salvataggio e caricamento mantengono cibo e fatti ma chiudono il riepilogo transitorio. JSON corrotto e save di altra scena non sostituiscono la sessione e producono rifiuti leggibili. Un Riprova reale dal menu dopo il recupero e un Riprova reale dal riepilogo dopo la rinuncia ricreano entrambi lo snapshot iniziale alle 19:57, in pausa e senza ordini/attese. Lo smoke ripristina l'eventuale save Blackmarsh precedente; verifica che i file Village e PlayableSlice non cambino.
+- Verifiche effettive: Sim **670/670**, build soluzione **0 avvisi/0 errori**, BLACKMARSH PERSISTENCE/ FLOW/STORE/BUILDING OpenGL a 1280×720, regressioni SLICE PERSISTENCE, INTERIOR ART PILOT e VILLAGE verdi; `git diff --check` pulito. Lo smoke PERSISTENCE è stato ripetuto dopo aver aggiunto l'asserzione sulle conoscenze delle aperture. Nessun Task 9 avviato.
+- Limiti: il test dell'intento UI certifica esplicitamente che **non** sopravvive al load; non promette che un vecchio click sulla finestra venga riprodotto. Il salvataggio con un'osservazione di furto Blackmarsh non è stato incluso in questo smoke; il ramo osservato e le due esecuzioni composte a 1280×720 e 1920×1080 restano al Task 9. Il tempo di gioco percepito da un nuovo giocatore resta al Task 10.
