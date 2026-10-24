@@ -44,7 +44,7 @@ public partial class VillageMap
 				new Dictionary<ActorId, Paladin3DPrototype.CharacterStyle>
 				{
 					[BlackmarshWatchhouse.Ids.Raider] = Paladin3DPrototype.CharacterStyle.Raider,
-				}, Props: new[] { new PropLook("interior-table", new GridPos(10, 6), 75f, Vector2.Zero) });
+				}, Props: new[] { new PropLook("interior-table", BlackmarshWatchhouse.Ids.Table, 75f, Vector2.Zero) });
 		if (entry == SceneEntry.InteriorArtPilot)
 			villageFloors[MappedVillageScenario.Ids.FarmerHouse] = cell => cell.X <= 8
 				? new FloorLook(HouseFloor, GroundMaterial.Flagstone, true)

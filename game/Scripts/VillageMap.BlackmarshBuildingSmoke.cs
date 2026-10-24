@@ -14,7 +14,7 @@ public partial class VillageMap
 			Directory.CreateDirectory(outputDir);
 			SliceRequire(GetViewport().GetVisibleRect().Size == new Vector2(1280, 720),
 				"The building smoke needs the target 1280x720 viewport.");
-			var table = new GridPos(10, 6);
+			var table = BlackmarshWatchhouse.Ids.Table;
 			var tableArt = _interiorProps.Single(p => p.Cell == table).Sprite;
 			SliceRequire(!tableArt.Visible && RoofVisibleForSmoke(table)
 				&& !_view.VisibleActors.Any(a => a.Id == BlackmarshWatchhouse.Ids.Raider),

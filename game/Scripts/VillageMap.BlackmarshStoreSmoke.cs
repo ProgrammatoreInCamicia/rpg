@@ -44,6 +44,9 @@ public partial class VillageMap
 			SelectStoreOption(0);
 			SliceRequire(_selectedStore is null && _storeTake.Disabled,
 				"Clearing the selection left an active store command.");
+			TakeViaUi(4); // A stale hotkey/helper must not undo an explicit placeholder choice.
+			SliceRequire(_selectedStore is null && _storeTake.Disabled && _running is null,
+				"An unselected command reactivated the only visible store.");
 			SelectStoreOption(1);
 			SliceRequire(_selectedStore == shed && !_storeTake.Disabled,
 				"The visible shed store could not be selected again.");
