@@ -153,6 +153,9 @@ public partial class VillageMap : Node2D
 		var blackmarshStoreSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--blackmarsh-store-smoke="));
 		if (BlackmarshWatchhouseMode && blackmarshStoreSmoke is not null)
 			RunBlackmarshStoreSmoke(blackmarshStoreSmoke["--blackmarsh-store-smoke=".Length..]);
+		var blackmarshBuildingSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--blackmarsh-building-smoke="));
+		if (BlackmarshWatchhouseMode && blackmarshBuildingSmoke is not null)
+			RunBlackmarshBuildingSmoke(blackmarshBuildingSmoke["--blackmarsh-building-smoke=".Length..]);
 		var sliceEntrySmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--slice-entry-smoke="));
 		if (PlayableSliceMode && sliceEntrySmoke is not null)
 			RunSliceEntrySmoke(sliceEntrySmoke["--slice-entry-smoke=".Length..]);
@@ -1226,7 +1229,8 @@ public partial class VillageMap : Node2D
 		{
 			var label = token.GetNode<Label>("Name");
 			var height = label.Text.Contains('\n') ? 36f : 20f;
-			var caption = new Rect2(token.Position + new Vector2(-70, -58), new Vector2(140, height));
+			var caption = new Rect2(token.Position + new Vector2(-70, BlackmarshWatchhouseMode ? -80 : -58),
+				new Vector2(140, height));
 			while (occupiedCaptions.Any(used => used.Grow(3).Intersects(caption)))
 				caption.Position -= new Vector2(0, height + 6);
 			label.Position = caption.Position - token.Position;
@@ -1355,6 +1359,8 @@ public partial class VillageMap : Node2D
 		? worldPoint + new Vector2(70f, 90f)
 		: InteriorArtPilot
 		? CellToScreen(new GridPos(8, 7)) + new Vector2(-50f, -10f)
+		: BlackmarshWatchhouseMode
+		? worldPoint + new Vector2(50f, 0f)
 		: _view.MapVisibility is not null
 		? worldPoint + new Vector2(_view.Combat is null ? -200f : -25f, 0f) : worldPoint;
 
@@ -1726,7 +1732,7 @@ public partial class VillageMap : Node2D
 		_restPanel.AddChild(restBox);
 		BuildRestUi(restBox);
 
-		_storePanel = HudPanel(-385, -16, -248, -125, bottomAnchored: true, rightAnchored: true);
+		_storePanel = HudPanel(-435, -66, -280, -185, bottomAnchored: true, rightAnchored: true);
 		_storePanel.Visible = false;
 		_storePanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
 			{ BgColor = new Color(0.08f, 0.09f, 0.11f, 0.95f) });

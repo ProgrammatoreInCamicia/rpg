@@ -9,11 +9,13 @@ public partial class VillageMap
 {
 	private enum GroundMaterial { Grass, Road, Wood, Flagstone }
 	private readonly record struct FloorLook(Color Color, GroundMaterial Material, bool WarmTint = false);
+	private readonly record struct PropLook(string Asset, GridPos Cell, float Width, Vector2 FloorOffset);
 	private sealed record PresentationProfile(
 		bool StyledInterior,
 		IReadOnlyDictionary<LocationId, Func<GridPos, FloorLook>> Floors,
 		IReadOnlyDictionary<ActorId, Paladin3DPrototype.CharacterStyle> Actors,
-		GridPos? FloorAccent = null);
+		GridPos? FloorAccent = null,
+		IReadOnlyList<PropLook>? Props = null);
 
 	private PresentationProfile _presentation = null!;
 	private bool StyledInterior => _presentation.StyledInterior;
@@ -42,13 +44,21 @@ public partial class VillageMap
 				new Dictionary<ActorId, Paladin3DPrototype.CharacterStyle>
 				{
 					[BlackmarshWatchhouse.Ids.Raider] = Paladin3DPrototype.CharacterStyle.Raider,
-				});
+				}, Props: new[] { new PropLook("interior-table", new GridPos(10, 6), 75f, Vector2.Zero) });
 		if (entry == SceneEntry.InteriorArtPilot)
 			villageFloors[MappedVillageScenario.Ids.FarmerHouse] = cell => cell.X <= 8
 				? new FloorLook(HouseFloor, GroundMaterial.Flagstone, true)
 				: new FloorLook(HouseFloor, GroundMaterial.Wood, true);
 		return new PresentationProfile(entry == SceneEntry.InteriorArtPilot, villageFloors, villageActors,
-			entry == SceneEntry.InteriorArtPilot ? new GridPos(11, 7) : null);
+			entry == SceneEntry.InteriorArtPilot ? new GridPos(11, 7) : null,
+			entry == SceneEntry.InteriorArtPilot ? new[]
+			{
+				new PropLook("interior-bed", new GridPos(11, 5), 110f, new Vector2(16, 8)),
+				new PropLook("interior-table", new GridPos(10, 8), 75f, Vector2.Zero),
+				new PropLook("interior-chest", new GridPos(12, 8), 49f, Vector2.Zero),
+				new PropLook("interior-table", new GridPos(6, 6), 75f, Vector2.Zero),
+				new PropLook("interior-cabinet", new GridPos(7, 5), 57f, Vector2.Zero),
+			} : null);
 	}
 
 	private FloorLook FloorFor(char symbol, LocationId? zone, GridPos cell)

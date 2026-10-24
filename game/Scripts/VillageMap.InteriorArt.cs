@@ -10,13 +10,8 @@ public partial class VillageMap
 
 	private void BuildInteriorArt()
 	{
-		if (!InteriorArtPilot) return;
-		// The bed blocks two cells; its feet sit between their centres rather than over the first one.
-		AddProp("interior-bed", new GridPos(11, 5), 110f, new Vector2(16, 8));
-		AddProp("interior-table", new GridPos(10, 8), 75f);
-		AddProp("interior-chest", new GridPos(12, 8), 49f);
-		AddProp("interior-table", new GridPos(6, 6), 75f);
-		AddProp("interior-cabinet", new GridPos(7, 5), 57f);
+		foreach (var prop in _presentation.Props ?? Array.Empty<PropLook>())
+			AddProp(prop.Asset, prop.Cell, prop.Width, prop.FloorOffset);
 	}
 
 	private void AddProp(string asset, GridPos cell, float width, Vector2? floorOffset = null)

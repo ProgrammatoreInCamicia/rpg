@@ -178,7 +178,7 @@ public partial class VillageMap
 	{
 		_view = _view with { Combat = combat };
 		_status.Text = $"Scontro · round {combat.Round}. È il tuo turno.";
-		_storeRow.Visible = false;
+		_storePanel.Visible = false;
 		_people.Visible = false;
 		_pause.Disabled = true;
 		_sneakToggle.Disabled = true;

@@ -110,6 +110,8 @@ public partial class VillageMap
 					"The player did not reach the Vasan's approach for the figure check.");
 				FaceForSmoke(1, 0);
 				await SliceFrames(5);
+				SliceRequire(_hudBrief.Text.Contains("Presso l'approdo", StringComparison.Ordinal),
+					"The approach beside the landing still reads 'Sulla strada'.");
 				SliceRequire(_view.VisibleActors.Any(a => a.Id == BlackmarshWatchhouse.Ids.Raider)
 					&& NpcLive3dLoadedForSmoke(BlackmarshWatchhouse.Ids.Raider),
 					"The visible Vasan did not use the existing live raider model.");

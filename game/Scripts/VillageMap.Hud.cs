@@ -1,5 +1,6 @@
 using Godot;
 using RpgSandbox.Sim.Api;
+using RpgSandbox.Sim.Scenarios;
 
 namespace RpgSandbox.Game;
 
@@ -139,7 +140,16 @@ public partial class VillageMap
 	{
 		var where = _view.Location is { } at
 			? _view.Locations.FirstOrDefault(l => l.Id == at)?.Name ?? at.Value
-			: _view.Travel is not null ? "In viaggio" : "Sulla strada";
+			: _view.Travel is not null ? "In viaggio"
+			: BlackmarshWatchhouseMode && _view.Position is { } position
+				&& _view.Map is { } map && new[]
+				{
+					new GridPos(position.X + 1, position.Y), new GridPos(position.X - 1, position.Y),
+					new GridPos(position.X, position.Y + 1), new GridPos(position.X, position.Y - 1),
+				}.Any(cell => cell.X >= 0 && cell.Y >= 0 && cell.X < map.Width && cell.Y < map.Height
+					&& map.Zones.TryGetValue(map.Rows[cell.Y][cell.X], out var zone)
+					&& zone == BlackmarshWatchhouse.Ids.Landing)
+				? "Presso l'approdo" : "Sulla strada";
 		var activity = _view.Dead ? "Morto"
 			: _view.Combat is { } combat ? $"Scontro · round {combat.Round}"
 			: _paused ? "In pausa"

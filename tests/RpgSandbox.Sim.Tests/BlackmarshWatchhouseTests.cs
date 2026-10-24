@@ -54,6 +54,7 @@ public class BlackmarshWatchhouseTests(ITestOutputHelper output)
         Assert.Contains(session.GetWorldView().RecentFacts, f => f.Kind == "GlassBroken");
         Assert.Contains(session.GetWorldView().RecentFacts, f => f.Kind == "Climbed");
         Assert.DoesNotContain(trail, t => t.Position == ShedDoor); // the locked door held: in by the window
+        Assert.DoesNotContain(trail, t => t.Position == Table); // the Vasan goes around the same obstacle as the player
         Assert.Equal(WindowGlass.Broken, session.Engine.World.Maps[Island].GlassOf(WindowInside, WindowOutside));
         Assert.True(session.Engine.World.Maps[Island].IsClosedDoor(ShedDoor));
         output.WriteLine($"At the store {Reached(trail)}, home with the rations by {Deposited(session)}.");
@@ -136,6 +137,7 @@ public class BlackmarshWatchhouseTests(ITestOutputHelper output)
 
         Assert.DoesNotContain(forced, t => t.Position == ShedDoor);
         Assert.Contains(walked, t => t.Position == ShedDoor);
+        Assert.DoesNotContain(walked, t => t.Position == Table);
         Assert.Equal(WindowGlass.Broken, locked.Engine.World.Maps[Island].GlassOf(WindowInside, WindowOutside));
         Assert.Equal(WindowGlass.Intact, open.Engine.World.Maps[Island].GlassOf(WindowInside, WindowOutside));
         Assert.DoesNotContain(open.GetWorldView().RecentFacts, f => f.Kind is "GlassBroken" or "Climbed");

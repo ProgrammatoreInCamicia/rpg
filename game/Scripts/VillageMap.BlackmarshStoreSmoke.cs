@@ -60,9 +60,8 @@ public partial class VillageMap
 				"Losing sight of the shed kept its store selection.");
 			MoveTo(new GridPos(10, 5));
 			await UntilBlackmarshStoreIdle();
-			SliceRequire(_view.VisibleStores.Any(s => s.Id == shed) && _selectedStore is null
-				&& _storeTake.Disabled, "The old store selection was silently restored after sight returned.");
-			SelectStoreOption(1);
+			SliceRequire(_view.VisibleStores.Any(s => s.Id == shed) && _selectedStore == shed
+				&& !_storeTake.Disabled, "The sole visible store did not become usable when sight returned.");
 			MoveTo(BlackmarshWatchhouse.Ids.StoreAccess);
 			await UntilBlackmarshStoreIdle();
 			SliceRequire(_view.Position == BlackmarshWatchhouse.Ids.StoreAccess && _selectedStore == shed,

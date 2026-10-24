@@ -24,7 +24,7 @@ public partial class VillageMap
 		if (_selectedStore is { } previous && stores.All(s => s.Id != previous))
 		{
 			_selectedStore = null;
-			_storeSelectionSuppressed = true;
+			_storeSelectionSuppressed = false;
 		}
 		if (_selectedStore is null && !_storeSelectionSuppressed && stores.Length == 1)
 			_selectedStore = stores[0].Id;
@@ -69,7 +69,7 @@ public partial class VillageMap
 		if (_selectedStore is not { } selected || current.VisibleStores.All(s => s.Id != selected))
 		{
 			_selectedStore = null;
-			_storeSelectionSuppressed = true;
+			_storeSelectionSuppressed = false;
 			RefreshStoreControls(current.Map is not null && current.Position is not null);
 			ShowMessage("Seleziona un deposito visibile.");
 			return;
