@@ -1,6 +1,6 @@
 # ASTRA — seconda vertical slice: La rimessa della vedetta
 
-Analisi del **23 ottobre 2026**, repository a **`cca04bb`**. Documento di proposta. **Stato aggiornato:** Task 1 e 2 completati nella Sim; Task 3–6 completati nel client (esiti in fondo al documento); Task 7–10 non iniziati, nessun criterio umano certificato. La descrizione dell'analisi iniziale sotto resta storica.
+Analisi del **23 ottobre 2026**, repository a **`cca04bb`**. Documento di proposta. **Stato aggiornato:** Task 1 e 2 completati nella Sim; Task 3–7 completati nel client (esiti in fondo al documento); Task 8–10 non iniziati, nessun criterio umano certificato. La descrizione dell'analisi iniziale sotto resta storica.
 
 ## 1. Decisione
 
@@ -300,7 +300,7 @@ Stato Git iniziale: soltanto gli otto file `Body.*`/texture/import non tracciati
 
 ## Primo task consigliato
 
-**Prossimo task: Task 7, ingresso e conclusione della situazione.** I Task 1–6 hanno dimostrato il loop nella Sim, l'ingresso, la resa, il prelievo mirato e la rimessa attraversabile. Mancano istruzioni e conclusione comprensibili al giocatore; nessun criterio umano è certificato.
+**Prossimo task: Task 8, persistenza delle nuove conseguenze.** I Task 1–7 hanno aggiunto il loop nella Sim, la rimessa attraversabile e un ingresso/conclusione giocabili. Rimangono da verificare salvataggi durante azioni, aperture, esiti e retry; nessun criterio umano è certificato.
 
 ## Esito del Task 1 — 23 ottobre 2026
 
@@ -364,3 +364,12 @@ Completato senza regole Sim nuove: nessun controllo sugli ID Blackmarsh nel moto
 - Verifiche effettive: Sim **670/670**, build soluzione **0 avvisi/0 errori**, smoke OpenGL BLACKMARSH BUILDING/STORE/ENTRY, INTERIOR ART PILOT, SLICE GUIDE e VILLAGE completi; catture Blackmarsh e pilot esaminate, `git diff --check` pulito. Il Task 7 non è iniziato.
 - Limiti estetici osservati, non bloccanti: parte esterna alla pianta ancora grigia/nera, prima stanza volutamente scarna; la didascalia rossa del Vasan resta poco contrastata sul terreno scuro. Il click manuale a coordinate schermo e la durata umana non sono certificati dallo smoke.
 - Follow-up di review: tavolo grafico e smoke leggono `BlackmarshWatchhouse.Ids.Table`, eliminando la coordinata duplicata. Un comando senza deposito selezionato conserva la soppressione richiesta esplicitamente dal placeholder; solo la perdita di un bersaglio precedentemente valido la azzera. Smoke STORE ampliato con questo caso. Verifiche ripetute: build soluzione 0/0, BLACKMARSH STORE e BUILDING OpenGL OK. Nessun Task 7 avviato.
+
+## Esito del Task 7 e follow-up review Task 6 — 24 ottobre 2026
+
+- Introduzione Blackmarsh alle 19:57 in pausa: colloca sentiero e rimessa, ricorda la chiave nell'inventario e spiega i comandi essenziali senza rivelare il predone. Guida locale cambia quando la cassa è visibile e indirizza al suo lato d'accesso, al diario e al controllo di attesa/riepilogo. Il testo della prima slice resta invariato.
+- Blackmarsh usa il controllo già esistente di attesa interrompibile a cinque minuti e il riepilogo con tempo congelato. Il riepilogo è ricostruito da `PlayerView`: razioni possedute, osservazioni sulla rimessa, quantità nella cassa soltanto dall'accesso. Non legge il deposito Vasan, le assegnazioni NPC, `WorldView` o il log come fonte di verità. «Termina la prova» porta alla conclusione con «Continua a esplorare» e «Riprova»; gli handler di pausa/retry sono condivisi con la prima slice.
+- Follow-up della review Claude: etichetta dell'approdo, scarto camera e quota didascalia sono nel profilo di presentazione; riga ridondante di soppressione rimossa; altezza del pannello depositi ridotta. Cattura `recovered-conclusion.png` ricontrollata: la fascia sotto i pulsanti è ridotta, il pannello non invade la hotbar.
+- Nuovo smoke OpenGL `--blackmarsh-flow-smoke` a 1280×720: introduzione ferma, attesa avviata/interrotta, due attese entro cinque minuti ciascuna senza doppio clock; al checkpoint 20:07 il Vasan ha quattro razioni ma il protagonista sul sentiero non ha osservazioni e il riepilogo non le rivela. Secondo ramo dalla stessa sessione iniziale: porta con chiave, porta interna, accesso alla cassa, pulsante «Prendi 4 razioni» e riepilogo con protagonista a 14 e cassa a 0; tempo fermo anche dopo «Termina». «Continua» riprende; «Riprova» è disponibile e collegato all'handler già verificato dal Task 3. Catture `entry.png`, `unseen-conclusion.png`, `recovered-conclusion.png` ispezionate.
+- Verifiche effettive: Sim **670/670**, build soluzione **0 avvisi/0 errori**; smoke OpenGL BLACKMARSH FLOW/STORE/BUILDING/ENTRY, SLICE ENTRY/WAIT/SUMMARY/COMBAT/GUIDE e INTERIOR ART PILOT verdi. Lo smoke ENTRY è stato adeguato alla nuova introduzione; lo smoke BUILDING nasconde l'intro solo per lasciare libera la cattura artistica. Nessun Task 8 avviato.
+- Limiti dichiarati: il Task 7 testa la disponibilità di «Riprova» nella conclusione e riusa l'handler, ma i due retry reali dopo esiti e la persistenza di azioni/aperture sono del Task 8. Il playtest umano e il ramo di furto *osservato* nella prova composta restano ai Task 9–10; non sono marcati come verificati qui.

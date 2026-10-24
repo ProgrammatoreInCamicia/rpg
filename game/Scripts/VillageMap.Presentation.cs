@@ -15,7 +15,10 @@ public partial class VillageMap
 		IReadOnlyDictionary<LocationId, Func<GridPos, FloorLook>> Floors,
 		IReadOnlyDictionary<ActorId, Paladin3DPrototype.CharacterStyle> Actors,
 		GridPos? FloorAccent = null,
-		IReadOnlyList<PropLook>? Props = null);
+		IReadOnlyList<PropLook>? Props = null,
+		Vector2? CameraOffset = null,
+		float CaptionOffset = -58f,
+		IReadOnlyDictionary<LocationId, string>? NearbyLabels = null);
 
 	private PresentationProfile _presentation = null!;
 	private bool StyledInterior => _presentation.StyledInterior;
@@ -44,7 +47,12 @@ public partial class VillageMap
 				new Dictionary<ActorId, Paladin3DPrototype.CharacterStyle>
 				{
 					[BlackmarshWatchhouse.Ids.Raider] = Paladin3DPrototype.CharacterStyle.Raider,
-				}, Props: new[] { new PropLook("interior-table", BlackmarshWatchhouse.Ids.Table, 75f, Vector2.Zero) });
+				}, Props: new[] { new PropLook("interior-table", BlackmarshWatchhouse.Ids.Table, 75f, Vector2.Zero) },
+				CameraOffset: new Vector2(50f, 0f), CaptionOffset: -80f,
+				NearbyLabels: new Dictionary<LocationId, string>
+				{
+					[BlackmarshWatchhouse.Ids.Landing] = "Presso l'approdo",
+				});
 		if (entry == SceneEntry.InteriorArtPilot)
 			villageFloors[MappedVillageScenario.Ids.FarmerHouse] = cell => cell.X <= 8
 				? new FloorLook(HouseFloor, GroundMaterial.Flagstone, true)
@@ -72,4 +80,19 @@ public partial class VillageMap
 	private Paladin3DPrototype.CharacterStyle ActorStyle(ActorId id) =>
 		_presentation.Actors.TryGetValue(id, out var style)
 			? style : Paladin3DPrototype.CharacterStyle.Raider;
+
+	private string? NearbyPlaceLabel(GridPos position)
+	{
+		if (_presentation.NearbyLabels is null || _view.Map is not { } map) return null;
+		foreach (var cell in new[]
+		{
+			new GridPos(position.X + 1, position.Y), new GridPos(position.X - 1, position.Y),
+			new GridPos(position.X, position.Y + 1), new GridPos(position.X, position.Y - 1),
+		})
+			if (cell.X >= 0 && cell.Y >= 0 && cell.X < map.Width && cell.Y < map.Height
+				&& map.Zones.TryGetValue(map.Rows[cell.Y][cell.X], out var zone)
+				&& _presentation.NearbyLabels.TryGetValue(zone, out var label))
+				return label;
+		return null;
+	}
 }

@@ -66,11 +66,9 @@ public partial class VillageMap
 	{
 		// Revalidate at the moment of the command, including calls from old smoke helpers.
 		var current = _sim.GetPlayerView();
-		var hadSelection = _selectedStore is not null;
 		if (_selectedStore is not { } selected || current.VisibleStores.All(s => s.Id != selected))
 		{
 			_selectedStore = null;
-			if (hadSelection) _storeSelectionSuppressed = false;
 			RefreshStoreControls(current.Map is not null && current.Position is not null);
 			ShowMessage("Seleziona un deposito visibile.");
 			return;

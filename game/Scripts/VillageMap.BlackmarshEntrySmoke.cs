@@ -23,8 +23,8 @@ public partial class VillageMap
 				&& _view.Food == 10 && _view.Observations.Count == 0
 				&& _sim.Player == BlackmarshWatchhouse.Ids.Player
 				&& _sim.GetWorldView().Stores.Single(s => s.Id == BlackmarshWatchhouse.Ids.ShedStore).Food == 4
-				&& _sliceIntro is null && _queue.Count == 0 && _running is null,
-				"Blackmarsh did not open at the Task 1 state, paused and without slice UI.");
+				&& _sliceIntro is { Visible: true } && _queue.Count == 0 && _running is null,
+				"Blackmarsh did not open at the Task 1 state, paused with its introduction.");
 			SliceRequire(SavePath == BlackmarshSavePath && SavePath != VillageSavePath
 				&& SavePath != SliceSavePath && CanRetryScene,
 				"Blackmarsh save or retry is not separated from existing entries.");

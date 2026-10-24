@@ -19,6 +19,7 @@ public partial class VillageMap
 			SliceRequire(!tableArt.Visible && RoofVisibleForSmoke(table)
 				&& !_view.VisibleActors.Any(a => a.Id == BlackmarshWatchhouse.Ids.Raider),
 				"The exterior revealed the unseen room or Vasan.");
+			HideSliceIntro(); // Keep the art capture unobstructed; the entry smoke covers the introduction.
 			await SliceFrames(4);
 			CaptureBlackmarshBuilding(outputDir, "outside.png");
 

@@ -46,17 +46,21 @@ public partial class VillageMap
 		var content = new VBoxContainer();
 		content.AddThemeConstantOverride("separation", 8);
 		_sliceIntro.AddChild(content);
-		var title = new Label { Text = "Una sera al granaio" };
+		var title = new Label { Text = BlackmarshWatchhouseMode ? "La rimessa della vedetta" : "Una sera al granaio" };
 		title.AddThemeFontSizeOverride("font_size", 20);
 		content.AddChild(title);
 		content.AddChild(new Label
 		{
-			Text = "Le scorte del villaggio attirano i ladri. Raggiungi il granaio e osserva. Se scopri qualcosa, puoi raccontarlo alla guardia presso la locanda.",
+			Text = BlackmarshWatchhouseMode
+				? "Sei sul sentiero dell'isola. La rimessa a est custodisce quattro razioni d'emergenza: hai la chiave. Puoi recuperarle, osservare cosa succede oppure lasciarle dove sono."
+				: "Le scorte del villaggio attirano i ladri. Raggiungi il granaio e osserva. Se scopri qualcosa, puoi raccontarlo alla guardia presso la locanda.",
 			AutowrapMode = TextServer.AutowrapMode.WordSmart,
 		});
 		content.AddChild(new Label
 		{
-			Text = "Clic: cammina   ·   Spazio: pausa/riprendi   ·   X: fermati",
+			Text = BlackmarshWatchhouseMode
+				? "Clic: cammina/interagisci   ·   I: inventario   ·   Spazio: pausa   ·   X: fermati"
+				: "Clic: cammina   ·   Spazio: pausa/riprendi   ·   X: fermati",
 			AutowrapMode = TextServer.AutowrapMode.WordSmart,
 		});
 		_sliceBegin = new Button { Text = "Comincia", FocusMode = Control.FocusModeEnum.None,
@@ -67,7 +71,8 @@ public partial class VillageMap
 		_sliceBegin.Pressed += () => SetPaused(false);
 		content.AddChild(_sliceBegin);
 		BuildSliceWaitUi(ui);
-		BuildSliceGuidanceUi(ui);
+		if (BlackmarshWatchhouseMode) BuildBlackmarshGuidanceUi(ui);
+		else BuildSliceGuidanceUi(ui);
 	}
 
 	private void HideSliceIntro() => _sliceIntro?.Hide();
@@ -239,7 +244,7 @@ public partial class VillageMap
 
 	private bool ProcessSliceWaitFrame()
 	{
-		if (!PlayableSliceMode || !_sliceWaiting) return false;
+		if (!(PlayableSliceMode || BlackmarshWatchhouseMode) || !_sliceWaiting) return false;
 		if (_paused || _view.Combat is not null || _view.Dead || _view.Unconscious
 			|| _view.Action is not null || _view.Move is not null || _running is not null)
 		{

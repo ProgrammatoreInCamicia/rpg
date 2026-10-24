@@ -106,8 +106,9 @@ public partial class VillageMap
 		if (_sliceSummary is not { Visible: true } || _sliceSummaryTitle is null || _sliceSummaryText is null
 			|| _sliceSummaryContinue is null || _sliceSummaryEnd is null || _sliceSummaryQuit is null
 			|| _sliceSummaryRetry is null) return;
-		_sliceSummaryTitle.Text = _sliceEnded ? "Prova conclusa" : "Una sera al granaio";
-		_sliceSummaryText.Text = string.Join("\n", SliceSummaryLines());
+		_sliceSummaryTitle.Text = _sliceEnded ? "Prova conclusa"
+			: BlackmarshWatchhouseMode ? "La rimessa della vedetta" : "Una sera al granaio";
+		_sliceSummaryText.Text = string.Join("\n", BlackmarshWatchhouseMode ? BlackmarshSummaryLines() : SliceSummaryLines());
 		_sliceSummaryContinue.Text = _sliceEnded ? "Continua a esplorare" : "Continua";
 		_sliceSummaryEnd.Visible = !_sliceEnded;
 		_sliceSummaryQuit.Visible = _sliceEnded;
