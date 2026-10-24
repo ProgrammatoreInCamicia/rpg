@@ -102,6 +102,8 @@ public partial class VillageMap
 		await UntilBlackmarshStoreIdle();
 		SliceRequire(_view.Food == 14 && _sim.GetWorldView().Stores.Single(s => s.Id == BlackmarshWatchhouse.Ids.ShedStore).Food == 0,
 			"The player did not recover exactly four rations.");
+		SliceRequire(_blackmarshGuideText!.Text.Contains("La cassa è vuota", StringComparison.Ordinal),
+			"The player at the access did not learn that the recovered shed is empty.");
 		BlackmarshComposedTimes.Add($"recovered: {_view.Now}");
 		CaptureBlackmarshComposed(outputDir, "recovery.png");
 		MoveTo(BlackmarshWatchhouse.Ids.PlayerStart);
@@ -167,6 +169,12 @@ public partial class VillageMap
 		}
 		SliceRequire(_view.Observations.Any(o => o.Kind == "Theft" && o.Store == BlackmarshWatchhouse.Ids.ShedStore),
 			"The nearby player did not observe the raider's completed theft.");
+		SliceRequire(_view.VisibleStores.Any(s => s.Id == BlackmarshWatchhouse.Ids.ShedStore && s.Food == 0)
+			&& _view.Position is { } witness && !_view.VisibleStores.Single(s => s.Id == BlackmarshWatchhouse.Ids.ShedStore).Access.Contains(witness)
+			&& !_blackmarshGuideText!.Text.Contains("La cassa è vuota", StringComparison.Ordinal)
+			&& _blackmarshGuideText.Text.Contains("controlla le razioni", StringComparison.Ordinal),
+			"The guide disclosed the shed count through the window without an access or player take.");
+		AssertBlackmarshComposedFood();
 		BlackmarshComposedTimes.Add($"witnessed theft: {_view.Observations.First(o => o.Kind == "Theft" && o.Store == BlackmarshWatchhouse.Ids.ShedStore).ObservedAt}");
 		ConcludeBlackmarshComposed(10, observed: true);
 		SliceRequire(_sliceSummaryText!.Text.Contains("Sottrazione alle"),
