@@ -331,6 +331,7 @@ public partial class VillageMap : Node2D
 		{
 			if (_castingSpell is not null) { CancelCasting(); RefreshQuickbar(); }
 			else if (_attackArmed) { _attackArmed = false; RefreshAttackBars(); RefreshQuickbar(); }
+			else if (_storePanel.Visible) { _storeOpen = false; _storePanel.Visible = false; }
 			else if (!CloseHudOverlay()) ToggleGameMenu();
 			return;
 		}
@@ -704,6 +705,12 @@ public partial class VillageMap : Node2D
 	private void Order(string label, bool walk, Action run)
 	{
 		if (_sliceSummary is { Visible: true }) return;
+		if (walk && _running is not null && !_walking && _view.Action is { Kind: "TakeFood" or "DepositFood" } taking)
+		{
+			ShowMessage(taking.Kind == "TakeFood" ? "Stai prendendo le razioni: attendi la fine."
+				: "Stai consegnando le razioni: attendi la fine.");
+			return;
+		}
 		CancelSliceWait("Attesa interrotta.");
 		if (!_paused || _view.Combat is not null)
 		{
@@ -755,7 +762,12 @@ public partial class VillageMap : Node2D
 	private bool Walk(Command command)
 	{
 		if (_running is not null && !_walking)
-			return false; // busy with a fixed-length activity
+		{
+			ShowMessage(_view.Action?.Kind == "TakeFood" ? "Stai prendendo le razioni: attendi la fine."
+				: _view.Action?.Kind == "DepositFood" ? "Stai consegnando le razioni: attendi la fine."
+				: "Termina l'attività in corso prima di muoverti.");
+			return false;
+		}
 		_pendingBarrier = null;
 		_pendingStore = null;
 		var result = _sim.Execute(command);
@@ -943,6 +955,7 @@ public partial class VillageMap : Node2D
 		ResetHudLog();
 		_attackArmed = false;
 		_selectedStore = null;
+		_storeOpen = false;
 		_storeSelectionSuppressed = false;
 		_storeOptionsKey = "";
 		_blackmarshKnownShedFood = null;
@@ -996,6 +1009,7 @@ public partial class VillageMap : Node2D
 			_combatVisualTracks.Clear();
 		if (_view.Combat is not null)
 		{
+			_storeOpen = false;
 			_journalOpen = false;
 			_talkingTo = null;
 			_creaturePanel.Visible = false;
@@ -1031,6 +1045,7 @@ public partial class VillageMap : Node2D
 			: onMap ? "strada" : "in viaggio";
 		_status.Text = _view.Dead ? "Sei morto. Carica un salvataggio per riprovare."
 			: _view.Combat is { } combat ? $"Scontro · round {combat.Round}. " + (combat.IsYourTurn ? "È il tuo turno." : "Agiscono gli altri.")
+			: _view.Action is { Kind: "TakeFood" or "DepositFood" } storeAction ? StoreActivityStatus(storeAction, now)
 			: _view.Action is { Kind: "Rest" } rest ? (_paused ? "IN PAUSA · " : "")
 				+ $"{rest.Description} fino alle {rest.CompletesAt.Hour:00}:{rest.CompletesAt.Minute:00}."
 			: (_paused ? $"IN PAUSA — ordini in coda: {_queue.Count}. " : "")
@@ -1300,7 +1315,10 @@ public partial class VillageMap : Node2D
 			occupiedCaptions.Add(caption);
 		}
 		if (_tokens.TryGetValue(_view.Id, out var mine))
+		{
+			UpdateStoreActivityMarker(mine);
 			_camera.Position = _camera.Position.Lerp(CameraTarget(_smokeFocus is { } focus ? CellToScreen(focus) : mine.Position), 0.15f);
+		}
 	}
 
 	/// <summary>
@@ -1679,6 +1697,18 @@ public partial class VillageMap : Node2D
 			label.AddThemeColorOverride("font_outline_color", Colors.Black);
 			token.AddChild(label);
 		}
+		else
+		{
+			var progress = new ProgressBar { Name = "StoreProgress", Position = new Vector2(-62, -73),
+				CustomMinimumSize = new Vector2(124, 9), ShowPercentage = false, Visible = false };
+			token.AddChild(progress);
+			var caption = new Label { Name = "StoreProgressText", Position = new Vector2(-88, -98),
+				Size = new Vector2(176, 22), HorizontalAlignment = HorizontalAlignment.Center, Visible = false };
+			caption.AddThemeFontSizeOverride("font_size", 12);
+			caption.AddThemeConstantOverride("outline_size", 3);
+			caption.AddThemeColorOverride("font_outline_color", Colors.Black);
+			token.AddChild(caption);
+		}
 		return token;
 	}
 
@@ -1797,7 +1827,7 @@ public partial class VillageMap : Node2D
 		_restPanel.AddChild(restBox);
 		BuildRestUi(restBox);
 
-		_storePanel = HudPanel(-435, -66, -280, -215, bottomAnchored: true, rightAnchored: true);
+		_storePanel = HudPanel(-458, -28, 220, 450, rightAnchored: true);
 		_storePanel.Visible = false;
 		_storePanelStyle = new StyleBoxFlat { BgColor = new Color(0.08f, 0.09f, 0.11f, 0.95f),
 			BorderColor = new Color(0.45f, 0.35f, 0.22f), BorderWidthLeft = 2,
@@ -1805,24 +1835,37 @@ public partial class VillageMap : Node2D
 		_storePanel.AddThemeStyleboxOverride("panel", _storePanelStyle);
 		ui.AddChild(_storePanel);
 		_storeRow = new VBoxContainer();
-		_storeRow.AddThemeConstantOverride("separation", 6);
+		_storeRow.AddThemeConstantOverride("separation", 10);
 		_storePanel.AddChild(_storeRow);
+		var storeHeading = new HBoxContainer();
+		_storeRow.AddChild(storeHeading);
+		_storeTitle = new Label { Text = "Contenitore", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		_storeTitle.AddThemeFontSizeOverride("font_size", 19);
+		storeHeading.AddChild(_storeTitle);
+		var storeClose = new Button { Text = "×", TooltipText = "Chiudi il contenitore" };
+		storeClose.Pressed += () => { _storeOpen = false; _storePanel.Visible = false; };
+		storeHeading.AddChild(storeClose);
 		_storeChoice = new OptionButton();
 		_storeChoice.ItemSelected += SelectStoreOption;
 		_storeRow.AddChild(_storeChoice);
-		var storeActions = new HBoxContainer();
-		storeActions.AddThemeConstantOverride("separation", 6);
-		_storeRow.AddChild(storeActions);
+		_storeContents = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
+		_storeRow.AddChild(_storeContents);
+		_storeApproach = new Button { Text = "Avvicinati" };
+		_storeApproach.Pressed += ApproachSelectedStore;
+		_storeRow.AddChild(_storeApproach);
+		_storeActions = new HBoxContainer();
+		_storeActions.AddThemeConstantOverride("separation", 6);
+		_storeRow.AddChild(_storeActions);
 		_amount = new SpinBox { MinValue = 1, MaxValue = 99, Value = BlackmarshWatchhouseMode ? 4 : 1,
 			Step = 1, CustomMinimumSize = new Vector2(70, 0) };
 		_amount.ValueChanged += _ => RefreshStoreButtonText();
-		storeActions.AddChild(_amount);
+		_storeActions.AddChild(_amount);
 		_storeDeposit = new Button();
 		_storeDeposit.Pressed += () => Deposit((int)_amount.Value);
-		storeActions.AddChild(_storeDeposit);
+		_storeActions.AddChild(_storeDeposit);
 		_storeTake = new Button();
 		_storeTake.Pressed += () => Take((int)_amount.Value);
-		storeActions.AddChild(_storeTake);
+		_storeActions.AddChild(_storeTake);
 		RefreshStoreButtonText();
 
 		_peopleBackdrop = new Panel { OffsetLeft = 16, OffsetRight = 350,

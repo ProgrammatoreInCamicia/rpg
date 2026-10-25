@@ -172,7 +172,7 @@ public partial class VillageMap
 		SliceRequire(_view.VisibleStores.Any(s => s.Id == BlackmarshWatchhouse.Ids.ShedStore && s.Food == 0)
 			&& _view.Position is { } witness && !_view.VisibleStores.Single(s => s.Id == BlackmarshWatchhouse.Ids.ShedStore).Access.Contains(witness)
 			&& !_blackmarshGuideText!.Text.Contains("La cassa è vuota", StringComparison.Ordinal)
-			&& _blackmarshGuideText.Text.Contains("cliccala per andare all'accesso", StringComparison.Ordinal),
+			&& _blackmarshGuideText.Text.Contains("usa Avvicinati", StringComparison.Ordinal),
 			"The guide disclosed the shed count through the window without an access or player take.");
 		AssertBlackmarshComposedFood();
 		BlackmarshComposedTimes.Add($"witnessed theft: {_view.Observations.First(o => o.Kind == "Theft" && o.Store == BlackmarshWatchhouse.Ids.ShedStore).ObservedAt}");

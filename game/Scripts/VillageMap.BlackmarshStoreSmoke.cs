@@ -37,10 +37,10 @@ public partial class VillageMap
 			await UntilBlackmarshStoreIdle();
 			var shed = BlackmarshWatchhouse.Ids.ShedStore;
 			var cache = BlackmarshWatchhouse.Ids.VasanCache;
-			SliceRequire(_view.VisibleStores.Any(s => s.Id == shed) && _storePanel.Visible
+			SliceRequire(_view.VisibleStores.Any(s => s.Id == shed) && !_storePanel.Visible
 				&& _selectedStore == shed && _storeChoice.GetItemText(1).Contains("razioni")
 				&& _storeTake.Text == "Prendi 4 razioni",
-				"The shed is visible, but its store action does not target four rations.");
+				"The shed is visible, but the contextual panel opened before a click.");
 			SelectStoreOption(0);
 			SliceRequire(_selectedStore is null && _storeTake.Disabled,
 				"Clearing the selection left an active store command.");
@@ -48,13 +48,13 @@ public partial class VillageMap
 			SliceRequire(_selectedStore is null && _storeTake.Disabled && _running is null,
 				"An unselected command reactivated the only visible store.");
 			SelectStoreOption(1);
-			SliceRequire(_selectedStore == shed && !_storeTake.Disabled,
+			SliceRequire(_selectedStore == shed && _storeTake.Disabled,
 				"The visible shed store could not be selected again.");
 			_storeTake.EmitSignal(BaseButton.SignalName.Pressed);
 			SliceRequire(_running is null && _view.Food == 10
 				&& _sim.GetWorldView().Stores.Single(s => s.Id == shed).Food == 4
 				&& _sim.GetWorldView().Stores.Single(s => s.Id == cache).Food == 4
-				&& _message.Text.Contains("avvicinarsi", StringComparison.OrdinalIgnoreCase),
+				&& _message.Text.Contains("Avvicinati", StringComparison.OrdinalIgnoreCase),
 				"A distant UI click transferred food or silently started approaching.");
 			CaptureBlackmarshStore(outputDir, "too-far.png");
 			var storeCell = _view.VisibleStores.Single(s => s.Id == shed).Position!.Value;
@@ -64,18 +64,26 @@ public partial class VillageMap
 				"The visible chest or its name does not pick the shed store.");
 			_UnhandledInput(new InputEventMouseButton { Pressed = true, ButtonIndex = MouseButton.Left,
 				Position = GetGlobalTransformWithCanvas() * nameClick });
+			SliceRequire(_running is null && _storePanel.Visible && _storeApproach.Visible
+				&& !_storeActions.Visible && !_storeContents.Text.Contains('4'),
+				"Clicking the chest did not open a private, contextual panel.");
+			await SliceFrames(2);
+			CaptureBlackmarshStore(outputDir, "chest-from-afar.png");
+			_storeApproach.EmitSignal(BaseButton.SignalName.Pressed);
 			SliceRequire(_running is not null && _pendingStore == shed,
-				"Clicking the chest name did not begin an approach to its access.");
+				"Avvicinati did not begin an approach to the chest access.");
 			Stop();
 			SliceRequire(_running is null && !_walking && _pendingStore is null
 				&& _view.Position != BlackmarshWatchhouse.Ids.StoreAccess,
 				"Stop did not cancel the approach ordered by the chest click.");
 			_UnhandledInput(new InputEventMouseButton { Pressed = true, ButtonIndex = MouseButton.Left,
 				Position = GetGlobalTransformWithCanvas() * nameClick });
+			_storeApproach.EmitSignal(BaseButton.SignalName.Pressed);
 			await UntilBlackmarshStoreIdle();
 			SliceRequire(_view.Position == BlackmarshWatchhouse.Ids.StoreAccess
-				&& _selectedStore == shed && !_storeTake.Disabled && _message.Text.Contains("pannello evidenziato"),
-				"The chest click did not reach the access and reveal the store actions.");
+				&& _selectedStore == shed && !_storeTake.Disabled && _storeActions.Visible
+				&& _storeContents.Text.Contains("Contenuto: 4"),
+				$"The chest click did not reach the access and reveal the store actions: pos={_view.Position}, selected={_selectedStore}, actions={_storeActions.Visible}, contents={_storeContents.Text}, message={_message.Text}.");
 			CaptureBlackmarshStore(outputDir, "click-arrival.png");
 			MoveTo(new GridPos(5, 6));
 			await UntilBlackmarshStoreIdle();
@@ -84,15 +92,29 @@ public partial class VillageMap
 			MoveTo(new GridPos(10, 5));
 			await UntilBlackmarshStoreIdle();
 			SliceRequire(_view.VisibleStores.Any(s => s.Id == shed) && _selectedStore == shed
-				&& !_storeTake.Disabled, "The sole visible store did not become usable when sight returned.");
+				&& !_storePanel.Visible && _storeTake.Disabled, "The store reopened before a new click after losing sight.");
 			MoveTo(BlackmarshWatchhouse.Ids.StoreAccess);
 			await UntilBlackmarshStoreIdle();
 			SliceRequire(_view.Position == BlackmarshWatchhouse.Ids.StoreAccess && _selectedStore == shed,
 				"The access square did not retain the selected visible shed store.");
 			var accessSave = Path.Combine(outputDir, "access-session.json");
 			SaveGameToPath(accessSave);
+			ClickStore(shed);
 			_storeTake.EmitSignal(BaseButton.SignalName.Pressed);
-			SliceRequire(_running is not null, "The UI button did not start taking the four rations.");
+			SliceRequire(_running is not null && _view.Action?.Kind == "TakeFood"
+				&& _status.Text.Contains("rimanenti")
+				&& _tokens[_view.Id].GetNode<ProgressBar>("StoreProgress").Visible,
+				"The UI button did not show progress while taking four rations.");
+			await SliceFrames(2);
+			CaptureBlackmarshStore(outputDir, "taking-progress.png");
+			MoveTo(new GridPos(10, 5));
+			SliceRequire(_message.Text.Contains("attendi la fine") && _running is not null,
+				"A movement click during taking food looked frozen or replaced the action.");
+			SetPaused(true);
+			MoveTo(new GridPos(10, 5));
+			SliceRequire(_queue.Count == 0 && _message.Text.Contains("attendi la fine"),
+				"A paused movement click queued a hidden order during food taking.");
+			SetPaused(false);
 			await UntilBlackmarshStoreIdle();
 			SliceRequire(_view.Food == 14 && _sim.GetWorldView().Stores.Single(s => s.Id == shed).Food == 0
 				&& _sim.GetWorldView().Stores.Single(s => s.Id == cache).Food <= 4
@@ -103,7 +125,7 @@ public partial class VillageMap
 			LoadGameFromPath(accessSave);
 			await SliceFrames(2);
 			SliceRequire(_view.Position == BlackmarshWatchhouse.Ids.StoreAccess && _view.Food == 10
-				&& _selectedStore is null && _storePanel.Visible && _storeTake.Disabled
+				&& _selectedStore is null && !_storePanel.Visible && _storeTake.Disabled
 				&& _storeOptionIds.Contains(shed) && _storeOptionIds.Contains(cache),
 				$"Loading with two stores visible did not require a new selection: position={_view.Position}, food={_view.Food}, "
 				+ $"selected={_selectedStore}, panel={_storePanel.Visible}, disabled={_storeTake.Disabled}, "
@@ -115,7 +137,7 @@ public partial class VillageMap
 				&& _message.Text.Contains("Seleziona un deposito", StringComparison.Ordinal),
 				"An unselected command after load targeted one of the two visible stores.");
 			SelectStoreOption(_storeOptionIds.IndexOf(shed) + 1);
-			SliceRequire(_selectedStore == shed && !_storeTake.Disabled,
+			SliceRequire(_selectedStore == shed && _storePanel.Visible && !_storeTake.Disabled,
 				"The player could not select the shed instead of the visible Vasan cache.");
 			_amount.Value = 2;
 			_storeTake.EmitSignal(BaseButton.SignalName.Pressed);

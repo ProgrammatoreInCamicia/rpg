@@ -47,7 +47,7 @@ public partial class VillageMap
 			: store is not null && _blackmarshKnownShedFood == 0
 			? "All'ultimo controllo la cassa era vuota. Torna sul sentiero o apri il riepilogo."
 			: store is not null
-			? "Cassa in vista: cliccala per andare all'accesso; usa Prendi/Consegna nel pannello a destra."
+			? "Cassa in vista: cliccala, poi usa Avvicinati. All'arrivo puoi prendere o consegnare razioni."
 			: key ? "Rimessa a est: hai la chiave; clicca la porta per entrare."
 				: "Rimessa a est: controlla la chiave nell'inventario (I).";
 		_blackmarshGuideText.Text += "\nDiario: icona libro · Attesa e riepilogo: a destra.";

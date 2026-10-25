@@ -16,17 +16,24 @@ public partial class VillageMap
 	private Button _storeTake = null!;
 	private StoreId? _pendingStore;
 	private StyleBoxFlat _storePanelStyle = null!;
+	private bool _storeOpen;
+	private Label _storeTitle = null!;
+	private Label _storeContents = null!;
+	private Button _storeApproach = null!;
+	private HBoxContainer _storeActions = null!;
 
 	private void RefreshStoreControls(bool onMap)
 	{
 		var stores = onMap && _view.Combat is null && !_view.Dead
 			? _view.VisibleStores.Where(s => s.Position is not null).OrderBy(s => s.Name, StringComparer.Ordinal).ToArray()
 			: Array.Empty<StoreView>();
-		_storePanel.Visible = stores.Length > 0;
+		_storePanel.Visible = _storeOpen && stores.Length > 0;
 		if (_selectedStore is { } previous && stores.All(s => s.Id != previous))
 		{
 			_selectedStore = null;
 			_storeSelectionSuppressed = false;
+			_storeOpen = false;
+			_storePanel.Visible = false;
 		}
 		if (_selectedStore is null && !_storeSelectionSuppressed && stores.Length == 1)
 			_selectedStore = stores[0].Id;
@@ -45,10 +52,18 @@ public partial class VillageMap
 		}
 		var selectedIndex = _selectedStore is { } selected ? _storeOptionIds.IndexOf(selected) + 1 : 0;
 		_storeChoice.Select(selectedIndex);
-		_storeDeposit.Disabled = selectedIndex == 0;
-		_storeTake.Disabled = selectedIndex == 0;
-		_storePanelStyle.BorderColor = selectedIndex > 0 && _view.Position is { } at
-			&& stores[selectedIndex - 1].Access.Contains(at)
+		_storeChoice.Visible = stores.Length > 1;
+		var selectedStore = selectedIndex > 0 ? stores[selectedIndex - 1] : null;
+		var atAccess = selectedStore is not null && _view.Position is { } at && selectedStore.Access.Contains(at);
+		_storeTitle.Text = selectedStore?.Name ?? "Contenitore";
+		_storeContents.Text = selectedStore is null ? "Seleziona un contenitore."
+			: atAccess ? $"Contenuto: {(selectedStore.Contents.Count == 0 ? $"{selectedStore.Food} razioni" : string.Join(", ", selectedStore.Contents.Select(item => $"{item.Count} {item.Name}")))}\nNello zaino: {_view.Food} razioni"
+			: "Avvicinati per vedere il contenuto.";
+		_storeApproach.Visible = selectedStore is not null && !atAccess;
+		_storeActions.Visible = atAccess;
+		_storeDeposit.Disabled = !atAccess || _running is not null;
+		_storeTake.Disabled = !atAccess || _running is not null;
+		_storePanelStyle.BorderColor = atAccess
 			? new Color(0.93f, 0.71f, 0.32f) : new Color(0.45f, 0.35f, 0.22f);
 	}
 
@@ -68,7 +83,7 @@ public partial class VillageMap
 			|| label.GetRect().HasPoint(local);
 	}
 
-	internal void ClickStore(StoreId id) => Order("vai alla cassa", walk: true, () =>
+	internal void ClickStore(StoreId id)
 	{
 		if (_view.VisibleStores.FirstOrDefault(store => store.Id == id) is not { Position: { } } store)
 		{
@@ -77,12 +92,19 @@ public partial class VillageMap
 		}
 		_selectedStore = id;
 		_storeSelectionSuppressed = false;
+		_storeOpen = true;
 		RefreshStoreControls(onMap: true);
 		if (_view.Position is { } here && store.Access.Contains(here))
 		{
-			ShowMessage($"{store.Name}: usa Prendi o Consegna nel pannello evidenziato in basso a destra.");
 			return;
 		}
+		ShowMessage($"{store.Name}: avvicinati per vedere il contenuto.");
+	}
+
+	private void ApproachSelectedStore() => Order("vai alla cassa", walk: true, () =>
+	{
+		if (_selectedStore is not { } id || _view.VisibleStores.FirstOrDefault(s => s.Id == id) is not { } store)
+			return;
 		var access = store.Access
 			.Select(cell => (Cell: cell, Route: _sim.PreviewMoveToSpot(_sim.Player, Spot.CenterOf(cell), _sneak)))
 			.Where(option => option.Route.Valid)
@@ -99,7 +121,7 @@ public partial class VillageMap
 			_approaching = null;
 			_exitAfterWalking = null;
 			_pendingStore = id;
-			ShowMessage($"Vai alla cassa. All'arrivo usa Prendi o Consegna nel pannello in basso a destra.");
+			ShowMessage($"Vai a {store.Name}. Il contenuto apparirà quando sarai vicino.");
 		}
 	});
 
@@ -113,8 +135,9 @@ public partial class VillageMap
 		}
 		_selectedStore = id;
 		_storeSelectionSuppressed = false;
+		_storeOpen = true;
 		RefreshStoreControls(onMap: true);
-		ShowMessage($"{store.Name}: usa Prendi o Consegna nel pannello evidenziato in basso a destra.");
+		ShowMessage($"Sei vicino a {store.Name}. Puoi prendere o consegnare razioni.");
 	}
 
 	private void SelectStoreOption(long option)
@@ -122,6 +145,7 @@ public partial class VillageMap
 		_selectedStore = option > 0 && option <= _storeOptionIds.Count
 			? _storeOptionIds[(int)option - 1] : null;
 		_storeSelectionSuppressed = _selectedStore is null;
+		_storeOpen = _selectedStore is not null;
 		RefreshStoreControls(_view.Map is not null && _view.Position is not null);
 	}
 
@@ -130,6 +154,32 @@ public partial class VillageMap
 		var amount = (int)_amount.Value;
 		_storeDeposit.Text = $"Consegna {amount} razioni";
 		_storeTake.Text = $"Prendi {amount} razioni";
+	}
+
+	private static string StoreActivityStatus(ActionView action, GameTime now)
+	{
+		var remaining = Math.Max(0L, (action.CompletesAt.Since(now).Ticks + GameTime.TicksPerSecond - 1) / GameTime.TicksPerSecond);
+		var verb = action.Kind == "TakeFood" ? "Prendi le razioni" : "Consegni le razioni";
+		return $"{verb} · {remaining / 60}:{remaining % 60:00} di gioco rimanenti.";
+	}
+
+	private void UpdateStoreActivityMarker(Node2D token)
+	{
+		var progress = token.GetNode<ProgressBar>("StoreProgress");
+		var caption = token.GetNode<Label>("StoreProgressText");
+		if (_view.Action is not { Kind: "TakeFood" or "DepositFood" } action)
+		{
+			progress.Visible = false;
+			caption.Visible = false;
+			return;
+		}
+		var total = Math.Max(1L, action.CompletesAt.Since(action.StartedAt).Ticks);
+		var elapsed = Math.Clamp(_view.Now.Since(action.StartedAt).Ticks, 0L, total);
+		progress.Value = 100.0 * elapsed / total;
+		progress.Visible = true;
+		var remaining = Math.Max(0L, (action.CompletesAt.Since(_view.Now).Ticks + GameTime.TicksPerSecond - 1) / GameTime.TicksPerSecond);
+		caption.Text = $"{(action.Kind == "TakeFood" ? "Prendi" : "Consegni")} · {remaining / 60}:{remaining % 60:00}";
+		caption.Visible = true;
 	}
 
 	private void UseSelectedStore(int amount, bool take)
@@ -141,6 +191,11 @@ public partial class VillageMap
 			_selectedStore = null;
 			RefreshStoreControls(current.Map is not null && current.Position is not null);
 			ShowMessage("Seleziona un deposito visibile.");
+			return;
+		}
+		if (current.Position is not { } at || !current.VisibleStores.Single(s => s.Id == selected).Access.Contains(at))
+		{
+			ShowMessage("Avvicinati alla cassa prima di usarla.");
 			return;
 		}
 		if (take)
