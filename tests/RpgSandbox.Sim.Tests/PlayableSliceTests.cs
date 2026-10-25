@@ -201,21 +201,32 @@ public class PlayableSliceTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Player_overlapped_by_the_raider_at_the_access_can_step_away_but_not_through_him()
+    public void A_raider_who_finds_the_player_on_the_access_sizes_him_up_instead_of_stepping_onto_him()
     {
         var session = PlayableSlice.CreateSession();
         Walk(session, GranaryAccess);
+        AdvanceUntil(session, () => session.GetWorldView().RecentFacts.Any(f => f.Kind == "SizedUp"), At(1, 19, 40));
+
+        var player = session.GetPlayerView().Spot!.Value;
+        var raider = session.GetWorldView().Actor(Raider);
+        Assert.NotEqual(GranaryAccess, raider.Position);
+        Assert.NotEqual("TakeFood", raider.Action?.Kind);
+        if (session.GetPlayerView().VisibleActors.SingleOrDefault(a => a.Id == Raider)?.Spot is { } seen)
+            Assert.True(player.DistanceTo(seen) >= 36, $"The raider overlaps the player: player {player}, raider {seen}.");
+    }
+
+    [Fact]
+    public void Player_next_to_the_raider_can_step_away_but_not_through_him()
+    {
+        var session = PlayableSlice.CreateSession();
+        Walk(session, new GridPos(16, 6));
         AdvanceUntil(session, () => session.GetWorldView().Actor(Raider).Action?.Kind == "TakeFood", At(1, 19, 33));
-        var start = session.GetPlayerView().Spot!.Value;
         var raider = session.GetPlayerView().VisibleActors.Single(a => a.Id == Raider).Spot!.Value;
-        Assert.True(start.DistanceTo(raider) < 36, $"Expected an overlap: player {start}, raider {raider}.");
 
         Assert.True(session.PreviewMoveToSpot(session.Player, Spot.CenterOf(new GridPos(16, 7))).Valid); // away
         Assert.False(session.PreviewMoveToSpot(session.Player, raider).Valid); // onto him
-        Walk(session, new GridPos(16, 6));
         var beyond = session.PreviewMoveToSpot(session.Player, Spot.CenterOf(new GridPos(16, 4)));
         Assert.True(beyond.Valid, beyond.Message);
-        Assert.True(beyond.Way.Count > 2, "A straight path to the far side would pass through the raider.");
         Assert.All(beyond.Way.Zip(beyond.Way.Skip(1)), segment =>
             Assert.True(DistanceToSegment(raider, segment.First, segment.Second) >= 36,
                 $"The route crosses the raider between {segment.First} and {segment.Second}."));

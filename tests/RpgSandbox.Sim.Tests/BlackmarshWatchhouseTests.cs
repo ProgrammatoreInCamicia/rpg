@@ -184,6 +184,105 @@ public class BlackmarshWatchhouseTests(ITestOutputHelper output)
         Assert.DoesNotContain(view.ReportOptions, o => o.Recipient == Raider);
     }
 
+    // Task 10 playtest: the raider reached the chest while the player was taking from it, stood on the same square and
+    // went on "stealing" for minutes from a chest already emptied. Now it sizes up whoever holds the store.
+
+    [Fact]
+    public void A_raider_who_finds_an_unhurt_player_holding_the_chest_sizes_him_up_and_gives_up()
+    {
+        var session = TakingWhenTheRaidStarts();
+
+        var trail = Follow(session, At(1, 20, 10));
+
+        Assert.DoesNotContain(trail, t => t.Position == StoreAccess);
+        var world = session.GetWorldView();
+        Assert.Contains(world.RecentFacts, f => f.Kind == "Roll" && f.Description.Contains("Intuizione"));
+        Assert.Contains(world.RecentFacts, f => f.Kind == "SizedUp");
+        Assert.Contains(world.RecentFacts, f => f.Kind == "RaidDeterred");
+        Assert.DoesNotContain(world.RecentFacts, f => f.Kind == "CombatStarted");
+        Assert.Equal(14, world.Actor(Player).Food); // the take went on undisturbed
+        Assert.Equal(0, world.Actor(Raider).Food);
+        session.AdvanceTo(Checkpoint);
+        Assert.Contains(session.GetWorldView().RecentFacts, f => f.Kind == "RaidAborted");
+        Assert.Null(session.GetWorldView().Actor(Raider).Assignment);
+        AssertFoodConserved(session);
+    }
+
+    [Fact]
+    public void A_raider_attacks_a_battered_holder_it_expects_to_beat()
+    {
+        var session = TakingWhenTheRaidStarts();
+        session.Engine.World.Actors[Player].Vitality.TakeDamage(8); // 3 Hit Points left: it looks, and is, battered
+
+        var trail = new List<Step>();
+        while (session.GetPlayerView().Combat is null && session.Now < At(1, 20, 3)) // in a fight time waits for the player
+            trail.AddRange(Follow(session, session.Now.Plus(Duration.FromTicks(GameTime.TicksPerSecond))));
+
+        Assert.DoesNotContain(trail, t => t.Position == StoreAccess);
+        Assert.Contains(session.GetWorldView().RecentFacts, f => f.Kind == "SizedUp");
+        Assert.Contains(session.GetWorldView().RecentFacts, f => f.Kind == "CombatStarted");
+        var view = session.GetPlayerView();
+        Assert.NotNull(view.Combat);
+        Assert.NotEqual("TakeFood", view.Action?.Kind); // the fight stopped the take: nothing taken yet
+        Assert.Equal(10, view.Food);
+        Assert.Equal(4, session.GetWorldView().Store(ShedStore).Food);
+    }
+
+    [Fact]
+    public void Who_is_taking_from_a_chest_emptied_under_him_stops_at_once()
+    {
+        // The raider cannot see an invisible player: it is not sized up, and the raider ends up taking beside him.
+        var session = TakingWhenTheRaidStarts(invisible: true);
+
+        Follow(session, At(1, 20, 5));
+
+        var world = session.GetWorldView();
+        var emptied = world.RecentFacts.Single(f => f.Kind == "FoodTaken").At;
+        var failed = world.RecentFacts.Single(f => f.Kind == "FoodTakeFailed");
+        Assert.Equal(emptied, failed.At); // not minutes later
+        Assert.DoesNotContain(world.RecentFacts, f => f.Kind == "SizedUp");
+        Assert.Equal(14, world.Actor(Player).Food);
+        Assert.Equal(0, world.Actor(Raider).Food);
+        Assert.NotEqual("TakeFood", world.Actor(Raider).Action?.Kind);
+    }
+
+    [Fact]
+    public void Sizing_up_is_kept_across_save_and_reload()
+    {
+        var continuous = TakingWhenTheRaidStarts();
+        var reloaded = TakingWhenTheRaidStarts();
+        AdvanceUntilFact(reloaded, "SizedUp", At(1, 20, 5));
+        reloaded = reloaded.SaveAndReload();
+
+        continuous.AdvanceTo(Checkpoint);
+        reloaded.AdvanceTo(Checkpoint);
+        Assert.Equal(continuous.SaveToString(), reloaded.SaveToString());
+    }
+
+    /// <summary>The player at the chest, starting to take at 19:58:10: the raid sets off at 20:00 and arrives during the take.</summary>
+    private static SimulationSession TakingWhenTheRaidStarts(bool invisible = false)
+    {
+        var session = BlackmarshWatchhouse.CreateSession();
+        Walk(session, new GridPos(5, 6));
+        Do(session, new DoorCommand { Actor = session.Player, At = ShedDoor, Open = true });
+        Walk(session, new GridPos(8, 6));
+        Do(session, new DoorCommand { Actor = session.Player, At = InnerDoor, Open = true });
+        Walk(session, StoreAccess);
+        if (invisible)
+            session.Engine.AddCondition(null, session.Engine.World.Actors[Player], ConditionKind.Invisible);
+        session.AdvanceTo(At(1, 19, 58).Plus(Duration.FromTicks(10 * GameTime.TicksPerSecond)));
+        var take = session.Execute(new TakeFoodCommand { Actor = session.Player, Store = ShedStore, Amount = 4 });
+        Assert.True(take.Success, take.Message);
+        return session;
+    }
+
+    private static void AdvanceUntilFact(SimulationSession session, string kind, GameTime deadline)
+    {
+        while (session.Now < deadline && session.GetWorldView().RecentFacts.All(f => f.Kind != kind))
+            session.Advance(Duration.FromTicks(GameTime.TicksPerSecond));
+        Assert.Contains(session.GetWorldView().RecentFacts, f => f.Kind == kind);
+    }
+
     /// <summary>From the path: unlock and open the shed, open the inner door, take the four rations.</summary>
     private static void Recover(SimulationSession session)
     {

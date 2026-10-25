@@ -291,6 +291,11 @@ internal sealed partial class Simulation
             CancelAction(actor);
             return;
         }
+        if (StopsShortOfStore(actor, move, waypoint.Step))
+        {
+            CancelAction(actor);
+            return;
+        }
         if (map.ClosedDoorBetween(move.Path[waypoint.Step - 1], move.Path[waypoint.Step]) is { } nextDoor)
             OpenDoorOnTheWay(actor, map, nextDoor, move, crossingTo: waypoint.Step);
     }
@@ -421,4 +426,27 @@ internal sealed partial class Simulation
 
     /// <summary>A diagonal interaction cannot pass through the corner of two blocked squares.</summary>
     private static bool OpenDiagonal(GridMap map, GridPos from, GridPos to) => map.DiagonalOpen(from, to);
+
+    /// <summary>
+    /// Task 10: a raider on its way to the store stops to decide when it sees someone hostile holding it (it has not sized
+    /// anyone up yet), and never walks onto the square where its walk ends while someone stands there: it stops on the one
+    /// before. If it had not seen who stands there, it is startled.
+    /// </summary>
+    private bool StopsShortOfStore(Actor actor, MoveAction move, int step)
+    {
+        if (actor.IsPlayer)
+            return false;
+        if (actor.Assignment is { Verdict: null, Aborted: false, TakeAttempted: false } raid
+            && RivalsAtStore(actor, World.Stores[raid.Target]).Count > 0)
+            return true;
+        if (actor.Assignment is not { } walking || step != move.Path.Count - 1)
+            return false;
+        var occupant = World.Actors.Values.FirstOrDefault(o => o.Id != actor.Id && o.MapArea == actor.MapArea
+                                                                && CurrentPosition(o) == move.Path[^1]);
+        if (occupant is null)
+            return false;
+        if (!SeesActor(actor, occupant))
+            walking.Startled = true;
+        return true;
+    }
 }

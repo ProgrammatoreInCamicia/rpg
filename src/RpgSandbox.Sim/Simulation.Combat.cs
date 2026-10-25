@@ -177,9 +177,13 @@ internal sealed partial class Simulation
         target.FoughtWith.Add(actor.Id);
 
         // SRD Initiative: a Dexterity check each; the surprised one rolls with Disadvantage.
+        // Task 10: a raider that walked into someone it had not seen is the one taken by surprise if it attacks at once.
+        var startled = actor.Assignment is { Startled: true };
+        if (startled)
+            actor.Assignment!.Startled = false;
         var rolls = new[]
         {
-            InitiativeRoll(actor, surprised: false),
+            InitiativeRoll(actor, surprised: startled),
             InitiativeRoll(target, surprised: !expects),
         };
         var e = new Encounter { Id = World.NextEncounterId++, Area = actor.MapArea!.Value, RoundStart = World.Now };

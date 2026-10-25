@@ -493,6 +493,13 @@ internal sealed class RaidAssignment
 
     /// <summary>P5a: it gave up because a door or window would not give way (not because of a guard).</summary>
     public bool Balked { get; set; }
+
+    /// <summary>Task 10: what it made of whoever it found at the store (true: a fight it expects to win; false: it gave up).
+    /// Null until then: it sizes up once per raid.</summary>
+    public bool? Verdict { get; set; }
+
+    /// <summary>Task 10: it walked into someone it had not seen at the store; if it attacks now, it is the one surprised.</summary>
+    public bool Startled { get; set; }
 }
 
 /// <summary>Why an NPC or a faction did what it did: rule, reason and the data it read.</summary>

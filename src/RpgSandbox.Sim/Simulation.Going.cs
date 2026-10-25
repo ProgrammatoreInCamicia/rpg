@@ -142,10 +142,12 @@ internal sealed partial class Simulation
         if (store.Position is not null && npc.MapArea == area && CurrentPosition(npc) is { } from)
         {
             var map = World.Maps[area];
+            // Task 10: a square where it sees someone standing comes last.
+            bool Taken(GridPos s) => World.Actors.Values.Any(o => o.Id != npc.Id && o.MapArea == area && CurrentPosition(o) == s && SeesActor(npc, o));
             var square = UseSquares(store, map)
                 .Select(s => (Square: s, Path: map.FindPath(from, s, opens: Opens(npc, map))))
                 .Where(c => c.Path is not null)
-                .OrderBy(c => c.Path!.Count).ThenBy(c => c.Square.Y).ThenBy(c => c.Square.X)
+                .OrderBy(c => Taken(c.Square)).ThenBy(c => c.Path!.Count).ThenBy(c => c.Square.Y).ThenBy(c => c.Square.X)
                 .Select(c => (GridPos?)c.Square)
                 .FirstOrDefault();
             return square is { } s2 ? new MoveCommand { Actor = npc.Id, To = s2, Stealthy = stealthy } : null;

@@ -370,6 +370,8 @@ internal sealed partial class Simulation
 
         store.Food -= taken;
         actor.Food += taken;
+        if (store.Food == 0)
+            StopTakingFromEmpty(store, actor);
         if (!theft)
         {
             World.RecordFact("FoodTaken", $"{actor.Name} prende {taken} razioni da {store.Name} (restano {store.Food}).", actor.Id);
@@ -378,6 +380,22 @@ internal sealed partial class Simulation
 
         var fact = World.RecordFact("FoodStolen", $"{actor.Name} ruba {taken} razioni da {store.Name} (restano {store.Food}).", actor.Id);
         PerceiveTheft(actor, take, store, taken, fact);
+    }
+
+    /// <summary>
+    /// Task 10: whoever else was taking from a store just emptied sees it empty at once and stops, rather than going on for
+    /// minutes in front of nothing. It counts as its attempt.
+    /// </summary>
+    private void StopTakingFromEmpty(Store store, Actor taker)
+    {
+        foreach (var other in World.Actors.Values.Where(a => a.Id != taker.Id && a.CurrentAction is TakeFoodAction t && t.Store == store.Id)
+                     .OrderBy(a => a.Id.Value, StringComparer.Ordinal).ToList())
+        {
+            CancelAction(other);
+            if (other.Assignment is { } assignment && assignment.Target == store.Id)
+                assignment.TakeAttempted = true;
+            World.RecordFact("FoodTakeFailed", $"{other.Name} non trova razioni da prendere in {store.Name}.", other.Id);
+        }
     }
 
     /// <summary>

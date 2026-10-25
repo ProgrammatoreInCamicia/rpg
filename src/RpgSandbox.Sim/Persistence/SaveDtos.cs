@@ -194,6 +194,10 @@ internal sealed class RaidAssignmentDto
     public PosDto? BreakInB { get; set; }
     public int BreakInTries { get; set; }
     public bool Balked { get; set; }
+
+    /// <summary>Schema 43 (Task 10): what it made of whoever held the store, and whether it walked into someone unseen.</summary>
+    public bool? Verdict { get; set; }
+    public bool Startled { get; set; }
 }
 
 internal sealed class DecisionDto

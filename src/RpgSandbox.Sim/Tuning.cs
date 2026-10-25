@@ -48,4 +48,13 @@ internal static class Tuning
 
     /// <summary>How long a raiding faction avoids a target its member found guarded.</summary>
     public static readonly Duration AvoidGuardedTarget = Duration.FromHours(24);
+
+    /// <summary>Task 10, ADAPTATION: the Wisdom (Insight) DC to read someone for what they are worth in a fight, not for how they look.</summary>
+    public const int SizeUpDc = 12;
+
+    /// <summary>Task 10, ADAPTATION: what a raider takes for granted of someone it only judges by the look: the Hit Points of an
+    /// unhurt fighter, its attack bonus and the bonus on its weapon's damage.</summary>
+    public const int SizeUpLooksHitPoints = 11;
+    public const int SizeUpLooksAttackBonus = 4;
+    public const int SizeUpLooksDamageBonus = 2;
 }

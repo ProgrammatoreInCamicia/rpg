@@ -111,6 +111,34 @@ internal sealed partial class Simulation
             return Rest("Aspetta il buio", $"Razzia a {target.Name}: parte quando fa buio.", npc, "Aspetta il buio",
                 NextTimeOfDay(Tuning.RaidAfterDark));
 
+        // Task 10: whoever it finds holding the store it sizes up once; it fights them if it expects to win, or gives up.
+        var rivals = RivalsAtStore(npc, target);
+        if (rivals.Count == 0)
+            raid.Startled = false; // walked into someone it still cannot see: nothing to be startled into
+        if (raid.Verdict is null && rivals.Count > 0)
+        {
+            raid.Verdict = SizeUp(npc, rivals, inputs);
+            if (raid.Verdict == false)
+            {
+                raid.Aborted = true;
+                raid.Startled = false;
+                World.RecordFact("RaidDeterred", $"{npc.Name} trova {string.Join(", ", rivals.Select(r => r.Name))} presso {target.Name} e desiste.",
+                    rivals.Select(r => r.Id).Prepend(npc.Id).ToArray());
+                return GoHome("Desisti", $"Non se la sente di affrontare chi tiene {target.Name}: torna al campo.");
+            }
+        }
+        if (raid.Verdict == true && rivals.Count > 0 && ProfileOf(npc).Attacks.FirstOrDefault(a => a.Melee) is { } blade)
+        {
+            var foe = rivals.OrderBy(r => CurrentPosition(npc)!.Value.StepsTo(CurrentPosition(r)!.Value))
+                .ThenBy(r => r.Id.Value, StringComparer.Ordinal).First();
+            inputs.Add($"Ha deciso di affrontare {foe.Name}");
+            if (CanTalk(npc, foe))
+                return Do("Affronta chi presidia", $"Si prende {target.Name} con la forza: attacca {foe.Name}.",
+                    new AttackCommand { Actor = npc.Id, Target = foe.Id, Attack = blade.Name });
+            if (StepNextTo(npc, foe) is { } approach)
+                return new Plan("Affronta chi presidia", $"Va verso {foe.Name} per attaccarlo.", () => Execute(approach));
+        }
+
         if (!InReach(npc, target))
         {
             // P5a: with no way on foot to the store on this map, through the doors and windows that hold.
