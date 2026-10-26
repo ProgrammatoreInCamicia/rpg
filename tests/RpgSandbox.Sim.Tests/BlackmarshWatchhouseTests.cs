@@ -229,21 +229,45 @@ public class BlackmarshWatchhouseTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void Who_is_taking_from_a_chest_emptied_under_him_stops_at_once()
+    public void A_raider_who_walks_into_an_unseen_holder_feels_them_there_and_sizes_them_up()
     {
-        // The raider cannot see an invisible player: it is not sized up, and the raider ends up taking beside him.
-        var session = TakingWhenTheRaidStarts(invisible: true);
+        // Invisible by other means than hiding: it stays so, but the raider knows a body holds the chest.
+        var session = TakingWhenTheRaidStarts(unseen: Unseen.Invisible);
 
-        Follow(session, At(1, 20, 5));
+        var trail = Follow(session, At(1, 20, 10));
 
+        Assert.DoesNotContain(trail, t => t.Position == StoreAccess);
         var world = session.GetWorldView();
-        var emptied = world.RecentFacts.Single(f => f.Kind == "FoodTaken").At;
-        var failed = world.RecentFacts.Single(f => f.Kind == "FoodTakeFailed");
-        Assert.Equal(emptied, failed.At); // not minutes later
-        Assert.DoesNotContain(world.RecentFacts, f => f.Kind == "SizedUp");
+        Assert.Contains(world.RecentFacts, f => f.Kind == "SizedUp");
+        Assert.Contains(world.RecentFacts, f => f.Kind == "RaidDeterred");
+        Assert.DoesNotContain(world.RecentFacts, f => f.Kind == "CombatStarted");
+        Assert.Contains(session.Engine.World.Actors[Player].Conditions, c => c.Kind == ConditionKind.Invisible);
         Assert.Equal(14, world.Actor(Player).Food);
         Assert.Equal(0, world.Actor(Raider).Food);
-        Assert.NotEqual("TakeFood", world.Actor(Raider).Action?.Kind);
+    }
+
+    [Fact]
+    public void A_raider_who_walks_into_a_hidden_holder_finds_them_and_is_the_one_surprised()
+    {
+        var session = TakingWhenTheRaidStarts(unseen: Unseen.Hidden);
+        session.Engine.World.Actors[Player].Vitality.TakeDamage(8); // battered: it will attack
+
+        var trail = new List<Step>();
+        while (session.GetPlayerView().Combat is null && session.Now < At(1, 20, 5)) // in a fight time waits for the player
+            trail.AddRange(Follow(session, session.Now.Plus(Duration.FromTicks(GameTime.TicksPerSecond))));
+
+        Assert.DoesNotContain(trail, t => t.Position == StoreAccess);
+        var player = session.Engine.World.Actors[Player];
+        Assert.Null(player.Sneak); // walked into: found (SRD Hide)
+        Assert.DoesNotContain(player.Conditions, c => c.Kind == ConditionKind.Invisible);
+        Assert.Contains(session.GetWorldView().RecentFacts, f => f.Kind == "SizedUp");
+        var combat = session.GetPlayerView().Combat;
+        Assert.NotNull(combat);
+        var initiative = session.Engine.World.Encounters.Values.Single().Log
+            .Single(l => l.Kind == CombatLogKind.Initiative && l.Actor == Raider); // its dice the player does not see
+        Assert.Equal(2, initiative.D20.Count); // Disadvantage: the one surprised
+        Assert.Equal(initiative.D20.Min(), initiative.Kept);
+        Assert.False(session.Engine.World.Actors[Raider].Assignment!.Startled);
     }
 
     [Fact]
@@ -259,8 +283,10 @@ public class BlackmarshWatchhouseTests(ITestOutputHelper output)
         Assert.Equal(continuous.SaveToString(), reloaded.SaveToString());
     }
 
+    private enum Unseen { No, Invisible, Hidden }
+
     /// <summary>The player at the chest, starting to take at 19:58:10: the raid sets off at 20:00 and arrives during the take.</summary>
-    private static SimulationSession TakingWhenTheRaidStarts(bool invisible = false)
+    private static SimulationSession TakingWhenTheRaidStarts(Unseen unseen = Unseen.No)
     {
         var session = BlackmarshWatchhouse.CreateSession();
         Walk(session, new GridPos(5, 6));
@@ -268,11 +294,17 @@ public class BlackmarshWatchhouseTests(ITestOutputHelper output)
         Walk(session, new GridPos(8, 6));
         Do(session, new DoorCommand { Actor = session.Player, At = InnerDoor, Open = true });
         Walk(session, StoreAccess);
-        if (invisible)
-            session.Engine.AddCondition(null, session.Engine.World.Actors[Player], ConditionKind.Invisible);
+        var player = session.Engine.World.Actors[Player];
+        if (unseen == Unseen.Invisible)
+            session.Engine.AddCondition(null, player, ConditionKind.Invisible);
         session.AdvanceTo(At(1, 19, 58).Plus(Duration.FromTicks(10 * GameTime.TicksPerSecond)));
         var take = session.Execute(new TakeFoodCommand { Actor = session.Player, Store = ShedStore, Amount = 4 });
         Assert.True(take.Success, take.Message);
+        if (unseen == Unseen.Hidden) // as a Hide that succeeded (SRD): its Stealth total stands as the DC to find it
+        {
+            player.Sneak = 25;
+            session.Engine.AddCondition(null, player, ConditionKind.Invisible, player);
+        }
         return session;
     }
 

@@ -141,6 +141,28 @@ public class RaidTests
         Assert.Equal(single.SaveToString(), byMinute.SaveToString());
     }
 
+    [Fact]
+    public void Who_is_taking_from_a_store_emptied_under_them_stops_at_once()
+    {
+        // Task 10: the raider empties the granary while the player is still taking from it.
+        var s = SimulationSession.Create(SmallWorld(granaryFood: 8));
+        s.AdvanceTo(At(1, 9, 31));
+        Assert.Equal("TakeFood", s.GetWorldView().Actor(Raider).Action?.Kind);
+        var take = s.Execute(new TakeFoodCommand { Actor = s.Player, Store = GranaryStore, Amount = 8 });
+        Assert.True(take.Success, take.Message);
+
+        s.AdvanceTo(At(1, 9, 40));
+
+        var view = s.GetWorldView();
+        var emptied = view.RecentFacts.Single(f => f.Kind == "FoodStolen").At;
+        var failed = view.RecentFacts.Single(f => f.Kind == "FoodTakeFailed");
+        Assert.Equal(emptied, failed.At); // not when its own take would have ended
+        Assert.StartsWith("Protagonista", failed.Description);
+        Assert.Equal(0, view.Store(GranaryStore).Food);
+        Assert.Equal(8, view.Actor(Raider).Food);
+        Assert.NotEqual("TakeFood", view.Actor(Player).Action?.Kind);
+    }
+
     /// <summary>The slice map with a configurable granary, for edge cases.</summary>
     private static Scenario SmallWorld(int granaryFood) =>
         new ScenarioBuilder()

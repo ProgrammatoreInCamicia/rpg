@@ -446,7 +446,11 @@ internal sealed partial class Simulation
         if (occupant is null)
             return false;
         if (!SeesActor(actor, occupant))
+        {
             walking.Startled = true;
+            if (Hidden(occupant)) // SRD Hide: found, here by being walked into
+                Reveal(EncounterOf(occupant), occupant, $"{actor.Name} gli va addosso");
+        }
         return true;
     }
 }

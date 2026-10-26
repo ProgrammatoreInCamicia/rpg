@@ -114,7 +114,7 @@ internal sealed partial class Simulation
         // Task 10: whoever it finds holding the store it sizes up once; it fights them if it expects to win, or gives up.
         var rivals = RivalsAtStore(npc, target);
         if (rivals.Count == 0)
-            raid.Startled = false; // walked into someone it still cannot see: nothing to be startled into
+            raid.Startled = false; // no one to be startled by (any more)
         if (raid.Verdict is null && rivals.Count > 0)
         {
             raid.Verdict = SizeUp(npc, rivals, inputs);

@@ -14,7 +14,8 @@ internal sealed partial class Simulation
 
     /// <summary>
     /// Whoever conscious it holds hostile and sees holding the store: standing on a square it is used from. (Someone a step
-    /// away only watches: the raider still steals under its eyes, and is seen doing it.)
+    /// away only watches: the raider still steals under its eyes, and is seen doing it.) One it cannot see counts too once
+    /// it has walked into them (<see cref="RaidAssignment.Startled"/>): it knows a body is there, next to it.
     /// </summary>
     private List<Actor> RivalsAtStore(Actor npc, Store store)
     {
@@ -22,10 +23,11 @@ internal sealed partial class Simulation
             return new List<Actor>();
         var map = World.Maps[area];
         var squares = UseSquares(store, map).ToList();
+        var felt = npc.Assignment is { Startled: true };
         return World.Actors.Values
             .Where(a => a.Id != npc.Id && a.Conscious && a.MapArea == area && HoldsHostile(npc, a)
                         && CurrentPosition(a) is { } at && squares.Contains(at)
-                        && SeesActor(npc, a))
+                        && (SeesActor(npc, a) || felt && CurrentPosition(npc) is { } me && me.IsAdjacentOrSame(at)))
             .OrderBy(a => a.Id.Value, StringComparer.Ordinal)
             .ToList();
     }
