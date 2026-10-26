@@ -60,13 +60,17 @@ public partial class VillageMap
 			button.EmitSignal(BaseButton.SignalName.Pressed);
 			SliceRequire(_view.Action?.Kind == "Report" && _running is not null
 				&& _message.Text.Contains("Rapporto avviato")
+				&& _status.Text.Contains("rimanenti")
+				&& _tokens[_view.Id].GetNode<ProgressBar>("ActionProgress").Visible
 				&& !_view.Observations.Single(o => o.Id == observed.Id).ToldTo.Contains(guard),
-				"Starting the report was confused with its completion.");
+				"Starting the report did not show a timer or was confused with completion.");
 			await SliceFrames(3);
 			SliceRequire(SliceReportDialogText().Contains("Rapporto in corso"),
 				"The conversation does not show the report in progress.");
 			CaptureSliceGuide(outputDir, "report-started.png");
 			await UntilSliceGuideIdle();
+			SliceRequire(!_tokens[_view.Id].GetNode<ProgressBar>("ActionProgress").Visible,
+				"The report timer remained over the player after completion.");
 			var reported = _view.Observations.Single(o => o.Id == observed.Id);
 			SliceRequire(reported.ToldTo.Contains(guard) && reported.Source == observed.Source
 				&& reported.Origin == observed.Origin && reported.Store == observed.Store

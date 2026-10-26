@@ -156,32 +156,6 @@ public partial class VillageMap
 		_storeTake.Text = $"Prendi {amount} razioni";
 	}
 
-	private static string StoreActivityStatus(ActionView action, GameTime now)
-	{
-		var remaining = Math.Max(0L, (action.CompletesAt.Since(now).Ticks + GameTime.TicksPerSecond - 1) / GameTime.TicksPerSecond);
-		var verb = action.Kind == "TakeFood" ? "Prendi le razioni" : "Consegni le razioni";
-		return $"{verb} · {remaining / 60}:{remaining % 60:00} di gioco rimanenti.";
-	}
-
-	private void UpdateStoreActivityMarker(Node2D token)
-	{
-		var progress = token.GetNode<ProgressBar>("StoreProgress");
-		var caption = token.GetNode<Label>("StoreProgressText");
-		if (_view.Action is not { Kind: "TakeFood" or "DepositFood" } action)
-		{
-			progress.Visible = false;
-			caption.Visible = false;
-			return;
-		}
-		var total = Math.Max(1L, action.CompletesAt.Since(action.StartedAt).Ticks);
-		var elapsed = Math.Clamp(_view.Now.Since(action.StartedAt).Ticks, 0L, total);
-		progress.Value = 100.0 * elapsed / total;
-		progress.Visible = true;
-		var remaining = Math.Max(0L, (action.CompletesAt.Since(_view.Now).Ticks + GameTime.TicksPerSecond - 1) / GameTime.TicksPerSecond);
-		caption.Text = $"{(action.Kind == "TakeFood" ? "Prendi" : "Consegni")} · {remaining / 60}:{remaining % 60:00}";
-		caption.Visible = true;
-	}
-
 	private void UseSelectedStore(int amount, bool take)
 	{
 		// Revalidate at the moment of the command, including calls from old smoke helpers.

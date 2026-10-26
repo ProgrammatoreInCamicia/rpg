@@ -103,7 +103,7 @@ public partial class VillageMap
 			_storeTake.EmitSignal(BaseButton.SignalName.Pressed);
 			SliceRequire(_running is not null && _view.Action?.Kind == "TakeFood"
 				&& _status.Text.Contains("rimanenti")
-				&& _tokens[_view.Id].GetNode<ProgressBar>("StoreProgress").Visible,
+				&& _tokens[_view.Id].GetNode<ProgressBar>("ActionProgress").Visible,
 				"The UI button did not show progress while taking four rations.");
 			await SliceFrames(2);
 			CaptureBlackmarshStore(outputDir, "taking-progress.png");

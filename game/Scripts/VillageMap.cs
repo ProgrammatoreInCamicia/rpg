@@ -244,6 +244,7 @@ public partial class VillageMap : Node2D
 				LocationId? exitReached = null;
 				StoreId? storeReached = null;
 				StoreId? storeInterrupted = null;
+						var takeCancelled = false;
 				PendingBarrierUse? barrierReached = null;
 				PendingBarrierUse? barrierInterrupted = null;
 				if (_running is { } action)
@@ -251,6 +252,7 @@ public partial class VillageMap : Node2D
 					var result = _sim.AdvanceUntilCompleted(action, Duration.FromTicks(ticks));
 					if (result.Outcome != AdvanceOutcome.TimeLimitReached)
 					{
+							takeCancelled = result.Outcome == AdvanceOutcome.Cancelled && _view.Action?.Kind == "TakeFood";
 						_running = null;
 						_walking = false;
 						_pendingTicks = 0;
@@ -275,6 +277,9 @@ public partial class VillageMap : Node2D
 				else
 					_sim.Advance(Duration.FromTicks(ticks));
 				Refresh();
+					if (takeCancelled && _view.Combat is null)
+						ShowMessage(_view.RecentEvents.LastOrDefault(e => e.Kind == "FoodTakeFailed" && e.At == _view.Now)?.Description
+							?? "Prelievo interrotto.");
 				if (arrived is { } who)
 					OpenTalk(who);
 				if (_attackAfterWalking is { } pending && !_walking)
@@ -1045,9 +1050,7 @@ public partial class VillageMap : Node2D
 			: onMap ? "strada" : "in viaggio";
 		_status.Text = _view.Dead ? "Sei morto. Carica un salvataggio per riprovare."
 			: _view.Combat is { } combat ? $"Scontro · round {combat.Round}. " + (combat.IsYourTurn ? "È il tuo turno." : "Agiscono gli altri.")
-			: _view.Action is { Kind: "TakeFood" or "DepositFood" } storeAction ? StoreActivityStatus(storeAction, now)
-			: _view.Action is { Kind: "Rest" } rest ? (_paused ? "IN PAUSA · " : "")
-				+ $"{rest.Description} fino alle {rest.CompletesAt.Hour:00}:{rest.CompletesAt.Minute:00}."
+			: _view.Action is { } timedAction && ShowActionTimer(timedAction) ? TimedActionStatus(timedAction, now)
 			: (_paused ? $"IN PAUSA — ordini in coda: {_queue.Count}. " : "")
 			+ (_walking ? $"Cammini… ({where})" : _view.Travel is not null ? "Sei in viaggio."
 				: onMap ? $"Sei qui: {where}. Clicca dove vuoi andare." : $"Sei qui: {where}.");
@@ -1316,7 +1319,7 @@ public partial class VillageMap : Node2D
 		}
 		if (_tokens.TryGetValue(_view.Id, out var mine))
 		{
-			UpdateStoreActivityMarker(mine);
+			UpdateTimedActionMarker(mine);
 			_camera.Position = _camera.Position.Lerp(CameraTarget(_smokeFocus is { } focus ? CellToScreen(focus) : mine.Position), 0.15f);
 		}
 	}
@@ -1699,10 +1702,10 @@ public partial class VillageMap : Node2D
 		}
 		else
 		{
-			var progress = new ProgressBar { Name = "StoreProgress", Position = new Vector2(-62, -73),
+			var progress = new ProgressBar { Name = "ActionProgress", Position = new Vector2(-62, -73),
 				CustomMinimumSize = new Vector2(124, 9), ShowPercentage = false, Visible = false };
 			token.AddChild(progress);
-			var caption = new Label { Name = "StoreProgressText", Position = new Vector2(-88, -98),
+			var caption = new Label { Name = "ActionProgressText", Position = new Vector2(-88, -98),
 				Size = new Vector2(176, 22), HorizontalAlignment = HorizontalAlignment.Center, Visible = false };
 			caption.AddThemeFontSizeOverride("font_size", 12);
 			caption.AddThemeConstantOverride("outline_size", 3);

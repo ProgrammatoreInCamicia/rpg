@@ -4,7 +4,7 @@ using RpgSandbox.Sim.Scenarios;
 
 namespace RpgSandbox.Game;
 
-/// <summary>Reproduces ordinary-time arrival, attack and movement at the occupied granary access.</summary>
+/// <summary>Reproduces ordinary-time theft witnessed beside the granary, then combat and movement.</summary>
 public partial class VillageMap
 {
 	private async void RunSliceCombatSmoke(string outputDir)
@@ -19,7 +19,7 @@ public partial class VillageMap
 				At = MappedVillageScenario.Ids.InnDoor, Open = false });
 			SliceRequire(closed.Success, closed.Message);
 			CompleteSlicePreparation(new MoveToSpotCommand { Actor = _sim.Player,
-				To = Spot.CenterOf(MappedVillageScenario.Ids.GranaryAccess) });
+				To = Spot.CenterOf(new GridPos(16, 6)) });
 			_sim.FacePlayer(0, -1);
 			var torch = _sim.Execute(new TorchCommand { Actor = _sim.Player, Lit = true, StowShield = true });
 			SliceRequire(torch.Success, torch.Message);
@@ -37,8 +37,9 @@ public partial class VillageMap
 				break;
 			}
 			SliceRequire(reachedStore && !_sliceWaiting && !_paused && _view.Combat is null
-				&& _view.Position == MappedVillageScenario.Ids.GranaryAccess,
-				"Ordinary time did not reach the occupied granary access.");
+				&& _view.Position == new GridPos(16, 6)
+				&& _sim.GetWorldView().Actors.Single(a => a.Id == raider).Position != _view.Position,
+				"Ordinary time did not bring the raider to the granary beside the witness.");
 			var attack = _view.Attacks.FirstOrDefault(option =>
 				_sim.PreviewAttack(_sim.Player, raider, option.Name).Valid);
 			SliceRequire(attack is not null && _view.VisibleActors.Any(a => a.Id == raider),
@@ -54,9 +55,9 @@ public partial class VillageMap
 			SliceRequire(combat is { IsYourTurn: true }
 				&& combat.You.MovementLeftInches > 0,
 				"The opening attack did not leave a turn with movement available.");
-			var destination = new GridPos(16, 6);
+			var destination = new GridPos(15, 6);
 			SliceRequire(_sim.PreviewMoveToSpot(_sim.Player, Spot.CenterOf(destination)).Valid,
-				"The overlapping raider traps the player despite available movement.");
+				"The player has movement left but cannot reach the adjacent clear square.");
 			_sliceSummaryButton!.EmitSignal(BaseButton.SignalName.Pressed);
 			SliceRequire(_sliceSummary is { Visible: true } && _paused,
 				"The summary did not open and pause during combat.");
@@ -141,7 +142,7 @@ public partial class VillageMap
 			await SliceFrames(5);
 			SliceRequire(_view.Now > beforeTurn && _view.Now >= nextRound!.Value,
 				"Closing the summary did not let the combat round advance.");
-			GD.Print("SLICE COMBAT SMOKE OK: ordinary-time raider arrival, overlapping bodies, attack, floor movement and end turn");
+			GD.Print("SLICE COMBAT SMOKE OK: ordinary-time theft beside witness, attack, floor movement and end turn");
 			GetTree().Quit(0);
 		}
 		catch (Exception error)
