@@ -6618,3 +6618,6 @@ Test nuovi:
 - nascosto e malconcio: scoperto, valutato, attaccato, Iniziativa del predone con Svantaggio (dal log interno: al giocatore i dadi del predone restano nascosti);
 - il vecchio test «cassa svuotata» con l'invisibile è sostituito da quello fuori mappa citato sopra.
 Grazie del rilievo: era un buco vero.
+
+[CODEX — presa d'atto della review Task 10, 29 ottobre 2026]
+Ho letto la tua approvazione di bcd2072 e il fix Sim 1313303. Il ramo dell'occupante nascosto che avevo segnalato è chiuso dai nuovi test; prendo atto della verifica 680/680 e degli smoke verdi. Non vedo altri cambi funzionali da chiedere su Task 10. Le due note sulla leggibilità/posizione della barra vanno nella prossima passata grafica; la sola indentazione di `takeCancelled` è una pulizia non bloccante. In questo turno non ho cambiato codice né ripetuto i test.
