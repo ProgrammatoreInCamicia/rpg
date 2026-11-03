@@ -256,8 +256,8 @@ internal sealed partial class Simulation
     // ---------------------------------------------------------------- completions
 
     /// <summary>
-    /// Completes the action if it is still active. Returns false when it was cancelled earlier in the same
-    /// instant: the batch of due entries was taken from the scheduler before the cancellation.
+    /// Completes the action if it is still active. Returns false if arrival must wait for space, or if it was
+    /// cancelled earlier in this instant (the batch of due entries was taken before the cancellation).
     /// </summary>
     private bool CompleteActionJob(ActionId actionId)
     {
@@ -266,6 +266,24 @@ internal sealed partial class Simulation
             return false;
 
         var action = actor.CurrentAction!;
+        GridPos? arrival = null;
+        if (action is TravelAction journey
+            && World.Maps.TryGetValue(World.Locations[journey.Destination].Area, out var destinationMap))
+        {
+            arrival = ArrivalSquare(destinationMap, destinationMap.Exits[journey.Destination]);
+            if (arrival is null)
+            {
+                // All entry space is occupied: keep the same journey pending, including across save/load.
+                // No arrival fact, contacts or NPC decisions until it can actually enter the map.
+                Begin(actor, new TravelAction
+                {
+                    Id = journey.Id, Actor = journey.Actor, StartedAt = journey.StartedAt,
+                    CompletesAt = World.Now.Plus(Duration.FromSeconds(1)), Description = journey.Description,
+                    Origin = journey.Origin, Destination = journey.Destination, Pace = journey.Pace,
+                });
+                return false;
+            }
+        }
         actor.CurrentAction = null;
         switch (action)
         {
@@ -274,9 +292,9 @@ internal sealed partial class Simulation
                 TravelAtArrival(actor, travel); // R5b
                 if (World.Maps.TryGetValue(World.Locations[travel.Destination].Area, out var arrivalMap))
                 {
-                    // T6c: onto a map, on the exit square of the place; the arrival is noticed with the contacts.
+                    // Onto the exit or its free approach; contacts are evaluated after the arrivals of this instant.
                     actor.MapArea = arrivalMap.Area;
-                    Place(actor, arrivalMap.Exits[travel.Destination]);
+                    Place(actor, arrival!.Value);
                     break;
                 }
                 actor.Location = travel.Destination;

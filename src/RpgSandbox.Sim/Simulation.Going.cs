@@ -106,14 +106,14 @@ internal sealed partial class Simulation
 
     /// <summary>
     /// The cost of a journey from a place to another: along the Routes, to the place itself or, if it lies on a mapped
-    /// area, to that map's most convenient exit (the walk on the map does not count). Zero within the same mapped area.
+    /// area, between the maps' exits (the walk on either map does not count). Zero within the same mapped area.
     /// </summary>
     private Duration? JourneyCost(LocationId from, LocationId to)
     {
         if (from == to || (World.Locations[from].Area == World.Locations[to].Area && World.Maps.ContainsKey(World.Locations[to].Area)))
             return Duration.Zero;
-        return JourneyTargets(to)
-            .Select(t => t == from ? Duration.Zero : PathCost(from, t))
+        return JourneyTargets(from)
+            .SelectMany(origin => JourneyTargets(to).Select(target => PathCost(origin, target)))
             .Where(c => c is not null)
             .OrderBy(c => c!.Value.Ticks)
             .FirstOrDefault();

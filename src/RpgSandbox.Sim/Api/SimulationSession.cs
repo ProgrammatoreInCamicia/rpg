@@ -244,10 +244,14 @@ public sealed class SimulationSession
         // On a map (T6b) seeing takes line of sight and light on the other's square, at any distance.
         var map = player.MapArea is { } mapArea ? w.Maps[mapArea] : null;
         var me = PositionOf(player, w);
+        // A journey involving a map is outside its local perception. Keep the legacy area-level view only for
+        // journeys between abstract places; the origin's Map/Area below are geographical context, not presence.
+        var localSight = travel is null || (!w.Maps.ContainsKey(w.Locations[travel.Origin].Area)
+            && !w.Maps.ContainsKey(w.Locations[travel.Destination].Area));
         bool SeenOnMap(GridPos square) => player.Conscious && map is not null && me is { } eye && _sim.CanSee(map, player, eye, square);
-        bool Visible(Actor a) => map is not null && me is not null
+        bool Visible(Actor a) => localSight && (map is not null && me is not null
             ? a.MapArea == map.Area && PositionOf(a, w) is { } there && SeenOnMap(there)
-            : VisibleByPlace(a);
+            : VisibleByPlace(a));
         bool VisibleByPlace(Actor a) => a.Location is { } at
             ? InArea(at) && PlaceVisible(at)
             : a.MapArea is { } open ? open == area && RoadVisible() // open ground of a map: daylight only
@@ -359,9 +363,9 @@ public sealed class SimulationSession
                 Hostile = x.Conscious && _sim.HoldsHostile(x, player),
                 Card = _sim.CardOf(x),
             })),
-            VisibleStores = Freeze(w.Stores.Values.Where(s => s.Position is { } sp && map is not null
+            VisibleStores = Freeze(w.Stores.Values.Where(s => localSight && (s.Position is { } sp && map is not null
                 ? w.Locations[s.Location].Area == map.Area && (SeenOnMap(sp) || me is { } m && m.IsAdjacentOrSame(sp))
-                : InArea(s.Location) && (s.Location == player.Location || PlaceVisible(s.Location))).Select(s => new StoreView
+                : InArea(s.Location) && (s.Location == player.Location || PlaceVisible(s.Location)))).Select(s => new StoreView
             {
                 Id = s.Id, Name = s.Name, Location = s.Location, Food = s.Food, Owner = s.Owner, Position = s.Position, Access = Freeze(s.Access),
                 Contents = Freeze(s.Contents.Select(i => new ItemStackView { Item = i.Key, Name = NameOf(w.Content, i.Key), Count = i.Value })),

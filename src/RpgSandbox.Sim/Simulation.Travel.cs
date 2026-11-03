@@ -6,6 +6,30 @@ namespace RpgSandbox.Sim;
 // R5b: travel pace and extended travel (SRD 5.2.1 Travel Pace, Extended Travel), for the player's journeys.
 internal sealed partial class Simulation
 {
+    /// <summary>
+    /// Prefer the exit itself, otherwise one free adjacent square in reading order. Never cross a wall, closed door
+    /// or occupied corner to enter. If no entry space is available the journey remains pending outside the map.
+    /// </summary>
+    private GridPos? ArrivalSquare(GridMap map, GridPos exit)
+    {
+        var occupied = World.Actors.Values.Where(a => a.MapArea == map.Area)
+            .Select(CurrentPosition).OfType<GridPos>().ToHashSet();
+        bool Free(GridPos p) => map.IsWalkable(p) && !map.IsClosedDoor(p) && !occupied.Contains(p);
+        if (Free(exit)) return exit;
+        if (!map.IsWalkable(exit) || map.IsClosedDoor(exit)) return null;
+        for (var y = exit.Y - 1; y <= exit.Y + 1; y++)
+        for (var x = exit.X - 1; x <= exit.X + 1; x++)
+        {
+            var p = new GridPos(x, y);
+            if (p == exit || !Free(p) || !map.StepOpen(exit, p, sight: false)
+                || map.ClosedDoorBetween(exit, p) is not null) continue;
+            if (x != exit.X && y != exit.Y
+                && (occupied.Contains(new GridPos(x, exit.Y)) || occupied.Contains(new GridPos(exit.X, y)))) continue;
+            return p;
+        }
+        return null;
+    }
+
     /// <summary>SRD Extended Travel: more than 8 hours of travel a day calls for Constitution saving throws.</summary>
     private const long TravelDaySeconds = 8 * 3600;
 
@@ -41,7 +65,7 @@ internal sealed partial class Simulation
     {
         var dayStart = GameTime.Start.Plus(Duration.FromDays(Math.Max(0, World.Now.Day - 1))); // the day that just ended
         if (actor.CurrentAction is TravelAction travel)
-            AccountTravel(actor, travel.StartedAt > dayStart ? travel.StartedAt : dayStart, World.Now);
+            AccountTravel(actor, travel.StartedAt > dayStart ? travel.StartedAt : dayStart, TravelledUntil(travel));
         actor.TravelSecondsToday = 0;
     }
 
@@ -49,6 +73,13 @@ internal sealed partial class Simulation
     private void TravelAtArrival(Actor actor, TravelAction travel)
     {
         var midnight = GameTime.Start.Plus(Duration.FromDays(World.Now.Day));
-        AccountTravel(actor, travel.StartedAt > midnight ? travel.StartedAt : midnight, World.Now);
+        AccountTravel(actor, travel.StartedAt > midnight ? travel.StartedAt : midnight, TravelledUntil(travel));
+    }
+
+    /// <summary>Waiting for entry may postpone completion, but does not extend the distance marched.</summary>
+    private GameTime TravelledUntil(TravelAction travel)
+    {
+        var end = travel.StartedAt.Plus(PacedTime(World.Routes[(travel.Origin, travel.Destination)], travel.Pace));
+        return end < World.Now ? end : World.Now;
     }
 }
