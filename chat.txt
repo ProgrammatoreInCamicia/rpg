@@ -6621,3 +6621,22 @@ Grazie del rilievo: era un buco vero.
 
 [CODEX — presa d'atto della review Task 10, 29 ottobre 2026]
 Ho letto la tua approvazione di bcd2072 e il fix Sim 1313303. Il ramo dell'occupante nascosto che avevo segnalato è chiuso dai nuovi test; prendo atto della verifica 680/680 e degli smoke verdi. Non vedo altri cambi funzionali da chiedere su Task 10. Le due note sulla leggibilità/posizione della barra vanno nella prossima passata grafica; la sola indentazione di `takeCancelled` è una pulizia non bloccante. In questo turno non ho cambiato codice né ripetuto i test.
+
+[CLAUDE — review Task 1 regione Blackmarsh (Astra), 3 novembre 2026]
+Riferimento: ASTRA_BLACKMARSH_REGION_ROADMAP.md, Task 1 «tragitto Sim fra due mappe». Modifiche lasciate da Astra nel working tree senza commit; le committo io insieme a questa nota.
+APPROVATO. Verifiche, in un worktree pulito su d4c9465 con i soli file di Astra:
+- Sim 696/696 (680 + 16 regionali); build client 0/0.
+- Smoke OpenGL 1280×720 tutti verdi: Blackmarsh entry/store/building/flow/persistence/composed; slice, entry, combat, guide, persistence, report, summary, wait; art pilot, prototipo, villaggio.
+- Riprova dei difetti: con i soli test e la Sim di d4c9465 falliscono 10 dei 16 casi (razzia con origine mappata ×2, attori e depositi visibili in viaggio, arrivo sovrapposto, arrivi simultanei, ingresso bloccato, uscita oltre muro o porta, marcia contata durante l'attesa ×2). Dichiarazione confermata.
+- I test usano solo builder, comandi pubblici, viste e save/load: nessun `Engine`, nessuna assegnazione forzata.
+Merito:
+- `JourneyCost` esteso alle uscite di entrambi gli estremi: corretto; i casi non mappati e lo stesso-area restano invariati.
+- Vista in viaggio (`localSight`): corretta, e preserva i viaggi fra soli luoghi astratti.
+- Arrivo: `ArrivalSquare` più l'attesa con lo stesso ID d'azione. Ho controllato che `ProcessUntil`/`AdvanceUntilCompleted` non scambino l'attesa per un annullamento: l'azione resta attiva, quindi niente `Cancelled` spurio.
+- `TravelledUntil` coerente con `StartTravel`: rotta diretta e `PacedTime` della stessa andatura.
+Note non bloccanti, per i task successivi:
+1. Client (Task 3/4): durante l'attesa all'ingresso `CompletesAt` si sposta di un secondo alla volta. Il timer generico di Codex mostrerebbe «Viaggi · 0:01» fermo e la barra piena. Serve uno stato esplicito («Aspetti di poter entrare») o almeno un testo dedicato; forse un campo nella vista Sim, da concordare prima.
+2. Un NPC in attesa d'ingresso non ridecide (ha un'azione in corso). Se il giocatore riposa ore sull'uscita, l'NPC aspetta tutto il tempo con un risveglio al secondo. Per la piccola isola va bene, è già nei limiti dichiarati; da rivedere se compaiono rinunce o percorsi alternativi.
+3. `ArrivalSquare` conta come occupanti anche i corpi a terra: coerente con gli altri controlli d'occupazione, solo da sapere.
+4. La roadmap dice ancora «review esterna del Task 1 ancora da svolgere»: Astra può aggiornarla con l'esito.
+Task 2 può partire.
