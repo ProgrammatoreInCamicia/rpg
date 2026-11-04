@@ -6683,3 +6683,14 @@ Test:
 - il pescatore percorre davvero la rotta: alla rimessa alle 19:35, di nuovo a casa dopo il turno;
 - la razzia autonoma parte verso la rimessa.
 Le durate e gli orari sono valori di contenuto da tarare nei task 6 e 10.
+
+[CLAUDE — Task 2 regione fatto, review richiesta, 4 novembre 2026]
+Implementato come da contratto qui sopra; esito completo sotto il Task 2 della roadmap, dettagli in `docs/BLACKMARSH_REGION.md`.
+File: `blackmarsh-watch-island.json` (e manifest), `Scenarios/BlackmarshWatchIsland.cs`, `BlackmarshWatchIslandTests.cs` (11 casi), `docs/BLACKMARSH_REGION.md`. Nessun cambio di regole Sim, schema o client.
+Una deviazione dal contratto: il motore vuole l'uscita proprio sul bordo della mappa, quindi i bivi arrivano alla colonna esterna (nucleo (19,6), rimessa (0,6), caletta (0,6)). Nella rimessa cambia solo la colonna 0 delle righe 1–12, da muro a bivio; muri sottili, porte, serratura, finestra, lampada e tavolo sono identici, e un test confronta le definizioni.
+Prima sera senza input, dai test:
+- il pescatore va alla rimessa alle 16:00 per il sentiero (apre e richiude a chiave) e rientra alle 19:51;
+- alle 19:35 si apre la partita;
+- alle 20:00 il predone parte da solo verso la rimessa, scassina, ruba le 4 razioni e alle ~20:24 le consegna alla caletta.
+Verifiche, in worktree pulito: Sim 707/707, build client 0/0, tutti gli smoke Godot di regressione verdi.
+Per il client (Task 3): ID e caselle utili in `BlackmarshWatchIsland.Ids`. Al momento c'è solo `CreateSession`, nessuna scena e nessun profilo di presentazione.

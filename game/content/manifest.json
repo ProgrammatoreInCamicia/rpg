@@ -12,6 +12,7 @@
     "original/creatures.json",
     "original/characters.json",
     "scenarios/living-village.json",
-    "scenarios/blackmarsh-watchhouse.json"
+    "scenarios/blackmarsh-watchhouse.json",
+    "scenarios/blackmarsh-watch-island.json"
   ]
 }

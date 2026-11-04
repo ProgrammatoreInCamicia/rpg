@@ -2,7 +2,7 @@
 
 Analisi originaria del 29 ottobre 2026. Base esaminata: commit `d4c9465`. **Alla data dell'analisi non era stata eseguita alcuna implementazione regionale.** Le due vertical slice sono considerate concluse; questo incremento costruisce gioco continuativo sui loro risultati.
 
-**Aggiornamento 4 novembre 2026:** implementato e verificato esclusivamente il **Task 1**, con correzioni Sim e test generici; **approvato da Claude** nella review del 3 novembre e da Codex nella review indipendente del 4 novembre, entrambe registrate in `chat.txt`. Implementazione nel commit `8d47e0c`. Il testo di analisi sottostante conserva la diagnosi originale; risultati, review e limiti sono registrati sotto il Task 1. Nessuna mappa regionale o modifica del client implementata. Task 2–10 non avviati.
+**Aggiornamento 4 novembre 2026:** implementato e verificato il **Task 1**, con correzioni Sim e test generici; **approvato da Claude** nella review del 3 novembre e da Codex nella review indipendente del 4 novembre, entrambe registrate in `chat.txt`. Implementazione nel commit `8d47e0c`. Il testo di analisi sottostante conserva la diagnosi originale; risultati, review e limiti sono registrati sotto il Task 1. **Aggiornamento 4 novembre 2026 (Claude):** implementato il **Task 2** (mondo unico e tre luoghi nei dati, Sim e test), in attesa di review; esito sotto il Task 2. Nessuna modifica del client. Task 3–10 non avviati.
 
 ## 1. Decisione
 
@@ -306,6 +306,38 @@ L'approvazione di Claude rende il Task 2 tecnicamente avviabile. Questo aggiorna
 **Completato quando:** il nuovo mondo si crea in modo deterministico, consente il giro completo e resta valido salvandolo/caricandolo nella Sim. Fonte/adattamenti, ID, scorte e orari sono documentati; i vecchi scenari continuano a caricarsi. Il seed non sostituisce la verifica di ordini di visita differenti.
 
 **Reasoning:** medio; lavoro prevalentemente di contenuto e verifica.
+
+#### Risultato effettivo del Task 2 — 4 novembre 2026 (Claude)
+
+**Stato: implementato, verifiche automatiche superate; in attesa di review.** Contratto in `chat.txt` (commit `543ec16`) prima del codice. Nessun cambio di regole Sim, dello schema save (resta 43) o del client.
+
+File:
+
+- `game/content/scenarios/blackmarsh-watch-island.json` (id `blackmarsh-watch-island`), registrato in `game/content/manifest.json`. Tre aree con mappa (nucleo 20×14, rimessa 18×14, caletta 20×14), un bivio d'uscita sul bordo di ciascuna, tre sentieri bidirezionali (6, 8, 12 minuti). Prefisso `bm_isle_` per tutti gli ID; si riusa solo la chiave `bm-watch-shed-key`.
+- `src/RpgSandbox.Sim/Scenarios/BlackmarshWatchIsland.cs`: `CreateSession()` (mondo dalla mezzanotte, avanzato fino alle 19:35) e `Ids`.
+- `tests/RpgSandbox.Sim.Tests/BlackmarshWatchIslandTests.cs`: **11 casi** (9 metodi, due theory).
+- `docs/BLACKMARSH_REGION.md`: fonte e adattamenti, piante, ID, persone, fazioni, scorte e cronologia misurata della prima sera.
+
+Scelte di contenuto da conoscere:
+
+1. **Rimessa:** stessa pianta del vecchio scenario (righe, muri, porte, serratura, finestra, lampada, tavolo). Cambiano solo le zone: il sentiero diventa il bivio, esteso al bordo perché il motore vuole l'uscita sul bordo; l'approdo diventa terreno libero. Un test confronta le due definizioni.
+2. **Un posto per tipo per luogo:** custode e pescatore nella stessa casa starebbero sulla stessa casella. Il custode ha quindi il posto «casa» al Piazzale del pozzo (acqua, braciere), il pescatore nella casa comune.
+3. **Caletta:** l'Approdo dei Vasan con le provviste; lo spazio x 11–16, y 1–5 resta libero per il capanno del Task 7. Nessun arco ora.
+
+Prima sera senza input, osservata dai test: il pescatore va al lavoro alle 16:00 per il sentiero e rientra alle 19:51; i Vasan consumano alle 19:59; alle 20:00 il predone parte da solo verso la rimessa (8 contro 12 minuti), scassina, ruba le 4 razioni e alle ~20:24 le consegna alla caletta.
+
+| Criterio | Esito |
+|---|---|
+| Tre mappe, tre collegamenti bidirezionali, un giocatore, quattro attori, tre depositi, due fazioni | Verificato; nessun ID `bm_watch_` fra attori e depositi; provviste Vasan alla caletta. |
+| Casa, lavoro e autorità dichiarati | Verificati: casa del pescatore, del custode e del predone; autorità dei pescatori = custode; turno del pescatore percorso davvero. |
+| Riuso della pianta della rimessa senza toccare il vecchio scenario | Verificato per confronto delle definizioni; `blackmarsh-watchhouse.json` invariato e i suoi test passano. |
+| Giro completo tramite comandi, nei due ordini | Verificati nucleo→caletta→rimessa→nucleo e nucleo→rimessa→caletta→nucleo; partenza rifiutata a un passo dall'uscita (`NotAtExit`). |
+| Creazione deterministica, save/load | Due creazioni con snapshot identico; save/load all'apertura, in viaggio e su un'altra mappa con snapshot finale uguale alla continuazione. |
+| Razzia autonoma | Verificato che parte da sola verso la rimessa. |
+
+Verifiche, in worktree pulito: Sim **707/707** (696 + 11), build client 0 warning / 0 errori, smoke Godot OpenGL 1280×720 di regressione tutti verdi (Blackmarsh entry/store/building/flow/persistence/composed; slice, entry, combat, guide, persistence, report, summary, wait; art pilot, prototipo, villaggio).
+
+**Limiti:** nessuna scena o profilo client per la regione (Task 3). Durate e orari sono valori di contenuto non tarati sul gioco (Task 6 e 10). Il custode di notte resta al pozzo all'aperto. Se il pescatore e il predone si incrociano alla rimessa, l'esito non è stato provato: oggi il pescatore riparte alle 19:45, prima della razzia.
 
 ### Task 3 — Ricostruire la presentazione quando cambia l'area
 

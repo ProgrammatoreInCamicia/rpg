@@ -1,0 +1,189 @@
+{
+  "source": "Adapted from Blackmarsh v11, hex 0912 (Robert Conley, 2011; CC BY 4.0, https://creativecommons.org/licenses/by/4.0/): a fishing island granted in exchange for standing watch against raiders, particularly Vasan Vikings. Original to this project: the three small places (the fishers' hamlet, the store shed, the cove), their paths, the keeper, the fisher, the single Vasan raider, the stores and every layout. See docs/BLACKMARSH_REGION.md.",
+  "scenario": {
+    "id": "blackmarsh-watch-island",
+    "areas": [
+      { "id": "bm_isle_hamlet", "name": "Nucleo dei pescatori" },
+      { "id": "bm_isle_shed_area", "name": "Rimessa della vedetta" },
+      { "id": "bm_isle_cove", "name": "Caletta" }
+    ],
+    "locations": [
+      { "id": "bm_isle_hamlet_fork", "name": "Bivio del nucleo", "area": "bm_isle_hamlet" },
+      { "id": "bm_isle_common_house", "name": "Casa comune", "area": "bm_isle_hamlet" },
+      { "id": "bm_isle_well", "name": "Piazzale del pozzo", "area": "bm_isle_hamlet", "water": true },
+      { "id": "bm_isle_shed_fork", "name": "Bivio della rimessa", "area": "bm_isle_shed_area" },
+      { "id": "bm_isle_shed", "name": "Rimessa della vedetta", "area": "bm_isle_shed_area" },
+      { "id": "bm_isle_cove_fork", "name": "Bivio della caletta", "area": "bm_isle_cove" },
+      { "id": "bm_isle_landing", "name": "Approdo dei Vasan", "area": "bm_isle_cove" }
+    ],
+    "routes": [
+      { "from": "bm_isle_hamlet_fork", "to": "bm_isle_shed_fork", "minutes": 6 },
+      { "from": "bm_isle_shed_fork", "to": "bm_isle_cove_fork", "minutes": 8 },
+      { "from": "bm_isle_hamlet_fork", "to": "bm_isle_cove_fork", "minutes": 12 }
+    ],
+    "maps": [
+      {
+        "area": "bm_isle_hamlet",
+        "rows": [
+          "####################",
+          "#.................EE",
+          "#.................EE",
+          "#.CCCCCC..........EE",
+          "#.CCCCCC..WWWWW...EE",
+          "#.CCCCCC..WWWWW...EE",
+          "#.CCCCCC..WWWWW...EE",
+          "#.CCCCCC..WWWWW...EE",
+          "#.CCCCCC..WWWWW...EE",
+          "#.........WWWWW...EE",
+          "#.................EE",
+          "#.................EE",
+          "#.................EE",
+          "####################"
+        ],
+        "zones": { "E": "bm_isle_hamlet_fork", "C": "bm_isle_common_house", "W": "bm_isle_well" },
+        "exits": [ { "location": "bm_isle_hamlet_fork", "at": [19, 6] } ],
+        "posts": [
+          { "location": "bm_isle_common_house", "kind": "Home", "at": [5, 7] },
+          { "location": "bm_isle_well", "kind": "Home", "at": [12, 5] }
+        ],
+        "lights": [
+          { "at": [12, 6], "bright": 15, "dim": 30 },
+          { "at": [2, 8], "bright": 10, "dim": 20 }
+        ],
+        "obstacles": [ [12, 6], [2, 8] ],
+        "interiors": ["bm_isle_common_house"],
+        "edges": [
+          {"a":[2,2],"b":[2,3],"kind":"Wall"},
+          {"a":[2,8],"b":[2,9],"kind":"Wall"},
+          {"a":[3,2],"b":[3,3],"kind":"Wall"},
+          {"a":[3,8],"b":[3,9],"kind":"Wall"},
+          {"a":[4,2],"b":[4,3],"kind":"Wall"},
+          {"a":[4,8],"b":[4,9],"kind":"Wall"},
+          {"a":[5,2],"b":[5,3],"kind":"Wall"},
+          {"a":[5,8],"b":[5,9],"kind":"Wall"},
+          {"a":[6,2],"b":[6,3],"kind":"Wall"},
+          {"a":[6,8],"b":[6,9],"kind":"Wall"},
+          {"a":[7,2],"b":[7,3],"kind":"Wall"},
+          {"a":[7,8],"b":[7,9],"kind":"Wall"},
+          {"a":[1,3],"b":[2,3],"kind":"Wall"},
+          {"a":[1,4],"b":[2,4],"kind":"Wall"},
+          {"a":[1,5],"b":[2,5],"kind":"Wall"},
+          {"a":[1,6],"b":[2,6],"kind":"Wall"},
+          {"a":[1,7],"b":[2,7],"kind":"Wall"},
+          {"a":[1,8],"b":[2,8],"kind":"Wall"},
+          {"a":[7,3],"b":[8,3],"kind":"Wall"},
+          {"a":[7,4],"b":[8,4],"kind":"Wall"},
+          {"a":[7,5],"b":[8,5],"kind":"Wall"},
+          {"a":[7,6],"b":[8,6],"kind":"Door","at":[7,6],"open":false},
+          {"a":[7,7],"b":[8,7],"kind":"Wall"},
+          {"a":[7,8],"b":[8,8],"kind":"Wall"}
+        ]
+      },
+      {
+        "area": "bm_isle_shed_area",
+        "rows": [
+          "##################",
+          "EEE.............##",
+          "EEE.............##",
+          "EEE.............##",
+          "EEE...SSSSSS....##",
+          "EEE...SSSSSS....##",
+          "EEE...SSSSSS....##",
+          "EEE...SSSSSS....##",
+          "EEE...SSSSSS....##",
+          "EEE.............##",
+          "EEE.............##",
+          "EEE.............##",
+          "EEE.............##",
+          "##################"
+        ],
+        "zones": { "E": "bm_isle_shed_fork", "S": "bm_isle_shed" },
+        "exits": [ { "location": "bm_isle_shed_fork", "at": [0, 6] } ],
+        "posts": [
+          { "location": "bm_isle_shed", "kind": "Work", "at": [7, 4] }
+        ],
+        "lights": [
+          { "at": [10, 6], "bright": 15, "dim": 30 }
+        ],
+        "obstacles": [ [10, 6] ],
+        "interiors": ["bm_isle_shed"],
+        "edges": [
+          {"a":[6,3],"b":[6,4],"kind":"Wall"},
+          {"a":[7,3],"b":[7,4],"kind":"Wall"},
+          {"a":[8,3],"b":[8,4],"kind":"Wall"},
+          {"a":[9,3],"b":[9,4],"kind":"Wall"},
+          {"a":[10,3],"b":[10,4],"kind":"Wall"},
+          {"a":[11,3],"b":[11,4],"kind":"Wall"},
+          {"a":[6,8],"b":[6,9],"kind":"Wall"},
+          {"a":[7,8],"b":[7,9],"kind":"Wall"},
+          {"a":[8,8],"b":[8,9],"kind":"Wall"},
+          {"a":[9,8],"b":[9,9],"kind":"Wall"},
+          {"a":[10,8],"b":[10,9],"kind":"Wall"},
+          {"a":[11,8],"b":[11,9],"kind":"Wall"},
+          {"a":[5,4],"b":[6,4],"kind":"Wall"},
+          {"a":[5,5],"b":[6,5],"kind":"Wall"},
+          {"a":[5,6],"b":[6,6],"kind":"Door","at":[6,6],"open":false,"lock":{"key":"bm-watch-shed-key","locked":true,"forceDc":15,"clue":"una porta di tavole robuste, con una serratura nuova"}},
+          {"a":[5,7],"b":[6,7],"kind":"Wall"},
+          {"a":[5,8],"b":[6,8],"kind":"Wall"},
+          {"a":[8,4],"b":[9,4],"kind":"Wall"},
+          {"a":[8,5],"b":[9,5],"kind":"Wall"},
+          {"a":[8,6],"b":[9,6],"kind":"Door","at":[9,6],"open":false},
+          {"a":[8,7],"b":[9,7],"kind":"Wall"},
+          {"a":[8,8],"b":[9,8],"kind":"Wall"},
+          {"a":[11,4],"b":[12,4],"kind":"Wall"},
+          {"a":[11,5],"b":[12,5],"kind":"Wall"},
+          {"a":[11,6],"b":[12,6],"kind":"Window","lock":{"stuck":true,"forceDc":10,"clue":"il telaio è gonfio di salsedine"}},
+          {"a":[11,7],"b":[12,7],"kind":"Wall"},
+          {"a":[11,8],"b":[12,8],"kind":"Wall"}
+        ]
+      },
+      {
+        "area": "bm_isle_cove",
+        "rows": [
+          "####################",
+          "EEE................#",
+          "EEE................#",
+          "EEE................#",
+          "EEE................#",
+          "EEE................#",
+          "EEE................#",
+          "EEE................#",
+          "EEE..........AAAAAA#",
+          "EEE..........AAAAAA#",
+          "EEE..........AAAAAA#",
+          "EEE..........AAAAAA#",
+          "EEE..........AAAAAA#",
+          "####################"
+        ],
+        "zones": { "E": "bm_isle_cove_fork", "A": "bm_isle_landing" },
+        "exits": [ { "location": "bm_isle_cove_fork", "at": [0, 6] } ]
+      }
+    ],
+    "factions": [
+      { "id": "bm_isle_islanders", "name": "Pescatori della vedetta", "homeStore": "bm_isle_pantry", "authority": "bm_isle_keeper" },
+      { "id": "bm_isle_vasan", "name": "Vasan", "homeStore": "bm_isle_vasan_cache", "dailyUpkeep": 4, "upkeepAt": "19:59",
+        "raids": { "threshold": 1, "amount": 4, "everyHours": 1 } }
+    ],
+    "enmities": [ ["bm_isle_islanders", "bm_isle_vasan"] ],
+    "stores": [
+      { "id": "bm_isle_pantry", "name": "Dispensa della casa comune", "location": "bm_isle_common_house", "food": 12,
+        "owner": "bm_isle_islanders", "at": [2, 3], "access": [[3, 3]] },
+      { "id": "bm_isle_shed_store", "name": "Cassa delle razioni d'emergenza", "location": "bm_isle_shed", "food": 4,
+        "owner": "bm_isle_islanders", "at": [11, 4], "access": [[11, 5]] },
+      { "id": "bm_isle_vasan_cache", "name": "Provviste dei Vasan", "location": "bm_isle_landing", "food": 4,
+        "owner": "bm_isle_vasan", "at": [17, 11], "access": [[16, 11]] }
+    ],
+    "actors": [
+      { "id": "bm_isle_player", "name": "Protagonista", "location": "bm_isle_well", "player": true, "food": 10,
+        "faction": "bm_isle_islanders", "build": "paladin", "at": [11, 8], "torches": 3,
+        "items": [["chain-mail", 1], ["shield", 1], ["longsword", 1], ["javelin", 6], ["waterskin", 1], ["bm-watch-shed-key", 1]] },
+      { "id": "bm_isle_keeper", "name": "Custode della vedetta", "location": "bm_isle_well", "faction": "bm_isle_islanders",
+        "build": "village-guard", "at": [12, 5] },
+      { "id": "bm_isle_fisher", "name": "Pescatore", "location": "bm_isle_common_house", "faction": "bm_isle_islanders",
+        "build": "farmer", "work": { "location": "bm_isle_shed", "from": "16:00", "to": "19:45" }, "at": [5, 7],
+        "items": [["bm-watch-shed-key", 1]] },
+      { "id": "bm_isle_raider", "name": "Predone vasan", "location": "bm_isle_landing", "faction": "bm_isle_vasan",
+        "build": "raider", "at": [15, 9] }
+    ]
+  }
+}
