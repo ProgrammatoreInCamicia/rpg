@@ -1,6 +1,7 @@
 using Godot;
 using RpgSandbox.Sim.Api;
 using RpgSandbox.Sim.Scenarios;
+using Island = RpgSandbox.Sim.Scenarios.BlackmarshWatchIsland.Ids;
 
 namespace RpgSandbox.Game;
 
@@ -10,6 +11,7 @@ public partial class VillageMap
 	private enum GroundMaterial { Grass, Road, Wood, Flagstone }
 	private readonly record struct FloorLook(Color Color, GroundMaterial Material, bool WarmTint = false);
 	private readonly record struct PropLook(string Asset, GridPos Cell, float Width, Vector2 FloorOffset);
+	private readonly record struct LandmarkLook(GridPos Cell, Color Color, float Height);
 	private sealed record PresentationProfile(
 		bool StyledInterior,
 		IReadOnlyDictionary<LocationId, Func<GridPos, FloorLook>> Floors,
@@ -18,13 +20,15 @@ public partial class VillageMap
 		IReadOnlyList<PropLook>? Props = null,
 		Vector2? CameraOffset = null,
 		float CaptionOffset = -58f,
-		IReadOnlyDictionary<LocationId, string>? NearbyLabels = null);
+		IReadOnlyDictionary<LocationId, string>? NearbyLabels = null,
+		IReadOnlyList<LandmarkLook>? Landmarks = null);
 
 	private PresentationProfile _presentation = null!;
 	private bool StyledInterior => _presentation.StyledInterior;
 
-	private static PresentationProfile PresentationFor(SceneEntry entry)
+	private static PresentationProfile PresentationFor(SceneEntry entry, AreaId area)
 	{
+		if (entry == SceneEntry.BlackmarshRegion) return IslandPresentationFor(area);
 		var villageFloors = new Dictionary<LocationId, Func<GridPos, FloorLook>>
 		{
 			[MappedVillageScenario.Ids.Inn] = _ => new(InnFloor, GroundMaterial.Wood),
@@ -67,6 +71,43 @@ public partial class VillageMap
 				new PropLook("interior-table", new GridPos(6, 6), 75f, Vector2.Zero),
 				new PropLook("interior-cabinet", new GridPos(7, 5), 57f, Vector2.Zero),
 			} : null);
+	}
+
+	private static PresentationProfile IslandPresentationFor(AreaId area)
+	{
+		// The identity/style of an actor is regional, even when its routine takes it to another map.
+		var actors = new Dictionary<ActorId, Paladin3DPrototype.CharacterStyle>
+		{
+			[Island.Keeper] = Paladin3DPrototype.CharacterStyle.Guard,
+			[Island.Fisher] = Paladin3DPrototype.CharacterStyle.Farmer,
+			[Island.Raider] = Paladin3DPrototype.CharacterStyle.Raider,
+		};
+		if (area == Island.Hamlet)
+			return new(true, new Dictionary<LocationId, Func<GridPos, FloorLook>>
+			{
+				[Island.CommonHouse] = _ => new(HouseFloor, GroundMaterial.Wood, true),
+				[Island.Well] = _ => new(Yard, GroundMaterial.Flagstone),
+				[Island.HamletFork] = _ => new(ForestRoad, GroundMaterial.Grass),
+			}, actors, CaptionOffset: -80f, Landmarks: new[]
+			{
+				new LandmarkLook(new GridPos(12, 6), new Color(0.48f, 0.48f, 0.43f), 24),
+				new LandmarkLook(new GridPos(2, 8), new Color(0.63f, 0.31f, 0.18f), 16),
+			});
+		if (area == Island.ShedArea)
+			return new(true, new Dictionary<LocationId, Func<GridPos, FloorLook>>
+			{
+				[Island.Shed] = _ => new(HouseFloor, GroundMaterial.Flagstone, true),
+				[Island.ShedFork] = _ => new(ForestRoad, GroundMaterial.Grass),
+			}, actors, Props: new[] { new PropLook("interior-table", BlackmarshWatchhouse.Ids.Table, 75f, Vector2.Zero) },
+				CameraOffset: new Vector2(50f, 0), CaptionOffset: -80f);
+		if (area == Island.Cove)
+			return new(true, new Dictionary<LocationId, Func<GridPos, FloorLook>>
+			{
+				[Island.Landing] = _ => new(Yard, GroundMaterial.Road),
+				[Island.CoveFork] = _ => new(ForestRoad, GroundMaterial.Grass),
+			}, actors, CaptionOffset: -80f,
+				NearbyLabels: new Dictionary<LocationId, string> { [Island.Landing] = "Presso l'approdo" });
+		throw new ArgumentOutOfRangeException(nameof(area), area, "No presentation for this island area.");
 	}
 
 	private FloorLook FloorFor(char symbol, LocationId? zone, GridPos cell)

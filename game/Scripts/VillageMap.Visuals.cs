@@ -636,7 +636,7 @@ public partial class VillageMap
 		if (_paladinLiveModel is not null)
 			return _paladinLiveModel;
 		_paladinLiveModel = new Paladin3DPrototype { Name = "LivePaladinRenderer", LiveMode = true };
-		AddChild(_paladinLiveModel);
+		_mapRoot.AddChild(_paladinLiveModel);
 		return _paladinLiveModel;
 	}
 
@@ -645,7 +645,7 @@ public partial class VillageMap
 		if (_npcLiveModels.TryGetValue(id, out var model)) return model;
 		var style = ActorStyle(id);
 		model = new Paladin3DPrototype { Name = $"LiveFigure_{id.Value}", LiveMode = true, Style = style };
-		AddChild(model);
+		_mapRoot.AddChild(model);
 		_npcLiveModels[id] = model;
 		return model;
 	}

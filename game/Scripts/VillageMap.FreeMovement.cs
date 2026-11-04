@@ -20,7 +20,7 @@ public partial class VillageMap
 	private void BuildSpotOverlay()
 	{
 		_spotOverlay = new Node2D { ZIndex = -4, Visible = false };
-		AddChild(_spotOverlay);
+		_mapRoot.AddChild(_spotOverlay);
 		_spotRoute = new Line2D { Width = 3f, Antialiased = true,
 			DefaultColor = new Color(0.32f, 0.78f, 1f, 0.84f) };
 		_spotOverlay.AddChild(_spotRoute);

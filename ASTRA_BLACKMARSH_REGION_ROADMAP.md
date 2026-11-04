@@ -2,7 +2,7 @@
 
 Analisi originaria del 29 ottobre 2026. Base esaminata: commit `d4c9465`. **Alla data dell'analisi non era stata eseguita alcuna implementazione regionale.** Le due vertical slice sono considerate concluse; questo incremento costruisce gioco continuativo sui loro risultati.
 
-**Aggiornamento 4 novembre 2026:** implementato e verificato il **Task 1**, con correzioni Sim e test generici; **approvato da Claude** nella review del 3 novembre e da Codex nella review indipendente del 4 novembre, entrambe registrate in `chat.txt`. Implementazione nel commit `8d47e0c`. Il testo di analisi sottostante conserva la diagnosi originale; risultati, review e limiti sono registrati sotto il Task 1. **Aggiornamento 4 novembre 2026 (Claude):** implementato il **Task 2** (mondo unico e tre luoghi nei dati, Sim e test), in attesa di review; esito sotto il Task 2. Nessuna modifica del client. Task 3–10 non avviati.
+**Aggiornamento 4 novembre 2026:** implementato e verificato il **Task 1**, con correzioni Sim e test generici; **approvato da Claude** nella review del 3 novembre e da Codex nella review indipendente del 4 novembre, entrambe registrate in `chat.txt`. Implementazione nel commit `8d47e0c`. Il testo di analisi sottostante conserva la diagnosi originale; risultati, review e limiti sono registrati sotto i rispettivi task. **Task 2:** implementato da Claude nel commit `b97c75b`, approvato nella review indipendente di Codex, senza modifiche al client. **Task 3:** implementato da Codex, build/test/smoke superati, pronto per review; dettagli e limiti sotto. Task 4–10 non avviati.
 
 ## 1. Decisione
 
@@ -309,7 +309,7 @@ L'approvazione di Claude rende il Task 2 tecnicamente avviabile. Questo aggiorna
 
 #### Risultato effettivo del Task 2 — 4 novembre 2026 (Claude)
 
-**Stato: implementato, verifiche automatiche superate; in attesa di review.** Contratto in `chat.txt` (commit `543ec16`) prima del codice. Nessun cambio di regole Sim, dello schema save (resta 43) o del client.
+**Stato: implementato, verifiche automatiche superate, approvato nella review indipendente di Codex.** Contratto in `chat.txt` (commit `543ec16`) prima del codice. Nessun cambio di regole Sim, dello schema save (resta 43) o del client.
 
 File:
 
@@ -339,6 +339,12 @@ Verifiche, in worktree pulito: Sim **707/707** (696 + 11), build client 0 warnin
 
 **Limiti:** nessuna scena o profilo client per la regione (Task 3). Durate e orari sono valori di contenuto non tarati sul gioco (Task 6 e 10). Il custode di notte resta al pozzo all'aperto. Se il pescatore e il predone si incrociano alla rimessa, l'esito non è stato provato: oggi il pescatore riparte alle 19:45, prima della razzia.
 
+#### Review indipendente di Codex — 4 novembre 2026
+
+**Esito: APPROVATO per il Task 2; Task 3 può partire.** Controllati commit `b97c75b`, scenario, manifest, factory, confronto con la rimessa, test e documento. Build completa con 0 warning/0 errori; suite Sim completa **707/707** dopo la build. Gli smoke Godot dichiarati da Claude non sono stati ripetuti in questa review. Risultato registrato anche in `chat.txt`.
+
+**Copertura da completare nel Task 6:** i test regionali asseriscono che il predone riceva la razzia verso la rimessa, non ancora `FoodStolen`, `FoodDeposited`, quantità finali e ritorno alla caletta. La cronologia del furto e della consegna descritta nel documento resta da proteggere con asserzioni dirette nel task dedicato alla circolazione di persone e scorte. Non blocca la costruzione del client.
+
 ### Task 3 — Ricostruire la presentazione quando cambia l'area
 
 **Obiettivo:** il client mostra la mappa dove si trova effettivamente il giocatore, mantenendo la stessa sessione.
@@ -352,6 +358,55 @@ Verifiche, in worktree pulito: Sim **707/707** (696 + 11), build client 0 warnin
 **Completato quando:** un giro e un ritorno ripetuti non duplicano nodi/handler e mostrano le geometrie/stati corretti, anche tornando in una stanza già esplorata. La casa comune riusa il renderer della rimessa; nessun renderer regionale duplicato. Lo smoke può guidare comandi pubblici, non scrivere lo stato della Sim.
 
 **Reasoning:** alto per il ciclo di vita; implementazione circoscritta, nessun refactoring generale.
+
+#### Esito implementazione — 4 novembre 2026, Codex
+
+**Stato: implementato e verificato nel perimetro del Task 3; review indipendente ancora da svolgere.** Base: `b97c75b`, con la review del Task 2 già presente nelle modifiche locali alla roadmap e a `chat.txt`. Preservati tali aggiornamenti e gli asset `Body.*` non tracciati. Nessuna modifica a Sim, scenario, test Sim, schema save o scena principale del progetto.
+
+**Cambiamenti:**
+
+- `game/Scenes/BlackmarshRegion.tscn` apre la factory regionale alle 19:35 usando il client comune, con `SceneEntry.BlackmarshRegion`. Nessun renderer separato.
+- `VillageMap.MapPresentation.cs` raccoglie pavimenti, edifici, tetti, visione, token/modelli, trappole, proiettili e overlay in un unico nodo `MapPresentation`. Il cambio di `AreaId` rimuove e libera il vecchio albero, svuota le cache locali e costruisce quello della mappa corrente. Camera e CanvasLayer/HUD restano gli stessi. Gli handler UI vengono creati all'avvio, non a ogni cambio mappa.
+- Durante il viaggio l'intero albero locale è nascosto anche quando `PlayerView.Map` descrive ancora l'origine. Selezioni e intenzioni locali vengono cancellate alla partenza/arrivo. Un load accettato che sostituisce la sessione invalida il rendering anche se l'area ha lo stesso ID.
+- `VillageMap.Presentation.cs` seleziona il profilo per area: casa comune in legno, rimessa con pianta e tavolo esistenti, approdo senza edifici aggiunti. Pozzo e focolare sono semplici blocchi sugli ostacoli già nei dati, senza asset nuovi. Le identità regionali degli NPC mantengono lo stesso aspetto nelle diverse mappe.
+- Le modifiche ai partial `Buildings`, `Combat`, `FreeMovement`, `R5`, `Shots`, `Slice`, `Vision`, `Visuals` e `Barriers` riguardano la proprietà dei nodi locali; i controlli UI restano esterni all'albero sostituibile. `InteriorArt` riusa il renderer esistente per i due segnaposto.
+- `VillageMap.RegionPresentationSmoke.cs` guida il giocatore attraverso comandi pubblici. La variante `--map-presentation-fixture` crea un piccolo mondo iniziale con `ScenarioBuilder`, senza alterare snapshot o stato di una Sim in esecuzione. Non è contenuto della regione.
+
+| Criterio | Evidenza osservata |
+|---|---|
+| Avvio regionale e profili per area | Avvio alle 19:35 nel nucleo; attraversate tutte e tre le mappe, comprese dimensioni 20×14 e 18×14; acquisizioni separate. |
+| Stessa sessione, camera e HUD | Asserzioni di identità per l'intero giro regionale; ogni viaggio avanza l'orologio e conserva la sessione. La sola variante fixture sostituisce esplicitamente la sessione nell'ultima prova di load. |
+| Giri e ritorni ripetuti | Tre giri, nove cambi area: nucleo→rimessa→caletta→nucleo, poi ordine inverso, poi primo ordine. Dopo ogni arrivo il vecchio root non è più valido, esistono un solo root locale e una sola camera. |
+| Geometrie e cache locali | Caletta priva dei tetti/porte/props della rimessa; indici delle porte corrispondenti alla nuova vista, celle nei limiti della nuova mappa. Gli alberi precedenti, inclusi i modelli 3D, sono liberati. Nessun nuovo collegamento di handler durante la ricostruzione, verificato anche per lettura del codice. |
+| Porte/finestre nelle stesse coordinate | Fixture: porta e finestra chiuse nella prima area, aperte nella seconda; disegno e picking della porta verificati. Al ritorno la prima porta resta chiusa sia nella vista sia nel disegno. |
+| Luce, trappole e oggetti | Fixture: luce più debole nella seconda area; fossa realmente scoperta con ricerca e giavellotto a terra nella prima non compaiono nella seconda; ricompaiono al ritorno e dopo load nella prima. |
+| Pulizia delle interazioni e transito | Menu di una trappola nota aperto tramite il normale handler prima della partenza, poi chiuso con selezione cancellata. In transito root invisibile, posizione nulla, pannello fuori mappa visibile. |
+| Interni, memoria e NPC | Cutaway della casa comune, tavolo visibile nella rimessa e memoria di celle esplorate al ritorno. Modello del pescatore verificato alla rimessa e poi a casa con lo stesso stile. Nessun ramo di rendering duplicato per la casa. |
+| Load accettato sulla stessa area | Vecchio root liberato e marcatori locali ricostruiti. Passa anche la regressione di persistenza della vecchia rimessa. Non equivale a Continua regionale da un'altra area. |
+
+**Risultati effettivamente eseguiti:**
+
+- `dotnet build RpgSandbox.sln --no-restore --verbosity minimal`: **0 warning, 0 errori**.
+- `dotnet test RpgSandbox.sln --no-restore --verbosity minimal`: **707/707**, 0 falliti, 0 ignorati.
+- Godot 4.7.2 mono, OpenGL compatibility, **1280×720**, exit code **0** per tutti: smoke regionale reale; fixture coincidente; `--blackmarsh-composed-smoke`; `--blackmarsh-persistence-smoke`; `--slice-smoke`; `--village-smoke`.
+- Controllate visivamente le immagini `common-house.png`, `shed-interior.png`, `hamlet-return.png` e `fixture-second.png`. Casa, rimessa e modello del pescatore leggibili; nessun residuo della mappa precedente nelle immagini controllate. I blocchi del pozzo/focolare restano segnaposto.
+- `git diff --check`: nessun errore.
+
+Riproduzione dalla radice del repository, dopo la build:
+
+```powershell
+$godotExe = 'tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono_win64_console.exe'
+& $godotExe --rendering-method gl_compatibility --resolution 1280x720 --path game res://Scenes/BlackmarshRegion.tscn -- --region-presentation-smoke=C:/Progetti/rpg/.tmp/region-task3/island
+& $godotExe --rendering-method gl_compatibility --resolution 1280x720 --path game res://Scenes/BlackmarshRegion.tscn -- --region-presentation-smoke=C:/Progetti/rpg/.tmp/region-task3/fixture --map-presentation-fixture
+& $godotExe --rendering-method gl_compatibility --resolution 1280x720 --path game res://Scenes/BlackmarshWatchhouse.tscn -- --blackmarsh-composed-smoke=C:/Progetti/rpg/.tmp/region-task3/regression-blackmarsh
+& $godotExe --rendering-method gl_compatibility --resolution 1280x720 --path game res://Scenes/BlackmarshWatchhouse.tscn -- --blackmarsh-persistence-smoke=C:/Progetti/rpg/.tmp/region-task3/regression-persistence
+& $godotExe --rendering-method gl_compatibility --resolution 1280x720 --path game res://Scenes/PlayableSlice.tscn -- --slice-smoke=C:/Progetti/rpg/.tmp/region-task3/regression-slice
+& $godotExe --rendering-method gl_compatibility --resolution 1280x720 --path game res://Scenes/Village.tscn -- --village-smoke=C:/Progetti/rpg/.tmp/region-task3/regression-village
+```
+
+**Assunzioni corrette durante il collaudo:** la porta della casa può essere già aperta all'avvio dopo il preroll del pescatore e può venire riaperta dal suo rientro. Due prime esecuzioni hanno segnalato questi errori nelle aspettative dello smoke. Il mondo non è stato modificato per congelare gli NPC: il caso reale verifica la corrispondenza fra stato osservato e disegno, mentre la fixture senza NPC verifica separatamente la conservazione della porta chiusa. Le successive esecuzioni sono verdi.
+
+**Limiti e consegna al Task 4:** la regione non è ancora percorribile liberamente da UI: `BeginExitJourney` gestisce ancora una sola destinazione, e i bivi regionali ne hanno due. Lo smoke usa `TravelCommand`, non dimostra il percorso UI completo. Scelta del tragitto, input in transito e messaggio esplicito per ingresso occupato restano al Task 4. Il percorso save è separato (`user://blackmarsh-region.json`) per non usare gli slot delle slice, ma il contratto di load rimane quello precedente basato sulla mappa costruita: Continua da qualunque area/viaggio, identità regionale e riavvio del processo restano al Task 5. Non verificati in questa consegna: playtest umano, 1920×1080, profiling prolungato delle risorse native. La liberazione dei nodi è asserita; non viene presentata come misura completa della memoria GPU. Nessun Task 4–10 implementato.
 
 ### Task 4 — Rendere giocabile la scelta del tragitto
 
@@ -461,4 +516,4 @@ Alcune capacità di base esistono già — per esempio monete, livelli, riposi, 
 
 Rivalutare produzione/scorte rinnovabili quando il giocatore vuole davvero passare più giorni e l'esaurimento impedisce di proseguire; rivalutare nuovi comportamenti quando i tre luoghi sono percorribili e il playtest mostra precisamente quale scelta non è sostenuta. Rivalutare una seconda regione soltanto dopo aver dimostrato che vale la pena uscire, tornare e riprendere questa.
 
-**Raccomandazione originaria: iniziare dal Task 1.** Il mondo e il salvataggio possiedono già gran parte dell'infrastruttura necessaria; l'incognita più economica da risolvere era la composizione di viaggio, selezione dei bersagli e percezione fra due mappe reali. Il Task 1 è ora implementato e approvato da Claude e Codex. Il prossimo incremento previsto è il Task 2, seguito dal collegamento al client. Nessun task successivo è stato avviato con questo aggiornamento.
+**Raccomandazione originaria: iniziare dal Task 1.** Il mondo e il salvataggio possiedono già gran parte dell'infrastruttura necessaria; l'incognita più economica da risolvere era la composizione di viaggio, selezione dei bersagli e percezione fra due mappe reali. I Task 1 e 2 sono implementati e approvati; il Task 3 è implementato, verificato e pronto per review. Dopo la review, il prossimo incremento è il Task 4: rendere percorribili i tre luoghi tramite la normale interfaccia. Nessun Task 4–10 avviato.

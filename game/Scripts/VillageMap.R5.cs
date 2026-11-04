@@ -28,7 +28,7 @@ public partial class VillageMap
 	private void BuildR5Map()
 	{
 		_trapLayer = new Node2D { ZIndex = 4 };
-		AddChild(_trapLayer);
+		_mapRoot.AddChild(_trapLayer);
 	}
 
 	private void BuildR5Ui(CanvasLayer ui)

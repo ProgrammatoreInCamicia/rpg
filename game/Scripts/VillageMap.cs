@@ -13,13 +13,14 @@ namespace RpgSandbox.Game;
 /// </summary>
 public partial class VillageMap : Node2D
 {
-	public enum SceneEntry { Village, InteriorPrototype, InteriorArtPilot, PlayableSlice, BlackmarshWatchhouse }
+	public enum SceneEntry { Village, InteriorPrototype, InteriorArtPilot, PlayableSlice, BlackmarshWatchhouse, BlackmarshRegion }
 	[Export] public SceneEntry Entry { get; set; } = SceneEntry.Village;
 	private SceneEntry _activeEntry;
 	private bool InteriorPrototype => _activeEntry == SceneEntry.InteriorPrototype;
 	private bool InteriorArtPilot => _activeEntry == SceneEntry.InteriorArtPilot;
 	private bool PlayableSliceMode => _activeEntry == SceneEntry.PlayableSlice;
 	private bool BlackmarshWatchhouseMode => _activeEntry == SceneEntry.BlackmarshWatchhouse;
+	private bool BlackmarshRegionMode => _activeEntry == SceneEntry.BlackmarshRegion;
 	private bool CanRetryScene => PlayableSliceMode || BlackmarshWatchhouseMode;
 	private const float TileW = 64f;
 	private const float TileH = 32f;
@@ -39,6 +40,7 @@ public partial class VillageMap : Node2D
 		SceneEntry.InteriorArtPilot => new(VillageSavePath, new GridPos(-1, 0), 13, false),
 		SceneEntry.PlayableSlice => new(SliceSavePath, new GridPos(1, 1), 0, true),
 		SceneEntry.BlackmarshWatchhouse => new(BlackmarshSavePath, new GridPos(1, 0), 0, true),
+		SceneEntry.BlackmarshRegion => new("user://blackmarsh-region.json", new GridPos(-1, -1), 0, true),
 		_ => throw new ArgumentOutOfRangeException(nameof(entry))
 	};
 	private static SimulationSession CreateEntrySession(SceneEntry entry) => entry switch
@@ -48,6 +50,7 @@ public partial class VillageMap : Node2D
 		SceneEntry.InteriorArtPilot => SimulationSession.Create(InteriorArtPilotScenario.Create()),
 		SceneEntry.PlayableSlice => PlayableSlice.CreateSession(),
 		SceneEntry.BlackmarshWatchhouse => BlackmarshWatchhouse.CreateSession(),
+		SceneEntry.BlackmarshRegion => BlackmarshWatchIsland.CreateSession(),
 		_ => throw new ArgumentOutOfRangeException(nameof(entry))
 	};
 
@@ -134,20 +137,23 @@ public partial class VillageMap : Node2D
 		_activeEntry = Entry == SceneEntry.Village && OS.GetCmdlineUserArgs().Contains("--interior-prototype")
 			? SceneEntry.InteriorPrototype : Entry;
 		_entryOptions = OptionsFor(_activeEntry);
-		_presentation = PresentationFor(_activeEntry);
 		_freeMovementEnabled = true;
-		_sim = CreateEntrySession(_activeEntry);
+		_sim = BlackmarshRegionMode && OS.GetCmdlineUserArgs().Contains("--map-presentation-fixture")
+			? CreateMapPresentationFixture() : CreateEntrySession(_activeEntry);
 		if (_entryOptions.PrerollHours > 0)
 			_sim.Advance(Duration.FromHours(_entryOptions.PrerollHours));
 		_sim.FacePlayer(_entryOptions.Facing.X, _entryOptions.Facing.Y);
 		_view = _sim.GetPlayerView();
 		SyncFigureFacing(_view.Facing);
 
-		BuildMap();
-		BuildR5Map();
+		BuildMapPresentation();
 		BuildUi();
 		if (_entryOptions.StartsPaused) SetPaused(true);
 		Refresh();
+		var presentationSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--region-presentation-smoke="));
+		if (BlackmarshRegionMode && presentationSmoke is not null)
+			RunRegionPresentationSmoke(presentationSmoke["--region-presentation-smoke=".Length..],
+				OS.GetCmdlineUserArgs().Contains("--map-presentation-fixture"));
 		var blackmarshEntrySmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--blackmarsh-entry-smoke="));
 		if (BlackmarshWatchhouseMode && blackmarshEntrySmoke is not null)
 			RunBlackmarshEntrySmoke(blackmarshEntrySmoke["--blackmarsh-entry-smoke=".Length..]);
@@ -1008,6 +1014,7 @@ public partial class VillageMap : Node2D
 	{
 		ClearBarrierActivity();
 		_view = _sim.GetPlayerView();
+		EnsureMapPresentation();
 		RefreshSliceReportState();
 		_spotPreviewAt = null; // doors, light and newly explored squares can change a route within one second
 		if (_view.Combat is null && _view.LastFight is null)
@@ -1506,9 +1513,9 @@ public partial class VillageMap : Node2D
 		var map = _view.Map!;
 		_builtMap = map;
 		_floor = new Node2D { ZIndex = -10 };
-		AddChild(_floor);
+		_mapRoot.AddChild(_floor);
 		_sorted = new Node2D { YSortEnabled = true };
-		AddChild(_sorted);
+		_mapRoot.AddChild(_sorted);
 		BuildRoofLayer();
 		BuildVisionFeather();
 		LoadGroundTextures();
@@ -1602,13 +1609,17 @@ public partial class VillageMap : Node2D
 		}
 
 		_hover = new Polygon2D { Polygon = Diamond(), Color = Hover, ZIndex = -5, Visible = false };
-		AddChild(_hover);
+		_mapRoot.AddChild(_hover);
 		BuildSpotOverlay();
 		BuildShotLayer();
 
-		var zoom = InteriorArtPilot ? 1.85f : PlayableSliceMode ? 0.9f : _view.MapVisibility is null ? 1.2f : 1.08f;
-		_camera = new Camera2D { Position = CameraTarget(CellToScreen(_view.Position ?? new GridPos(0, 0))), Zoom = new Vector2(zoom, zoom) };
-		AddChild(_camera);
+		if (_camera is null)
+		{
+			var zoom = InteriorArtPilot ? 1.85f : PlayableSliceMode ? 0.9f : _view.MapVisibility is null ? 1.2f : 1.08f;
+			_camera = new Camera2D { Zoom = new Vector2(zoom, zoom) };
+			AddChild(_camera);
+		}
+		_camera.Position = CameraTarget(CellToScreen(_view.Position ?? new GridPos(0, 0)));
 		_camera.MakeCurrent();
 	}
 

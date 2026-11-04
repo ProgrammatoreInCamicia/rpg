@@ -12,6 +12,13 @@ public partial class VillageMap
 	{
 		foreach (var prop in _presentation.Props ?? Array.Empty<PropLook>())
 			AddProp(prop.Asset, prop.Cell, prop.Width, prop.FloorOffset);
+		foreach (var landmark in _presentation.Landmarks ?? Array.Empty<LandmarkLook>())
+		{
+			var block = MakeBlock(landmark.Cell, landmark.Color, landmark.Height);
+			_sorted.AddChild(block);
+			_lit[landmark.Cell] = block;
+			_interiorProps.Add((landmark.Cell, block));
+		}
 	}
 
 	private void AddProp(string asset, GridPos cell, float width, Vector2? floorOffset = null)

@@ -21,7 +21,7 @@ public partial class VillageMap
 		_activeBarrierBase.Clear();
 		foreach (var outline in _barrierActivityOutlines)
 		{
-			RemoveChild(outline);
+			outline.GetParent().RemoveChild(outline);
 			outline.QueueFree();
 		}
 		_barrierActivityOutlines.Clear();
@@ -46,7 +46,7 @@ public partial class VillageMap
 				Points = diamond.Append(diamond[0]).ToArray(), Width = 3f, ZIndex = 14,
 				DefaultColor = new Color(1f, 0.75f, 0.25f, 0.95f),
 			};
-			AddChild(outline);
+			_mapRoot.AddChild(outline);
 			_barrierActivityOutlines.Add(outline);
 		}
 	}

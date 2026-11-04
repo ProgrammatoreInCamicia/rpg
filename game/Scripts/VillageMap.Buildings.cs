@@ -25,7 +25,7 @@ public partial class VillageMap
 		var gableTexture = StyledInterior
 			? GD.Load<Texture2D>("res://Assets/StyleStudy/interior-plaster.png") : null;
 		_roofs = new Node2D { ZIndex = 20 };
-		AddChild(_roofs);
+		_mapRoot.AddChild(_roofs);
 		var map = _view.Map!;
 		var indoorCells = new List<(GridPos Cell, LocationId Zone)>();
 		for (var y = 0; y < map.Height; y++)

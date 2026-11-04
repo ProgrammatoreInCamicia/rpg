@@ -39,11 +39,14 @@ public partial class VillageMap
 	private string? _openingConfirmedAttack;
 	private bool _openingConfirmedNonLethal;
 
-	private void BuildCombatUi(CanvasLayer ui)
+	private void BuildCombatMap()
 	{
 		_combatOverlay = new Node2D { ZIndex = -4, Visible = false };
-		AddChild(_combatOverlay);
+		_mapRoot.AddChild(_combatOverlay);
+	}
 
+	private void BuildCombatUi(CanvasLayer ui)
+	{
 		_combatTopPanel = HudPanel(370, 930, 16, 112);
 		_combatTopPanel.Visible = false;
 		_combatTopPanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.10f, 0.11f, 0.13f, 0.91f) });

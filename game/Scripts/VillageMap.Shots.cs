@@ -13,7 +13,7 @@ public partial class VillageMap
 	private void BuildShotLayer()
 	{
 		_shotLayer = new Node2D { ZIndex = 20 };
-		AddChild(_shotLayer);
+		_mapRoot.AddChild(_shotLayer);
 	}
 
 	/// <summary>The Sim supplies the resolved straight segment, including a miss's actual end point.</summary>

@@ -128,7 +128,11 @@ public partial class VillageMap
 		_sliceDepositButton = new Button { Text = "Consegna 3 razioni" };
 		_sliceDepositButton.Pressed += DeliverSliceRations;
 		depositBox.AddChild(_sliceDepositButton);
+	}
 
+	private void BuildSliceAccessMarker()
+	{
+		if (!PlayableSliceMode) return;
 		_sliceAccessMarker = new Node2D { Name = "SliceStoreAccess", ZIndex = 20, Visible = false };
 		_sliceAccessMarker.AddChild(new Polygon2D
 		{
@@ -140,7 +144,7 @@ public partial class VillageMap
 		_sliceAccessLabel.AddThemeConstantOverride("outline_size", 4);
 		_sliceAccessLabel.AddThemeColorOverride("font_outline_color", Colors.Black);
 		_sliceAccessMarker.AddChild(_sliceAccessLabel);
-		AddChild(_sliceAccessMarker);
+		_mapRoot.AddChild(_sliceAccessMarker);
 	}
 
 	private void RefreshSliceGuidance()

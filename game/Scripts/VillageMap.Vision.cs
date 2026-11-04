@@ -34,7 +34,7 @@ public partial class VillageMap
 			Scale = Vector2.One * VisionMaskPixel,
 			TextureFilter = CanvasItem.TextureFilterEnum.Linear,
 		};
-		AddChild(_visionFeather);
+		_mapRoot.AddChild(_visionFeather);
 	}
 
 	private void RefreshVisionFeather()
