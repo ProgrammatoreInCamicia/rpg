@@ -6640,3 +6640,46 @@ Note non bloccanti, per i task successivi:
 3. `ArrivalSquare` conta come occupanti anche i corpi a terra: coerente con gli altri controlli d'occupazione, solo da sapere.
 4. La roadmap dice ancora «review esterna del Task 1 ancora da svolgere»: Astra può aggiornarla con l'esito.
 Task 2 può partire.
+
+[CODEX — review indipendente Task 1 regione Blackmarsh, 4 novembre 2026]
+Ho letto ASTRA_BLACKMARSH_REGION_ROADMAP.md, il commit Sim 8d47e0c, i 16 casi RegionalTravelTests e la review di Claude. Dopo `dotnet build RpgSandbox.sln --no-restore --verbosity minimal`, la suite completa passa 696/696 (build 0 warning, 0 errori). Una prima esecuzione con `--no-build` aveva usato DLL precedenti e dato 10 fallimenti: non era una regressione del sorgente attuale; ho scartato quel risultato dopo la build. Ho verificato in codice normalizzazione delle due estremità in JourneyCost, isolamento di VisibleActors/VisibleStores nel transito mappato, scelta dell'ingresso libero, attesa con azione/ID stabile e arresto del conteggio della marcia alla durata del percorso. Concordo con l'approvazione: nessun blocco per Task 2.
+Follow-up indipendente, non riprodotto da test: un viaggio lungo che termina esattamente a mezzanotte può perdere l'ultimo tratto nel conteggio della marcia forzata. `ProcessUntil` completa TravelAction nella fase 1; `TravelAtArrival` usa la mezzanotte appena iniziata come limite inferiore, poi `EndOfDay` nella fase 2 non trova più l'azione per `TravelAtMidnight`. Il caso era possibile già prima del Task 1 e non incide sui sentieri brevi progettati per l'isola. Chiedo un test mirato e correzione quando si lavora di nuovo sulla contabilizzazione della marcia; non lo considero una ragione per fermare il Task 2. Restano validi i follow-up di Claude sullo stato leggibile durante l'attesa all'ingresso e sul controllo ogni secondo.
+
+[CLAUDE — contratto Task 2 regione: il mondo unico e i tre luoghi, prima del codice, 4 novembre 2026]
+L'utente mi ha assegnato il Task 2 di ASTRA_BLACKMARSH_REGION_ROADMAP.md. Solo dati, factory, test e documento; nessun cambio di regole Sim e nessun file client.
+File:
+- nuovo `game/content/scenarios/blackmarsh-watch-island.json` (id `blackmarsh-watch-island`), aggiunto a `manifest.json`;
+- nuovo `src/RpgSandbox.Sim/Scenarios/BlackmarshWatchIsland.cs` (`CreateSession`, `Ids`);
+- nuovo `tests/.../BlackmarshWatchIslandTests.cs`;
+- nuovo `docs/BLACKMARSH_REGION.md`;
+- esito registrato sotto il Task 2 nella roadmap.
+Il vecchio `blackmarsh-watchhouse.json` non si tocca. Tutti gli ID nuovi hanno prefisso `bm_isle_`; riuso solo l'oggetto chiave `bm-watch-shed-key` (è la stessa chiave).
+Geografia: tre aree, ciascuna con una mappa e un'uscita «Bivio» sul bordo. Rotte bidirezionali fra i bivi: nucleo↔rimessa 6 min, rimessa↔caletta 8, nucleo↔caletta 12.
+- Nucleo dei pescatori (20×14):
+  - Casa comune, edificio interno con una porta non chiusa a chiave, dispensa e posto «casa» del pescatore;
+  - Piazzale del pozzo (`water`, braciere acceso sul pozzo, che è un ostacolo), dove sta il custode (posto «casa»);
+  - bivio a est.
+- Rimessa: la stessa pianta di blackmarsh-watchhouse (muri, porte, serratura, finestra gonfia, lampada, tavolo).
+  - Il vecchio sentiero diventa il bivio; il vecchio approdo diventa terreno libero (l'approdo si sposta alla caletta);
+  - posto «lavoro» del pescatore nella prima stanza.
+- Caletta (20×14): bivio a ovest; Approdo dei Vasan con le Provviste dei Vasan; un'area libera lasciata vuota per il capanno del Task 7 (niente arco ora).
+Vincolo emerso dal motore: c'è un solo posto per tipo per luogo. Custode e pescatore nella stessa casa starebbero sulla stessa casella, quindi il custode sta di guardia al pozzo: coerente con la sorveglianza della fonte. La casa di un NPC è il suo luogo di partenza.
+Persone e fazioni:
+- quattro attori:
+  - Protagonista: nel piazzale, corredo da paladino come nella rimessa, chiave inclusa;
+  - Custode della vedetta: village-guard, autorità dei pescatori;
+  - Pescatore: farmer; vive nella casa comune, lavora alla rimessa dalle 16:00 alle 19:45 e ha la chiave;
+  - Predone vasan: raider, all'approdo.
+- due fazioni come nella rimessa:
+  - Pescatori della vedetta: deposito di casa la dispensa del nucleo, autorità il custode;
+  - Vasan: consumo 4 alle 19:59, soglia 1, razzia 4, valutazione oraria.
+Scorte: dispensa 12, cassa della rimessa 4, provviste Vasan 4.
+Avvio: `CreateSession` crea il mondo alla mezzanotte e lo fa girare fino alle 19:35, senza preparazioni. Il pescatore va davvero al lavoro e alle 19:35 è alla rimessa; il predone parte da solo alle 20:00 verso il deposito più vicino (la rimessa, 8 contro 12 min).
+Test:
+- struttura: 3 mappe, 3 rotte, 1 giocatore, 4 attori, 3 depositi, 2 fazioni, nessun ID `bm_watch_` tranne la chiave; la pianta della rimessa coincide con quella vecchia;
+- determinismo: due creazioni danno lo stesso snapshot;
+- giri completi solo con comandi pubblici, nei due ordini: nucleo→caletta→rimessa→nucleo e nucleo→rimessa→caletta→nucleo;
+- save/load in viaggio e su ogni mappa: snapshot uguale alla continuazione;
+- il pescatore percorre davvero la rotta: alla rimessa alle 19:35, di nuovo a casa dopo il turno;
+- la razzia autonoma parte verso la rimessa.
+Le durate e gli orari sono valori di contenuto da tarare nei task 6 e 10.

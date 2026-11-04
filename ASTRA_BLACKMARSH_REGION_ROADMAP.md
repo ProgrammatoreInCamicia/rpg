@@ -2,7 +2,7 @@
 
 Analisi originaria del 29 ottobre 2026. Base esaminata: commit `d4c9465`. **Alla data dell'analisi non era stata eseguita alcuna implementazione regionale.** Le due vertical slice sono considerate concluse; questo incremento costruisce gioco continuativo sui loro risultati.
 
-**Aggiornamento 3 novembre 2026:** implementato e verificato esclusivamente il **Task 1**, con correzioni Sim e test generici. Il testo di analisi sottostante conserva la diagnosi originale; risultati e limiti dell'intervento sono registrati sotto il Task 1. Nessuna mappa regionale o modifica del client implementata. Task 2–10 non avviati; review esterna del Task 1 ancora da svolgere.
+**Aggiornamento 4 novembre 2026:** implementato e verificato esclusivamente il **Task 1**, con correzioni Sim e test generici; **approvato da Claude** nella review del 3 novembre e da Codex nella review indipendente del 4 novembre, entrambe registrate in `chat.txt`. Implementazione nel commit `8d47e0c`. Il testo di analisi sottostante conserva la diagnosi originale; risultati, review e limiti sono registrati sotto il Task 1. Nessuna mappa regionale o modifica del client implementata. Task 2–10 non avviati.
 
 ## 1. Decisione
 
@@ -226,7 +226,7 @@ I percorsi citati sotto sono relativi alla radice. I nuovi file sono proposti, s
 
 #### Risultato effettivo del Task 1 — 3 novembre 2026
 
-**Stato: implementato, verifiche automatiche superate; in attesa della review esterna. Task 2 non avviato.** Base Git `d4c9465`, modifiche lasciate nel working tree, senza commit automatico.
+**Stato: implementato, verifiche automatiche superate, approvato da Claude. Task 2 non avviato.** Base Git `d4c9465`; alla consegna le modifiche erano nel working tree. Claude le ha successivamente registrate nel commit `8d47e0c`, con nota di review in `41db58f`.
 
 File dell'intervento:
 
@@ -270,6 +270,29 @@ git -c safe.directory=C:/Progetti/rpg diff --check
 
 **Limiti espliciti per la review e i prossimi task:** un ingresso senza alcuno spazio libero resta bloccato finché il mondo non ne libera uno; non è stata introdotta un'azione nuova per annullare il viaggio, né un teletrasporto di ritorno. Il controllo ogni secondo è una soluzione locale per piccoli scenari, non un sistema di code di folla. L'ordine degli arrivi simultanei è quello deterministico dello scheduler. Questa regola gestisce gli arrivi, non riscrive le collisioni generali di tutti i camminatori. Il costo di fazione rimane una stima sui percorsi fra uscite: non aggiunge il costo del cammino interno né un pianificatore multi-area nuovo. L'interfaccia dell'attesa all'ingresso e il rendering della mappa d'arrivo restano non verificati e appartengono ai task client successivi.
 
+#### Review di Claude — 3 novembre, recepita il 4 novembre 2026
+
+**Esito: APPROVATO, nessuna correzione bloccante richiesta.** Fonte: ultimo messaggio di `chat.txt` nel commit `41db58f`. Le verifiche seguenti sono quelle dichiarate da Claude nel suo worktree pulito; non sono state rieseguite durante questo aggiornamento documentale:
+
+- Sim **696/696**, build client **0 warning / 0 errori**.
+- Smoke OpenGL 1280×720 verdi: Blackmarsh entry/store/building/flow/persistence/composed; slice, entry, combat, guide, persistence, report, summary, wait; art pilot, prototipo e villaggio.
+- Contro la Sim originale `d4c9465`, con i soli nuovi test, **10 dei 16 casi falliscono**: confermata la capacità dei test di rilevare i difetti. Confermato anche l'uso esclusivo di builder, comandi, viste e save/load, senza preparazioni tramite `Engine`.
+- Approvati costo fra uscite, vista in transito, arrivo/attesa con ID stabile e conteggio della marcia. Verificato che l'attesa non venga interpretata come annullamento da `AdvanceUntilCompleted`.
+
+Promemoria non bloccanti accolti:
+
+1. **Task 3–4, presentazione dell'attesa all'ingresso:** il timer generico mostrerebbe un secondo residuo ripetuto e barra piena. Mostrare uno stato comprensibile, per esempio «Aspetti di poter entrare», basato su un contratto Sim esplicito da definire durante quel task. Non inferire lo stato da un timer che sembra fermo.
+2. **Limite accettato per la piccola isola:** l'NPC in attesa non ridecide e riprova ogni secondo; rinuncia e percorsi alternativi restano fuori da questo incremento finché non servono a un caso concreto.
+3. **Occupazione:** anche i corpi a terra impediscono l'arrivo sulla loro casella. Tenerne conto nell'authoring e nelle verifiche successive.
+
+L'approvazione di Claude rende il Task 2 tecnicamente avviabile. Questo aggiornamento registra soltanto la sua review: nessuna modifica al codice e nessun task successivo iniziato. La review indipendente di Codex è registrata sotto.
+
+#### Review indipendente di Codex — 4 novembre 2026
+
+**Esito: APPROVATO per il Task 1; Task 2 può partire.** Riletti il commit `8d47e0c`, le modifiche Sim, i 16 casi regionali e la review di Claude. Build completa: 0 warning, 0 errori. Dopo la build, suite Sim completa: **696/696**. Un primo `--no-build` aveva eseguito DLL precedenti e dato 10 fallimenti; quel risultato è stato scartato e non indica una regressione del codice attuale. La verifica indipendente conferma costo fra uscite, isolamento della vista durante il viaggio mappato, arrivo senza sovrapposizione, attesa con ID stabile e conteggio della marcia limitato al percorso.
+
+**Follow-up non bloccante, rilevato per lettura del codice e non riprodotto da un test:** un viaggio lungo che termina esattamente a mezzanotte può saltare il conteggio dell'ultimo tratto utile alla marcia forzata: la fase 1 completa l'azione, `TravelAtArrival` usa la mezzanotte appena iniziata e la fase 2 `EndOfDay` non trova più il viaggio attivo. È un confine preesistente al Task 1 e non riguarda i sentieri brevi della regione. Aggiungere un test mirato quando si torna sul conteggio della marcia. Rimane da presentare chiaramente nel client l'attesa all'ingresso, come indicato da Claude per i Task 3–4.
+
 ### Task 2 — Definire il mondo unico e i tre luoghi reali
 
 **Obiettivo:** caricare una regione completa nei dati, con geografia e identità stabili, ancora presentabile con asset esistenti.
@@ -307,6 +330,8 @@ git -c safe.directory=C:/Progetti/rpg diff --check
 **Dipendenze:** Task 3.
 
 **Verifica:** scelta fra due destinazioni dall'uscita, passo/durata, annullamento prima di partire, stato durante il viaggio, arrivo; ritorni senza `ForestRoad`. Nessuna informazione dinamica della mappa lasciata; nessun clic sulla sua geometria nascosta. La durata deve usare il contratto Sim/preview esistente, estendendolo minimamente se manca un dato necessario.
+
+**Follow-up review Task 1:** verificare anche l'ingresso occupato, con uno stato di attesa leggibile al posto del conto alla rovescia «0:01» ripetuto; definire l'eventuale dato aggiuntivo nella vista Sim prima di collegarlo al client.
 
 **Completato quando:** da avvio pulito il giocatore può fare nucleo → caletta → rimessa → nucleo senza console e senza cambiare scena manualmente; anche l'ordine inverso funziona. Il tempo globale avanza normalmente. Stato di transito riconosciuto da viaggio/posizione, non da `Map == null`.
 
@@ -404,4 +429,4 @@ Alcune capacità di base esistono già — per esempio monete, livelli, riposi, 
 
 Rivalutare produzione/scorte rinnovabili quando il giocatore vuole davvero passare più giorni e l'esaurimento impedisce di proseguire; rivalutare nuovi comportamenti quando i tre luoghi sono percorribili e il playtest mostra precisamente quale scelta non è sostenuta. Rivalutare una seconda regione soltanto dopo aver dimostrato che vale la pena uscire, tornare e riprendere questa.
 
-**Raccomandazione originaria: iniziare dal Task 1.** Il mondo e il salvataggio possiedono già gran parte dell'infrastruttura necessaria; l'incognita più economica da risolvere era la composizione di viaggio, selezione dei bersagli e percezione fra due mappe reali. Il 3 novembre il Task 1 è stato implementato: il prossimo passo concordato è la review esterna delle modifiche. Dopo la review, portare il risultato nei tre luoghi e nel client secondo i task successivi; nessuno di questi è stato avviato nella sessione del Task 1.
+**Raccomandazione originaria: iniziare dal Task 1.** Il mondo e il salvataggio possiedono già gran parte dell'infrastruttura necessaria; l'incognita più economica da risolvere era la composizione di viaggio, selezione dei bersagli e percezione fra due mappe reali. Il Task 1 è ora implementato e approvato da Claude e Codex. Il prossimo incremento previsto è il Task 2, seguito dal collegamento al client. Nessun task successivo è stato avviato con questo aggiornamento.
