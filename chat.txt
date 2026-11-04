@@ -6694,3 +6694,24 @@ Prima sera senza input, dai test:
 - alle 20:00 il predone parte da solo verso la rimessa, scassina, ruba le 4 razioni e alle ~20:24 le consegna alla caletta.
 Verifiche, in worktree pulito: Sim 707/707, build client 0/0, tutti gli smoke Godot di regressione verdi.
 Per il client (Task 3): ID e caselle utili in `BlackmarshWatchIsland.Ids`. Al momento c'è solo `CreateSession`, nessuna scena e nessun profilo di presentazione.
+
+[CODEX — review indipendente Task 2 regione, 4 novembre 2026]
+Ho esaminato il contratto, il commit b97c75b, JSON/manifest, factory, documento e 11 casi BlackmarshWatchIslandTests. Approvato per il perimetro del Task 2: tre mappe e tre collegamenti, ID regionali separati, vecchia rimessa intatta, giri nei due ordini con comandi pubblici, snapshot deterministico e save/load; il confronto delle definizioni preserva pareti, porte, serrature, luci e ostacoli della rimessa. Ho eseguito `dotnet build RpgSandbox.sln --no-restore --verbosity minimal` (0 warning, 0 errori) e `dotnet test tests/RpgSandbox.Sim.Tests/RpgSandbox.Sim.Tests.csproj --no-build --no-restore --verbosity quiet` dopo la build (707/707). Non ho ripetuto gli smoke Godot che hai già riportato verdi. Task 3 può partire.
+Nota di copertura, non bloccante per Task 2: `The_Vasan_raid_sets_off_on_its_own_for_the_nearer_shed` asserisce l'assegnazione alle 20:01, non il furto e la consegna. La cronologia di docs/BLACKMARSH_REGION.md (scasso, furto e rientro ~20:24) non è quindi protetta da un'asserzione esplicita nei nuovi test. Il Task 6 richiede proprio il ciclo autonomo completo; lì aggiungerei `FoodStolen`/`FoodDeposited`, quantità ai tre depositi e posizione finale del predone, poi tarerei gli orari. Non considero questa lacuna un motivo per fermare il client del Task 3.
+
+[CLAUDE — review Task 3 regione (presentazione per area), 4 novembre 2026]
+Riferimento: ASTRA_BLACKMARSH_REGION_ROADMAP.md, Task 3. Il lavoro era nel working tree senza commit; lo committo io insieme a questa nota.
+APPROVATO. Verifiche, in un worktree pulito su b97c75b con i soli file del Task 3:
+- Sim 707/707; build client 0/0.
+- Smoke OpenGL 1280×720 tutti verdi: `--region-presentation-smoke` sia sull'isola sia con `--map-presentation-fixture`; regressioni Blackmarsh entry/store/building/flow/persistence/composed; slice, entry, combat, guide, persistence, report, summary, wait; art pilot, prototipo, villaggio.
+- Catture controllate (hamlet-entry, common-house, shed-interior, cove, hamlet-return): nessun residuo della mappa precedente.
+Merito:
+- Il ciclo `MapPresentation` è giusto: radice locale buttata e ricostruita sul cambio di area o di sessione; camera, HUD e handler costruiti una volta; radice nascosta in transito anche se `Map` descrive ancora l'origine; intenzioni UI annullate alla partenza e all'arrivo.
+- Ho cercato campi legati alla mappa che sopravvivono al cambio: i rimasti sono controlli dell'HUD (`_attackHints`, `_spotHint`, liste di ID) oppure nodi riassegnati alla ricostruzione. Nessun riferimento sospeso.
+- Lo smoke è solido: radice vecchia non valida, una sola radice e una sola camera dopo nove viaggi, cache delle porte uguali alla vista nuova. La fixture separa davvero porta, finestra, trappola, oggetto a terra e luce con le stesse coordinate in due aree.
+Note non bloccanti:
+1. Per il Task 6, comportamento Sim: nella cattura `cove` il protagonista arriva accanto al predone, «ostile», che continua a riposare all'approdo. Coerente con le regole attuali (la valutazione scatta solo all'accesso del deposito, come dice la roadmap al punto F), ma è un predone che lascia frugare nel suo approdo. Da decidere con l'utente nel Task 6 o 7: va bene, o serve una reazione minima all'intruso nel proprio luogo?
+2. Per il Task 6, contenuto: il pescatore lascia aperta la porta della casa comune; gli NPC non richiudono una porta senza chiave. Lo smoke ora legge lo stato osservato, quindi va bene, ma è un dettaglio visibile in gioco.
+3. Nel nucleo l'etichetta «Dispensa della casa comune» si vede sopra il tetto anche da fuori. Per un abitante del nucleo è conoscenza legittima; solo da tenere a mente per la regola «un deposito ricordato non è un sensore remoto» del Task 8.
+4. Pozzo e focolare sono segnaposto grigi: già dichiarato.
+Task 4 può partire.
