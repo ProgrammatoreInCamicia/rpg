@@ -182,6 +182,20 @@ public sealed class SimulationSession
         };
     }
 
+    private static TravelView ToTravelView(TravelAction travel, WorldState world)
+    {
+        var mappedDestination = world.Locations.TryGetValue(travel.Destination, out var location)
+            && world.Maps.ContainsKey(location.Area);
+        var waiting = mappedDestination && world.Routes.TryGetValue((travel.Origin, travel.Destination), out var normal)
+            && world.Now >= travel.StartedAt.Plus(Simulation.PacedTime(normal, travel.Pace));
+        return new TravelView
+        {
+            Action = travel.Id, Origin = travel.Origin, Destination = travel.Destination,
+            DepartedAt = travel.StartedAt, ArrivesAt = travel.CompletesAt, Pace = travel.Pace,
+            WaitingForEntry = waiting,
+        };
+    }
+
     private static ActorView ToView(Actor actor, WorldState w) => new()
     {
         Id = actor.Id,
@@ -196,9 +210,7 @@ public sealed class SimulationSession
         Action = actor.CurrentAction is { } a
             ? new ActionView { Id = a.Id, Kind = a.Kind, StartedAt = a.StartedAt, CompletesAt = a.CompletesAt, Description = a.Description }
             : null,
-        Travel = actor.CurrentAction is TravelAction t
-            ? new TravelView { Action = t.Id, Origin = t.Origin, Destination = t.Destination, DepartedAt = t.StartedAt, ArrivesAt = t.CompletesAt, Pace = t.Pace }
-            : null,
+        Travel = actor.CurrentAction is TravelAction t ? ToTravelView(t, w) : null,
         Assignment = actor.Assignment is { } r
             ? new AssignmentView
             {
@@ -317,9 +329,7 @@ public sealed class SimulationSession
             Action = player.CurrentAction is { } a
                 ? new ActionView { Id = a.Id, Kind = a.Kind, StartedAt = a.StartedAt, CompletesAt = a.CompletesAt, Description = a.Description }
                 : null,
-            Travel = travel is null
-                ? null
-                : new TravelView { Action = travel.Id, Origin = travel.Origin, Destination = travel.Destination, DepartedAt = travel.StartedAt, ArrivesAt = travel.CompletesAt, Pace = travel.Pace },
+            Travel = travel is null ? null : ToTravelView(travel, w),
             Area = area,
             Light = light,
             Daylight = Perception.DaylightAt(w.Now),
@@ -345,9 +355,7 @@ public sealed class SimulationSession
                 Name = x.Name,
                 Faction = x.Faction,
                 Location = x.Location,
-                Travel = x.CurrentAction is TravelAction t
-                    ? new TravelView { Action = t.Id, Origin = t.Origin, Destination = t.Destination, DepartedAt = t.StartedAt, ArrivesAt = t.CompletesAt, Pace = t.Pace }
-                    : null,
+                Travel = x.CurrentAction is TravelAction t ? ToTravelView(t, w) : null,
                 Doing = map is not null || (player.Location is { } here && x.Location == here) ? OutwardDoing(x, w) : null,
                 GuardingStore = (map is not null || player.Location is { } there && x.Location == there) && x.CurrentAction is GuardAction g ? g.Store : null,
                 AtBarrier = x.CurrentAction is BarrierAction work ? new BarrierRefView { A = work.Target.A, B = work.Target.B } : null,

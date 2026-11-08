@@ -2,7 +2,7 @@
 
 Analisi originaria del 29 ottobre 2026. Base esaminata: commit `d4c9465`. **Alla data dell'analisi non era stata eseguita alcuna implementazione regionale.** Le due vertical slice sono considerate concluse; questo incremento costruisce gioco continuativo sui loro risultati.
 
-**Aggiornamento 4 novembre 2026:** implementato e verificato il **Task 1**, con correzioni Sim e test generici; **approvato da Claude** nella review del 3 novembre e da Codex nella review indipendente del 4 novembre, entrambe registrate in `chat.txt`. Implementazione nel commit `8d47e0c`. Il testo di analisi sottostante conserva la diagnosi originale; risultati, review e limiti sono registrati sotto i rispettivi task. **Task 2:** implementato da Claude nel commit `b97c75b`, approvato nella review indipendente di Codex, senza modifiche al client. **Task 3:** implementato da Codex, build/test/smoke superati, pronto per review; dettagli e limiti sotto. Task 4–10 non avviati.
+**Aggiornamento 8 novembre 2026:** Task 1 e 2 implementati e approvati; Task 3 implementato nel commit `da59622` e approvato da Claude. Task 4 implementato e verificato da Codex, in attesa di review; dettagli e limiti sotto. Task 5–10 non avviati. Il testo di analisi sottostante conserva la diagnosi originale; risultati e review sono registrati sotto i rispettivi task.
 
 ## 1. Decisione
 
@@ -424,6 +424,10 @@ $godotExe = 'tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono
 
 **Reasoning:** medio. **Prima consegna giocabile:** luoghi collegati con azioni locali e ritorno effettivo, senza attendere il completamento della roadmap.
 
+**Risultato Task 4 (8 novembre 2026, pronto per review):** il clic sull'uscita conduce alla sua casella e apre la scelta dei due sentieri regionali; la destinazione mostra la durata a passo normale, poi tre andature mostrano ciascuna la durata prevista. «Altre destinazioni», «Annulla» ed Esc consentono di tornare indietro senza partire. La conferma usa `TravelCommand` e la rotta singola delle scene precedenti resta raggiungibile. Durante il transito la mappa è nascosta, gli attori e i depositi remoti non vengono mostrati, i clic sulla geometria precedente sono ignorati e la pausa ferma il tempo. All'arrivo la mappa di destinazione ricompare. `TravelView.WaitingForEntry` deriva lo stato dall'orario di partenza e dalla durata originale del percorso: quando l'ingresso mappato è occupato il client mostra «Aspetti di poter entrare» invece del conto alla rovescia ripetuto. Nessun campo di salvataggio aggiunto.
+
+**Verifiche Task 4:** build soluzione 0 errori/0 avvisi; 707/707 test Sim, compresa l'attesa a ingresso occupato prima/dopo save/load e la ripresa dopo la liberazione. Smoke Godot OpenGL 1280×720 `--region-travel-smoke` OK: nucleo → caletta → rimessa → nucleo e nucleo → rimessa → caletta → nucleo con input e pulsanti UI, annullamento/ritorno, tre passi e durata reale, pausa, clic ignorato in transito, arrivo nella stessa sessione. Smoke di regressione `--region-presentation-smoke` e `--village-smoke` OK; il secondo attraversa anche il viaggio a destinazione unica. Catture di scelta percorso, transito e arrivi esaminate. Restano da verificare con playtest umano la comodità dei pulsanti e un ingresso occupato riprodotto visivamente nel client; il suo stato è verificato nella Sim e il testo è collegato alla vista pubblica. Save/continua regionale resta Task 5.
+
 ### Task 5 — Riprendere la stessa regione dopo la chiusura
 
 **Obiettivo:** rendere durevole la prima consegna giocabile.
@@ -516,4 +520,4 @@ Alcune capacità di base esistono già — per esempio monete, livelli, riposi, 
 
 Rivalutare produzione/scorte rinnovabili quando il giocatore vuole davvero passare più giorni e l'esaurimento impedisce di proseguire; rivalutare nuovi comportamenti quando i tre luoghi sono percorribili e il playtest mostra precisamente quale scelta non è sostenuta. Rivalutare una seconda regione soltanto dopo aver dimostrato che vale la pena uscire, tornare e riprendere questa.
 
-**Raccomandazione originaria: iniziare dal Task 1.** Il mondo e il salvataggio possiedono già gran parte dell'infrastruttura necessaria; l'incognita più economica da risolvere era la composizione di viaggio, selezione dei bersagli e percezione fra due mappe reali. I Task 1 e 2 sono implementati e approvati; il Task 3 è implementato, verificato e pronto per review. Dopo la review, il prossimo incremento è il Task 4: rendere percorribili i tre luoghi tramite la normale interfaccia. Nessun Task 4–10 avviato.
+**Raccomandazione originaria: iniziare dal Task 1.** Il mondo e il salvataggio possiedono già gran parte dell'infrastruttura necessaria; l'incognita più economica da risolvere era la composizione di viaggio, selezione dei bersagli e percezione fra due mappe reali. Stato attuale sopra, sotto i singoli task.

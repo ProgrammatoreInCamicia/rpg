@@ -102,6 +102,8 @@ public partial class VillageMap
 		_storeOptionsKey = "";
 		_selectedTrap = null;
 		_travelDestination = null;
+		_travelSelectedRoute = null;
+		_travelExitRoutes = Array.Empty<RouteView>();
 		_selectedCombatTarget = null;
 		_openingTarget = null;
 		_openingConfirmedAttack = null;

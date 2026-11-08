@@ -154,6 +154,9 @@ public partial class VillageMap : Node2D
 		if (BlackmarshRegionMode && presentationSmoke is not null)
 			RunRegionPresentationSmoke(presentationSmoke["--region-presentation-smoke=".Length..],
 				OS.GetCmdlineUserArgs().Contains("--map-presentation-fixture"));
+		var regionTravelSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--region-travel-smoke="));
+		if (BlackmarshRegionMode && regionTravelSmoke is not null)
+			RunRegionTravelSmoke(regionTravelSmoke["--region-travel-smoke=".Length..]);
 		var blackmarshEntrySmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--blackmarsh-entry-smoke="));
 		if (BlackmarshWatchhouseMode && blackmarshEntrySmoke is not null)
 			RunBlackmarshEntrySmoke(blackmarshEntrySmoke["--blackmarsh-entry-smoke=".Length..]);
@@ -346,6 +349,8 @@ public partial class VillageMap : Node2D
 			else if (!CloseHudOverlay()) ToggleGameMenu();
 			return;
 		}
+		if (_travelChoicePanel.Visible && @event is InputEventMouseButton)
+			return; // destination and pace are chosen through the modal controls, never the map behind them
 		if (_castingSpell is not null && @event is InputEventMouseButton { Pressed: true } spellClick
 			&& spellClick.ButtonIndex is MouseButton.Left or MouseButton.Right)
 		{
@@ -527,12 +532,7 @@ public partial class VillageMap : Node2D
 			ShowMessage("Non sei più all'uscita.");
 			return;
 		}
-		if (exit.Routes.Count != 1)
-		{
-			ShowMessage("Scegli una destinazione dalla strada.");
-			return;
-		}
-		OfferTravel(exit.Routes[0].To);
+		OfferExitRoutes(exit);
 	}
 
 	internal void ReturnToVillage() => OfferTravel(MappedVillageScenario.Ids.ForestRoad);
@@ -1044,7 +1044,8 @@ public partial class VillageMap : Node2D
 		{
 			_offMapLabel.Text = _view.Travel is { } travel
 				? $"In viaggio verso {_view.Locations.Single(l => l.Id == travel.Destination).Name} · andatura {TravelPaceName(travel.Pace)}\n" +
-				  $"Arrivo tra {Math.Max(1, travel.ArrivesAt.Since(_view.Now).Seconds / 60)} minuti di gioco"
+				  (travel.WaitingForEntry ? "Aspetti di poter entrare: l'ingresso è occupato."
+				  : $"Arrivo tra {Math.Max(1, travel.ArrivesAt.Since(_view.Now).Seconds / 60)} minuti di gioco")
 				: _view.Location is { } place ? _view.Locations.Single(l => l.Id == place).Name : "In viaggio";
 			_returnToVillage.Visible = _view.Travel is null && _view.Location == MappedVillageScenario.Ids.BanditCamp;
 		}
@@ -1057,6 +1058,7 @@ public partial class VillageMap : Node2D
 			: onMap ? "strada" : "in viaggio";
 		_status.Text = _view.Dead ? "Sei morto. Carica un salvataggio per riprovare."
 			: _view.Combat is { } combat ? $"Scontro · round {combat.Round}. " + (combat.IsYourTurn ? "È il tuo turno." : "Agiscono gli altri.")
+			: _view.Travel is { WaitingForEntry: true } ? "Aspetti di poter entrare: l'ingresso è occupato."
 			: _view.Action is { } timedAction && ShowActionTimer(timedAction) ? TimedActionStatus(timedAction, now)
 			: (_paused ? $"IN PAUSA — ordini in coda: {_queue.Count}. " : "")
 			+ (_walking ? $"Cammini… ({where})" : _view.Travel is not null ? "Sei in viaggio."
@@ -1944,13 +1946,14 @@ public partial class VillageMap : Node2D
 		BuildR5Ui(ui);
 		if (PlayableSliceMode || BlackmarshWatchhouseMode) BuildSliceIntro(ui);
 
-		_offMapPanel = new PanelContainer { OffsetLeft = 440, OffsetRight = 840, OffsetTop = 100, OffsetBottom = 245,
+		_offMapPanel = new PanelContainer { OffsetLeft = 380, OffsetRight = 900, OffsetTop = 100, OffsetBottom = 245,
 			Visible = false };
 		ui.AddChild(_offMapPanel);
 		var journeyBox = new VBoxContainer();
 		journeyBox.AddThemeConstantOverride("separation", 12);
 		_offMapPanel.AddChild(journeyBox);
-		_offMapLabel = new Label { HorizontalAlignment = HorizontalAlignment.Center };
+		_offMapLabel = new Label { HorizontalAlignment = HorizontalAlignment.Center,
+			AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		_offMapLabel.AddThemeFontSizeOverride("font_size", 21);
 		journeyBox.AddChild(_offMapLabel);
 		_returnToVillage = new Button { Text = "Torna al villaggio", Visible = false };

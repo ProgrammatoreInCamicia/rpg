@@ -273,15 +273,20 @@ public class RegionalTravelTests
         if (crossMidnight) s.AdvanceTo(At(1, 23, 55));
         var travel = s.Execute(new TravelCommand { Actor = s.Player, Destination = EastGate });
         Assert.True(travel.Success, travel.Message);
+        Assert.False(s.GetPlayerView().Travel!.WaitingForEntry);
+        s.Advance(Duration.FromMinutes(1));
+        Assert.False(s.GetPlayerView().Travel!.WaitingForEntry);
         s.Advance(Duration.FromMinutes(3));
-        Assert.NotNull(s.GetPlayerView().Travel); // two minutes on the road, then wait for the routine to free the exit
+        Assert.True(s.GetPlayerView().Travel!.WaitingForEntry); // scheduled arrival passed; the entrance is still occupied
         var loaded = s.SaveAndReload();
+        Assert.True(loaded.GetPlayerView().Travel!.WaitingForEntry);
         foreach (var session in new[] { s, loaded })
         {
             Assert.Equal(AdvanceOutcome.Completed,
                 session.AdvanceUntilCompleted(travel.Action!.Value, Duration.FromHours(2)).Outcome);
             Assert.Equal(crossMidnight ? 0 : 2.0 / 60, session.GetPlayerView().TravelHoursToday, 6);
             Assert.Equal(new GridPos(1, 0), session.GetPlayerView().Position);
+            Assert.Null(session.GetPlayerView().Travel);
         }
         Assert.Equal(s.SaveToString(), loaded.SaveToString());
     }

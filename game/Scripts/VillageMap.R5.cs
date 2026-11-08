@@ -8,6 +8,13 @@ public partial class VillageMap
 {
 	private PanelContainer _travelChoicePanel = null!;
 	private Label _travelChoiceTitle = null!;
+	private VBoxContainer _travelDestinations = null!;
+	private VBoxContainer _travelPaces = null!;
+	private Button _travelBack = null!;
+	private Button _travelCancel = null!;
+	private readonly Dictionary<TravelPace, Button> _travelPaceButtons = new();
+	private IReadOnlyList<RouteView> _travelExitRoutes = Array.Empty<RouteView>();
+	private RouteView? _travelSelectedRoute;
 	private LocationId? _travelDestination;
 	private Node2D _trapLayer = null!;
 	private readonly Dictionary<GridPos, Node2D> _trapMarks = new();
@@ -33,7 +40,7 @@ public partial class VillageMap
 
 	private void BuildR5Ui(CanvasLayer ui)
 	{
-		_travelChoicePanel = HudPanel(440, 840, 170, 368);
+		_travelChoicePanel = HudPanel(440, 840, 150, 405);
 		_travelChoicePanel.Visible = false;
 		_travelChoicePanel.AddThemeStyleboxOverride("panel", new StyleBoxFlat
 		{
@@ -45,21 +52,31 @@ public partial class VillageMap
 		_travelChoicePanel.AddChild(choices);
 		_travelChoiceTitle = new Label { AutowrapMode = TextServer.AutowrapMode.WordSmart };
 		choices.AddChild(_travelChoiceTitle);
+		_travelDestinations = new VBoxContainer();
+		_travelDestinations.AddThemeConstantOverride("separation", 7);
+		choices.AddChild(_travelDestinations);
+		_travelPaces = new VBoxContainer();
+		_travelPaces.AddThemeConstantOverride("separation", 7);
+		choices.AddChild(_travelPaces);
 		foreach (var (pace, label) in new[]
 		{
-			(TravelPace.Fast, "Veloce · ¾ del tempo"),
-			(TravelPace.Normal, "Normale · durata prevista"),
-			(TravelPace.Slow, "Lenta · metà del tempo in più"),
+			(TravelPace.Fast, "Veloce"),
+			(TravelPace.Normal, "Normale"),
+			(TravelPace.Slow, "Lenta"),
 		})
 		{
 			var selected = pace;
 			var button = new Button { Text = label, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 			button.Pressed += () => ChooseTravelPace(selected);
-			choices.AddChild(button);
+			_travelPaces.AddChild(button);
+			_travelPaceButtons[pace] = button;
 		}
-		var cancel = new Button { Text = "Annulla" };
-		cancel.Pressed += () => _travelChoicePanel.Visible = false;
-		choices.AddChild(cancel);
+		_travelBack = new Button { Text = "Altre destinazioni", Visible = false };
+		_travelBack.Pressed += ShowTravelDestinations;
+		choices.AddChild(_travelBack);
+		_travelCancel = new Button { Text = "Annulla" };
+		_travelCancel.Pressed += CancelTravelChoice;
+		choices.AddChild(_travelCancel);
 
 		_trapMenu = new PopupMenu();
 		_trapMenu.IdPressed += id =>
@@ -72,19 +89,96 @@ public partial class VillageMap
 		ui.AddChild(_trapMenu);
 	}
 
+	private static Duration TravelDuration(RouteView route, TravelPace pace) => pace switch
+	{
+		TravelPace.Fast => Duration.FromTicks(route.TravelTime.Ticks * 3 / 4),
+		TravelPace.Slow => Duration.FromTicks(route.TravelTime.Ticks * 3 / 2),
+		_ => route.TravelTime,
+	};
+
+	private static string TravelDurationText(Duration duration)
+	{
+		var seconds = (duration.Ticks + GameTime.TicksPerSecond - 1) / GameTime.TicksPerSecond;
+		return seconds >= 3600 ? $"{seconds / 3600} h {seconds / 60 % 60:00} min"
+			: seconds % 60 == 0 ? $"{seconds / 60} min" : $"{seconds / 60}:{seconds % 60:00} min";
+	}
+
+	private void OfferExitRoutes(ExitView exit)
+	{
+		_travelExitRoutes = exit.Routes;
+		if (_travelExitRoutes.Count == 0)
+		{
+			ShowMessage("Da qui non parte alcun sentiero.");
+			return;
+		}
+		if (_travelExitRoutes.Count == 1)
+		{
+			OfferTravel(_travelExitRoutes[0].To);
+			return;
+		}
+		ShowTravelDestinations();
+	}
+
+	private void ShowTravelDestinations()
+	{
+		_travelDestination = null;
+		_travelSelectedRoute = null;
+		_travelChoiceTitle.Text = "Dove vuoi andare? Scegli un sentiero.";
+		foreach (var child in _travelDestinations.GetChildren())
+		{
+			_travelDestinations.RemoveChild(child);
+			child.QueueFree();
+		}
+		foreach (var route in _travelExitRoutes)
+		{
+			var destination = route.To;
+			var name = _view.Locations.First(l => l.Id == destination).Name;
+			var button = new Button { Text = $"{name} · {TravelDurationText(route.TravelTime)} a passo normale",
+				SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+			button.Pressed += () => OfferTravel(destination);
+			_travelDestinations.AddChild(button);
+		}
+		_travelDestinations.Visible = true;
+		_travelPaces.Visible = false;
+		_travelBack.Visible = false;
+		_travelChoicePanel.OffsetBottom = 325;
+		_travelChoicePanel.Visible = true;
+	}
+
 	private void OfferTravel(LocationId destination)
 	{
+		var route = _view.Routes.FirstOrDefault(r => r.From == _view.Location && r.To == destination);
+		if (route is null)
+		{
+			CancelTravelChoice();
+			ShowMessage("Questo sentiero non è più disponibile.");
+			return;
+		}
 		_travelDestination = destination;
+		_travelSelectedRoute = route;
 		var name = _view.Locations.FirstOrDefault(l => l.Id == destination)?.Name ?? destination.Value;
-		_travelChoiceTitle.Text = $"Parti per {name}. Scegli l'andatura del viaggio.";
+		_travelChoiceTitle.Text = $"Parti per {name}. Scegli l'andatura:";
+		foreach (var (pace, button) in _travelPaceButtons)
+			button.Text = $"{TravelPaceName(pace)} · {TravelDurationText(TravelDuration(route, pace))}";
+		_travelDestinations.Visible = false;
+		_travelPaces.Visible = true;
+		_travelBack.Visible = _travelExitRoutes.Count > 1;
+		_travelChoicePanel.OffsetBottom = _travelBack.Visible ? 390 : 355;
 		_travelChoicePanel.Visible = true;
+	}
+
+	private void CancelTravelChoice()
+	{
+		_travelChoicePanel.Visible = false;
+		_travelDestination = null;
+		_travelSelectedRoute = null;
+		_travelExitRoutes = Array.Empty<RouteView>();
 	}
 
 	private void ChooseTravelPace(TravelPace pace)
 	{
-		if (_travelDestination is not { } destination) return;
-		_travelChoicePanel.Visible = false;
-		_travelDestination = null;
+		if (_travelDestination is not { } destination || _travelSelectedRoute?.To != destination) return;
+		CancelTravelChoice();
 		StartActivity(new TravelCommand { Actor = _sim.Player, Destination = destination, Pace = pace }, "viaggio");
 	}
 

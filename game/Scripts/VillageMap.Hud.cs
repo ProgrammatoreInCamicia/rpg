@@ -171,7 +171,7 @@ public partial class VillageMap
 
 	private bool CloseHudOverlay()
 	{
-		if (_travelChoicePanel.Visible) { _travelChoicePanel.Visible = false; return true; }
+		if (_travelChoicePanel.Visible) { CancelTravelChoice(); return true; }
 		if (_torchShieldConfirm.Visible) { _torchShieldConfirm.Hide(); return true; }
 		if (_gameMenu.Visible) { _gameMenu.Visible = false; return true; }
 		if (_attackOptionsPanel.Visible) { _attackOptionsPanel.Visible = false; return true; }

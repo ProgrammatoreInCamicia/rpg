@@ -34,7 +34,7 @@ internal sealed partial class Simulation
     private const long TravelDaySeconds = 8 * 3600;
 
     /// <summary>SRD Travel Pace: Fast covers 4 miles an hour, Normal 3, Slow 2: a route's time (at Normal) is 3/4 or 3/2 of it.</summary>
-    private static Duration PacedTime(Duration normal, TravelPace pace) => pace switch
+    internal static Duration PacedTime(Duration normal, TravelPace pace) => pace switch
     {
         TravelPace.Fast => Duration.FromTicks(normal.Ticks * 3 / 4),
         TravelPace.Slow => Duration.FromTicks(normal.Ticks * 3 / 2),

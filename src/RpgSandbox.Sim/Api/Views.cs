@@ -38,6 +38,9 @@ public sealed record TravelView
 
     /// <summary>R5b: the pace it travels at.</summary>
     public TravelPace Pace { get; init; }
+
+    /// <summary>The scheduled travel time has elapsed, but the mapped destination has no free entry square yet.</summary>
+    public bool WaitingForEntry { get; init; }
 }
 
 public sealed record ActorView
