@@ -2,7 +2,7 @@
 
 Analisi originaria del 29 ottobre 2026. Base esaminata: commit `d4c9465`. **Alla data dell'analisi non era stata eseguita alcuna implementazione regionale.** Le due vertical slice sono considerate concluse; questo incremento costruisce gioco continuativo sui loro risultati.
 
-**Aggiornamento 8 novembre 2026:** Task 1 e 2 implementati e approvati; Task 3 implementato nel commit `da59622` e approvato da Claude. Task 4 implementato da Codex e approvato da Claude. Task 5 implementato e verificato da Codex, pronto per review. Task 6 implementato da Claude, in attesa di review; dettagli e limiti sotto. Task 7–10 non avviati. Il testo di analisi sottostante conserva la diagnosi originale; risultati e review sono registrati sotto i rispettivi task.
+**Aggiornamento 8 novembre 2026:** Task 1 e 2 implementati e approvati; Task 3 implementato nel commit `da59622` e approvato da Claude. Task 4 implementato da Codex e approvato da Claude. Task 5 implementato e verificato da Codex, pronto per review. Task 6 implementato da Claude e approvato nella review indipendente di Codex; dettagli e limiti sotto. Task 7–10 non avviati. Il testo di analisi sottostante conserva la diagnosi originale; risultati e review sono registrati sotto i rispettivi task.
 
 ## 1. Decisione
 
@@ -460,7 +460,7 @@ $godotExe = 'tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono
 
 **Reasoning:** alto per la causalità e la taratura, non per il volume di codice.
 
-**Risultato Task 6 (Claude, 8 novembre 2026), in attesa di review.** Nessuna modifica ai moduli Sim: le sonde non hanno trovato difetti di comportamento, solo due difetti di contenuto, corretti nello scenario.
+**Risultato Task 6 (Claude, 8 novembre 2026), approvato da Codex.** Nessuna modifica ai moduli Sim: le sonde non hanno trovato difetti di comportamento, solo due difetti di contenuto, corretti nello scenario.
 - **Predone fermo sull'accesso.** Dopo la consegna il predone restava sulla casella d'accesso delle provviste Vasan (16,11), e il giocatore non poteva più prenderle («Lì non c'è spazio»). Aggiunto il posto «casa» dell'approdo in (15,9).
 - **Custode fermo sull'accesso.** Il custode di presidio si fermava sull'unico accesso della dispensa (3,3). Aggiunti posti «guardia» espliciti: casa comune (4,4), rimessa (10,8). Il presidio dissuade lo stesso, perché conta che il predone veda la guardia.
 
@@ -478,6 +478,8 @@ Misure e tabella degli sviluppi: `docs/BLACKMARSH_REGION.md`. Verifiche in workt
 - il predone non reagisce a un intruso nel suo approdo (punto F);
 - la porta della casa comune resta aperta dopo l'uscita del pescatore;
 - il custode presidia il deposito derubato anche quando è già vuoto: col rapporto della rimessa, la sera dopo la dispensa resta scoperta. È uno sviluppo leggibile, non un errore da nascondere; va giudicato nel playtest del Task 10.
+
+**Review indipendente Codex (8 novembre 2026): APPROVATO.** Esaminati commit `9a4b565`, scenario, sette test e documento: solo tre posti aggiunti, nessun flag di ramo o modifica Sim; il caso negativo di conoscenza e le risposte fisiche sono asseriti tramite viste/comandi pubblici. Aggiunta ai due test di presidio una verifica di cammino fino all'accesso reale del deposito, perché la sola differenza di coordinate non dimostrava raggiungibilità: entrambe passano. Build soluzione 0 errori/0 avvisi, sette test mirati e suite completa **714/714** verdi. Gli smoke regionali di viaggio e presentazione erano stati rieseguiti da Codex dopo il commit Task 6 durante il collaudo Task 5, entrambi verdi. I tre limiti sopra restano decisioni di contenuto/playtest, non blocchi per il Task 7.
 
 ### Task 7 — Aggiungere l'opportunità di esplorazione alla caletta
 

@@ -66,6 +66,8 @@ public class BlackmarshRegionTests
         Assert.Empty(keeper.Claims);
         // The keeper on duty does not stand on the pantry's only access: the store stays usable.
         Assert.NotEqual(PantryAccess, keeper.Position);
+        Walk(session, PantryAccess);
+        Assert.Equal(PantryAccess, session.GetPlayerView().Position);
     }
 
     [Fact]
@@ -115,6 +117,9 @@ public class BlackmarshRegionTests
         var keeper = session.GetWorldView().Actor(Keeper);
         Assert.Equal(Shed, keeper.Location);
         Assert.Equal(new GridPos(10, 8), keeper.Position);
+        GoTo(session, ShedFork);
+        Walk(session, StoreAccess);
+        Assert.Equal(StoreAccess, session.GetPlayerView().Position);
         // A thief who was seen owes the rations back.
         var claim = Assert.Single(keeper.Claims);
         Assert.Equal((Raider, ShedStore, 4), (claim.Thief, claim.Store, claim.Owed));
