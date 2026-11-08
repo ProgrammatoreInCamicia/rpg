@@ -1,6 +1,5 @@
 using System.Text.Json;
 using RpgSandbox.Sim.Api;
-using RpgSandbox.Sim.Scenarios;
 
 namespace RpgSandbox.Game;
 
@@ -8,6 +7,7 @@ public partial class VillageMap
 {
 	private const string RegionSaveIdentity = "rpg-blackmarsh-region";
 	private const int RegionSaveRevision = 1;
+	private WorldView? _regionStartingWorld;
 
 	private static byte[] RegionSaveBytes(SimulationSession session)
 	{
@@ -66,9 +66,10 @@ public partial class VillageMap
 	}
 
 	/// <summary>Compare stable regional identity without requiring the player to be on the startup area.</summary>
-	private static bool SaveMatchesRegion(SimulationSession loaded)
+	private bool SaveMatchesRegion(SimulationSession loaded)
 	{
-		var expected = BlackmarshWatchIsland.CreateSession().GetWorldView();
+		var expected = _regionStartingWorld
+			?? throw new InvalidOperationException("Missing regional world identity at scene startup.");
 		var candidate = loaded.GetWorldView();
 		return candidate.Player == expected.Player
 			&& expected.Areas.Select(x => x.Id).ToHashSet().SetEquals(candidate.Areas.Select(x => x.Id))

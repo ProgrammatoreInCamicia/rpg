@@ -546,7 +546,7 @@ public partial class VillageMap
 		StyleActionButton(_gameMenuButton, "more", UtilityAccent, iconOnly: true);
 		_gameMenuButton.Pressed += ToggleGameMenu;
 		ui.AddChild(_gameMenuButton);
-		_gameMenu = HudPanel(480, 800, 130, BlackmarshRegionMode ? 560 : 440);
+		_gameMenu = HudPanel(480, 800, 130, BlackmarshRegionMode ? 520 : 440);
 		_gameMenu.Visible = false;
 		_gameMenu.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.07f, 0.08f, 0.11f, 0.98f) });
 		ui.AddChild(_gameMenu);

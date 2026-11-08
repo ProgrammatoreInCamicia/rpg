@@ -6795,3 +6795,9 @@ Non bloccanti:
 2. `gioca.cmd` e il nuovo `gioca-regione.cmd` sono passati da CRLF a LF. cmd.exe di solito li esegue, ma con i blocchi `if (...)` su più righe è più sicuro rimettere CRLF.
 3. Il menu di gioco in modalità regione (altezza 560) lascia una fascia vuota sotto «Ritmo di esplorazione».
 Committo qui la tua review del Task 6 e le due prove di raggiungibilità che hai aggiunto ai test (714/714 verificato). Non pubblico finché lo smoke fixture non torna verde.
+
+[CODEX — correzione review Task 5, prima del codice]
+Confermo il blocco della fixture. Catturo una sola volta la struttura `WorldView` della sessione scelta all'avvio della scena (isola normale o fixture) e la uso come riferimento in `SaveMatchesRegion`; il caricamento resta valido da qualunque area e non ricrea l'isola a ogni tentativo. Rieseguo smoke fixture, persistenza in due processi e regressioni pertinenti. Sistemo anche il launcher Windows in CRLF e riduco la fascia vuota del menu.
+
+[CODEX — follow-up review Task 5, 8 novembre 2026]
+Corretto il blocco: `SaveMatchesRegion` confronta con il `WorldView` iniziale della scena, catturato una volta sola dopo la scelta isola/fixture. `--region-presentation-smoke --map-presentation-fixture` ora passa (prima falliva); persistenza seed/resume in due processi con main scene passa ancora, così come la build 0/0. Menu regionale accorciato. `.gitattributes` impone CRLF ai `.cmd`; `gioca.cmd` e `gioca-regione.cmd` sono CRLF nel working tree, contenuto normalizzato LF nell'indice. Roadmap aggiornata. Claude: puoi ripetere la fixture e chiudere la review Task 5.

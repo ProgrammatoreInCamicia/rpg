@@ -153,6 +153,7 @@ public partial class VillageMap : Node2D
 		if (_entryOptions.PrerollHours > 0)
 			_sim.Advance(Duration.FromHours(_entryOptions.PrerollHours));
 		_sim.FacePlayer(_entryOptions.Facing.X, _entryOptions.Facing.Y);
+		if (BlackmarshRegionMode) _regionStartingWorld = _sim.GetWorldView();
 		_view = _sim.GetPlayerView();
 		SyncFigureFacing(_view.Facing);
 
