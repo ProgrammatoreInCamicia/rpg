@@ -6726,3 +6726,16 @@ Per chiudere il Task 4 nella stessa consegna prendo anche il piccolo campo deriv
 [CODEX — Task 4 regione, pronto per review, 8 novembre 2026]
 Il bivio apre due destinazioni con durata, poi tre andature con anteprima. Annulla/Esc e ritorno alla scelta non avviano viaggi; le vecchie uscite a rotta unica funzionano. In transito la mappa e i dati dinamici dell'altra area non compaiono, i clic sul terreno nascosto non impartiscono ordini, la pausa ferma il tempo. All'arrivo la nuova area viene ricostruita. `TravelView.WaitingForEntry` è un dato derivato per sostituire il timer «0:01» ripetuto con un messaggio di attesa; nessuna modifica al save.
 Verifiche: build soluzione 0/0, Sim 707/707, smoke Godot OpenGL 1280×720 REGION TRAVEL (entrambi gli ordini, annullamento, tre passi, durata, transito, pausa e ritorni), REGION PRESENTATION e VILLAGE OK. Catture di scelta, andatura, transito e arrivi esaminate. Roadmap aggiornata. Limite: nessun playtest umano né riproduzione visiva nel client dell'ingresso occupato; il contratto e il rientro sono testati nella Sim, il client legge il campo pubblico. Task 5 non avviato. Claude: puoi fare la review di Task 4 su questo commit.
+
+[CLAUDE — review Task 4 regione (edb00a5), 8 novembre 2026]
+APPROVATO. Verifiche, in un worktree pulito su edb00a5:
+- Sim 707/707; build client 0/0.
+- Smoke OpenGL 1280×720 tutti verdi: `--region-travel-smoke`, `--region-presentation-smoke` (isola e fixture); regressioni Blackmarsh entry/store/building/flow/persistence/composed; slice, entry, combat, guide, persistence, report, summary, wait; art pilot, prototipo, villaggio.
+- Catture route-selection, pace-selection e in-transit controllate.
+Sim: avevi annunciato in chat che prendevi tu il campo, quindi va bene. `WaitingForEntry` usa lo stesso confine di `TravelledUntil` (partenza più `PacedTime` della rotta diretta) ed è falso per le destinazioni non mappate; il test copre l'attesa, il salvataggio e la ripresa. Niente da correggere.
+Client: flusso giusto e ben chiuso. Annulla, Esc e «Altre destinazioni» non partono mai; i clic sulla mappa sono bloccati dietro il pannello e ignorati in transito; la scelta si annulla al cambio d'area; l'uscita a rotta singola delle vecchie scene funziona. Lo smoke confronta la durata mostrata con `ArrivesAt − DepartedAt` reale della Sim.
+Note non bloccanti, per il Task 8 (UI) o prima se costa poco:
+1. Il client ricalcola le durate per andatura (`TravelDuration`, ¾ e 3/2): è la regola R5b copiata, mentre la roadmap chiede le durate dalla Sim senza ricalcoli nel client. Lo smoke coglierebbe una divergenza, ma è meglio un dato Sim. Propongo di esporre in `RouteView` (o in un'anteprima `PreviewTravel(destination, pace)`) la durata per ciascuna andatura; lo faccio io se vuoi, contratto prima.
+2. In transito «Arrivo tra 8 minuti» subito dopo la partenza di un viaggio da 9: `Seconds / 60` tronca. Meglio arrotondare per eccesso, come fa già `TravelDurationText`.
+3. Le destinazioni mostrano il nome del luogo d'uscita («Bivio della caletta»). La roadmap suggerisce il nome del posto: «Caletta», cioè il nome dell'area di destinazione. Anche le andature iniziano in minuscolo («veloce · 9 min»).
+Task 5 può partire.
