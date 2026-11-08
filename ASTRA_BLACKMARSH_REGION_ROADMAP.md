@@ -2,7 +2,7 @@
 
 Analisi originaria del 29 ottobre 2026. Base esaminata: commit `d4c9465`. **Alla data dell'analisi non era stata eseguita alcuna implementazione regionale.** Le due vertical slice sono considerate concluse; questo incremento costruisce gioco continuativo sui loro risultati.
 
-**Aggiornamento 8 novembre 2026:** Task 1 e 2 implementati e approvati; Task 3 implementato nel commit `da59622` e approvato da Claude. Task 4 implementato e verificato da Codex, in attesa di review; dettagli e limiti sotto. Task 5–10 non avviati. Il testo di analisi sottostante conserva la diagnosi originale; risultati e review sono registrati sotto i rispettivi task.
+**Aggiornamento 8 novembre 2026:** Task 1 e 2 implementati e approvati; Task 3 implementato nel commit `da59622` e approvato da Claude. Task 4 implementato da Codex e approvato da Claude. Task 5 in corso (Codex). Task 6 implementato da Claude, in attesa di review; dettagli e limiti sotto. Task 7–10 non avviati. Il testo di analisi sottostante conserva la diagnosi originale; risultati e review sono registrati sotto i rispettivi task.
 
 ## 1. Decisione
 
@@ -455,6 +455,25 @@ $godotExe = 'tools/godot/Godot_v4.7.2-stable_mono_win64/Godot_v4.7.2-stable_mono
 **Completato quando:** i diversi ordini di visita producono almeno due sviluppi distinti e comprensibili, senza aspettare un pulsante di attivazione; testimoni, percorsi, orari e consumi sono misurati e documentati. Il guardiano non risolve ogni problema prima che il giocatore possa scegliere, ma neppure aspetta artificialmente il suo arrivo. Se il rapporto non emerge, controllare percezione, turni e accessibilità prima di inventare dialoghi o AI nuovi.
 
 **Reasoning:** alto per la causalità e la taratura, non per il volume di codice.
+
+**Risultato Task 6 (Claude, 8 novembre 2026), in attesa di review.** Nessuna modifica ai moduli Sim: le sonde non hanno trovato difetti di comportamento, solo due difetti di contenuto, corretti nello scenario.
+- **Predone fermo sull'accesso.** Dopo la consegna il predone restava sulla casella d'accesso delle provviste Vasan (16,11), e il giocatore non poteva più prenderle («Lì non c'è spazio»). Aggiunto il posto «casa» dell'approdo in (15,9).
+- **Custode fermo sull'accesso.** Il custode di presidio si fermava sull'unico accesso della dispensa (3,3). Aggiunti posti «guardia» espliciti: casa comune (4,4), rimessa (10,8). Il presidio dissuade lo stesso, perché conta che il predone veda la guardia.
+
+Test `BlackmarshRegionTests.cs` (7 casi, solo comandi pubblici del giocatore e orario del mondo):
+- **Senza intervento del giocatore.** Ciclo completo della razzia: `RaidOrdered`, `FoodStolen` 4, `FoodDeposited` 4, `RaidCompleted`, quantità finali e ritorno al posto; nessun testimone. Il giorno dopo la razzia va alla dispensa: il pescatore sente il furto, lo riferisce al custode (rapporto reale) e il custode presidia la dispensa.
+- **Caso negativo.** Il giocatore lontano non sa chi ha svuotato la cassa, neanche dopo averla vista vuota: nessuna osservazione e nessun rapporto possibile.
+- **Fatto visto, rapporto, risposta fisica.** Il giocatore assiste al furto dalla stanza interna e lo racconta. Il custode percorre il sentiero, presidia la rimessa e pretende le 4 razioni dal predone.
+- **Caso alternativo.** Portare le razioni della rimessa alla dispensa prima delle 20:00 cambia il bersaglio della razzia; il predone trova il paladino all'accesso e desiste.
+- **Caletta per prima.** Le provviste riprese riportano i Vasan sotto soglia e provocano una razzia alle 21:00; la sera dopo il custode di guardia la fa desistere.
+- **Confronto.** Tre ordini di visita portano a tre mondi diversi la sera del giorno 2.
+
+Misure e tabella degli sviluppi: `docs/BLACKMARSH_REGION.md`. Verifiche in worktree pulito: Sim **714/714** (707 + 7), build client 0/0, smoke regionali e di regressione verdi.
+
+**Limiti, comportamento del motore lasciato com'è:**
+- il predone non reagisce a un intruso nel suo approdo (punto F);
+- la porta della casa comune resta aperta dopo l'uscita del pescatore;
+- il custode presidia il deposito derubato anche quando è già vuoto: col rapporto della rimessa, la sera dopo la dispensa resta scoperta. È uno sviluppo leggibile, non un errore da nascondere; va giudicato nel playtest del Task 10.
 
 ### Task 7 — Aggiungere l'opportunità di esplorazione alla caletta
 

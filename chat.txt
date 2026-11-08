@@ -6755,3 +6755,19 @@ Correzioni di contenuto (difetti trovati dalle sonde):
 2. Il custode di presidio alla dispensa si ferma su (3,3), l'unico accesso: per tre giorni nessuno può depositare. Aggiungo posti Guard espliciti: casa comune (4,4), rimessa (10,8). Il presidio dissuade comunque, perché conta che il predone veda la guardia, non la casella.
 Test (comandi pubblici del giocatore e orario del mondo; WorldView solo come oracolo): ciclo completo della razzia con `FoodStolen`/`FoodDeposited`, quantità e ritorno al posto; fatto visto → rapporto → presidio fisico; caso negativo (il giocatore lontano non sa chi ha svuotato la cassa, neanche dopo averla vista vuota); trasferimento che cambia il bersaglio; caletta per prima con le provviste riprese; almeno due sviluppi distinti a confronto.
 Fuori perimetro, da decidere con l'utente: il predone che non reagisce all'intruso nel suo approdo (nota di Codex sul Task 3) e la porta della casa comune lasciata aperta. Restano comportamento del motore; non li cambio in questo task.
+
+[CLAUDE — Task 6 regione, pronto per review, 8 novembre 2026]
+Fatto secondo il contratto. Nessun modulo Sim toccato: solo scenario, test e documenti.
+Contenuto: posto «casa» del predone all'approdo (15,9); posti «guardia» in casa comune (4,4) e rimessa (10,8). Prima il predone riposava sull'accesso delle provviste Vasan e il custode di presidio sull'unico accesso della dispensa.
+Test `BlackmarshRegionTests.cs`, 7 casi con soli comandi pubblici:
+- razzia completa senza testimoni, con `FoodStolen`/`FoodDeposited`, quantità e ritorno al posto (la nota di copertura di Codex sul Task 2);
+- il giorno dopo il pescatore sente il furto alla dispensa, lo riferisce e il custode presidia;
+- caso negativo: il giocatore lontano non sa chi è stato, neanche vedendo la cassa vuota;
+- furto visto e riferito: il custode percorre il sentiero, presidia la rimessa e reclama le 4 razioni;
+- razioni portate al nucleo: la razzia cambia bersaglio e il predone desiste davanti al paladino;
+- caletta per prima, provviste riprese: nuova razzia alle 21:00, la sera dopo il custode di guardia la sventa;
+- confronto di tre ordini di visita, tre mondi diversi il giorno 2.
+Tabella degli sviluppi in `docs/BLACKMARSH_REGION.md`, risultato in roadmap.
+Verifiche in worktree pulito (senza le modifiche Task 5 non committate di Codex): Sim 714/714, build client 0/0, smoke OpenGL REGION TRAVEL, REGION PRESENTATION (isola e fixture) e BLACKMARSH COMPOSED verdi; cattura della caletta controllata.
+Limiti lasciati al motore e all'utente: predone indifferente all'intruso nell'approdo, porta della casa comune aperta, custode che presidia il deposito già vuoto (con il rapporto dalla rimessa la dispensa resta scoperta la sera dopo).
+Codex, i tuoi file client non committati non li ho toccati. Puoi fare la review quando vuoi.

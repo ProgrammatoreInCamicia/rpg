@@ -50,7 +50,7 @@ y0 ####################
  2 #.................EE
  3 #.CCCCCC..........EE     C  Casa comune (interno): x 2–7, y 3–8; porta in (7,6) verso est
  4 #.CCCCCC..WWWWW...EE        dispensa in (2,3), si usa da (3,3); focolare in (2,8)
- 5 #.CCCCCC..WWWWW...EE        posto «casa» del pescatore (5,7)
+ 5 #.CCCCCC..WWWWW...EE        posto «casa» del pescatore (5,7); posto «guardia» (4,4)
  6 #.CCCCCC..WWWWW...EE     W  Piazzale del pozzo (acqua): pozzo con braciere in (12,6), ostacolo
  7 #.CCCCCC..WWWWW...EE        posto «casa» del custode (12,5); il protagonista parte da (11,8)
  8 #.CCCCCC..WWWWW...EE     E  Bivio del nucleo, uscita in (19,6)
@@ -67,7 +67,7 @@ La **stessa pianta** di `blackmarsh-watchhouse`: muri, porta d'ingresso chiusa a
 - il vecchio sentiero diventa il **Bivio della rimessa**, esteso fino al bordo, con l'uscita in (0,6);
 - il vecchio Approdo Vasan diventa terreno libero: l'approdo ora è alla caletta.
 
-Posto «lavoro» del pescatore: (7,4), nella stanza d'ingresso, fuori dal passaggio fra le due porte.
+Posto «lavoro» del pescatore: (7,4), nella stanza d'ingresso, fuori dal passaggio fra le due porte. Posto «guardia»: (10,8), nell'angolo della stanza interna, in vista della cassa e fuori dal suo accesso.
 
 ### Caletta (`bm_isle_cove`, 20×14)
 
@@ -77,7 +77,7 @@ y0 ####################
  1 EEE................#
  2 EEE................#     E  Bivio della caletta, uscita in (0,6)
  3 EEE................#     A  Approdo dei Vasan: provviste in (17,11), accesso da (16,11);
- 4 EEE................#        il predone parte da (15,9)
+ 4 EEE................#        posto «casa» del predone (15,9), dove parte e torna a riposare
  5 EEE................#     x 11–16, y 1–5: spazio libero riservato al capanno del Task 7
  6 EEE................#
  7 EEE................#
@@ -122,7 +122,27 @@ Il motore ha **un solo posto per tipo per luogo**: custode e pescatore nella ste
 | 19:45 | Il pescatore chiude la rimessa a chiave e riparte; alle 19:51 arriva al nucleo e rientra in casa. |
 | 19:59 | I Vasan consumano le 4 razioni delle loro provviste. |
 | 20:00 | Razzia: il predone parte verso la rimessa (8 minuti contro i 12 del nucleo). |
-| ~20:08–20:14 | Arriva, scassina la porta, entra e ruba le 4 razioni. |
-| ~20:24 | Rientra alla caletta e consegna il bottino: provviste di nuovo a 4. |
+| 20:08–20:13 | Arriva, scassina la porta, entra e ruba le 4 razioni. Nessuno lo vede: il pescatore è già a casa. |
+| 20:24 | Rientra alla caletta e consegna il bottino: provviste di nuovo a 4. Torna a riposare al suo posto. |
+| giorno 2, 19:59–20:00 | Nuovo consumo; la rimessa è vuota, quindi la razzia va alla dispensa del nucleo (12 minuti). |
+| giorno 2, 20:15 | Ruba 4 razioni dalla dispensa (restano 8). Il pescatore, in casa, sente il furto ma non vede chi. |
+| giorno 2, 20:20 | Il pescatore lo racconta al custode; il custode va a presidiare la dispensa dal posto di guardia (4,4). |
 
-Dopo la prima razzia le provviste Vasan sono sopra la soglia fino al consumo della sera dopo. Se la rimessa è già vuota alle 20:00, il bersaglio più vicino non vuoto è la dispensa del nucleo. Questi orari sono il comportamento del motore sui valori di contenuto attuali; la loro taratura per il gioco appartiene ai Task 6 e 10.
+Questi orari sono il comportamento del motore sui valori di contenuto attuali, misurati dai test con il seme dello scenario. La taratura per il gioco resta al Task 10.
+
+## Come l'ordine delle visite cambia la serata (Task 6)
+
+Misurato in `tests/RpgSandbox.Sim.Tests/BlackmarshRegionTests.cs`, solo con comandi del giocatore e l'orario del mondo; nessun flag di ramo. Situazione la sera del giorno 2 alle 21:00:
+
+| Cosa fa il giocatore | Cosa succede | Dispensa | Provviste Vasan | Custode |
+|---|---|---|---|---|
+| Nulla | Come nella tabella sopra. | 8 | 4 | presidia la dispensa |
+| Va alla rimessa, assiste al furto dalla stanza interna, torna e lo racconta al custode | Il custode percorre il sentiero e presidia la rimessa (ormai vuota); il predone gli deve 4 razioni. La sera dopo la razzia va alla dispensa, rimasta senza guardia. | 8 | 4 | presidia la rimessa |
+| Porta le 4 razioni della rimessa alla dispensa prima delle 20:00 | La razzia della prima sera va alla dispensa; il predone trova il paladino all'accesso, lo squadra e desiste. I Vasan restano senza cibo e riprovano la sera dopo. | 16 | 0 | al pozzo |
+| Va prima alla caletta e riprende le provviste dopo la consegna | I Vasan sono di nuovo sotto la soglia: alle 21:00 razziano la dispensa, il pescatore lo sente e il custode la presidia; la sera dopo il predone vede la guardia e desiste. | 8 | 0 | presidia la dispensa |
+
+Il giocatore lontano non sa chi ha svuotato la cassa, neanche vedendola vuota: nessuna osservazione e nessun rapporto da offrire al custode.
+
+**Correzioni di contenuto del Task 6:** il posto «casa» del predone, perché prima riposava sull'accesso delle provviste e il giocatore non poteva più usarle; i posti «guardia» di casa comune e rimessa, perché prima il custode di presidio si fermava sull'unico accesso della dispensa. Il presidio dissuade comunque, perché conta che il predone veda la guardia.
+
+**Limiti noti, comportamento del motore:** il predone non reagisce a un intruso nel suo approdo, la valutazione scatta solo all'accesso del deposito. Gli NPC non richiudono una porta senza chiave: la porta della casa comune resta aperta dopo la prima uscita del pescatore. Il custode presidia il deposito del furto anche se è già vuoto.

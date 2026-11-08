@@ -44,7 +44,8 @@
         "exits": [ { "location": "bm_isle_hamlet_fork", "at": [19, 6] } ],
         "posts": [
           { "location": "bm_isle_common_house", "kind": "Home", "at": [5, 7] },
-          { "location": "bm_isle_well", "kind": "Home", "at": [12, 5] }
+          { "location": "bm_isle_well", "kind": "Home", "at": [12, 5] },
+          { "location": "bm_isle_common_house", "kind": "Guard", "at": [4, 4] }
         ],
         "lights": [
           { "at": [12, 6], "bright": 15, "dim": 30 },
@@ -100,7 +101,8 @@
         "zones": { "E": "bm_isle_shed_fork", "S": "bm_isle_shed" },
         "exits": [ { "location": "bm_isle_shed_fork", "at": [0, 6] } ],
         "posts": [
-          { "location": "bm_isle_shed", "kind": "Work", "at": [7, 4] }
+          { "location": "bm_isle_shed", "kind": "Work", "at": [7, 4] },
+          { "location": "bm_isle_shed", "kind": "Guard", "at": [10, 8] }
         ],
         "lights": [
           { "at": [10, 6], "bright": 15, "dim": 30 }
@@ -156,7 +158,10 @@
           "####################"
         ],
         "zones": { "E": "bm_isle_cove_fork", "A": "bm_isle_landing" },
-        "exits": [ { "location": "bm_isle_cove_fork", "at": [0, 6] } ]
+        "exits": [ { "location": "bm_isle_cove_fork", "at": [0, 6] } ],
+        "posts": [
+          { "location": "bm_isle_landing", "kind": "Home", "at": [15, 9] }
+        ]
       }
     ],
     "factions": [
