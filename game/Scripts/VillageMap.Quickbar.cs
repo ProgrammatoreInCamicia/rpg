@@ -546,7 +546,7 @@ public partial class VillageMap
 		StyleActionButton(_gameMenuButton, "more", UtilityAccent, iconOnly: true);
 		_gameMenuButton.Pressed += ToggleGameMenu;
 		ui.AddChild(_gameMenuButton);
-		_gameMenu = HudPanel(480, 800, 130, 440);
+		_gameMenu = HudPanel(480, 800, 130, BlackmarshRegionMode ? 560 : 440);
 		_gameMenu.Visible = false;
 		_gameMenu.AddThemeStyleboxOverride("panel", new StyleBoxFlat { BgColor = new Color(0.07f, 0.08f, 0.11f, 0.98f) });
 		ui.AddChild(_gameMenu);
@@ -556,7 +556,13 @@ public partial class VillageMap
 		items.AddChild(new Label { Text = "Menu di gioco" });
 		MenuItem(items, "Riprendi", () => _gameMenu.Visible = false);
 		MenuItem(items, "Salva", () => { SaveGame(); _gameMenu.Visible = false; });
-		MenuItem(items, "Carica", () => { LoadGame(); _gameMenu.Visible = false; });
+		MenuItem(items, "Carica", () => { if (BlackmarshRegionMode) RequestRegionLoad(); else LoadGame(); _gameMenu.Visible = false; });
+		if (BlackmarshRegionMode)
+		{
+			MenuItem(items, "Nuova partita", RequestNewRegionGame);
+			MenuItem(items, "Torna al titolo", RequestRegionReturnToTitle);
+			MenuItem(items, "Salva ed esci", SaveRegionAndExit);
+		}
 		if (CanRetryScene)
 			MenuItem(items, "Riprova", RetryScene);
 		MenuItem(items, "Riposo", () => { _restPanel.Visible = true; _gameMenu.Visible = false; });

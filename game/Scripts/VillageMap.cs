@@ -30,6 +30,16 @@ public partial class VillageMap : Node2D
 	private const string SliceSavePath = "user://playable-slice.json";
 	private const string BlackmarshSavePath = "user://blackmarsh-watchhouse.json";
 	private string SavePath => _entryOptions.SavePath;
+	private string SaveFilePath
+	{
+		get
+		{
+			var overrideArg = BlackmarshRegionMode && OS.GetCmdlineUserArgs().Any(a => a.StartsWith("--region-persistence-smoke="))
+				? OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--region-save-path=")) : null;
+			return overrideArg is null ? ProjectSettings.GlobalizePath(SavePath)
+				: overrideArg["--region-save-path=".Length..];
+		}
+	}
 	private EntryOptions _entryOptions;
 	private readonly record struct EntryOptions(string SavePath, GridPos Facing, int PrerollHours,
 		bool StartsPaused);
@@ -150,6 +160,15 @@ public partial class VillageMap : Node2D
 		BuildUi();
 		if (_entryOptions.StartsPaused) SetPaused(true);
 		Refresh();
+		if (BlackmarshRegionMode && !RegionSmokeWithoutTitle())
+		{
+			if (_regionStartFreshOnReload)
+			{
+				_regionStartFreshOnReload = false;
+				_regionSessionStarted = true;
+			}
+			else ShowRegionTitle();
+		}
 		var presentationSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--region-presentation-smoke="));
 		if (BlackmarshRegionMode && presentationSmoke is not null)
 			RunRegionPresentationSmoke(presentationSmoke["--region-presentation-smoke=".Length..],
@@ -157,6 +176,10 @@ public partial class VillageMap : Node2D
 		var regionTravelSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--region-travel-smoke="));
 		if (BlackmarshRegionMode && regionTravelSmoke is not null)
 			RunRegionTravelSmoke(regionTravelSmoke["--region-travel-smoke=".Length..]);
+		var regionPersistenceSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--region-persistence-smoke="));
+		if (BlackmarshRegionMode && regionPersistenceSmoke is not null)
+			RunRegionPersistenceSmoke(regionPersistenceSmoke["--region-persistence-smoke=".Length..],
+				OS.GetCmdlineUserArgs().Contains("--region-persistence-resume"));
 		var blackmarshEntrySmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--blackmarsh-entry-smoke="));
 		if (BlackmarshWatchhouseMode && blackmarshEntrySmoke is not null)
 			RunBlackmarshEntrySmoke(blackmarshEntrySmoke["--blackmarsh-entry-smoke=".Length..]);
@@ -213,6 +236,7 @@ public partial class VillageMap : Node2D
 
 	public override void _Process(double delta)
 	{
+		if (BlackmarshRegionMode && (_regionTitleOpen || _regionConfirm.Visible)) return;
 		Pan(delta);
 		UpdateHover();
 		UpdateSpotPreview();
@@ -322,6 +346,13 @@ public partial class VillageMap : Node2D
 	/// </summary>
 	public override void _Input(InputEvent @event)
 	{
+		if (BlackmarshRegionMode && (_regionTitleOpen || _regionConfirm.Visible))
+		{
+			if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.Escape }
+				&& _regionConfirm.Visible) CancelRegionConfirmation();
+			if (@event is not InputEventMouse) GetViewport().SetInputAsHandled();
+			return;
+		}
 		if (_sliceSummary is { Visible: true } summary)
 		{
 			// Keep the summary's own buttons usable, but consume all input aimed at the game behind it.
@@ -335,6 +366,7 @@ public partial class VillageMap : Node2D
 
 	public override void _UnhandledInput(InputEvent @event)
 	{
+		if (BlackmarshRegionMode && (_regionTitleOpen || _regionConfirm.Visible)) return;
 		if (_sliceSummary is { Visible: true }) return;
 		if (@event is InputEventKey { Pressed: true, Echo: false, Keycode: Key.I })
 		{
@@ -891,52 +923,68 @@ public partial class VillageMap : Node2D
 		else StartActivity(command);
 	}
 
-	private void SaveGame() => SaveGameToPath(ProjectSettings.GlobalizePath(SavePath));
+	private void SaveGame() => SaveGameToPath(SaveFilePath);
 
-	internal void SaveGameToPath(string path)
+	internal bool SaveGameToPath(string path)
 	{
 		try
 		{
-			using (var stream = File.Create(path + ".tmp"))
-				_sim.Save(stream);
+			if (BlackmarshRegionMode)
+				File.WriteAllBytes(path + ".tmp", RegionSaveBytes(_sim));
+			else
+				using (var stream = File.Create(path + ".tmp"))
+					_sim.Save(stream);
 			File.Move(path + ".tmp", path, overwrite: true);
 			ShowMessage("Partita salvata.");
+			return true;
 		}
 		catch (Exception e) when (e is IOException or UnauthorizedAccessException)
 		{
 			ShowMessage($"Salvataggio non riuscito: {e.Message}");
+			return false;
 		}
 	}
 
-	private void LoadGame() => LoadGameFromPath(ProjectSettings.GlobalizePath(SavePath));
+	private void LoadGame() => LoadGameFromPath(SaveFilePath);
 
-	internal void LoadGameFromPath(string path)
+	internal bool LoadGameFromPath(string path)
 	{
 		if (!File.Exists(path))
 		{
 			ShowMessage("Nessun salvataggio da caricare.");
-			return;
+			ShowRegionTitleError("Nessun salvataggio da caricare.");
+			return false;
 		}
 		LoadResult result;
 		try
 		{
-			using var stream = File.OpenRead(path);
-			result = SimulationSession.TryLoad(stream);
+			if (BlackmarshRegionMode)
+				result = ReadRegionSave(path);
+			else
+			{
+				using var stream = File.OpenRead(path);
+				result = SimulationSession.TryLoad(stream);
+			}
 		}
 		catch (Exception e) when (e is IOException or UnauthorizedAccessException)
 		{
 			ShowMessage($"Caricamento non riuscito: {e.Message}");
-			return;
+			ShowRegionTitleError($"Caricamento non riuscito: {e.Message}");
+			return false;
 		}
 		if (!result.Success)
 		{
 			ShowMessage($"Caricamento non riuscito: {result.Error}");
-			return;
+			ShowRegionTitleError($"Caricamento non riuscito: {result.Error}");
+			return false;
 		}
 		if (!SaveMatchesBuiltScene(result.Session!))
 		{
-			ShowMessage("Caricamento non riuscito: salvataggio di una mappa diversa.");
-			return;
+			var error = BlackmarshRegionMode ? "Caricamento non riuscito: regione incompatibile."
+				: "Caricamento non riuscito: salvataggio di una mappa diversa.";
+			ShowMessage(error);
+			ShowRegionTitleError(error);
+			return false;
 		}
 		CancelSliceWait("Attesa interrotta.");
 		ClearSliceReport();
@@ -1000,6 +1048,7 @@ public partial class VillageMap : Node2D
 		_pendingTicks = 0;
 		Refresh();
 		ShowMessage("Partita caricata.");
+		return true;
 	}
 
 	private void ShowMessage(string text)
@@ -1959,5 +2008,6 @@ public partial class VillageMap : Node2D
 		_returnToVillage = new Button { Text = "Torna al villaggio", Visible = false };
 		_returnToVillage.Pressed += ReturnToVillage;
 		journeyBox.AddChild(_returnToVillage);
+		if (BlackmarshRegionMode) BuildRegionMenu(ui);
 	}
 }
