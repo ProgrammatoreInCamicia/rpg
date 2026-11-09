@@ -52,6 +52,14 @@ public partial class VillageMap
 				"The Vasan raider did not answer entry to its enlarged landing.");
 			SliceRequire(_regionDefenseBalloon is { Visible: true },
 				"The defender's answer was not legible in the game world.");
+			_sim.Advance(Duration.FromSeconds(6));
+			Refresh();
+			_regionDefenseBalloon?.QueueFree();
+			_regionDefenseBalloon = null;
+			_lastRegionDefenseFact = null;
+			RefreshRegionDefenseFeedback();
+			SliceRequire(_regionDefenseBalloon is null,
+				"An old defender warning reappeared after a view refresh.");
 			await PresentationJourney(Island.HamletFork);
 			SliceRequire(_view.Area == Island.Hamlet, "The pilot could not complete the travel loop.");
 			GD.Print("REGION MAP PILOT SMOKE OK: three large areas, travel and render lifecycle");

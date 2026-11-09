@@ -17,6 +17,7 @@ public partial class VillageMap
 			"DefenseWarning" or "DefenseAttack" or "DefenseWithdrawal");
 		if (fact is null || fact.Id == _lastRegionDefenseFact) return;
 		_lastRegionDefenseFact = fact.Id;
+		if (_view.Now.Since(fact.At).Ticks > Duration.FromSeconds(5).Ticks) return;
 		if (!_view.VisibleActors.Any(a => a.Id == Island.Raider)
 			|| !_tokens.TryGetValue(Island.Raider, out var token) || !token.Visible)
 			return;
