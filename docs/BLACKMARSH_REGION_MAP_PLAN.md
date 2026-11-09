@@ -34,6 +34,21 @@ Oggi `BuildMap` crea almeno un `Polygon2D` per ogni casella. La maschera di visi
 
 Per le due fixture misurare: tempo di costruzione dell'area, tempo di aggiornamento visione/luci durante il cammino, frame time a 1280×720 e 1920×1080, memoria, durata di un giorno simulato e calcolo di percorsi NPC. Il culling visivo da solo non riduce il costo di costruzione né quello della maschera: decidere l'ottimizzazione dopo le misure. Catture nei tre punti focali di ciascuna area devono mostrare orientamento, densità e leggibilità degli oggetti, non solo estensione del terreno.
 
+### Prima misura client, 9 novembre 2026
+
+Fixture isolata `--region-map-benchmark=<dimensioni>`, una mappa aperta e un attore: stesso renderer e UI della regione, 60 frame misurati dopo 60 di riscaldamento. Una esecuzione per combinazione su Godot 4.7.2 Mono/OpenGL, GPU AMD Radeon integrata. I tempi includono il costo della finestra e il limite di sincronizzazione del test, quindi sono un confronto locale, non una promessa di frame rate per la mappa piena di edifici e oggetti.
+
+| Risoluzione | Mappa | Nodi della mappa | Costruzione mappa | Quattro cambi di sguardo | 60 frame / frequenza media |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 1280×720 | 20×14 | 355 | 78,0 ms | 5,5 ms | 1980 ms / 30,3 fps |
+| 1280×720 | 48×32 | 1611 | 92,2 ms | 9,3 ms | 2065 ms / 29,1 fps |
+| 1280×720 | 80×60 | 4875 | 116,1 ms | 22,1 ms | 2078 ms / 28,9 fps |
+| 1920×1080 | 20×14 | 355 | 78,4 ms | 5,5 ms | 1978 ms / 30,3 fps |
+| 1920×1080 | 48×32 | 1611 | 90,5 ms | 11,9 ms | 2210 ms / 27,2 fps |
+| 1920×1080 | 80×60 | 4875 | 113,8 ms | 20,8 ms | 2318 ms / 25,9 fps |
+
+La misura non include strutture fitte, NPC, ciclo Sim di un giorno o un playtest con camera in movimento. Il tempo di quattro cambi di sguardo resta sotto 23 ms anche a 80×60, mentre il numero di nodi sale a quasi 4900 e il frame rate a 1080p cala di circa il 15% rispetto alla mappa piccola. Servono il profilo completo e la prova di densità prima di fissare 48×32 o 80×60; non giustificano ancora un'ottimizzazione specifica.
+
 ## Consegna a Claude
 
 Quando scala e topologia sono approvate, Codex consegna matrice di terreno, zone, bordi/porte, uscite, ostacoli, luci e punti d'interesse con coordinate validate. Claude integra scenario/posti, riesegue percorsi e orari del pescatore/predone e i test Sim. Codex aggiorna presentazione e prestazioni client sulle coordinate definitive; entrambi verificano che gli accessi restino raggiungibili e che la difesa Vasan del Task 6A operi nella nuova caletta.

@@ -144,12 +144,16 @@ public partial class VillageMap : Node2D
 
 	public override void _Ready()
 	{
+		var mapBenchmark = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--region-map-benchmark="));
+		var benchmarkClock = mapBenchmark is null ? null : System.Diagnostics.Stopwatch.StartNew();
 		_activeEntry = Entry == SceneEntry.Village && OS.GetCmdlineUserArgs().Contains("--interior-prototype")
 			? SceneEntry.InteriorPrototype : Entry;
 		_entryOptions = OptionsFor(_activeEntry);
 		_freeMovementEnabled = true;
-		_sim = BlackmarshRegionMode && OS.GetCmdlineUserArgs().Contains("--map-presentation-fixture")
-			? CreateMapPresentationFixture() : CreateEntrySession(_activeEntry);
+		_sim = BlackmarshRegionMode && mapBenchmark is not null
+			? CreateRegionMapBenchmarkFixture(mapBenchmark["--region-map-benchmark=".Length..])
+			: BlackmarshRegionMode && OS.GetCmdlineUserArgs().Contains("--map-presentation-fixture")
+				? CreateMapPresentationFixture() : CreateEntrySession(_activeEntry);
 		if (_entryOptions.PrerollHours > 0)
 			_sim.Advance(Duration.FromHours(_entryOptions.PrerollHours));
 		_sim.FacePlayer(_entryOptions.Facing.X, _entryOptions.Facing.Y);
@@ -157,11 +161,14 @@ public partial class VillageMap : Node2D
 		_view = _sim.GetPlayerView();
 		SyncFigureFacing(_view.Facing);
 
+		var benchmarkSessionMs = benchmarkClock?.Elapsed.TotalMilliseconds;
 		BuildMapPresentation();
+		var benchmarkMapMs = benchmarkClock?.Elapsed.TotalMilliseconds;
 		BuildUi();
 		if (_entryOptions.StartsPaused) SetPaused(true);
 		Refresh();
-		if (BlackmarshRegionMode && !RegionSmokeWithoutTitle())
+		var benchmarkRefreshMs = benchmarkClock?.Elapsed.TotalMilliseconds;
+		if (BlackmarshRegionMode && mapBenchmark is null && !RegionSmokeWithoutTitle())
 		{
 			if (_regionStartFreshOnReload)
 			{
@@ -170,6 +177,9 @@ public partial class VillageMap : Node2D
 			}
 			else ShowRegionTitle();
 		}
+		if (BlackmarshRegionMode && mapBenchmark is not null)
+			RunRegionMapBenchmark(mapBenchmark["--region-map-benchmark=".Length..],
+				benchmarkSessionMs!.Value, benchmarkMapMs!.Value, benchmarkRefreshMs!.Value);
 		var presentationSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--region-presentation-smoke="));
 		if (BlackmarshRegionMode && presentationSmoke is not null)
 			RunRegionPresentationSmoke(presentationSmoke["--region-presentation-smoke=".Length..],
