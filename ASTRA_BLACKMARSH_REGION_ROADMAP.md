@@ -2,7 +2,9 @@
 
 Analisi originaria del 29 ottobre 2026. Base esaminata: commit `d4c9465`. **Alla data dell'analisi non era stata eseguita alcuna implementazione regionale.** Le due vertical slice sono considerate concluse; questo incremento costruisce gioco continuativo sui loro risultati.
 
-**Aggiornamento 8 novembre 2026:** Task 1 e 2 implementati e approvati; Task 3 implementato nel commit `da59622` e approvato da Claude. Task 4 implementato da Codex e approvato da Claude. Task 5 implementato da Codex e approvato da Claude (dopo la correzione `5422f39`). Task 6 implementato da Claude e approvato nella review indipendente di Codex; dettagli e limiti sotto. Task 7–10 non avviati. Il testo di analisi sottostante conserva la diagnosi originale; risultati e review sono registrati sotto i rispettivi task.
+**Aggiornamento 8 novembre 2026:** Task 1 e 2 implementati e approvati; Task 3 implementato nel commit `da59622` e approvato da Claude. Task 4 implementato da Codex e approvato da Claude. Task 5 implementato da Codex e approvato da Claude (dopo la correzione `5422f39`). Task 6 implementato da Claude e approvato nella review indipendente di Codex; dettagli e limiti sotto. Task 7–10 non avviati.
+
+**Aggiornamento 9 novembre 2026, dopo la prima prova dell'utente:** due problemi di prodotto. Le mappe sono troppo piccole e vuote: si vedono un PNG e una casa e si cambia mappa. Il predone vasan, pur ostile, non reagisce né alla presenza del giocatore né al furto delle sue provviste. Decisioni dell'utente: il predone **valuta e poi attacca** (Task 6A) e le aree diventano **mappe grandi da esplorare** (Task 6B). Entrambi vengono prima del Task 7 e superano il budget «18×14–24×18» della sezione 4. Il testo di analisi sottostante conserva la diagnosi originale; risultati e review sono registrati sotto i rispettivi task.
 
 ## 1. Decisione
 
@@ -119,7 +121,7 @@ La rimessa, la caletta, i tre piccoli luoghi e i loro abitanti giocabili sono **
 
 Durate iniziali **proposte, in tempo Sim a passo normale**, da misurare e tarare. Sono tragitti fra piccoli punti d'interesse, non una scala ufficiale dell'esagono. Tutti i collegamenti sono percorribili nei due sensi. Un'uscita ai margini di ciascuna mappa rappresenta il bivio dei sentieri: offre due destinazioni. Ogni percorso diretto costa meno del giro attraverso il terzo luogo; non occorre transito automatico in un'area intermedia.
 
-Budget: tre mappe circa 18×14–24×18, quattro personaggi totali iniziali (**giocatore, custode/autorità, pescatore testimone, predone**), due fazioni, tre depositi. Tre edifici compatti a un piano: rimessa, casa comune, capanno alla caletta. Nessun altro interno obbligatorio.
+Budget: tre mappe circa 18×14–24×18 (**superato il 9 novembre 2026 dal Task 6B: mappe grandi**), quattro personaggi totali iniziali (**giocatore, custode/autorità, pescatore testimone, predone**), due fazioni, tre depositi. Tre edifici compatti a un piano: rimessa, casa comune, capanno alla caletta. Nessun altro interno obbligatorio.
 
 | Luogo | Cosa si fa | Perché tornarci |
 |---|---|---|
@@ -483,6 +485,79 @@ Misure e tabella degli sviluppi: `docs/BLACKMARSH_REGION.md`. Verifiche in workt
 
 **Review indipendente Codex (8 novembre 2026): APPROVATO.** Esaminati commit `9a4b565`, scenario, sette test e documento: solo tre posti aggiunti, nessun flag di ramo o modifica Sim; il caso negativo di conoscenza e le risposte fisiche sono asseriti tramite viste/comandi pubblici. Aggiunta ai due test di presidio una verifica di cammino fino all'accesso reale del deposito, perché la sola differenza di coordinate non dimostrava raggiungibilità: entrambe passano. Build soluzione 0 errori/0 avvisi, sette test mirati e suite completa **714/714** verdi. Gli smoke regionali di viaggio e presentazione erano stati rieseguiti da Codex dopo il commit Task 6 durante il collaudo Task 5, entrambi verdi. I tre limiti sopra restano decisioni di contenuto/playtest, non blocchi per il Task 7.
 
+### Task 6A — Il predone difende il suo territorio: valuta, poi attacca o minaccia
+
+**Origine:** prova dell'utente del 9 novembre 2026. Il predone è ostile ma non fa niente: il giocatore entra nell'approdo, gli passa accanto, svuota le sue provviste, e non succede nulla.
+
+**Diagnosi (motore attuale):**
+- l'ostilità serve solo a scegliere un lato in uno scontro già iniziato (`JoinStep`). Nessun PNG attacca di sua iniziativa un nemico che vede;
+- la valutazione (`SizeUp`) scatta solo durante una razzia, sull'accesso del deposito preso di mira;
+- il furto si punisce soltanto tramite un'autorità, cioè rapporto, debito e confisca. I Vasan non hanno un'autorità, quindi un furto visto dal predone resta senza seguito.
+
+**Obiettivo:** chi appartiene a una fazione nemica del giocatore reagisce quando lo vede nel proprio territorio o alle proprie scorte. Prima lo valuta con il giudizio già esistente (statistiche vere per sé, aspetto per l'altro, Intuizione), poi:
+1. **si aspetta di vincere:** attacca, con le regole di combattimento esistenti;
+2. **incerto:** minaccia. Si mette fra l'intruso e le provviste e gli intima di andarsene; la frase compare nel registro come fatto visto o sentito. Se l'intruso tocca le provviste o resta oltre un tempo di contenuto, la minaccia diventa attacco;
+3. **si aspetta di perdere:** si ritira tenendo le distanze e lo ricorda. Il fatto entra nelle sue conoscenze e il deposito non resta incustodito senza conseguenze per lui.
+
+Anche quando non combatte, il predone deve far capire che ha visto il giocatore e che cosa pensa di lui.
+
+**File/sistemi:**
+- Sim: nuovo passo di decisione NPC subito dopo `FleeStep`, prima della razzia;
+- `Simulation.SizeUp.cs`: da un sì/no a tre esiti, con un margine di contenuto;
+- territorio dichiarato nello scenario: per fazione, i luoghi difesi. Per i Vasan, `bm_isle_landing`;
+- `Tuning`, fatti e log;
+- test in `BlackmarshRegionTests.cs` e regressioni della rimessa e della slice;
+- client solo per mostrare la minaccia, se il registro attuale non basta.
+
+**Dipendenze:** Task 6. Contratto in `chat.txt` prima del codice, come sempre.
+
+**Verifica (test Sim con comandi pubblici):**
+- paladino all'approdo: il predone lo nota e lo minaccia o si ritira, non lo ignora;
+- un protagonista più debole, o ferito, viene attaccato;
+- un furto dalle provviste sotto i suoi occhi fa scattare la reazione;
+- un intruso che il predone non vede non provoca reazioni, quindi niente telepatia;
+- fuori dal territorio valgono le regole attuali;
+- la razzia serale funziona come prima;
+- save e load in mezzo a una minaccia riprendono lo stesso stato.
+
+**Completato quando:** entrare nell'approdo o toccare le provviste dei Vasan ha sempre una risposta visibile e coerente con la valutazione. Nessun flag di trama, nessun comportamento speciale per l'arco del Task 7, suite e smoke verdi.
+
+**Assegnazione:** Claude (Sim, contenuto, test); Codex per l'eventuale presentazione.
+
+### Task 6B — Mappe grandi da esplorare
+
+**Origine:** prova dell'utente del 9 novembre 2026. «Vedo un PNG e una casa e poi cambio mappa, mentre in un gioco vero c'è tanto da vedere: possono passare potenzialmente ore prima di cambiare mappa.» Le mappe attuali, di 20×14 e 18×14 caselle, sono banchi di prova del viaggio, non luoghi.
+
+**Obiettivo:** ogni area diventa un luogo che si esplora a piedi per decine di minuti reali, non un corridoio verso il bivio. Due cose insieme, perché una mappa grande e vuota è peggio di una piccola:
+- **dimensione:** ordine di grandezza almeno 4–6 volte la superficie attuale per area. Indicativamente 80×60 caselle o più, da fissare con un prototipo misurando quanto si impiega ad attraversarla e a cercare;
+- **densità:** terreno che orienta e divide lo spazio (scogli, canneti, fango, dune, boschetti, sentieri, rive, la torre vista da lontano) e molti punti d'interesse con qualcosa da fare o da capire. Esempi:
+  - tracce del predone sul sentiero, la sua barca, un punto da cui spiare l'approdo senza essere visti;
+  - reti, nasse e attrezzi dei pescatori, i resti di un fuoco;
+  - seconde vie verso la rimessa;
+  - il capanno del Task 7.
+
+  Riusare gli oggetti e le regole esistenti: percezione, porte, scorte, oggetti a terra, luce. Non introdurre nuovi sistemi.
+
+**File/sistemi:**
+- piante e posti in `game/content/scenarios/blackmarsh-watch-island.json`;
+- presentazione e prestazioni del client: tile, camera, culling, minimappa o orientamento, se servono;
+- prestazioni Sim: percorsi NPC e percezione su griglie grandi, con decisioni ogni minuto e molti minuti accelerati;
+- `docs/BLACKMARSH_REGION.md`;
+- i test di contenuto e gli orari del Task 6 da rimisurare, perché i percorsi interni si allungano.
+
+**Dipendenze:** dopo il Task 6A o in parallelo, perché il territorio dei Vasan va disegnato nella nuova caletta.
+
+**Verifica:**
+- tutte e tre le aree sono raggiungibili da ogni bivio e ogni punto d'interesse è raggiungibile;
+- un giorno simulato accelerato resta entro un tempo di calcolo accettabile, da misurare prima e dopo;
+- il client resta fluido a 1280×720 e 1920×1080;
+- gli orari della serata (routine del pescatore, razzie, rapporti) vengono rimisurati e documentati: possono cambiare, non devono rompersi;
+- le catture mostrano più spazio e più cose, non solo più erba.
+
+**Completato quando:** in un playtest dell'utente una singola area tiene il giocatore impegnato a lungo per scelta, non per distanza. Il giocatore trova cose che non aveva visto la prima volta e capisce dove andare senza indicatori onniscienti.
+
+**Assegnazione:** Codex (disegno delle aree, presentazione, prestazioni client); Claude (scenario e posti coerenti con il Sim, prestazioni Sim, rimisura dei test). Ripartizione esatta da concordare in `chat.txt`.
+
 ### Task 7 — Aggiungere l'opportunità di esplorazione alla caletta
 
 **Obiettivo:** offrire una ragione autonoma per esplorare, oltre a custodire o spostare razioni.
@@ -534,6 +609,8 @@ Misure e tabella degli sviluppi: `docs/BLACKMARSH_REGION.md`. Verifiche in workt
 **Dipendenze:** Task 9.
 
 **Verifica:** almeno due sessioni da nuovo mondo con ordini iniziali diversi, di cui almeno una con giocatore non guidato passo passo; una sessione di ripresa dopo chiusura. Registrare tempo reale di decisione/esplorazione, attese, luoghi visitati per scelta, opportunità trovate, conseguenze comprese, motivi di una rivisita e punti in cui il giocatore non sa che fare. Il collaudatore non deve aspettare artificialmente che il timer raggiunga venti minuti.
+
+**Nota del 9 novembre 2026:** con le mappe grandi del Task 6B l'aspettativa dell'utente è più alta: una sola area deve poter tenere impegnati a lungo, anche ore. La soglia di 20–30 minuti resta il minimo, non l'obiettivo.
 
 **Completato quando:** il gioco sostiene circa 20–30 minuti di scelte e attività senza debug, guida esterna o ripetizione forzata, e almeno due sviluppi sono effettivamente osservati. Deve esistere un percorso soddisfacente senza combattimento obbligatorio. Un conflitto risolto non è un fallimento del sandbox. Se il playtest umano non è stato svolto, scrivere «non verificato»; test e smoke non lo sostituiscono.
 
