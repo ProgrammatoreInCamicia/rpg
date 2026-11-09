@@ -8,6 +8,10 @@ namespace RpgSandbox.Game;
 /// <summary>Temporary regional size probe. It uses the normal client renderer and an isolated Sim fixture.</summary>
 public partial class VillageMap
 {
+	private double _pilotShadeMs;
+	private double _pilotBuildingsMs;
+	private double _pilotVisionMs;
+	private bool _pilotMeasureRefresh;
 	private static SimulationSession CreateRegionMapBenchmarkFixture(string dimensions)
 	{
 		var (width, height) = ParseRegionMapBenchmarkSize(dimensions);
@@ -41,10 +45,22 @@ public partial class VillageMap
 			await SliceFrames(8);
 			var beforeBytes = GC.GetTotalMemory(false);
 			var measure = System.Diagnostics.Stopwatch.StartNew();
+			double simFacingMs = 0, clientFacingMs = 0;
+			_pilotShadeMs = _pilotBuildingsMs = _pilotVisionMs = 0;
+			_pilotMeasureRefresh = _regionMapPilot;
 			foreach (var facing in new[] { new GridPos(1, 0), new GridPos(0, 1),
 				new GridPos(-1, 0), new GridPos(0, -1) })
-				FaceForSmoke(facing.X, facing.Y);
+			{
+				var before = measure.Elapsed.TotalMilliseconds;
+				_sim.FacePlayer(facing.X, facing.Y);
+				SyncFigureFacing(facing);
+				simFacingMs += measure.Elapsed.TotalMilliseconds - before;
+				before = measure.Elapsed.TotalMilliseconds;
+				Refresh();
+				clientFacingMs += measure.Elapsed.TotalMilliseconds - before;
+			}
 			var facingMs = measure.Elapsed.TotalMilliseconds;
+			_pilotMeasureRefresh = false;
 			var from = _view.Position!.Value;
 			var move = _sim.Execute(new MoveToSpotCommand
 				{ Actor = _sim.Player, To = Spot.CenterOf(new GridPos(from.X + 2, from.Y)) });
@@ -59,10 +75,15 @@ public partial class VillageMap
 			await SliceFrames(60);
 			var framesMs = frameClock.Elapsed.TotalMilliseconds;
 			var allocatedBytes = GC.GetTotalMemory(false) - beforeBytes;
+			var currentSight = _view.MapVisibility?.Sum(row => row.Count(c => c == '2')) ?? 0;
 			GD.Print($"REGION MAP BENCHMARK {dimensions}: session={sessionMs:F1}ms, map={mapMs - sessionMs:F1}ms, "
-				+ $"initial-ui-refresh={refreshMs - mapMs:F1}ms, four-facings={facingMs:F1}ms, "
+				+ $"initial-ui-refresh={refreshMs - mapMs:F1}ms, four-facings={facingMs:F1}ms "
+				+ $"(sim={simFacingMs:F1}ms, refresh={clientFacingMs:F1}ms), "
+				+ $"refresh-parts=(shade={_pilotShadeMs:F1}ms, buildings={_pilotBuildingsMs:F1}ms, vision={_pilotVisionMs:F1}ms), "
 				+ $"two-square-move-and-refresh={moveMs:F1}ms, nodes={CountBenchmarkNodes(_mapRoot)}, "
-				+ $"managed-delta={allocatedBytes}B, 60-frames={framesMs:F1}ms, measured-fps={60000 / framesMs:F1}");
+				+ $"managed-delta={allocatedBytes}B, sight-cells={currentSight}, "
+				+ $"mask={_visionTexture?.GetWidth()}x{_visionTexture?.GetHeight()}, "
+				+ $"60-frames={framesMs:F1}ms, measured-fps={60000 / framesMs:F1}");
 			GetTree().Quit(0);
 		}
 		catch (Exception error)

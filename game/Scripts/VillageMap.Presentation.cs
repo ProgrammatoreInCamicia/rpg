@@ -26,9 +26,10 @@ public partial class VillageMap
 	private PresentationProfile _presentation = null!;
 	private bool StyledInterior => _presentation.StyledInterior;
 
-	private static PresentationProfile PresentationFor(SceneEntry entry, AreaId area)
+	private PresentationProfile PresentationFor(SceneEntry entry, AreaId area)
 	{
-		if (entry == SceneEntry.BlackmarshRegion) return IslandPresentationFor(area);
+		if (entry == SceneEntry.BlackmarshRegion) return _regionMapPilot
+			? IslandPilotPresentationFor(area) : IslandPresentationFor(area);
 		var villageFloors = new Dictionary<LocationId, Func<GridPos, FloorLook>>
 		{
 			[MappedVillageScenario.Ids.Inn] = _ => new(InnFloor, GroundMaterial.Wood),
@@ -110,13 +111,76 @@ public partial class VillageMap
 		throw new ArgumentOutOfRangeException(nameof(area), area, "No presentation for this island area.");
 	}
 
+	private static PresentationProfile IslandPilotPresentationFor(AreaId area)
+	{
+		var actors = new Dictionary<ActorId, Paladin3DPrototype.CharacterStyle>
+		{
+			[Island.Keeper] = Paladin3DPrototype.CharacterStyle.Guard,
+			[Island.Fisher] = Paladin3DPrototype.CharacterStyle.Farmer,
+			[Island.Raider] = Paladin3DPrototype.CharacterStyle.Raider,
+		};
+		if (area == Island.Hamlet)
+			return new(true, new Dictionary<LocationId, Func<GridPos, FloorLook>>
+			{
+				[Island.CommonHouse] = _ => new(HouseFloor, GroundMaterial.Wood, true),
+				[Island.Well] = _ => new(Yard, GroundMaterial.Flagstone),
+				[Island.HamletFork] = _ => new(ForestRoad, GroundMaterial.Grass),
+			}, actors, Props: new[]
+			{
+				new PropLook("interior-table", new GridPos(13, 14), 75f, Vector2.Zero),
+				new PropLook("interior-bed", new GridPos(10, 16), 105f, Vector2.Zero),
+			}, CaptionOffset: -80f, Landmarks: new[]
+			{
+				new LandmarkLook(new GridPos(25, 17), new Color(0.48f, 0.48f, 0.43f), 24),
+			});
+		if (area == Island.ShedArea)
+			return new(true, new Dictionary<LocationId, Func<GridPos, FloorLook>>
+			{
+				[Island.Shed] = _ => new(HouseFloor, GroundMaterial.Flagstone, true),
+				[Island.ShedFork] = _ => new(ForestRoad, GroundMaterial.Grass),
+			}, actors, Props: new[]
+			{
+				new PropLook("interior-table", new GridPos(25, 15), 75f, Vector2.Zero),
+			}, CaptionOffset: -80f);
+		if (area == Island.Cove)
+			return new(true, new Dictionary<LocationId, Func<GridPos, FloorLook>>
+			{
+				[Island.Landing] = _ => new(Yard, GroundMaterial.Road),
+				[Island.CoveFork] = _ => new(ForestRoad, GroundMaterial.Grass),
+			}, actors, CaptionOffset: -80f, Landmarks: new[]
+			{
+				new LandmarkLook(new GridPos(40, 27), new Color(0.52f, 0.31f, 0.17f), 17),
+			});
+		throw new ArgumentOutOfRangeException(nameof(area), area, "No presentation for the island map pilot.");
+	}
+
 	private FloorLook FloorFor(char symbol, LocationId? zone, GridPos cell)
 	{
+		if (_regionMapPilot && _view.Map is { } pilotMap)
+		{
+			if (symbol == '#') return IsMapBoundary(cell, pilotMap)
+				? new(new Color(0.17f, 0.28f, 0.32f), GroundMaterial.Road)
+				: new(new Color(0.36f, 0.37f, 0.35f), GroundMaterial.Grass);
+			if (symbol == '.')
+			{
+				var onTrail = pilotMap.Area == Island.Cove
+					? Math.Abs(cell.Y - 16) <= 2 || cell.X > 20 && Math.Abs(cell.Y - 25) <= 2
+					: Math.Abs(cell.Y - 16) <= 2;
+				var flecks = (cell.X * 31 + cell.Y * 17) % 11;
+				return onTrail
+					? new(new Color(0.80f, 0.76f, 0.67f), GroundMaterial.Road)
+					: new(new Color(0.79f - flecks * 0.01f, 0.85f - flecks * 0.008f,
+						0.74f - flecks * 0.008f), GroundMaterial.Grass);
+			}
+		}
 		if (symbol == '#') return new(Wall.Darkened(0.2f), GroundMaterial.Grass);
 		if (symbol == '.') return new(Road, GroundMaterial.Road);
 		return zone is { } id && _presentation.Floors.TryGetValue(id, out var floor)
 			? floor(cell) : new(Yard, GroundMaterial.Grass);
 	}
+
+	private static bool IsMapBoundary(GridPos cell, MapView map) =>
+		cell.X == 0 || cell.Y == 0 || cell.X == map.Width - 1 || cell.Y == map.Height - 1;
 
 	private Paladin3DPrototype.CharacterStyle ActorStyle(ActorId id) =>
 		_presentation.Actors.TryGetValue(id, out var style)

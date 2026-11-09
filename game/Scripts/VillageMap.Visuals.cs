@@ -72,6 +72,7 @@ public partial class VillageMap
 		};
 		tile.Color = look.WarmTint
 			? new Color(0.94f, 0.88f, 0.79f).Darkened(shade * 0.35f)
+			: _regionMapPilot && symbol == '.' ? look.Color.Darkened(shade * 0.5f)
 			: Colors.White.Darkened(shade * 0.5f);
 	}
 

@@ -17,7 +17,7 @@ public class DefenseTests
     /// A 16×6 map at noon: a beach (x 0–7) and the bandits' camp (x 8–15) with their rations at (14,2), used from (13,2). The
     /// paladin on the beach, a village guard behind him if asked, and the raider at (12,4).
     /// </summary>
-    private static SimulationSession CampSession(bool defends = true, bool withGuard = false)
+    private static SimulationSession CampSession(bool defends = true, bool withGuard = false, bool sightWall = false)
     {
         var b = new ScenarioBuilder().WithSeed(1)
             .AddArea("a", "Costa")
@@ -32,6 +32,9 @@ public class DefenseTests
             .AddActor("raider", "Razziatore", "camp", factionId: "bandits", build: "raider", at: (12, 4));
         if (withGuard)
             b.AddActor("guard", "Guardia", "beach", factionId: "village", build: "village-guard", at: (0, 3));
+        if (sightWall)
+            for (var y = 0; y < 6; y++)
+                b.AddEdge("a", (9, y), (10, y), MapEdgeKind.Wall);
         if (defends)
             b.AddDefense("bandits", "camp");
         var session = SimulationSession.Create(b.Build());
@@ -69,6 +72,16 @@ public class DefenseTests
         Assert.DoesNotContain(Facts(s), f => f.Kind is "DefenseAttack" or "CombatStarted");
         var raider = s.GetWorldView().Actor(Raider);
         Assert.Equal("Tieni le distanze", raider.LastDecision!.Rule);
+    }
+
+    [Fact]
+    public void An_intruder_in_the_defended_place_behind_a_wall_is_not_sized_up()
+    {
+        var s = CampSession(sightWall: true);
+        Walk(s, Player, (8, 2)); // in the camp, with a continuous wall between player and raider
+        s.Advance(Duration.FromMinutes(3));
+        Assert.DoesNotContain(Facts(s), f => f.Kind == "SizedUp" || f.Kind.StartsWith("Defense"));
+        Assert.Null(s.Engine.World.Actors[Raider].Defense);
     }
 
     [Fact]

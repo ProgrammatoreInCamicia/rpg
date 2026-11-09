@@ -11,12 +11,13 @@ public partial class VillageMap
 	private Vector2 _visionOrigin;
 	private int _visionMaskWidth;
 	private int _visionMaskHeight;
-	private const float VisionMaskPixel = 3f;
+	private float _visionMaskPixel = 3f;
 	private string? _visionFeatherKey;
 
 	private void BuildVisionFeather()
 	{
 		var map = _view.Map!;
+		_visionMaskPixel = BlackmarshRegionMode && map.Width >= 40 ? 4f : 3f;
 		var corners = new[]
 		{
 			CellToScreen(new GridPos(0, 0)), CellToScreen(new GridPos(map.Width - 1, 0)),
@@ -26,12 +27,12 @@ public partial class VillageMap
 			corners.Min(p => p.Y) - TileH / 2f);
 		var extent = new Vector2(corners.Max(p => p.X) + TileW / 2f,
 			corners.Max(p => p.Y) + TileH / 2f) - _visionOrigin;
-		_visionMaskWidth = Mathf.CeilToInt(extent.X / VisionMaskPixel);
-		_visionMaskHeight = Mathf.CeilToInt(extent.Y / VisionMaskPixel);
+		_visionMaskWidth = Mathf.CeilToInt(extent.X / _visionMaskPixel);
+		_visionMaskHeight = Mathf.CeilToInt(extent.Y / _visionMaskPixel);
 		_visionFeather = new Sprite2D
 		{
 			ZIndex = -8, Position = _visionOrigin, Centered = false,
-			Scale = Vector2.One * VisionMaskPixel,
+			Scale = Vector2.One * _visionMaskPixel,
 			TextureFilter = CanvasItem.TextureFilterEnum.Linear,
 		};
 		_mapRoot.AddChild(_visionFeather);
@@ -55,12 +56,39 @@ public partial class VillageMap
 		var directional = face != Vector2.Zero && _view.Combat is null;
 		int w = visibility[0].Length, h = visibility.Count;
 		float Seen(int x, int y) => x >= 0 && y >= 0 && x < w && y < h && visibility[y][x] == '2' ? 1f : 0f;
-		var pixels = new byte[_visionMaskWidth * _visionMaskHeight * 4];
-		for (var py = 0; py < _visionMaskHeight; py++)
-		for (var px = 0; px < _visionMaskWidth; px++)
+		// Only squares currently in sight can contribute opaque pixels. The sprite follows that small image
+		// across the map, avoiding a full-map upload whenever the player turns or walks.
+		var minX = float.PositiveInfinity;
+		var minY = float.PositiveInfinity;
+		var maxX = float.NegativeInfinity;
+		var maxY = float.NegativeInfinity;
+		for (var cy = 0; cy < h; cy++)
+		for (var cx = 0; cx < w; cx++)
+			if (visibility[cy][cx] == '2')
+			{
+				var projected = CellToScreen(new GridPos(cx, cy));
+				minX = Math.Min(minX, projected.X);
+				minY = Math.Min(minY, projected.Y);
+				maxX = Math.Max(maxX, projected.X);
+				maxY = Math.Max(maxY, projected.Y);
+			}
+		var left = float.IsPositiveInfinity(minX) ? 0 : Math.Clamp(Mathf.FloorToInt((minX - TileW - _visionOrigin.X) / _visionMaskPixel), 0, _visionMaskWidth);
+		var right = float.IsPositiveInfinity(minX) ? 0 : Math.Clamp(Mathf.CeilToInt((maxX + TileW - _visionOrigin.X) / _visionMaskPixel), 0, _visionMaskWidth);
+		var top = float.IsPositiveInfinity(minY) ? 0 : Math.Clamp(Mathf.FloorToInt((minY - TileH - _visionOrigin.Y) / _visionMaskPixel), 0, _visionMaskHeight);
+		var bottom = float.IsPositiveInfinity(minY) ? 0 : Math.Clamp(Mathf.CeilToInt((maxY + TileH - _visionOrigin.Y) / _visionMaskPixel), 0, _visionMaskHeight);
+		if (right <= left || bottom <= top)
 		{
-			var point = _visionOrigin + new Vector2((px + 0.5f) * VisionMaskPixel,
-				(py + 0.5f) * VisionMaskPixel);
+			_visionFeather.Visible = false;
+			return;
+		}
+		var regionWidth = right - left;
+		var regionHeight = bottom - top;
+		var pixels = new byte[regionWidth * regionHeight * 4];
+		for (var py = top; py < bottom; py++)
+		for (var px = left; px < right; px++)
+		{
+			var point = _visionOrigin + new Vector2((px + 0.5f) * _visionMaskPixel,
+				(py + 0.5f) * _visionMaskPixel);
 			var a = point.X / (TileW / 2f);
 			var b = point.Y / (TileH / 2f);
 			var x = (a + b) / 2f;
@@ -85,14 +113,15 @@ public partial class VillageMap
 				}
 			}
 			var alpha = (byte)Mathf.RoundToInt(242f * Mathf.Max(edgeDark, angleDark));
-			var i = (py * _visionMaskWidth + px) * 4;
+			var i = ((py - top) * regionWidth + px - left) * 4;
 			pixels[i] = 6;
 			pixels[i + 1] = 6;
 			pixels[i + 2] = 9;
 			pixels[i + 3] = alpha;
 		}
-		var image = Image.CreateFromData(_visionMaskWidth, _visionMaskHeight, false, Image.Format.Rgba8, pixels);
-		if (_visionTexture is null)
+		var image = Image.CreateFromData(regionWidth, regionHeight, false, Image.Format.Rgba8, pixels);
+		_visionFeather.Position = _visionOrigin + new Vector2(left, top) * _visionMaskPixel;
+		if (_visionTexture is null || _visionTexture.GetWidth() != regionWidth || _visionTexture.GetHeight() != regionHeight)
 			_visionFeather.Texture = _visionTexture = ImageTexture.CreateFromImage(image);
 		else
 			_visionTexture.Update(image);

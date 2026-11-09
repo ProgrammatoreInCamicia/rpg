@@ -24,9 +24,12 @@ public partial class VillageMap
 		_regionTitle = RegionOverlay(ui);
 		var titlePanel = RegionDialog(_regionTitle, 460, 320);
 		var titleItems = RegionDialogItems(titlePanel);
-		titleItems.AddChild(new Label { Text = "BLACKMARSH · L'ISOLA DELLA VEDETTA",
+		titleItems.AddChild(new Label { Text = _regionMapPilot
+			? "BLACKMARSH · PROVA MAPPE 48×32" : "BLACKMARSH · L'ISOLA DELLA VEDETTA",
 			HorizontalAlignment = HorizontalAlignment.Center });
-		titleItems.AddChild(new Label { Text = "Una piccola regione che continua a vivere mentre la esplori.",
+		titleItems.AddChild(new Label { Text = _regionMapPilot
+			? "Pianta esplorabile in sviluppo. Partita e salvataggio separati dalla regione principale."
+			: "Una piccola regione che continua a vivere mentre la esplori.",
 			AutowrapMode = TextServer.AutowrapMode.WordSmart,
 			HorizontalAlignment = HorizontalAlignment.Center });
 		MenuItem(titleItems, "Nuova partita", RequestNewRegionGame);

@@ -21,6 +21,7 @@ public partial class VillageMap : Node2D
 	private bool PlayableSliceMode => _activeEntry == SceneEntry.PlayableSlice;
 	private bool BlackmarshWatchhouseMode => _activeEntry == SceneEntry.BlackmarshWatchhouse;
 	private bool BlackmarshRegionMode => _activeEntry == SceneEntry.BlackmarshRegion;
+	private bool _regionMapPilot;
 	private bool CanRetryScene => PlayableSliceMode || BlackmarshWatchhouseMode;
 	private const float TileW = 64f;
 	private const float TileH = 32f;
@@ -144,13 +145,19 @@ public partial class VillageMap : Node2D
 
 	public override void _Ready()
 	{
+		_regionMapPilot = OS.GetCmdlineUserArgs().Contains("--region-map-pilot");
+		if (_regionMapPilot) RenderingServer.SetDefaultClearColor(new Color(0.075f, 0.12f, 0.15f));
 		var mapBenchmark = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--region-map-benchmark="));
 		var benchmarkClock = mapBenchmark is null ? null : System.Diagnostics.Stopwatch.StartNew();
 		_activeEntry = Entry == SceneEntry.Village && OS.GetCmdlineUserArgs().Contains("--interior-prototype")
 			? SceneEntry.InteriorPrototype : Entry;
 		_entryOptions = OptionsFor(_activeEntry);
+		if (BlackmarshRegionMode && _regionMapPilot)
+			_entryOptions = _entryOptions with { SavePath = "user://blackmarsh-map-pilot.json" };
 		_freeMovementEnabled = true;
-		_sim = BlackmarshRegionMode && mapBenchmark is not null
+		_sim = BlackmarshRegionMode && _regionMapPilot
+			? CreateRegionMapPilot()
+			: BlackmarshRegionMode && mapBenchmark is not null
 			? CreateRegionMapBenchmarkFixture(mapBenchmark["--region-map-benchmark=".Length..])
 			: BlackmarshRegionMode && OS.GetCmdlineUserArgs().Contains("--map-presentation-fixture")
 				? CreateMapPresentationFixture() : CreateEntrySession(_activeEntry);
@@ -168,7 +175,8 @@ public partial class VillageMap : Node2D
 		if (_entryOptions.StartsPaused) SetPaused(true);
 		Refresh();
 		var benchmarkRefreshMs = benchmarkClock?.Elapsed.TotalMilliseconds;
-		if (BlackmarshRegionMode && mapBenchmark is null && !RegionSmokeWithoutTitle())
+		if (BlackmarshRegionMode && mapBenchmark is null && !OS.GetCmdlineUserArgs().Any(a => a.StartsWith("--region-map-pilot-smoke="))
+			&& !RegionSmokeWithoutTitle())
 		{
 			if (_regionStartFreshOnReload)
 			{
@@ -180,6 +188,9 @@ public partial class VillageMap : Node2D
 		if (BlackmarshRegionMode && mapBenchmark is not null)
 			RunRegionMapBenchmark(mapBenchmark["--region-map-benchmark=".Length..],
 				benchmarkSessionMs!.Value, benchmarkMapMs!.Value, benchmarkRefreshMs!.Value);
+		var mapPilotSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--region-map-pilot-smoke="));
+		if (BlackmarshRegionMode && _regionMapPilot && mapPilotSmoke is not null)
+			RunRegionMapPilotSmoke(mapPilotSmoke["--region-map-pilot-smoke=".Length..]);
 		var presentationSmoke = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--region-presentation-smoke="));
 		if (BlackmarshRegionMode && presentationSmoke is not null)
 			RunRegionPresentationSmoke(presentationSmoke["--region-presentation-smoke=".Length..],
@@ -346,6 +357,7 @@ public partial class VillageMap : Node2D
 		}
 		UpdateShotVisuals();
 		PlaceTokens();
+		UpdateRegionDefenseFeedback();
 		UpdateBuildingOcclusion((float)delta);
 		UpdateCombatHover();
 		UpdateTargetingHover();
@@ -1184,9 +1196,22 @@ public partial class VillageMap : Node2D
 		RefreshMagicStatusUi();
 		RefreshClassUi();
 		RefreshSpellUi();
+		var pilotStamp = _pilotMeasureRefresh ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
 		ShadeMap();
+		if (_pilotMeasureRefresh)
+		{
+			_pilotShadeMs += System.Diagnostics.Stopwatch.GetElapsedTime(pilotStamp).TotalMilliseconds;
+			pilotStamp = System.Diagnostics.Stopwatch.GetTimestamp();
+		}
 		RefreshBuildingVisibility();
+		if (_pilotMeasureRefresh)
+		{
+			_pilotBuildingsMs += System.Diagnostics.Stopwatch.GetElapsedTime(pilotStamp).TotalMilliseconds;
+			pilotStamp = System.Diagnostics.Stopwatch.GetTimestamp();
+		}
 		RefreshVisionFeather();
+		if (_pilotMeasureRefresh)
+			_pilotVisionMs += System.Diagnostics.Stopwatch.GetElapsedTime(pilotStamp).TotalMilliseconds;
 		foreach (var door in _view.Doors)
 		{
 			var panel = _doorPanels[door.At];
@@ -1223,6 +1248,7 @@ public partial class VillageMap : Node2D
 		RefreshInventoryUi();
 		PlaceGroundItems();
 		PlaceTokens();
+		RefreshRegionDefenseFeedback();
 		RefreshSliceWaitUi();
 		RefreshSliceGuidance();
 		RefreshBlackmarshGuidance();
@@ -1598,10 +1624,15 @@ public partial class VillageMap : Node2D
 			_lit[cell] = tile;
 			if (c == '#')
 			{
-				var wall = MakeBlock(cell, Wall, WallHeight, _stoneWallTexture);
-				_sorted.AddChild(wall);
-				_lit[cell] = wall; // the floor under a wall is hidden anyway
-				RegisterBlockOccluder(wall);
+				if (!_regionMapPilot || !IsMapBoundary(cell, map))
+				{
+					var natural = _regionMapPilot;
+					var wall = MakeBlock(cell, natural ? new Color(0.39f, 0.40f, 0.38f) : Wall,
+						natural ? 19f + (x * 13 + y * 7) % 12 : WallHeight, _stoneWallTexture);
+					_sorted.AddChild(wall);
+					_lit[cell] = wall; // the floor under a block is hidden anyway
+					RegisterBlockOccluder(wall);
+				}
 			}
 		}
 

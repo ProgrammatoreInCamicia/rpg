@@ -526,7 +526,7 @@ Anche quando non combatte, il predone deve far capire che ha visto il giocatore 
 
 #### Risultato effettivo del Task 6A — 9 novembre 2026 (Claude)
 
-**Stato: implementato e verificato; review indipendente di Codex da svolgere.** Contratto in `chat.txt` prima del codice.
+**Stato: implementato, verificato e approvato nella review indipendente di Codex.** Contratto in `chat.txt` prima del codice.
 
 - **Motore:** nuovo campo di fazione `"defends"` (scenario JSON e `ScenarioBuilder.AddDefense`); passo `DefendStep` subito dopo `FleeStep` in `Simulation.Defense.cs`; `SizeUp` diviso in `Estimate`, così la razzia usa la stessa stima; risveglio in `NoticeContacts` quando un difensore vede un intruso nuovo o uno alle sue provviste. Tre esiti con `Tuning.DefendHopelessRatio` 0,4 e `DefendPatience` 2 minuti. Salvataggio schema **44** (luoghi difesi e stato della difesa; i save 20–43 si caricano senza).
 - **Contenuto:** Vasan → `["bm_isle_landing"]`. Rimessa, slice e villaggio non dichiarano territori e restano identici.
@@ -534,7 +534,11 @@ Anche quando non combatte, il predone deve far capire che ha visto il giocatore 
 - **Test:** 4 nuovi casi in `BlackmarshRegionTests.cs` e 5 in `DefenseTests.cs`. Il ramo «prima alla caletta» del Task 6 ora fa tornare il giocatore sulla spiaggia dopo aver ripreso le provviste: restando fermo sull'accesso fino all'alba veniva visto e attaccato, cosa ora corretta. Suite **723/723**, build client 0/0, smoke regionali (viaggio, presentazione isola e fixture, persistenza seed/resume) e regressioni Blackmarsh (6), slice e villaggio verdi in worktree pulito.
 - **Limiti:** chi si ritira non porta rinforzi né cambia i piani della banda; nessun inseguimento fuori dal territorio; il furto in corso viene notato alla decisione successiva (entro un minuto). Nessuna resa dedicata nel client: le frasi sono fra gli eventi del giocatore.
 
+**Review indipendente Codex (9 novembre): APPROVATO.** Letto il commit `fa76c78`, verificati difesa per luogo e vista, tre esiti, escalation, stato nel salvataggio e regressioni. Aggiunto un test per un intruso *dentro lo stesso luogo difeso ma dietro una parete continua*: nessun `SizedUp` né fatto di difesa. Sei test `DefenseTests` verdi, suite completa **724/724**, build client 0/0 e smoke Godot di presentazione della regione ufficiale verde. La resa client della minaccia è stata poi aggiunta nel pilot 6B: balloon breve sopra il predone, basato solo su `PlayerView.RecentEvents` e visibilità filtrata.
+
 ### Task 6B — Mappe grandi da esplorare
+
+**Stato del 9 novembre: pilot client giocabile, integrazione nello scenario ufficiale e verifica finale ancora da fare.** `gioca-regione-mappa-pilot.cmd` apre tre mappe 48×32 con save separato; matrici e ancore in `docs/BLACKMARSH_REGION_LAYOUT_48x32.json`, geometria di prova in `VillageMap.RegionMapPilot.cs`. Lo smoke attraversa tutte le aree, entra nei due edifici e nella zona Vasan, verifica la minaccia e salva otto catture: verde a 1280×720. La build è 0/0. Misura del pilot popolato: circa 26 fps a 1280×720 e 24 fps a 1920×1080 nella finestra di prova, quindi la fluidità richiesta **non è ancora dimostrata**. La maschera di visione locale riduce il costo di quattro cambi di sguardo da circa 114 a 44 ms; una prova di culling del pavimento 8×8 non ha portato beneficio ed è stata rimossa. Dettagli e limiti visivi in `docs/BLACKMARSH_REGION_MAP_PLAN.md`.
 
 **Origine:** prova dell'utente del 9 novembre 2026. «Vedo un PNG e una casa e poi cambio mappa, mentre in un gioco vero c'è tanto da vedere: possono passare potenzialmente ore prima di cambiare mappa.» Le mappe attuali, di 20×14 e 18×14 caselle, sono banchi di prova del viaggio, non luoghi.
 
