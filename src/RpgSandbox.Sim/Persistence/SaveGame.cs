@@ -14,7 +14,7 @@ internal sealed class SaveGameException(string message, Exception? inner = null)
 /// </summary>
 internal static class SaveGame
 {
-    public const int SchemaVersion = 43;
+    public const int SchemaVersion = 44;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -158,6 +158,7 @@ internal static class SaveGame
             HostileToStrangers = f.HostileToStrangers,
             Enemies = f.Enemies.Select(x => x.Value).ToList(),
             Wanted = f.Wanted.Select(x => new WantedDto { Actor = x.Key.Value, Fact = x.Value.Value }).ToList(),
+            Defends = f.Defends.Select(x => x.Value).ToList(),
         }).ToList(),
         Actors = w.Actors.Values.Select(a => new ActorDto
         {
@@ -176,6 +177,9 @@ internal static class SaveGame
                     BreakInB = r.BreakIn is { } kb ? new PosDto { X = kb.B.X, Y = kb.B.Y } : null,
                     BreakInTries = r.BreakInTries, Balked = r.Balked, Verdict = r.Verdict, Startled = r.Startled,
                 }
+                : null,
+            Defense = a.Defense is { } dv
+                ? new DefenseDto { Intruders = dv.Intruders.Select(x => x.Value).ToList(), Verdict = dv.Verdict.ToString(), Since = dv.Since.Ticks, Answered = dv.Answered?.Ticks }
                 : null,
             LastDecision = ToDto(a.LastDecision),
             Home = a.Home?.Value,
@@ -790,6 +794,21 @@ internal static class SaveGame
             foreach (var wanted in f.Wanted ?? throw new InvalidDataException($"ricercati di '{f.Id}' mancanti"))
                 Check(wanted is not null && w.Actors.ContainsKey(new ActorId(Required(wanted.Actor, "ricercato"))) && wanted.Fact > 0 && wanted.Fact < w.NextFactId
                       && faction.Wanted.TryAdd(new ActorId(wanted.Actor), new FactId(wanted.Fact)), $"ricercati di '{f.Id}' non validi");
+            foreach (var place in f.Defends ?? new List<string>()) // schema 44 (region Task 6A)
+                Check(!string.IsNullOrEmpty(place) && w.Locations.ContainsKey(new LocationId(place)) && faction.Defends.Add(new LocationId(place)),
+                    $"luoghi difesi da '{f.Id}' non validi");
+        }
+        foreach (var a in d.Actors.Where(a => a.Defense is not null)) // schema 44 (region Task 6A)
+        {
+            var defense = a.Defense!;
+            var actor = w.Actors[new ActorId(a.Id)];
+            Check(Enum.TryParse<DefenseVerdict>(defense.Verdict, out var verdict) && Enum.IsDefined(verdict), $"difesa di '{a.Id}' non valida");
+            actor.Defense = new Defense { Verdict = verdict, Since = Time(defense.Since), Answered = defense.Answered is { } done ? Time(done) : null };
+            foreach (var intruder in defense.Intruders ?? new List<string>())
+                Check(!string.IsNullOrEmpty(intruder) && intruder != a.Id && w.Actors.ContainsKey(new ActorId(intruder))
+                      && actor.Defense.Intruders.Add(new ActorId(intruder)), $"intrusi di '{a.Id}' non validi");
+            Check(actor.Defense.Intruders.Count > 0 && actor.Faction is { } own && w.Factions[own].Defends.Count > 0,
+                $"difesa di '{a.Id}' senza intrusi o senza territorio");
         }
         foreach (var faction in w.Factions.Values)
             Check(faction.Enemies.All(e => w.Factions[e].Enemies.Contains(faction.Id)), $"guerra di '{faction.Id}' non reciproca");

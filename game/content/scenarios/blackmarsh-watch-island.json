@@ -167,7 +167,7 @@
     "factions": [
       { "id": "bm_isle_islanders", "name": "Pescatori della vedetta", "homeStore": "bm_isle_pantry", "authority": "bm_isle_keeper" },
       { "id": "bm_isle_vasan", "name": "Vasan", "homeStore": "bm_isle_vasan_cache", "dailyUpkeep": 4, "upkeepAt": "19:59",
-        "raids": { "threshold": 1, "amount": 4, "everyHours": 1 } }
+        "raids": { "threshold": 1, "amount": 4, "everyHours": 1 }, "defends": ["bm_isle_landing"] }
     ],
     "enmities": [ ["bm_isle_islanders", "bm_isle_vasan"] ],
     "stores": [

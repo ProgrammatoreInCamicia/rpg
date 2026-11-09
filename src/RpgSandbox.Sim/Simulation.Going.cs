@@ -237,5 +237,11 @@ internal sealed partial class Simulation
                      .OrderBy(a => a.Id.Value, StringComparer.Ordinal).ToList())
             if (CurrentPosition(timid) is { } here && ThreatNear(timid, here) is not null)
                 CancelAction(timid);
+        // Region Task 6A: a defender idling that sees a new intruder on its ground, or one at its store, decides at once.
+        foreach (var defender in World.Actors.Values.Where(a => a.MapArea == area && !a.IsPlayer && a.Conscious
+                         && a.CurrentAction is WaitAction { Interruptible: true })
+                     .OrderBy(a => a.Id.Value, StringComparer.Ordinal).ToList())
+            if (DefenderAlerted(defender))
+                CancelAction(defender);
     }
 }

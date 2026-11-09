@@ -105,7 +105,7 @@ Il motore ha **un solo posto per tipo per luogo**: custode e pescatore nella ste
 | Fazione | Deposito di casa | Politica |
 |---|---|---|
 | Pescatori della vedetta (`bm_isle_islanders`) | Dispensa della casa comune | Nessuna iniziativa; autorità: il custode. |
-| Vasan (`bm_isle_vasan`) | Provviste dei Vasan | Consumo 4 alle 19:59; razzia di 4 sotto 1 razione; valutazione oraria. Nemici dei pescatori. |
+| Vasan (`bm_isle_vasan`) | Provviste dei Vasan | Consumo 4 alle 19:59; razzia di 4 sotto 1 razione; valutazione oraria. Nemici dei pescatori. **Difendono l'Approdo dei Vasan** (`"defends"`, Task 6A). |
 
 | Deposito | Luogo | Razioni |
 |---|---|---|
@@ -139,10 +139,35 @@ Misurato in `tests/RpgSandbox.Sim.Tests/BlackmarshRegionTests.cs`, solo con coma
 | Nulla | Come nella tabella sopra. | 8 | 4 | presidia la dispensa |
 | Va alla rimessa, assiste al furto dalla stanza interna, torna e lo racconta al custode | Il custode percorre il sentiero e presidia la rimessa (ormai vuota); il predone gli deve 4 razioni. La sera dopo la razzia va alla dispensa, rimasta senza guardia. | 8 | 4 | presidia la rimessa |
 | Porta le 4 razioni della rimessa alla dispensa prima delle 20:00 | La razzia della prima sera va alla dispensa; il predone trova il paladino all'accesso, lo squadra e desiste. I Vasan restano senza cibo e riprovano la sera dopo. | 16 | 0 | al pozzo |
-| Va prima alla caletta e riprende le provviste dopo la consegna | I Vasan sono di nuovo sotto la soglia: alle 21:00 razziano la dispensa, il pescatore lo sente e il custode la presidia; la sera dopo il predone vede la guardia e desiste. | 8 | 0 | presidia la dispensa |
+| Va prima alla caletta, aspetta sulla spiaggia e riprende le provviste al buio dopo la consegna, poi torna sulla spiaggia | Al buio il predone sente il furto ma non vede chi; la spiaggia non è il suo territorio, quindi nessuna difesa. I Vasan sono di nuovo sotto la soglia: alle 21:00 razziano la dispensa, il pescatore lo sente e il custode la presidia; la sera dopo il predone vede la guardia e desiste. | 8 | 0 | presidia la dispensa |
 
 Il giocatore lontano non sa chi ha svuotato la cassa, neanche vedendola vuota: nessuna osservazione e nessun rapporto da offrire al custode.
 
 **Correzioni di contenuto del Task 6:** il posto «casa» del predone, perché prima riposava sull'accesso delle provviste e il giocatore non poteva più usarle; i posti «guardia» di casa comune e rimessa, perché prima il custode di presidio si fermava sull'unico accesso della dispensa. Il presidio dissuade comunque, perché conta che il predone veda la guardia.
 
-**Limiti noti, comportamento del motore:** il predone non reagisce a un intruso nel suo approdo, la valutazione scatta solo all'accesso del deposito. Gli NPC non richiudono una porta senza chiave: la porta della casa comune resta aperta dopo la prima uscita del pescatore. Il custode presidia il deposito del furto anche se è già vuoto.
+**Limiti noti, comportamento del motore:** gli NPC non richiudono una porta senza chiave: la porta della casa comune resta aperta dopo la prima uscita del pescatore. Il custode presidia il deposito del furto anche se è già vuoto.
+
+## Il predone difende l'approdo (Task 6A)
+
+Regola generale del motore, attivata dal contenuto: una fazione può dichiarare i luoghi che difende (`"defends"`). Un suo membro combattente che vede, su quella mappa, qualcuno che considera ostile in uno di quei luoghi lo squadra una volta, con la stessa valutazione della razzia: Intuizione CD 12, valore reale se riesce, solo l'aspetto (armatura, scudo, arma in mano, ferite) se fallisce. Poi:
+
+| Esito della valutazione | Cosa fa |
+|---|---|
+| Si aspetta di vincere | Si scaglia contro l'intruso. |
+| Incerto: lo abbattono in almeno il 40% dei round che servono a lui | Gli intima di andarsene e si para davanti alle provviste. Se l'intruso mette le mani sulle provviste attacca subito; se resta più di 2 minuti attacca comunque. |
+| Si aspetta di perdere nettamente | Arretra tenendosi a distanza e guarda senza intervenire, anche se gli rubano le provviste. Se la banda lo manda a razziare, ci va. |
+
+Niente percezione a distanza: un intruso che non vede (buio, alle spalle, fuori vista) non provoca nulla; fuori dai luoghi difesi valgono le regole di prima. Le frasi (`SizedUp`, `DefenseWarning`, `DefenseAttack`, `DefenseWithdrawal`, `DefenseHelpless`) hanno il giocatore fra i partecipanti: compaiono fra i suoi eventi. Lo stato della difesa entra nel salvataggio (schema 44).
+
+Misurato sull'isola, seme dello scenario (`BlackmarshRegionTests.cs`), arrivando alla caletta alle 19:48:
+
+| Il protagonista | Cosa succede |
+|---|---|
+| Paladino armato entra nell'approdo e resta | Alle 19:50 il predone lo squadra (lo legge: lo abbatte in 5,7 round, ne servono 2,8 al paladino), gli intima di andarsene, e alle 19:52 perde la pazienza e attacca. |
+| Paladino armato va dritto alle provviste e prende | Avvertimento, poi «vede Protagonista mettere le mani sulle provviste e attacca» prima che il prelievo finisca: le provviste restano 4. |
+| Paladino con spada e scudo riposti | Il predone si aspetta di vincere e attacca subito. |
+| Resta sulla spiaggia, o prende al buio | Nessuna reazione (luogo non difeso; al buio non lo vede). |
+
+Il ritiro davanti a due avversari e il luogo non difeso sono coperti da `DefenseTests.cs` su una piccola mappa dedicata. Soglie in `Tuning` (`DefendHopelessRatio` 0,4, `DefendPatience` 2 minuti, `DefendWithdrawSteps` 6), da tarare nel playtest.
+
+**Limiti noti:** chi si ritira non porta rinforzi e non cambia i piani della banda; il predone non insegue fuori dal territorio; la reazione al furto in corso arriva alla sua decisione successiva (entro un minuto, prima che i 3 minuti del prelievo finiscano).

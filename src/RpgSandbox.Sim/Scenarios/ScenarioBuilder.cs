@@ -96,6 +96,9 @@ internal sealed record FactionDefinition(
 {
     /// <summary>C4b: factions at war with this one (kept both ways).</summary>
     public List<FactionId> Enemies { get; } = new();
+
+    /// <summary>Region Task 6A: the places its members defend.</summary>
+    public List<LocationId> Defends { get; } = new();
 }
 
 /// <summary>Builds a <see cref="Scenario"/> in C#. Validates references when <see cref="Build"/> is called.</summary>
@@ -172,6 +175,16 @@ public sealed class ScenarioBuilder
             a.Enemies.Add(b.Id);
             b.Enemies.Add(a.Id);
         }
+        return this;
+    }
+
+    /// <summary>Region Task 6A: places whose intruders the faction's members size up and answer. The faction must be added first.</summary>
+    public ScenarioBuilder AddDefense(string factionId, params string[] locationIds)
+    {
+        var faction = _factions.FirstOrDefault(f => f.Id.Value == factionId) ?? throw new ArgumentException($"Unknown faction '{factionId}'.");
+        foreach (var place in locationIds.Select(l => new LocationId(l)))
+            if (!faction.Defends.Contains(place))
+                faction.Defends.Add(place);
         return this;
     }
 
@@ -387,6 +400,7 @@ public sealed class ScenarioBuilder
 
         foreach (var faction in _factions)
         {
+            Require(faction.Defends.All(locationIds.Contains), $"Faction '{faction.Id}' defends an unknown place.");
             Require(faction.HomeStore is null || storeIds.Contains(faction.HomeStore.Value),
                 $"Faction '{faction.Id}' has unknown home store '{faction.HomeStore}'.");
             Require(Invariants.Faction(faction.Id.Value, faction.DailyUpkeep, faction.HomeStore is not null,

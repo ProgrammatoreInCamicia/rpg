@@ -82,6 +82,9 @@ public static class ScenarioFile
             else
                 b.AddFaction(fid, name, r.OptText(f, "homeStore"), r.OptInt(f, "dailyUpkeep") ?? 0,
                     r.OptText(f, "upkeepAt") is { } at ? r.TimeOfDay(at) : default, r.OptText(f, "authority"));
+            // Region Task 6A: the places its members defend.
+            if (f.TryGetProperty("defends", out _))
+                b.AddDefense(fid, r.Values(f, "defends").Select(x => r.String(x, "defends")).ToArray());
         }
         foreach (var pair in r.Values(s, "enmities"))
         {

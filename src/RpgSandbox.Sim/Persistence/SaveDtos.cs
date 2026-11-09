@@ -78,6 +78,9 @@ internal sealed class FactionDto
     public bool HostileToStrangers { get; set; }
     public List<string> Enemies { get; set; } = new();
     public List<WantedDto> Wanted { get; set; } = new();
+
+    /// <summary>Schema 44 (region Task 6A): the places its members defend.</summary>
+    public List<string> Defends { get; set; } = new();
 }
 
 internal sealed class ActorDto
@@ -89,6 +92,9 @@ internal sealed class ActorDto
     public string? Location { get; set; }
     public ActionDto? Action { get; set; }
     public RaidAssignmentDto? Assignment { get; set; }
+
+    /// <summary>Schema 44 (region Task 6A): what it made of the intruders on its ground.</summary>
+    public DefenseDto? Defense { get; set; }
     public DecisionDto? LastDecision { get; set; }
     public string? Home { get; set; }
     public WorkShiftDto? Shift { get; set; }
@@ -177,6 +183,14 @@ internal sealed class StoreDto
     public List<ItemCountDto>? Contents { get; set; }
     public PosDto? Position { get; set; }
     public List<PosDto> Access { get; set; } = new();
+}
+
+internal sealed class DefenseDto
+{
+    public List<string> Intruders { get; set; } = new();
+    public string Verdict { get; set; } = "";
+    public long Since { get; set; }
+    public long? Answered { get; set; }
 }
 
 internal sealed class RaidAssignmentDto

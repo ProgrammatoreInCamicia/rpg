@@ -57,4 +57,14 @@ internal static class Tuning
     public const int SizeUpLooksHitPoints = 11;
     public const int SizeUpLooksAttackBonus = 4;
     public const int SizeUpLooksDamageBonus = 2;
+
+    /// <summary>Region Task 6A, ADAPTATION: a defender gives up on its ground when it expects to be dropped in less than this
+    /// share of the rounds it needs to drop the intruders; between that and an expected win it warns them off.</summary>
+    public const double DefendHopelessRatio = 0.4;
+
+    /// <summary>Region Task 6A: how long a warned intruder may stay on the ground before the defender attacks anyway.</summary>
+    public static readonly Duration DefendPatience = Duration.FromMinutes(2);
+
+    /// <summary>Region Task 6A: how close a defender that gave up lets the intruders come before it backs away.</summary>
+    public const int DefendWithdrawSteps = 6;
 }

@@ -4,7 +4,7 @@ Analisi originaria del 29 ottobre 2026. Base esaminata: commit `d4c9465`. **Alla
 
 **Aggiornamento 8 novembre 2026:** Task 1 e 2 implementati e approvati; Task 3 implementato nel commit `da59622` e approvato da Claude. Task 4 implementato da Codex e approvato da Claude. Task 5 implementato da Codex e approvato da Claude (dopo la correzione `5422f39`). Task 6 implementato da Claude e approvato nella review indipendente di Codex; dettagli e limiti sotto. Task 7–10 non avviati.
 
-**Aggiornamento 9 novembre 2026, dopo la prima prova dell'utente:** due problemi di prodotto. Le mappe sono troppo piccole e vuote: si vedono un PNG e una casa e si cambia mappa. Il predone vasan, pur ostile, non reagisce né alla presenza del giocatore né al furto delle sue provviste. Decisioni dell'utente: il predone **valuta e poi attacca** (Task 6A) e le aree diventano **mappe grandi da esplorare** (Task 6B). Entrambi vengono prima del Task 7 e superano il budget «18×14–24×18» della sezione 4. Il testo di analisi sottostante conserva la diagnosi originale; risultati e review sono registrati sotto i rispettivi task.
+**Aggiornamento 9 novembre 2026, dopo la prima prova dell'utente:** due problemi di prodotto. Le mappe sono troppo piccole e vuote: si vedono un PNG e una casa e si cambia mappa. Il predone vasan, pur ostile, non reagisce né alla presenza del giocatore né al furto delle sue provviste. Decisioni dell'utente: il predone **valuta e poi attacca** (Task 6A, implementato da Claude, review di Codex da svolgere) e le aree diventano **mappe grandi da esplorare** (Task 6B). Entrambi vengono prima del Task 7 e superano il budget «18×14–24×18» della sezione 4. Il testo di analisi sottostante conserva la diagnosi originale; risultati e review sono registrati sotto i rispettivi task.
 
 ## 1. Decisione
 
@@ -523,6 +523,16 @@ Anche quando non combatte, il predone deve far capire che ha visto il giocatore 
 **Completato quando:** entrare nell'approdo o toccare le provviste dei Vasan ha sempre una risposta visibile e coerente con la valutazione. Nessun flag di trama, nessun comportamento speciale per l'arco del Task 7, suite e smoke verdi.
 
 **Assegnazione:** Claude (Sim, contenuto, test); Codex per l'eventuale presentazione.
+
+#### Risultato effettivo del Task 6A — 9 novembre 2026 (Claude)
+
+**Stato: implementato e verificato; review indipendente di Codex da svolgere.** Contratto in `chat.txt` prima del codice.
+
+- **Motore:** nuovo campo di fazione `"defends"` (scenario JSON e `ScenarioBuilder.AddDefense`); passo `DefendStep` subito dopo `FleeStep` in `Simulation.Defense.cs`; `SizeUp` diviso in `Estimate`, così la razzia usa la stessa stima; risveglio in `NoticeContacts` quando un difensore vede un intruso nuovo o uno alle sue provviste. Tre esiti con `Tuning.DefendHopelessRatio` 0,4 e `DefendPatience` 2 minuti. Salvataggio schema **44** (luoghi difesi e stato della difesa; i save 20–43 si caricano senza).
+- **Contenuto:** Vasan → `["bm_isle_landing"]`. Rimessa, slice e villaggio non dichiarano territori e restano identici.
+- **Esito misurato con il paladino attuale:** il predone lo legge (5,7 round a lui contro 2,8 al paladino, sotto la vittoria ma sopra la resa), quindi **minaccia**; dopo 2 minuti, o subito se il paladino tocca le provviste, **attacca**. Con spada e scudo riposti attacca subito. Il ritiro (due avversari) è coperto su una mappa di prova.
+- **Test:** 4 nuovi casi in `BlackmarshRegionTests.cs` e 5 in `DefenseTests.cs`. Il ramo «prima alla caletta» del Task 6 ora fa tornare il giocatore sulla spiaggia dopo aver ripreso le provviste: restando fermo sull'accesso fino all'alba veniva visto e attaccato, cosa ora corretta. Suite **723/723**, build client 0/0, smoke regionali (viaggio, presentazione isola e fixture, persistenza seed/resume) e regressioni Blackmarsh (6), slice e villaggio verdi in worktree pulito.
+- **Limiti:** chi si ritira non porta rinforzi né cambia i piani della banda; nessun inseguimento fuori dal territorio; il furto in corso viene notato alla decisione successiva (entro un minuto). Nessuna resa dedicata nel client: le frasi sono fra gli eventi del giocatore.
 
 ### Task 6B — Mappe grandi da esplorare
 

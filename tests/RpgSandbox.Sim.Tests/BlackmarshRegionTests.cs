@@ -164,6 +164,7 @@ public class BlackmarshRegionTests
         Walk(session, CacheAccess); // free: the raider rests at its post, not on the access
         Do(session, new TakeFoodCommand { Actor = session.Player, Store = VasanCache, Amount = 4 });
         Assert.Equal(14, session.GetPlayerView().Food);
+        Walk(session, new GridPos(10, 6)); // off the Vasan's ground before the day comes (Task 6A)
 
         facts.AdvanceTo(At(2, 21));
 
@@ -173,6 +174,84 @@ public class BlackmarshRegionTests
         // The next evening the keeper is on guard there and the raider, seeing him, gives up.
         Assert.Contains(facts.All, f => f.At.Day == 1 && f.Kind == "RaidDeterred" && f.Description == "Predone vasan vede la guardia a Dispensa della casa comune e desiste.");
         Assert.Equal(8, session.GetWorldView().Store(Pantry).Food);
+        // Task 6A: in the dark the raider only hears the theft, and the beach is not the ground it defends: no answer.
+        Assert.Contains(facts.All, f => f.Kind == "FoodTheftWitnessed" && f.Description == "Predone vasan sente qualcuno rubare da Provviste dei Vasan nel buio, ma non vede chi.");
+        Assert.DoesNotContain(facts.All, f => f.Kind.StartsWith("Defense") || f.Kind == "CombatStarted");
+    }
+
+    // ---------------------------------------------------------------- Task 6A: the raider defends the landing
+
+    /// <summary>On the landing, in the raider's sight, off the access to its rations.</summary>
+    private static readonly GridPos OnTheLanding = new(14, 9);
+
+    [Fact]
+    public void On_the_landing_the_raider_sizes_up_the_paladin_warns_him_off_and_attacks_when_he_stays()
+    {
+        var session = BlackmarshWatchIsland.CreateSession();
+        var facts = new FactLog(session);
+        GoTo(session, CoveFork);
+        Walk(session, OnTheLanding);
+        facts.AdvanceUntil("CombatStarted", Duration.FromMinutes(10));
+
+        Assert.Equal(new[] { "SizedUp", "DefenseWarning", "DefenseAttack", "CombatStarted" },
+            facts.Kinds("SizedUp", "DefenseWarning", "DefenseAttack", "DefenseWithdrawal", "CombatStarted"));
+        var warning = facts.All.Single(f => f.Kind == "DefenseWarning");
+        Assert.Equal("Predone vasan intima a Protagonista di andarsene da Approdo dei Vasan.", warning.Description);
+        Assert.Contains(session.GetPlayerView().RecentEvents, f => f.Id == warning.Id); // the player hears it
+        var attack = facts.All.Single(f => f.Kind == "DefenseAttack");
+        Assert.Equal("Predone vasan perde la pazienza: Protagonista non se ne va da Approdo dei Vasan.", attack.Description);
+        Assert.True(attack.At.Since(warning.At).Ticks >= Duration.FromMinutes(2).Ticks, "it waits before striking a paladin it is unsure of");
+        Assert.Contains(facts.All, f => f.Kind == "CombatStarted" && f.Description == "Predone vasan attacca Protagonista.");
+    }
+
+    [Fact]
+    public void Taking_the_Vasan_rations_under_the_raiders_eyes_makes_it_attack_before_the_take_is_done()
+    {
+        var session = BlackmarshWatchIsland.CreateSession();
+        var facts = new FactLog(session);
+        GoTo(session, CoveFork);
+        Walk(session, CacheAccess);
+        Assert.True(session.Execute(new TakeFoodCommand { Actor = session.Player, Store = VasanCache, Amount = 4 }).Success);
+        facts.AdvanceUntil("CombatStarted", Duration.FromMinutes(10));
+
+        Assert.Contains(facts.All, f => f.Kind == "DefenseWarning");
+        Assert.Contains(facts.All, f => f.Kind == "DefenseAttack" && f.Description == "Predone vasan vede Protagonista mettere le mani sulle provviste e attacca.");
+        Assert.DoesNotContain(facts.All, f => f.Kind == "FoodStolen");
+        Assert.Equal(10, session.GetPlayerView().Food);
+        Assert.Equal(4, session.GetWorldView().Store(VasanCache).Food);
+    }
+
+    [Fact]
+    public void A_protagonist_who_looks_harmless_is_attacked_at_once()
+    {
+        var session = BlackmarshWatchIsland.CreateSession();
+        var facts = new FactLog(session);
+        Do(session, new EquipCommand { Actor = session.Player, Item = null, Slot = EquipmentSlot.MainHand });
+        Do(session, new EquipCommand { Actor = session.Player, Item = null, Slot = EquipmentSlot.Shield });
+        GoTo(session, CoveFork);
+        Assert.True(session.Execute(new MoveToSpotCommand { Actor = session.Player, To = Spot.CenterOf(OnTheLanding) }).Success);
+        facts.AdvanceUntil("CombatStarted", Duration.FromMinutes(10)); // it strikes before the walk is over
+
+        Assert.Equal(new[] { "SizedUp", "DefenseAttack", "CombatStarted" },
+            facts.Kinds("SizedUp", "DefenseWarning", "DefenseAttack", "DefenseWithdrawal", "CombatStarted"));
+        Assert.Contains(facts.All, f => f.Kind == "DefenseAttack" && f.Description == "Predone vasan si scaglia contro Protagonista per difendere Approdo dei Vasan.");
+    }
+
+    [Fact]
+    public void A_save_taken_while_warned_off_resumes_into_the_same_fight()
+    {
+        var straight = BlackmarshWatchIsland.CreateSession();
+        GoTo(straight, CoveFork);
+        Walk(straight, OnTheLanding);
+        var straightFacts = new FactLog(straight);
+        straightFacts.AdvanceUntil("DefenseWarning", Duration.FromMinutes(10));
+        var reloaded = straight.SaveAndReload();
+
+        var reloadedFacts = new FactLog(reloaded);
+        straightFacts.AdvanceUntil("CombatStarted", Duration.FromMinutes(10));
+        reloadedFacts.AdvanceUntil("CombatStarted", Duration.FromMinutes(10));
+        Assert.Equal(straight.SaveToString(), reloaded.SaveToString());
+        Assert.Contains(reloadedFacts.All, f => f.Kind == "DefenseAttack");
     }
 
     [Fact]
@@ -230,6 +309,14 @@ public class BlackmarshRegionTests
                 session.Advance(Duration.FromMinutes(1));
                 Collect();
             }
+        }
+
+        /// <summary>A second at a time until a fact of that kind appears (a fight waits for the player: time stops there).</summary>
+        public void AdvanceUntil(string kind, Duration limit)
+        {
+            for (var second = 0L; second < limit.Seconds && All.All(f => f.Kind != kind); second++)
+                session.Advance(Duration.FromSeconds(1));
+            Assert.Contains(All, f => f.Kind == kind);
         }
 
         public string[] Kinds(params string[] kinds) => All.Where(f => kinds.Contains(f.Kind)).Select(f => f.Kind).ToArray();

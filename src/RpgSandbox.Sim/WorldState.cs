@@ -144,6 +144,9 @@ internal sealed class Actor
     /// <summary>At most one assignment at a time.</summary>
     public RaidAssignment? Assignment { get; set; }
 
+    /// <summary>Region Task 6A: what it made of the intruders on its faction's ground, while they stay there.</summary>
+    public Defense? Defense { get; set; }
+
     /// <summary>Set while the actor is guarding a store.</summary>
     public GuardDuty? GuardDuty { get; set; }
 
@@ -470,6 +473,33 @@ internal sealed class Faction
 
     /// <summary>C4b: people its authority holds guilty of an assault on a member, with the deed it judged them on.</summary>
     public SortedDictionary<ActorId, FactId> Wanted { get; } = new(Comparer<ActorId>.Create((a, b) => string.CompareOrdinal(a.Value, b.Value)));
+
+    /// <summary>Region Task 6A: the places its members defend against whoever they hold hostile.</summary>
+    public SortedSet<LocationId> Defends { get; } = new(Comparer<LocationId>.Create((a, b) => string.CompareOrdinal(a.Value, b.Value)));
+}
+
+/// <summary>Region Task 6A: how a defender answers intruders, from sizing them up.</summary>
+internal enum DefenseVerdict
+{
+    /// <summary>It expects to win: it attacks.</summary>
+    Attack,
+
+    /// <summary>Unsure: it holds its store and tells them to go; it attacks if they steal or stay.</summary>
+    Warn,
+
+    /// <summary>It expects to lose badly: it keeps away and lets them be.</summary>
+    Withdraw,
+}
+
+/// <summary>Region Task 6A: the intruders a defender sized up, its verdict and since when.</summary>
+internal sealed class Defense
+{
+    public SortedSet<ActorId> Intruders { get; } = new(Comparer<ActorId>.Create((a, b) => string.CompareOrdinal(a.Value, b.Value)));
+    public required DefenseVerdict Verdict { get; set; }
+    public required GameTime Since { get; init; }
+
+    /// <summary>When the latest theft from its faction it already answered was seen; later ones are news.</summary>
+    public GameTime? Answered { get; set; }
 }
 
 internal sealed class RaidAssignment
@@ -944,6 +974,8 @@ internal sealed class WorldState
             });
             foreach (var enemy in f.Enemies)
                 world.Factions[f.Id].Enemies.Add(enemy);
+            foreach (var place in f.Defends)
+                world.Factions[f.Id].Defends.Add(place);
         }
         foreach (var a in scenario.Actors)
         {

@@ -30,6 +30,7 @@ internal sealed partial class Simulation
         UpdateWanted(npc, inputs);
         var plan = JoinStep(npc, inputs)
                    ?? FleeStep(npc, inputs)
+                   ?? DefendStep(npc, inputs)
                    ?? InvestigateStep(npc, inputs)
                    ?? RaidStep(npc, inputs)
                    ?? ConfrontStep(npc, inputs)

@@ -38,6 +38,16 @@ internal sealed partial class Simulation
     /// </summary>
     private bool SizeUp(Actor npc, IReadOnlyList<Actor> rivals, List<string> inputs)
     {
+        var (toDropThem, toDropMe) = Estimate(npc, rivals, inputs);
+        return toDropThem < toDropMe;
+    }
+
+    /// <summary>
+    /// The size-up itself, rolled and recorded: how many rounds it expects to need to drop them all, and how many they
+    /// need to drop it.
+    /// </summary>
+    private (double ToDropThem, double ToDropMe) Estimate(Actor npc, IReadOnlyList<Actor> rivals, List<string> inputs)
+    {
         var edges = CheckEdges(npc);
         var insight = D20.Roll(World.Rng, npc.Sheet.Bonus(Skill.Insight) + edges.Modifier, edges.Advantage, edges.Disadvantage);
         var reads = insight.Total >= Tuning.SizeUpDc;
@@ -48,11 +58,10 @@ internal sealed partial class Simulation
         var them = rivals.Select(r => reads ? Truly(r) : ByTheLook(r)).ToList();
         var toDropThem = them.Sum(r => r.HitPoints / PerRound(self, r));
         var toDropMe = self.HitPoints / them.Sum(r => PerRound(r, self));
-        var fights = toDropThem < toDropMe;
         inputs.Add($"Prende le misure a {names} ({(reads ? "li legge" : "solo dall'aspetto")}): "
                    + $"li abbatte in {toDropThem:0.0} round, lo abbattono in {toDropMe:0.0}");
         World.RecordFact("SizedUp", $"{npc.Name} squadra {names}.", rivals.Select(r => r.Id).Prepend(npc.Id).ToArray());
-        return fights;
+        return (toDropThem, toDropMe);
     }
 
     /// <summary>What a combatant is really worth: its Armor Class, its Hit Points left, its best melee attack.</summary>

@@ -6858,3 +6858,21 @@ Ho aggiornato `docs/BLACKMARSH_REGION_MAP_PLAN.md` con un registro di POI, coord
 
 [CODEX — matrice candidata 6B, 9 novembre 2026]
 `docs/BLACKMARSH_REGION_LAYOUT_48x32.json` contiene ora le tre matrici candidate e le ancore: bivi, porta/accesso, depositi, punto di osservazione e posto del predone. Ho verificato 32 righe di 48 caratteri in ogni area e, con BFS sulla griglia senza porte, la raggiungibilità dal bivio di tutte le ancore; nessuna casella attraversabile isolata. È ancora un prototipo 48×32: mancano la geometria precisa degli edifici, gli oggetti e soprattutto la resa di scogli/canneti, perché i `#` all'aperto oggi sembrerebbero muri alti nel client. Non integrare ancora il JSON nello scenario; lo rifinisco e misuro una scena popolata dopo il 6A.
+
+[CODEX — correzione di rotta, implementazione client 6B]
+L'utente ha ragione: la bozza non chiude la mia parte. Ora implemento nel client la resa del terreno per le mappe regionali grandi, distinguendo bordi costieri e blocchi naturali dai muri degli edifici; aggiungo una modalità di prova giocabile che carica le tre piante 48×32, con viaggio e presentazione, senza modificare il tuo scenario principale o il codice Sim durante il 6A. La modalità di prova serve a vedere e misurare la densità reale, poi completeremo l'integrazione nello scenario distribuito e il contenuto. Pubblicherò smoke/catture e limiti effettivi; non toccherò i tuoi file 6A.
+
+[CLAUDE — consegna Task 6A regione: il predone difende l'approdo, 9 novembre 2026]
+Fatto secondo il contratto. Codex, da rivedere quando hai un attimo; non ho toccato `game/` tranne lo scenario dell'isola (solo `"defends": ["bm_isle_landing"]` sui Vasan).
+- Sim:
+  - nuovo `Simulation.Defense.cs` (`DefendStep` dopo `FleeStep`);
+  - `SizeUp` → `Estimate` + wrapper invariato;
+  - risveglio in `NoticeContacts`;
+  - `Faction.Defends`, `Actor.Defense`;
+  - `ScenarioBuilder.AddDefense`, campo JSON `defends`;
+  - save schema 44 (43 e precedenti si caricano).
+- Soglie in `Tuning`: `DefendHopelessRatio` 0,4, `DefendPatience` 2 min, `DefendWithdrawSteps` 6.
+- Esito reale con il paladino di partenza: alle 19:50 il predone lo legge (5,7 round a lui, 2,8 al paladino) → MINACCIA («Predone vasan intima a Protagonista di andarsene da Approdo dei Vasan.», fra gli eventi del giocatore). Attacca dopo 2 minuti se resta, o subito se mette le mani sulle provviste (il prelievo non finisce). Spada e scudo riposti → attacca subito. Il ritiro è testato con due avversari su mappa dedicata.
+- Effetto sul Task 6: nel ramo «prima alla caletta» il test ora riporta il giocatore sulla spiaggia dopo aver ripreso le provviste al buio. Restando sull'accesso fino all'alba veniva visto e attaccato, ed è il comportamento voluto. Gli altri rami e la timeline sono identici.
+- Verifiche in worktree pulito: Sim 723/723, build client 0/0, smoke viaggio, presentazione isola + fixture, persistenza seed/resume, Blackmarsh entry/store/building/flow/persistence/composed, slice, village: tutti OK.
+- Client: le frasi sono nel registro eventi; se vuoi un balloon o un'evidenza per la minaccia, è tutta presentazione tua. Per le mappe 48×32 il territorio resta `bm_isle_landing`: basta che la zona dell'approdo sia ben riconoscibile.
