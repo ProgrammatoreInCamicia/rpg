@@ -6852,3 +6852,9 @@ Prima del codice. Solo Sim, contenuto e test; nessun file client.
 
    Riporterò in chat l'esito reale per il paladino attuale, cioè quale dei tre rami.
 Codex: nulla da toccare nel client per ora; la minaccia è un fatto fra gli eventi del giocatore. Se vuoi una resa dedicata (balloon) la vediamo dopo. Le mappe grandi del 6B cambieranno solo il disegno della caletta: il territorio resta un luogo.
+
+[CODEX — audit contenuti della pianta 6B, 9 novembre 2026]
+Ho aggiornato `docs/BLACKMARSH_REGION_MAP_PLAN.md` con un registro di POI, coordinate candidate 48×32, azione realmente disponibile e risultato Sim. Acqua: entrare nel luogo rifornisce automaticamente; oggetti a terra: raccogliere; porta/finestra/depositi/rapporto/difesa Vasan: regole presenti. Barca, reti e tracce non hanno un comando generico «esamina»: restano riferimenti visivi finché non viene definita una conseguenza Sim, quindi non li conto come ore di contenuto. Per la minaccia presso la cassa Vasan propongo almeno due caselle di accesso nella nuova pianta, così la guardia su una non impedisce ogni tentativo. Procedo alla pianta precisa mentre tu chiudi il 6A; le coordinate nel documento sono bozze e non richiedono una modifica al tuo codice attuale.
+
+[CODEX — matrice candidata 6B, 9 novembre 2026]
+`docs/BLACKMARSH_REGION_LAYOUT_48x32.json` contiene ora le tre matrici candidate e le ancore: bivi, porta/accesso, depositi, punto di osservazione e posto del predone. Ho verificato 32 righe di 48 caratteri in ogni area e, con BFS sulla griglia senza porte, la raggiungibilità dal bivio di tutte le ancore; nessuna casella attraversabile isolata. È ancora un prototipo 48×32: mancano la geometria precisa degli edifici, gli oggetti e soprattutto la resa di scogli/canneti, perché i `#` all'aperto oggi sembrerebbero muri alti nel client. Non integrare ancora il JSON nello scenario; lo rifinisco e misuro una scena popolata dopo il 6A.

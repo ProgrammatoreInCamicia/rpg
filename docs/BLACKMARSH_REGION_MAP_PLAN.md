@@ -20,13 +20,32 @@ Si prova prima 48×32, poi si profila una fixture 80×60. Scegliere la misura do
 
 Coordinate inclusive, origine in alto a sinistra. Le fasce descrivono la composizione, non sono ancora una matrice completa di caselle.
 
+La prima matrice di terreno è in [BLACKMARSH_REGION_LAYOUT_48x32.json](BLACKMARSH_REGION_LAYOUT_48x32.json): tre mappe da 32 righe di 48 caratteri, con simboli di zona, blocchi esterni e ancore candidate. È una base tecnica per parlare di accessi e corridoi, non la pianta visiva definitiva. Tutte le ancore elencate sono raggiungibili dal rispettivo bivio nella griglia senza porte; risultano connesse 1294, 1290 e 1267 caselle attraversabili rispettivamente. Restano da specificare bordi degli edifici, porte, finestre, luci, ostacoli, oggetti e la resa degli scogli: oggi il client disegnerebbe i `#` esterni come muri alti, che qui non sarebbero credibili.
+
 | Area | Struttura e snodi | Interazioni da realizzare con regole esistenti |
 | --- | --- | --- |
 | Nucleo dei pescatori | Casa comune a (7–16, 9–19); piazzale e pozzo a (21–28, 13–20); bivio a (47,16). Sentiero principale da ovest a est; anello a nord dietro la casa e passaggio a sud fra canneti e rive. Variazioni di quota rese da scogli e linea di costa, senza piano verticale simulato. | Dispensa e porta della casa; pozzo come fonte/ostacolo; focolare come luce; attrezzi o razioni a terra da raccogliere; punto riparato da cui vedere il custode e l'ingresso della casa. |
 | Rimessa della vedetta | Bivio a (0,16); edificio a (19–30, 10–21), con la stessa sequenza funzionale di porta chiusa, stanza, seconda porta, cassa e finestra. Accesso principale sul sentiero centrale, seconda possibilità di arrivare alla finestra girando per il tratto nord. Scogli e sterpaglia dividono l'ampio spiazzo in più percorsi. | Porta/serratura e finestra già esistenti; cassa e lampada; oggetti da trovare vicino a reti e banco di lavoro; osservazione della rimessa da un punto esterno senza mostrare l'interno attraverso il tetto. |
 | Caletta | Bivio a (0,16); approdo e provviste Vasan a (36–45, 19–29); spazio per il capanno del Task 7 a (34–42, 4–12), separato dall'approdo. Due vie fino alla caletta: sentiero scoperto a sud e varco fra gli scogli a nord, con punto d'osservazione a (25–29, 12–15). | Provviste con accessi liberi, barca e fuoco come elementi leggibili; tracce o razioni a terra da esaminare/raccogliere con le azioni esistenti; ostacoli che offrono copertura reale alla linea di vista Sim. Il capanno non va reso interattivo prima del Task 7. |
 
-Questa bozza contiene alcuni punti attivi e molti riferimenti visivi. Prima dell'integrazione, ogni punto attivo va elencato con ID, casella, azione disponibile e risultato osservabile; barca, reti e tracce puramente decorative vanno indicate come tali oppure legate a oggetti/fatti già supportati. Una mappa con sole decorazioni non soddisferebbe il criterio di esplorazione del Task 6B.
+### Registro delle interazioni candidate
+
+L'audit del motore chiarisce che `water` rifornisce automaticamente gli otri quando si entra nel luogo; `ground` è raccoglibile; una luce cambia la visibilità; porta, finestra, deposito, rapporto e difesa Vasan hanno già regole. Non esiste invece un'azione generica «esamina» per barche, reti o tracce. Questi elementi possono orientare visivamente, ma non vanno descritti come indizi interattivi senza un fatto o una regola esplicita. Le coordinate sono ancora quelle della pianta 48×32 candidata.
+
+| Area e punto | Casella/ambito candidato | Azione e risultato già supportati | Vincolo da verificare |
+| --- | --- | --- | --- |
+| Nucleo: pozzo | zona `bm_isle_well`, (21–28, 13–20) | Entrare nel luogo con acqua rifornisce gli otri e soddisfa il bisogno giornaliero. | Il pozzo visivo e l'acqua Sim devono coincidere; non chiedere un clic che non esiste. |
+| Nucleo: casa e dispensa | edificio (7–16, 9–19), cassa presso (9,11) | Aprire porta, prendere/depositare razioni; il trasferimento cambia il bersaglio della razzia. | Accesso alla cassa libero anche con il custode di guardia. |
+| Nucleo: custode | piazzale presso (24,16) | Riferire un furto conosciuto e osservare la sua risposta fisica. | La relazione deve emergere dal rapporto, non da un'icona onnisciente. |
+| Nucleo: attrezzo smarrito | sentiero sud presso (13,25) | Raccogliere un `iron-spike` a terra. | Solo se ha un uso o una funzione leggibile; altrimenti è riempitivo e si elimina. |
+| Rimessa: ingresso | lato ovest edificio, presso (19,16) | Chiave o forzatura della porta; la porta resta parte della Sim. | Il nuovo percorso non deve rendere inutile la finestra. |
+| Rimessa: finestra e deposito | lato est presso (30,15), cassa presso (29,12) | Passare/aprire dalla finestra secondo le regole esistenti; prendere o proteggere le razioni. | Le due vie devono restare realmente percorribili e distinguibili. |
+| Rimessa: attrezzi | sterpaglia a nord presso (35,9) | Raccogliere `thieves-tools` se confermato dal contenuto; modifica le possibilità di scasso. | L'oggetto non deve anticipare gratuitamente la soluzione della rimessa. |
+| Caletta: punto d'osservazione | fuori da `bm_isle_landing`, presso (27,14) | Osservare il predone e l'approdo usando la linea di vista Sim; avvicinarsi di nascosto è già supportato. | Scogli/ostacoli devono dare copertura nella Sim, non solo nel disegno. |
+| Caletta: approdo e provviste | `bm_isle_landing`, (36–45, 19–29), cassa presso (43,26) | Entrare può provocare la difesa del Task 6A; toccare le provviste cambia la disponibilità di cibo e la reazione. | Almeno due caselle d'accesso, così una minaccia non sigilla ogni interazione. |
+| Caletta: oggetto del campo | presso (38,28) | Raccogliere una `torch` o una `ration`, se coerente con le scorte Vasan. | Non duplicare cibo senza aggiornare la simulazione delle scorte. |
+
+Barca, reti, fuochi spenti e tracce sono **riferimenti visivi** finché non hanno una conseguenza Sim. Con tre depositi, quattro persone e poche azioni ambientali, questa prima lista non può sostenere da sola ore di gioco in una sola area: il Task 6B va giudicato con un playtest, e l'eventuale contenuto aggiuntivo va progettato dopo aver visto dove il giocatore si ferma o torna.
 
 ## Prestazioni e verifica prima della pianta definitiva
 
