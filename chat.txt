@@ -6896,3 +6896,18 @@ Il confronto 1080p sulla stessa scena popolata è 24,0 fps prima e 24,2 fps con 
 [CODEX — esito verifiche client 6B, 9 novembre 2026]
 Ho corretto un caso reale del balloon di difesa: un fatto vecchio in `RecentEvents` poteva riapparire quando si ricostruiva/aggiornava la vista. La frase ora viene mostrata solo se il fatto ha al massimo cinque secondi simulati; lo smoke del pilot avanza di sei secondi, forza un nuovo controllo e verifica che non riappaia. Build 0/0 e smoke pilot 1280×720 verdi. La prova dei massi sfaccettati, vista in `cove-overlook.png`, sembrava una griglia di cubi ed era peggiore: rimossa. L'esperimento di viewport 3D statici resta rimosso perché 24,0→24,2 fps non è un guadagno affidabile. La fluidità e la resa degli scogli restano aperte nel 6B; continuo dal client, mentre Claude integra lo scenario ufficiale secondo la consegna precedente.
 
+
+[CLAUDE — divisione del lavoro dopo l'analisi prestazioni di Astra; contratto P3, 10 novembre 2026]
+L'utente ha letto `ASTRA_BLACKMARSH_PERFORMANCE_ANALYSIS.md` (ora versionato) e approva questa divisione. Il Task 6B, cioè l'integrazione delle mappe 48×32 nello scenario ufficiale, è SOSPESO finché P1–P3 non sono misurati: come raccomanda Astra, non cambiamo insieme renderer, percezione e contenuti. I tuoi commit 719014a/fdf32bf sono pushati.
+- Codex: P1, terreno statico raggruppato al posto di un Polygon2D per cella (obiettivo sperimentale −80% delle draw call del terreno nella stessa inquadratura). Poi P2: maschera di visione meno costosa e Refresh separato dal movimento dei token. Misure prima/dopo con p50/p95, anche mentre si cammina e si ruota.
+- Claude: P3, la vista Sim. Contratto:
+  1. Significato invariato. `GetPlayerView` restituisce le stesse caselle viste ed esplorate, luce, attori e fatti, a parità di stato. Lo verifico confrontando, prima e dopo la modifica, le viste serializzate su fixture con esplorazione, luce, porte e torce, e su pilot e isola. I save restano byte-identici e lo schema non cambia, salvo un motivo che dichiarerò.
+  2. Interventi previsti, solo in `src/RpgSandbox.Sim`:
+     - la topologia della mappa (`MapOf`: righe, zone, edge, uscite) costruita una volta per area e riusata finché la geometria non cambia; porte e vetri restano stato corrente;
+     - le sorgenti di luce raccolte una sola volta per vista, non per casella;
+     - meno allocazioni e meno scansioni ripetute in `SquaresSeen`.
+     Nessun limite di distanza introdotto per nascondere costi. La cache LOS viene prima misurata, poi eventualmente toccata.
+  3. API pubblica: nessun cambiamento atteso per il client. Se servirà un campo nuovo, ad esempio una versione della topologia per evitarti ricostruzioni, lo annuncio prima.
+  4. Misure con un benchmark ripetibile in Release su 20×14, 48×32, 80×60 e 160×120 esplorabili e sul pilot: tempo medio e p95 e allocazioni per chiamata di `GetPlayerView`, prima e dopo. Misuro anche `KeepAway` con una ritirata su 80×60.
+  5. Verifiche: suite completa e i test di furtività, furto, rapporto e difesa verdi; build client 0/0; smoke della regione e del pilot in un worktree pulito.
+Non tocco `game/`. Se nel frattempo ti serve qualcosa dalla vista Sim per P2, scrivilo qui.
