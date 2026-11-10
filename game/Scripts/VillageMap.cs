@@ -1466,6 +1466,7 @@ public partial class VillageMap : Node2D
 		}
 		foreach (var (cell, item) in _lit)
 			item.Modulate = Shade(cell);
+		if (_regionMapPilot) ShadeBatchedFloors();
 		foreach (var (edge, item) in _edgeLit)
 		{
 			var shadeCell = BuildingShadeCell(edge);
@@ -1616,12 +1617,17 @@ public partial class VillageMap : Node2D
 			var zone = map.Zones.TryGetValue(c, out var floorZone) ? floorZone : (LocationId?)null;
 			var look = FloorFor(c, zone, cell);
 			var shade = (x + y) % 2 == 0 ? 0f : 0.05f;
-			var tile = new Polygon2D { Polygon = Diamond(), Position = CellToScreen(cell), Color = look.Color.Darkened(shade) };
-			ApplyGroundTexture(tile, c, look, cell, shade);
-			if (_presentation.FloorAccent == cell)
-				DressPilotFloor(tile);
-			_floor.AddChild(tile);
-			_lit[cell] = tile;
+			if (_regionMapPilot)
+				AddBatchedFloor(cell, c, look, shade);
+			else
+			{
+				var tile = new Polygon2D { Polygon = Diamond(), Position = CellToScreen(cell), Color = look.Color.Darkened(shade) };
+				ApplyGroundTexture(tile, c, look, cell, shade);
+				if (_presentation.FloorAccent == cell)
+					DressPilotFloor(tile);
+				_floor.AddChild(tile);
+				_lit[cell] = tile;
+			}
 			if (c == '#')
 			{
 				if (!_regionMapPilot || !IsMapBoundary(cell, map))
@@ -1635,6 +1641,8 @@ public partial class VillageMap : Node2D
 				}
 			}
 		}
+
+		if (_regionMapPilot) BuildBatchedFloors();
 
 		foreach (var store in _sim.GetWorldView().Stores.Where(s => s.Position is not null
 			&& _view.Locations.Any(l => l.Id == s.Location && l.Area == map.Area)))

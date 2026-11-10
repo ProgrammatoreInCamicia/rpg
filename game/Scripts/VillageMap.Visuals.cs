@@ -47,35 +47,43 @@ public partial class VillageMap
 		}
 	}
 
-	private void ApplyGroundTexture(Polygon2D tile, char symbol, FloorLook look, GridPos cell, float shade)
-	{
-		if (symbol == '#')
-			return;
-		var texture = look.Material switch
+	private Texture2D? FloorTexture(char symbol, FloorLook look) => symbol == '#'
+		? null : look.Material switch
 		{
 			GroundMaterial.Road => _roadTexture,
 			GroundMaterial.Wood => _woodTexture,
 			GroundMaterial.Flagstone => _pilotFlagstoneTexture,
 			_ => _grassTexture,
 		};
-		if (texture is null)
-			return;
-		// Sample a different patch of the source on each square so the same stone or knot does not repeat in a grid.
+
+	private Color FloorColor(char symbol, FloorLook look, float shade, Texture2D? texture) =>
+		texture is null ? look.Color.Darkened(shade)
+		: look.WarmTint ? new Color(0.94f, 0.88f, 0.79f).Darkened(shade * 0.35f)
+		: _regionMapPilot && symbol == '.' ? look.Color.Darkened(shade * 0.5f)
+		: Colors.White.Darkened(shade * 0.5f);
+
+	private static Vector2[] FloorUv(Texture2D texture, GridPos cell)
+	{
 		var radius = Math.Max(1, texture.GetWidth() * 90 / 1254);
 		var x = radius + (cell.X * 101 + cell.Y * 59) % (texture.GetWidth() - 2 * radius);
 		var y = radius + (cell.X * 47 + cell.Y * 113) % (texture.GetHeight() - 2 * radius);
-		tile.Texture = texture;
-		tile.UV = new[]
+		return new[]
 		{
 			new Vector2(x, y - radius), new Vector2(x + radius, y),
 			new Vector2(x, y + radius), new Vector2(x - radius, y),
 		};
-		tile.Color = look.WarmTint
-			? new Color(0.94f, 0.88f, 0.79f).Darkened(shade * 0.35f)
-			: _regionMapPilot && symbol == '.' ? look.Color.Darkened(shade * 0.5f)
-			: Colors.White.Darkened(shade * 0.5f);
 	}
 
+	private void ApplyGroundTexture(Polygon2D tile, char symbol, FloorLook look, GridPos cell, float shade)
+	{
+		var texture = FloorTexture(symbol, look);
+		if (texture is not null)
+		{
+			tile.Texture = texture;
+			tile.UV = FloorUv(texture, cell);
+		}
+		tile.Color = FloorColor(symbol, look, shade, texture);
+	}
 	private static void DressPilotFloor(Polygon2D tile)
 	{
 		var rug = Diamond(0.70f);

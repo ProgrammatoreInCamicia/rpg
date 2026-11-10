@@ -45,6 +45,7 @@ public partial class VillageMap
 		RemoveChild(_mapRoot);
 		_mapRoot.QueueFree();
 		_lit.Clear();
+		_floorChunks.Clear();
 		_edgeLit.Clear();
 		_windowPanels.Clear();
 		_doorPanels.Clear();

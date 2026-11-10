@@ -191,3 +191,20 @@ dotnet run --project .tmp/performance-analysis-20261110/sim-probe/Probe.csproj -
 La sonda grafica ha avuto un errore iniziale di tipizzazione e un errore di lettura di nodi UI già liberati nel campione di camminata. Corretti soltanto nello script temporaneo, con campione fallito scartato e camminata rieseguita. Nessun difetto del gioco è stato corretto per migliorare questi risultati. `Performance.TIME_PROCESS` è raccolto nei JSON ma non utilizzato come separazione affidabile dei costi CPU/GPU: per quella serve un profiling dedicato.
 
 Build solution e build Sim Release: 0 warning, 0 errori. Suite Sim eseguita dopo la build: **724/724**, nessun fallimento o test ignorato. `git diff --check` senza errori; nessun file tracciato preesistente modificato. Nessuna correzione di prestazioni implementata. Non eseguiti export Release del gioco, trace GPU, test termico prolungato, confronto con altro PC o stress di popolazione. Le prove isolano costi concreti e orientano il prossimo intervento; non certificano ancora il budget finale della regione.
+
+## P1 implementato sul pilot — 10 novembre 2026
+
+Il terreno del solo pilot 48×32 usa ora `MeshInstance2D` per blocchi 8×8 e texture. Le singole celle conservano UV e tinta; la luce e la memoria visiva colorano i vertici e ricostruiscono soltanto i blocchi il cui colore cambia. Pareti, oggetti e scena regionale ufficiale mantengono il percorso precedente. Nella stessa cattura della rimessa e della caletta, la pavimentazione, le zone buie e gli interni risultano visivamente equivalenti al pilot prima del cambio.
+
+Sonda di Astra, 1080p, VSync spento, camera `(56,640)`, zoom 1,08, pilot in pausa, cinque secondi dopo riscaldamento:
+
+| Variante | Draw call medie | fps medi | Frame p50 | Frame p95 | Nodi totali |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Prima di P1, ripetizione locale | 2188 | 48,9 | 19,7 ms | 26,7 ms | 3207 |
+| Dopo P1 | 931 | 114,5 | 8,3 ms | 11,5 ms | 1734 |
+
+Le draw call totali calano del 57%; rispetto alle circa 1316 attribuite da Astra al pavimento, il calo di 1257 equivale a circa il 95,5%. La misura a 720p dopo P1 è 769 draw call, 133,3 fps medi e p95 13,6 ms; manca una baseline locale 720p nello stesso istante, quindi non la uso come rapporto prima/dopo. Sono prove brevi su portatile: indicano un grande vantaggio del batching, non un budget finale garantito.
+
+Nel campione di cammino dopo P1: 62,3 fps, p95 48,1 ms, massimo 64,1 ms, posizione del giocatore realmente cambiata. La precedente sonda di Astra aveva 45,7 fps e p95 53,1 ms, ma il percorso e l'hardware variabile non permettono di attribuire tutta la differenza a P1. Le 24 rotazioni dopo P1 richiedono 47,8 ms medi, p95 61,9 ms, praticamente come la baseline di Astra 46,5/60,9 ms. P1 risolve il costo statico del terreno, non gli scatti di vista e movimento: P2 resta necessario.
+
+Build client 0 avvisi/0 errori; smoke pilot delle tre aree e smoke di presentazione regionale ufficiale/isola e fixture verdi. La scena ufficiale non usa ancora le mesh raggruppate. Catture `shed-inside.png` e `cove-overlook.png` confrontate con quelle pre-P1.
