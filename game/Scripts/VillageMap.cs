@@ -22,6 +22,7 @@ public partial class VillageMap : Node2D
 	private bool BlackmarshWatchhouseMode => _activeEntry == SceneEntry.BlackmarshWatchhouse;
 	private bool BlackmarshRegionMode => _activeEntry == SceneEntry.BlackmarshRegion;
 	private bool _regionMapPilot;
+	private bool _regionGpuVision;
 	private bool CanRetryScene => PlayableSliceMode || BlackmarshWatchhouseMode;
 	private const float TileW = 64f;
 	private const float TileH = 32f;
@@ -146,6 +147,7 @@ public partial class VillageMap : Node2D
 	public override void _Ready()
 	{
 		_regionMapPilot = OS.GetCmdlineUserArgs().Contains("--region-map-pilot");
+		_regionGpuVision = _regionMapPilot && !OS.GetCmdlineUserArgs().Contains("--region-vision-cpu");
 		if (_regionMapPilot) RenderingServer.SetDefaultClearColor(new Color(0.075f, 0.12f, 0.15f));
 		var mapBenchmark = OS.GetCmdlineUserArgs().FirstOrDefault(a => a.StartsWith("--region-map-benchmark="));
 		var benchmarkClock = mapBenchmark is null ? null : System.Diagnostics.Stopwatch.StartNew();
@@ -269,7 +271,7 @@ public partial class VillageMap : Node2D
 			// NPC turns are already resolved by EndTurn. This closes the six-second round and starts the next
 			// player turn; Advance deliberately stops at that turn instead of consuming any later world time.
 			_sim.Advance(Duration.FromTicks(Math.Max(0, nextRound.Since(_view.Now).Ticks)));
-			Refresh();
+			Refresh(placeTokens: false);
 		}
 
 		// The world goes on whether the player moves or not (real time with pause, as in BG1/BG2): the exploration pace
@@ -286,7 +288,7 @@ public partial class VillageMap : Node2D
 			_pendingBarrier = null;
 			_pendingStore = null;
 			_pendingTicks = 0;
-			Refresh();
+			Refresh(placeTokens: false);
 		}
 		else if (!sliceWaitFrame && !_paused && _view.Combat is null && !_view.Dead)
 		{
@@ -331,7 +333,7 @@ public partial class VillageMap : Node2D
 				}
 				else
 					_sim.Advance(Duration.FromTicks(ticks));
-				Refresh();
+				Refresh(placeTokens: false);
 					if (takeCancelled && _view.Combat is null)
 						ShowMessage(_view.RecentEvents.LastOrDefault(e => e.Kind == "FoodTakeFailed" && e.At == _view.Now)?.Description
 							?? "Prelievo interrotto.");
@@ -357,6 +359,7 @@ public partial class VillageMap : Node2D
 		}
 		UpdateShotVisuals();
 		PlaceTokens();
+		RefreshRegionDefenseFeedback();
 		UpdateRegionDefenseFeedback();
 		UpdateBuildingOcclusion((float)delta);
 		UpdateCombatHover();
@@ -1082,7 +1085,7 @@ public partial class VillageMap : Node2D
 
 	// ---------------------------------------------------------------- view
 
-	private void Refresh()
+	private void Refresh(bool placeTokens = true)
 	{
 		ClearBarrierActivity();
 		_view = _sim.GetPlayerView();
@@ -1247,8 +1250,11 @@ public partial class VillageMap : Node2D
 		ObserveCombatVisuals();
 		RefreshInventoryUi();
 		PlaceGroundItems();
-		PlaceTokens();
-		RefreshRegionDefenseFeedback();
+		if (placeTokens)
+		{
+			PlaceTokens();
+			RefreshRegionDefenseFeedback();
+		}
 		RefreshSliceWaitUi();
 		RefreshSliceGuidance();
 		RefreshBlackmarshGuidance();
@@ -1451,6 +1457,11 @@ public partial class VillageMap : Node2D
 		for (var y = 0; y < h; y++)
 		for (var x = 0; x < w; x++)
 		{
+			if (_view.MapVisibility is not null)
+			{
+				_glow[x, y] = Level(x, y);
+				continue;
+			}
 			float sum = 0;
 			var count = 0;
 			for (var dy = -1; dy <= 1; dy++)
@@ -1461,8 +1472,7 @@ public partial class VillageMap : Node2D
 					sum += Level(x + dx, y + dy);
 					count++;
 				}
-			_glow[x, y] = _view.MapVisibility is not null ? Level(x, y)
-				: count == 0 ? Level(x, y) : 0.6f * Level(x, y) + 0.4f * sum / count;
+			_glow[x, y] = count == 0 ? Level(x, y) : 0.6f * Level(x, y) + 0.4f * sum / count;
 		}
 		foreach (var (cell, item) in _lit)
 			item.Modulate = Shade(cell);

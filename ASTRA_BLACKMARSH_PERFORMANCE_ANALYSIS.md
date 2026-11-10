@@ -268,3 +268,21 @@ Prima la memoria cresceva senza limite camminando: ore di gioco su una mappa gra
 - smoke regionali: viaggio, presentazione dell'isola e della fixture, persistenza seed/resume;
 - smoke del pilot sulle tre mappe 48×32;
 - le sei smoke Blackmarsh, slice e villaggio: tutte verdi.
+
+## P2 implementato sul pilot — 10 novembre 2026
+
+La maschera morbida del campo visivo nel solo pilot usa uno shader `canvas_item` e una texture R8 di 48×32 stati visibili derivata dalla `PlayerView`; la texture viene caricata solo se cambia la matrice. Posizione, sguardo e ritaglio sono uniform dello shader. La Sim continua a decidere le caselle, gli attori e i fatti visibili. Il vecchio percorso CPU resta disponibile nella prova con `--region-vision-cpu`, per il confronto sulla stessa build. `ShadeMap` salta la scansione dei vicini quando esiste `MapVisibility`, perché in quel ramo usava già solo il valore della cella. Durante `_Process`, `Refresh` non riposiziona più i token una seconda volta: `PlaceTokens` resta una volta a fine frame. Le chiamate esplicite a `Refresh` fuori dal ciclo continuano a posizionarli immediatamente.
+
+Confronto controllato sullo stesso codice e sulla Sim P3 già compilata, pilot 48×32, 1920×1080, OpenGL Compatibility, VSync spento, sonda di Astra, circa cinque secondi per campione:
+
+| Caso | Maschera CPU | Maschera shader |
+| --- | ---: | ---: |
+| 24 rotazioni, tempo medio per chiamata | 44,1 ms | 17,4 ms |
+| 24 rotazioni, p95 per chiamata | 66,1 ms | 27,6 ms |
+| Cammino, fps medi | 77,9 | 128,3 |
+| Cammino, frame p50 | 11,5 ms | 7,1 ms |
+| Cammino, frame p95 | 29,0 ms | 11,4 ms |
+
+Il benchmark interno del pilot attribuisce alla maschera circa 1,4 ms per quattro rotazioni dopo P2, contro circa 44 ms dopo P1. La sonda a frame conferma che la camminata non peggiora il p95. Un confronto delle catture CPU/shader (`hamlet-house`, `shed-inside`, `cove-overlook`, `cove-landing`) mostra differenze minime: nelle due viste della caletta nessun pixel diverso oltre soglia nel campionamento ogni 4 pixel; nelle due viste interne rispettivamente 53 e 109 campioni su 57.600, compatibili anche con animazioni dei personaggi. Una prova diagnostica temporanea con colore rosso ha verificato che lo shader disegna nella regione ritagliata e legge la texture di visibilità; il codice diagnostico è stato rimosso.
+
+Build client 0 avvisi/0 errori; smoke pilot con maschera CPU e shader, presentazione regione ufficiale, fixture e slice verdi. Lo smoke slice nel sandbox falliva perché Godot non poteva scrivere `user://` (anche i log erano rifiutati); con il permesso di filesystem già approvato, il checkpoint e l'intero percorso passano. Il messaggio di Godot `_save_to_cache: f.is_null()` compare nei lanci con lo shader sotto sandbox, ma la prova diagnostica conferma il disegno e gli smoke terminano senza errori funzionali. Restano da misurare un export Release e sessioni lunghe con più oggetti e personaggi prima di fissare il budget finale.

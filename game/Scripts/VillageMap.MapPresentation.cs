@@ -67,6 +67,9 @@ public partial class VillageMap
 		_glow = new float[0, 0];
 		_lightKey = "";
 		_visionTexture = null;
+		_visionGpuMaterial = null;
+		_visionGpuWhiteTexture = null;
+		_visionGpuVisibilityKey = null;
 		_visionFeatherKey = null;
 		_shotVisuals.Clear();
 		_combatVisualTracks.Clear();

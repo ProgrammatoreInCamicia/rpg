@@ -36,6 +36,7 @@ public partial class VillageMap
 			TextureFilter = CanvasItem.TextureFilterEnum.Linear,
 		};
 		_mapRoot.AddChild(_visionFeather);
+		if (_regionGpuVision) BuildGpuVision();
 	}
 
 	private void RefreshVisionFeather()
@@ -46,9 +47,15 @@ public partial class VillageMap
 			return;
 		}
 		_visionFeather.Visible = true;
-		var key = string.Concat(visibility) + $"|{_view.Spot}|{_view.Facing}|{_view.Combat is not null}";
+		var visibilityKey = string.Concat(visibility);
+		var key = visibilityKey + $"|{_view.Spot}|{_view.Facing}|{_view.Combat is not null}";
 		if (key == _visionFeatherKey) return;
 		_visionFeatherKey = key;
+		if (_regionGpuVision)
+		{
+			RefreshGpuVision(visibility, visibilityKey);
+			return;
+		}
 		var eye = _view.Spot ?? Spot.CenterOf(_view.Position.Value);
 		var eyeCell = new Vector2(eye.X / (float)Spot.PerSquare - 0.5f,
 			eye.Y / (float)Spot.PerSquare - 0.5f);
