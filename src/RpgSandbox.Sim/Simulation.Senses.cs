@@ -16,11 +16,18 @@ internal sealed partial class Simulation
     private Light LightOnAt(GridMap map, GridPos square, GameTime t) =>
         Max(map.DaylightOn(square, Perception.DaylightAt(t)), map.SourceLight(square, CarriedLights(map)));
 
+    /// <summary>
+    /// <see cref="LightOn(GridMap, GridPos)"/> with the torches burning on the map already gathered by
+    /// <see cref="CarriedLights"/>: for reading many squares at the same instant (a view) without gathering them again.
+    /// </summary>
+    internal Light LightOn(GridMap map, GridPos square, IReadOnlyList<LightSource> carried) =>
+        Max(map.DaylightOn(square, Perception.DaylightAt(World.Now)), map.SourceLight(square, carried));
+
     /// <summary>A torch burning in someone's hand (SRD: 1 hour from when it was lit).</summary>
     internal bool TorchLit(Actor actor) => actor.TorchLitUntil is { } until && World.Now < until;
 
     /// <summary>Torches burning on this map, each on its bearer's square (SRD Torch: Bright 20 ft, Dim 20 ft more).</summary>
-    private List<LightSource> CarriedLights(GridMap map) =>
+    internal List<LightSource> CarriedLights(GridMap map) =>
         World.Actors.Values
             .Where(a => a.MapArea == map.Area && (TorchLit(a) || HasEffect(a, "sacred-weapon")) && CurrentPosition(a) is not null) // R3c: Sacred Weapon, Bright 20 ft and Dim 20 ft too
             .Select(a => new LightSource(CurrentPosition(a)!.Value, Tuning.TorchBrightFeet, Tuning.TorchDimFeet))
@@ -233,6 +240,12 @@ internal sealed partial class Simulation
     internal bool InFacing(Actor watcher, Spot eye, Spot target, bool ignoreFacing = false)
     {
         if (ignoreFacing || EncounterOf(watcher) is not null || watcher.Facing is not { } direction) return true;
+        return InCone(direction, eye, target);
+    }
+
+    /// <summary>The cone of <see cref="InFacing"/> once it applies: looking towards <paramref name="direction"/>.</summary>
+    private static bool InCone(GridPos direction, Spot eye, Spot target)
+    {
         var dx = target.X - (long)eye.X;
         var dy = target.Y - (long)eye.Y;
         var distanceSquared = dx * dx + dy * dy;
@@ -244,7 +257,11 @@ internal sealed partial class Simulation
 
     /// <summary>Whether <paramref name="watcher"/> can see what stands on <paramref name="square"/> right now.</summary>
     internal bool CanSee(GridMap map, Actor watcher, GridPos from, GridPos square) =>
-        !Asleep(watcher) && map.HasLineOfSight(from, square) && LightOn(map, square) >= Light.Dim
+        CanSee(map, watcher, from, square, CarriedLights(map));
+
+    /// <summary><see cref="CanSee(GridMap, Actor, GridPos, GridPos)"/> with the map's burning torches already gathered.</summary>
+    internal bool CanSee(GridMap map, Actor watcher, GridPos from, GridPos square, IReadOnlyList<LightSource> carried) =>
+        !Asleep(watcher) && map.HasLineOfSight(from, square) && LightOn(map, square, carried) >= Light.Dim
         && InFacing(watcher, CurrentSpot(watcher) ?? Spot.CenterOf(from), Spot.CenterOf(square));
 
     internal static bool WithinEarshot(GridMap map, GridPos listener, GridPos source) =>
@@ -320,9 +337,11 @@ internal sealed partial class Simulation
     // ---------------------------------------------------------------- T6c-5: the player's memory of doors
 
     /// <summary>A door is seen from next to it, or in line of sight with at least dim light on it.</summary>
-    internal bool SeesDoor(Actor actor, GridMap map, GridPos door) =>
+    internal bool SeesDoor(Actor actor, GridMap map, GridPos door) => SeesDoor(actor, map, door, CarriedLights(map));
+
+    internal bool SeesDoor(Actor actor, GridMap map, GridPos door, IReadOnlyList<LightSource> carried) =>
         actor.MapArea == map.Area && !Asleep(actor) && CurrentPosition(actor) is { } eye
-        && (eye.IsAdjacentOrSame(door) || CanSee(map, actor, eye, door));
+        && (eye.IsAdjacentOrSame(door) || CanSee(map, actor, eye, door, carried));
 
     /// <summary>The player remembers the doors it sees now, as they are now. Called at processed instants and after commands only.</summary>
     internal void RememberDoors()
@@ -330,8 +349,9 @@ internal sealed partial class Simulation
         var player = World.Actors[World.Player];
         if (player.MapArea is not { } area || !World.Maps.TryGetValue(area, out var map))
             return;
+        var carried = CarriedLights(map);
         foreach (var (at, open) in map.Doors)
-            if (SeesDoor(player, map, at))
+            if (SeesDoor(player, map, at, carried))
                 player.DoorMemory[new DoorKey(area, at)] = new RememberedDoor(open, World.Now);
         // The explored floor is remembered here, with the doors, never when a view is read.
         if (map.UsesExploration && player.Conscious && CurrentPosition(player) is { } eye)
@@ -343,26 +363,38 @@ internal sealed partial class Simulation
     /// immediately surrounding floor can be made out; a wall still blocks it. This affects only map exploration:
     /// recognising actors and objects continues to use <see cref="CanSee"/> and its light requirement.
     /// </summary>
-    internal IEnumerable<GridPos> SquaresSeen(GridMap map, Actor watcher, GridPos eye, bool onlyUnexplored = false)
+    internal IEnumerable<GridPos> SquaresSeen(GridMap map, Actor watcher, GridPos eye, bool onlyUnexplored = false) =>
+        SquaresSeenLit(map, watcher, eye, onlyUnexplored).Select(seen => seen.Square);
+
+    /// <summary>
+    /// <see cref="SquaresSeen"/>, each square with the light on it now (what <see cref="LightOn(GridMap, GridPos)"/>
+    /// gives), so a view reads both in one pass over the map.
+    /// </summary>
+    internal List<(GridPos Square, Light Light)> SquaresSeenLit(GridMap map, Actor watcher, GridPos eye, bool onlyUnexplored = false)
     {
+        var seen = new List<(GridPos, Light)>();
         if (Asleep(watcher))
-            yield break; // R1
+            return seen; // R1
         var daylight = Perception.DaylightAt(World.Now);
         var torches = CarriedLights(map);
+        var eyeSpot = CurrentSpot(watcher) ?? Spot.CenterOf(eye);
+        var facing = EncounterOf(watcher) is null ? watcher.Facing : null; // InFacing, its every-square part taken out
         for (var y = 0; y < map.Height; y++)
         for (var x = 0; x < map.Width; x++)
         {
             var square = new GridPos(x, y);
             if (onlyUnexplored && map.Explored.Contains(square))
                 continue;
-            if (!map.HasLineOfSight(eye, square))
+            // The cheap tests first: the line of sight is traced only for a square in the cone that is lit or underfoot.
+            if (facing is { } direction && !InCone(direction, eyeSpot, Spot.CenterOf(square)))
                 continue;
-            if (!InFacing(watcher, CurrentSpot(watcher) ?? Spot.CenterOf(eye), Spot.CenterOf(square)))
+            var light = Max(map.DaylightOn(square, daylight), map.SourceLight(square, torches));
+            if (light < Light.Dim && Math.Max(Math.Abs(x - eye.X), Math.Abs(y - eye.Y)) > 1)
                 continue;
-            if (Math.Max(Math.Abs(x - eye.X), Math.Abs(y - eye.Y)) <= 1
-                || Max(map.DaylightOn(square, daylight), map.SourceLight(square, torches)) >= Light.Dim)
-                yield return square;
+            if (map.HasLineOfSightFrom(eye, square))
+                seen.Add((square, light));
         }
+        return seen;
     }
 
     /// <summary>The player knows the state of a door it opens or closes itself, even passing through in the dark.</summary>

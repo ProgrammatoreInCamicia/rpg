@@ -256,11 +256,13 @@ public sealed class SimulationSession
         // On a map (T6b) seeing takes line of sight and light on the other's square, at any distance.
         var map = player.MapArea is { } mapArea ? w.Maps[mapArea] : null;
         var me = PositionOf(player, w);
+        // The torches burning on the player's map, gathered once: every square read below is read at this same instant.
+        var carried = map is null ? Array.Empty<LightSource>() : (IReadOnlyList<LightSource>)_sim.CarriedLights(map);
         // A journey involving a map is outside its local perception. Keep the legacy area-level view only for
         // journeys between abstract places; the origin's Map/Area below are geographical context, not presence.
         var localSight = travel is null || (!w.Maps.ContainsKey(w.Locations[travel.Origin].Area)
             && !w.Maps.ContainsKey(w.Locations[travel.Destination].Area));
-        bool SeenOnMap(GridPos square) => player.Conscious && map is not null && me is { } eye && _sim.CanSee(map, player, eye, square);
+        bool SeenOnMap(GridPos square) => player.Conscious && map is not null && me is { } eye && _sim.CanSee(map, player, eye, square, carried);
         bool Visible(Actor a) => localSight && (map is not null && me is not null
             ? a.MapArea == map.Area && PositionOf(a, w) is { } there && SeenOnMap(there)
             : VisibleByPlace(a));
@@ -273,7 +275,7 @@ public sealed class SimulationSession
         var nearby = w.Actors.Values.Where(a => a.Id != player.Id && _sim.CanTalk(player, a)).ToList();
         var present = nearby.Where(Visible).ToList();
         var listeners = present.Where(a => a.Conscious).ToList(); // the dead and the senseless are seen, not talked to
-        var light = map is not null && me is { } mine ? _sim.LightOn(map, mine)
+        var light = map is not null && me is { } mine ? _sim.LightOn(map, mine, carried)
             : player.Location is { } spot ? Perception.LightAt(w.Locations[spot], w.Now) : Perception.DaylightAt(w.Now);
         var options = listeners
             .SelectMany(recipient => player.Knowledge
@@ -287,12 +289,31 @@ public sealed class SimulationSession
                 }));
 
         // Read only: what is seen now is computed, what was explored is remembered by the simulation (RememberDoors).
-        var seenNow = map is { UsesExploration: true } && me is { } eyeSquare && player.Conscious
-            ? _sim.SquaresSeen(map, player, eyeSquare).ToHashSet() : new HashSet<GridPos>();
-        var visibility = map is { UsesExploration: true } && me is not null
-            ? Freeze(Enumerable.Range(0, map.Height).Select(y => new string(Enumerable.Range(0, map.Width).Select(x =>
-                seenNow.Contains(new GridPos(x, y)) ? '2' : map.Explored.Contains(new GridPos(x, y)) ? '1' : '0').ToArray())))
-            : null;
+        // One pass for both: on an explored map, '2' seen now, '1' explored, '0' unknown, and light only where seen now;
+        // without exploration, the light on every square.
+        IReadOnlyList<string>? visibility = null, mapLight = null;
+        if (map is not null)
+        {
+            var lightRows = Grid(map, '0');
+            if (map.UsesExploration && me is { } eyeSquare)
+            {
+                var seenRows = Grid(map, '0');
+                foreach (var explored in map.Explored)
+                    seenRows[explored.Y][explored.X] = '1';
+                if (player.Conscious)
+                    foreach (var (square, lit) in _sim.SquaresSeenLit(map, player, eyeSquare))
+                    {
+                        seenRows[square.Y][square.X] = '2';
+                        lightRows[square.Y][square.X] = (char)('0' + (int)lit);
+                    }
+                visibility = Rows(seenRows);
+            }
+            else
+                for (var y = 0; y < map.Height; y++)
+                for (var x = 0; x < map.Width; x++)
+                    lightRows[y][x] = (char)('0' + (int)_sim.LightOn(map, new GridPos(x, y), carried));
+            mapLight = Rows(lightRows);
+        }
 
         return new PlayerView
         {
@@ -320,10 +341,8 @@ public sealed class SimulationSession
             MasteryWeapons = Freeze((player.Choices.Masteries ?? (w.Content.Characters.TryGetValue(player.Build, out var definition)
                 ? definition.Masteries : Array.Empty<string>())).Select(i => new ItemId(i))),
             Move = MoveOf(player),
-            Map = w.Maps.TryGetValue(area, out var areaMap) ? MapOf(areaMap, w) : null,
-            MapLight = map is null ? null : Freeze(Enumerable.Range(0, map.Height).Select(y =>
-                new string(Enumerable.Range(0, map.Width).Select(x => visibility is not null && visibility[y][x] != '2'
-                    ? '0' : (char)('0' + (int)_sim.LightOn(map, new GridPos(x, y)))).ToArray()))),
+            Map = w.Maps.TryGetValue(area, out var areaMap) ? MapViewOf(areaMap) : null,
+            MapLight = mapLight,
             MapVisibility = visibility,
             Sheet = player.Sheet,
             Action = player.CurrentAction is { } a
@@ -338,7 +357,7 @@ public sealed class SimulationSession
             TorchLitUntil = _sim.TorchLit(player) ? player.TorchLitUntil : null,
             // T6c-5: a door in sight is seen as it is; one seen before, as it was then; one never seen, unknown.
             Doors = map is null ? Array.Empty<DoorView>() : Freeze(map.Doors.Select(d =>
-                _sim.SeesDoor(player, map, d.Key) ? new DoorView { At = d.Key, Known = DoorKnowledge.Seen, Open = d.Value, SeenAt = w.Now }
+                _sim.SeesDoor(player, map, d.Key, carried) ? new DoorView { At = d.Key, Known = DoorKnowledge.Seen, Open = d.Value, SeenAt = w.Now }
                 : player.DoorMemory.TryGetValue(new DoorKey(map.Area, d.Key), out var memory)
                     ? new DoorView { At = d.Key, Known = DoorKnowledge.Remembered, Open = memory.Open, SeenAt = memory.SeenAt }
                 : new DoorView { At = d.Key, Known = DoorKnowledge.Unknown })),
@@ -364,7 +383,7 @@ public sealed class SimulationSession
                 Spot = SpotOf(x, w),
                 Move = MoveOf(x),
                 SeesYou = map is not null && me is { } mine && PositionOf(x, w) is { } theirs
-                    ? _sim.Sees(map, x, theirs, player, mine, _sim.LightOn(map, mine))
+                    ? _sim.Sees(map, x, theirs, player, mine, light)
                     : null,
                 Torch = _sim.TorchLit(x),
                 Condition = x.Vitality.Describe(),
@@ -405,7 +424,7 @@ public sealed class SimulationSession
             Equipment = Worn(player, w.Content, _sim.TorchLit(player)),
             Coins = player.Coins,
             GroundItems = map is null ? Array.Empty<GroundItemView>() : Freeze(map.Ground
-                .Where(g => me is { } eye && (eye.IsAdjacentOrSame(g.Key) || _sim.CanSee(map, player, eye, g.Key)))
+                .Where(g => me is { } eye && (eye.IsAdjacentOrSame(g.Key) || _sim.CanSee(map, player, eye, g.Key, carried)))
                 .SelectMany(g => g.Value.Select(i => new GroundItemView { At = g.Key, Item = i.Key, Name = NameOf(w.Content, i.Key), Count = i.Value }))),
             PeopleHere = Freeze(listeners.Select(p => new PersonView
             {
@@ -462,7 +481,35 @@ public sealed class SimulationSession
         }
         : null;
 
-    private static MapView MapOf(GridMap map, WorldState w)
+    private static char[][] Grid(GridMap map, char fill)
+    {
+        var rows = new char[map.Height][];
+        for (var y = 0; y < map.Height; y++)
+            Array.Fill(rows[y] = new char[map.Width], fill);
+        return rows;
+    }
+
+    private static IReadOnlyList<string> Rows(char[][] rows) => Array.AsReadOnly(Array.ConvertAll(rows, r => new string(r)));
+
+    /// <summary>
+    /// The map's layout as the client draws it. The squares, zones, exits, routes and where the stores stand are fixed
+    /// once the world exists; of the edges only a window's state changes (open, glass, bars). So the layout is built once
+    /// per map and the same instance is handed out with every view, until an edge reads differently.
+    /// </summary>
+    private MapView MapViewOf(GridMap map)
+    {
+        var edges = SortedEdges(map);
+        if (!_mapViews.TryGetValue(map, out var view) || !view.Edges.SequenceEqual(edges))
+            _mapViews[map] = view = MapOf(map, World, edges);
+        return view;
+    }
+
+    private readonly Dictionary<GridMap, MapView> _mapViews = new(ReferenceEqualityComparer.Instance);
+
+    private static IReadOnlyList<MapEdgeView> SortedEdges(GridMap map) =>
+        Freeze(map.Edges.OrderBy(e => e.A.Y).ThenBy(e => e.A.X).ThenBy(e => e.B.Y).ThenBy(e => e.B.X));
+
+    private static MapView MapOf(GridMap map, WorldState w, IReadOnlyList<MapEdgeView> edges)
     {
         var rows = map.Rows.Select(r => r.ToCharArray()).ToArray();
         foreach (var store in w.Stores.Values.Where(s => s.Position is { } p
@@ -474,7 +521,7 @@ public sealed class SimulationSession
             Rows = Freeze(rows.Select(r => new string(r))),
             Zones = new SortedDictionary<char, LocationId>(map.Zones.ToDictionary(z => z.Key, z => z.Value)).AsReadOnly(),
             IndoorZones = Freeze(map.IndoorZones.OrderBy(z => z.Value, StringComparer.Ordinal)),
-            Edges = Freeze(map.Edges.OrderBy(e => e.A.Y).ThenBy(e => e.A.X).ThenBy(e => e.B.Y).ThenBy(e => e.B.X)),
+            Edges = edges,
             Exits = Freeze(map.Exits.Select(e => new ExitView
             {
                 Location = e.Key, Name = w.Locations[e.Key].Name, At = e.Value,

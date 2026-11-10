@@ -208,3 +208,63 @@ Le draw call totali calano del 57%; rispetto alle circa 1316 attribuite da Astra
 Nel campione di cammino dopo P1: 62,3 fps, p95 48,1 ms, massimo 64,1 ms, posizione del giocatore realmente cambiata. La precedente sonda di Astra aveva 45,7 fps e p95 53,1 ms, ma il percorso e l'hardware variabile non permettono di attribuire tutta la differenza a P1. Le 24 rotazioni dopo P1 richiedono 47,8 ms medi, p95 61,9 ms, praticamente come la baseline di Astra 46,5/60,9 ms. P1 risolve il costo statico del terreno, non gli scatti di vista e movimento: P2 resta necessario.
 
 Build client 0 avvisi/0 errori; smoke pilot delle tre aree e smoke di presentazione regionale ufficiale/isola e fixture verdi. La scena ufficiale non usa ancora le mesh raggruppate. Catture `shed-inside.png` e `cove-overlook.png` confrontate con quelle pre-P1.
+
+## P3 implementato nella Sim — 10 novembre 2026 (Claude)
+
+La vista del giocatore (`GetPlayerView`) costa meno, con lo stesso significato. Sono cambiati solo `Api/SimulationSession.cs`, `GridMap.cs` e `Simulation.Senses.cs`. API pubblica, salvataggio e schema (44) non cambiano.
+
+**Cosa è cambiato:**
+- **Luce.** Le torce accese sulla mappa (`CarriedLights`) si raccolgono una volta per vista, non per ogni casella. `SourceLight` non alloca più una concatenazione per chiamata.
+- **Una sola passata.** `SquaresSeenLit` dà insieme le caselle viste e la luce su ciascuna. `MapVisibility` e `MapLight` si scrivono direttamente in array di caratteri, senza LINQ per carattere.
+- **Ordine dei controlli.** Prima il cono, che non chiede più `EncounterOf` per ogni casella, poi la luce, poi la linea di vista. La linea si traccia solo per una casella nel cono, illuminata o adiacente: al buio quasi nessuna.
+- **Tracciamento della linea.** Due griglie: le caselle che bloccano la vista (ricostruita quando una porta cambia) e le caselle che toccano un confine. Un passo lontano da muri e porte su confine non consulta più il dizionario dei confini. Gli altri passi usano `StepOpen` come prima.
+- **Memoria delle linee.** Lo sguardo del giocatore usa una griglia per l'ultima casella da cui guarda (`HasLineOfSightFrom`), non migliaia di voci nel dizionario delle coppie. Il dizionario delle coppie, usato da PNG, luci e luce del giorno negli interni, ha un tetto di 500.000 voci (circa 20 MB) e oltre si svuota: è solo memoria, e svuotarlo non cambia nessuna risposta.
+- **Pianta della mappa.** Il `MapView` (righe, zone, uscite, percorsi, depositi) si costruisce una volta per mappa e la stessa istanza viene restituita a ogni vista. I confini si rileggono comunque a ogni vista, perché lo stato di una finestra (aperta, vetro, sbarre) è lì. Se cambia, il `MapView` viene ricostruito. **Per il client:** se `view.Map` è la stessa istanza della vista precedente, la pianta non è cambiata.
+- Interni letti da una griglia invece che dalla zona di ogni casella.
+
+**Equivalenza.**
+- **Viste di riferimento.** Le viste complete serializzate per riflessione, più il save al termine di ogni sequenza, sono identiche byte per byte prima e dopo. Sono 207 viste in quattro sequenze:
+  - **pilot:** giorno, rotazioni, cammino, porta, interno di notte, torcia, viaggio alla caletta, approdo;
+  - **isola ufficiale:** apertura, rotazioni, +40 min, +3 h 40 min;
+  - **campi 48×32 e 80×60 con casa:** pareti, porta, finestra, lampade e un PNG con torcia. Ogni percorso tocca giorno, notte, finestra aperta, chiusa, vetro rotto e tolto, scavalcamento e torcia spenta.
+
+  Il riferimento è stato generato dal codice di `b95025e` in un worktree pulito.
+- **Nuovi test (`SightPerformanceTests`):**
+  - le linee lette dalle griglie e dal campo coincidono con il tracciamento classico per tutte le coppie di 25 mappe casuali con muri, confini, finestre e porte, anche dopo aver invertito ogni porta;
+  - la memoria delle linee resta sotto il tetto;
+  - uno sguardo su un campo intero non riempie il dizionario;
+  - la pianta è la stessa istanza mentre le porte cambiano, e un caricamento ne costruisce una propria.
+- Una prima versione della cache della pianta ignorava lo stato delle finestre. I due test delle finestre l'hanno colta ed è stata corretta prima della consegna.
+
+**Misure.** Sim Release, `GetPlayerView` da fermo, base `b95025e` ed esecuzioni alternate. Il portatile oscillava parecchio durante la misura: contano i rapporti più dei valori assoluti.
+
+| Caso | Prima | Dopo | Allocazioni prima → dopo |
+|---|---:|---:|---:|
+| Pilot 48×32, vista | 7,7 ms | 1,9 ms | 1,10 → 0,08 MB |
+| Pilot, rotazione + vista | 5,2 ms | 1,4 ms | 0,60 → 0,06 MB |
+| Campo esplorabile 48×32 | 5,7 ms | 0,7 ms | 0,75 → 0,07 MB |
+| Campo esplorabile 80×60 | 14,1 ms | 1,9 ms | 2,30 → 0,20 MB |
+| Campo esplorabile 160×120 | 12,5 ms | 2,5 ms | 8,72 → 0,71 MB |
+| Notte con due torce, 80×60 | 5–18 ms | 2,7–3,8 ms | 1,07 → 0,08 MB |
+
+**Camminata**, il caso che il benchmark da fermo non vedeva. Il giocatore attraversa di giorno un campo esplorabile, una casella alla volta, con una vista per passo:
+
+| Campo | Vista per passo, prima → dopo | Memoria delle linee a fine traversata, prima → dopo |
+|---|---:|---:|
+| 80×60 | 11,7 → 4–5 ms | 362.000 voci, +21,5 MB → 144 voci, +0,2 MB |
+| 160×120 | 77,5 → 16–19 ms | 2.983.000 voci, +191,6 MB → 144 voci, +0,8 MB |
+
+Prima la memoria cresceva senza limite camminando: ore di gioco su una mappa grande la portavano a centinaia di MB.
+
+**Difesa (`KeepAway`).** Su un campo 80×60 il predone che si ritira davanti a paladino e guardia costa circa 1,2 ms per secondo simulato, in linea con 16×6 e 48×32. Non è un collo di bottiglia, quindi non è stato toccato.
+
+**Restano:**
+- da una casella nuova, su 160×120 di giorno la vista traccia ancora circa 10.000 linee (16–19 ms). Scendere sotto richiederebbe un algoritmo di visibilità diverso (ad esempio lo shadowcasting), che non dà esattamente le stesse linee: andrebbe concordato come cambio di regola, non come ottimizzazione;
+- il comando di movimento (`SpotPlanner`) costa 2–5 ms per destinazione: è materia di P4;
+- la vista resta una ricostruzione completa a ogni chiamata, a parte la pianta: il client farebbe bene a chiederla quando passano tick, non a ogni frame.
+
+**Verifiche** in worktree pulito su `b95025e` più P3:
+- suite **728/728** e build client 0/0;
+- smoke regionali: viaggio, presentazione dell'isola e della fixture, persistenza seed/resume;
+- smoke del pilot sulle tre mappe 48×32;
+- le sei smoke Blackmarsh, slice e villaggio: tutte verdi.

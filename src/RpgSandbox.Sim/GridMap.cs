@@ -266,6 +266,8 @@ internal sealed class GridMap
         _doors[p] = open;
         _daylight.Clear(); // a door opened or shut changes what can be seen, and what daylight reaches
         _sight.Clear();
+        _opaque = null;
+        _fieldEye = null;
     }
 
     /// <summary>
@@ -277,19 +279,28 @@ internal sealed class GridMap
     public Light SourceLight(GridPos square, IEnumerable<LightSource>? carried = null)
     {
         var best = Light.Dark;
-        foreach (var source in carried is null ? Lights : Lights.Concat(carried))
-        {
-            var dx = (source.At.X - square.X) * 5L;
-            var dy = (source.At.Y - square.Y) * 5L;
-            var feetSquared = dx * dx + dy * dy;
-            var reach = (long)source.BrightFeet + source.DimFeet;
-            if (feetSquared > reach * reach || !HasLineOfSight(source.At, square))
-                continue;
-            var level = feetSquared <= (long)source.BrightFeet * source.BrightFeet ? Light.Bright : Light.Dim;
-            if (level > best)
-                best = level;
-        }
+        for (var i = 0; i < Lights.Count; i++)
+            best = Brighter(best, Lights[i], square);
+        if (carried is IReadOnlyList<LightSource> list)
+            for (var i = 0; i < list.Count; i++)
+                best = Brighter(best, list[i], square);
+        else if (carried is not null)
+            foreach (var source in carried)
+                best = Brighter(best, source, square);
         return best;
+    }
+
+    /// <summary>The better of <paramref name="best"/> and the light <paramref name="source"/> casts on the square.</summary>
+    private Light Brighter(Light best, LightSource source, GridPos square)
+    {
+        var dx = (source.At.X - square.X) * 5L;
+        var dy = (source.At.Y - square.Y) * 5L;
+        var feetSquared = dx * dx + dy * dy;
+        var reach = (long)source.BrightFeet + source.DimFeet;
+        if (feetSquared > reach * reach || !HasLineOfSight(source.At, square))
+            return best;
+        var level = feetSquared <= (long)source.BrightFeet * source.BrightFeet ? Light.Bright : Light.Dim;
+        return level > best ? level : best;
     }
 
     /// <summary>Daylight enters marked interiors only through visible openings, fading after the first square.</summary>
@@ -297,7 +308,7 @@ internal sealed class GridMap
     {
         if (outside == Light.Dark || !InBounds(square))
             return Light.Dark;
-        if (ZoneAt(square) is not { } zone || !_indoorZones.Contains(zone))
+        if (!Indoors(square))
             return outside;
         if (_daylight.TryGetValue((square, outside), out var known))
             return known;
@@ -307,7 +318,7 @@ internal sealed class GridMap
         {
             var outsideSquare = new GridPos(x, y);
             var distance = outsideSquare.StepsTo(square);
-            if (distance > 3 || ZoneAt(outsideSquare) is { } outer && _indoorZones.Contains(outer)
+            if (distance > 3 || Indoors(outsideSquare)
                 || !HasLineOfSight(outsideSquare, square))
                 continue;
             var level = distance <= 1 ? outside : Light.Dim;
@@ -316,6 +327,21 @@ internal sealed class GridMap
         }
         return _daylight[(square, outside)] = best;
     }
+
+    /// <summary>Whether a square (in bounds) belongs to a marked interior. Squares and interiors never change, so it is read once.</summary>
+    private bool Indoors(GridPos square)
+    {
+        if (_indoors is null)
+        {
+            _indoors = new bool[Width, Height];
+            for (var y = 0; y < Height; y++)
+            for (var x = 0; x < Width; x++)
+                _indoors[x, y] = Zones.TryGetValue(_cells[x, y], out var zone) && _indoorZones.Contains(zone);
+        }
+        return _indoors[square.X, square.Y];
+    }
+
+    private bool[,]? _indoors;
 
     /// <summary>Daylight on indoor squares, by the light outside; it depends only on the walls and the doors.</summary>
     private readonly Dictionary<(GridPos, Light), Light> _daylight = new();
@@ -347,14 +373,121 @@ internal sealed class GridMap
     {
         var key = EdgeKey(a, b);
         if (!_sight.TryGetValue(key, out var clear))
+        {
+            if (_sight.Count >= SightCacheLimit)
+                _sight.Clear(); // only a memory of lines already traced: forgetting them changes no answer
             _sight[key] = clear = ClearLine(a, b) || ClearLine(b, a);
+        }
         return clear;
     }
+
+    /// <summary>
+    /// <see cref="HasLineOfSight"/> from one square to many, as a look over the whole map asks: the answers are kept in a
+    /// grid for the last square looked from instead of among the lines between any two squares, which a single look on a
+    /// large map would otherwise fill with thousands of entries.
+    /// </summary>
+    internal bool HasLineOfSightFrom(GridPos eye, GridPos square)
+    {
+        if (!InBounds(eye) || !InBounds(square))
+            return HasLineOfSight(eye, square);
+        if (_fieldEye != eye)
+        {
+            if (_field is null)
+                _field = new sbyte[Width, Height];
+            else
+                Array.Clear(_field);
+            _fieldEye = eye;
+        }
+        ref var known = ref _field![square.X, square.Y];
+        if (known == 0)
+            known = (_sight.TryGetValue(EdgeKey(eye, square), out var traced) ? traced : ClearLine(eye, square) || ClearLine(square, eye))
+                ? (sbyte)1 : (sbyte)2;
+        return known == 1;
+    }
+
+    /// <summary>For <see cref="HasLineOfSightFrom"/>: 0 not traced yet, 1 clear, 2 blocked; forgotten when a door changes.</summary>
+    private sbyte[,]? _field;
+
+    private GridPos? _fieldEye;
 
     /// <summary>Lines of sight already traced (symmetric); they change only when a door does.</summary>
     private readonly Dictionary<(GridPos, GridPos), bool> _sight = new();
 
+    /// <summary>
+    /// Region P3: how many traced lines are kept at most. Every square the player stands on adds a line to every square
+    /// it looks at, so on a large map walked for hours the memory would otherwise grow without end (a 160×120 field
+    /// crossed once by day: about 3 million lines, 190 MB). This many is roughly 20 MB: the sight from some
+    /// dozens of standing places on a large map.
+    /// </summary>
+    internal int SightCacheLimit { get; set; } = 500_000;
+
+    /// <summary>For tests: how many lines of sight are remembered now.</summary>
+    internal int SightCacheCount => _sight.Count;
+
+    /// <summary>For tests: the line of sight traced step by step with every edge looked up, without the grids or the caches.</summary>
+    internal bool HasLineOfSightChecked(GridPos a, GridPos b) => ClearLineChecked(a, b) || ClearLineChecked(b, a);
+
+    /// <summary>
+    /// <see cref="ClearLine(GridPos, GridPos)"/> read from two grids: what blocks sight on each square, and which squares
+    /// touch an edge (a wall, door or window between two squares). A step between squares that touch no edge needs no edge
+    /// lookup; any other step is checked by <see cref="StepOpen"/> as before, so the answer is the same.
+    /// </summary>
     private bool ClearLine(GridPos from, GridPos to)
+    {
+        if (!InBounds(from) || !InBounds(to))
+            return ClearLineChecked(from, to);
+        var opaque = _opaque ??= OpaqueSquares();
+        var touched = _edgeTouched ??= EdgeTouchedSquares();
+        int x = from.X, y = from.Y;
+        int dx = Math.Abs(to.X - x), dy = -Math.Abs(to.Y - y);
+        int sx = x < to.X ? 1 : -1, sy = y < to.Y ? 1 : -1;
+        var err = dx + dy;
+        while (x != to.X || y != to.Y)
+        {
+            int px = x, py = y;
+            var e2 = 2 * err;
+            if (e2 >= dy) { err += dy; x += sx; }
+            if (e2 <= dx) { err += dx; y += sy; }
+            var straight = x == px || y == py;
+            // With no edge around, StepOpen asks only that sight slips past a corner on one side: the squeeze test below.
+            var edgeFree = !touched[px, py] && !touched[x, y] && (straight || !touched[x, py] && !touched[px, y]);
+            if (!edgeFree && !StepOpen(new GridPos(px, py), new GridPos(x, y), sight: true))
+                return false;
+            if ((x != to.X || y != to.Y) && opaque[x, y])
+                return false;
+            if (!straight && opaque[x, py] && opaque[px, y])
+                return false; // squeezing diagonally between two walls
+        }
+        return true;
+    }
+
+    private bool[,] OpaqueSquares()
+    {
+        var opaque = new bool[Width, Height];
+        for (var y = 0; y < Height; y++)
+        for (var x = 0; x < Width; x++)
+            opaque[x, y] = BlocksSight(new GridPos(x, y));
+        return opaque;
+    }
+
+    private bool[,] EdgeTouchedSquares()
+    {
+        var touched = new bool[Width, Height];
+        foreach (var (a, b) in _edges.Keys)
+        {
+            touched[a.X, a.Y] = true;
+            touched[b.X, b.Y] = true;
+        }
+        return touched;
+    }
+
+    /// <summary><see cref="BlocksSight"/> on each square, rebuilt after a door opens or shuts.</summary>
+    private bool[,]? _opaque;
+
+    /// <summary>Squares on either side of an edge; edges never change.</summary>
+    private bool[,]? _edgeTouched;
+
+    private bool ClearLineChecked(GridPos from, GridPos to)
     {
         int x = from.X, y = from.Y;
         int dx = Math.Abs(to.X - x), dy = -Math.Abs(to.Y - y);
