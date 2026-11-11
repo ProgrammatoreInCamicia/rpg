@@ -542,6 +542,16 @@ Anche quando non combatte, il predone deve far capire che ha visto il giocatore 
 
 **Stato del 9 novembre: pilot client giocabile, integrazione nello scenario ufficiale e verifica finale ancora da fare.** `gioca-regione-mappa-pilot.cmd` apre tre mappe 48×32 con save separato; matrici e ancore in `docs/BLACKMARSH_REGION_LAYOUT_48x32.json`, geometria di prova in `VillageMap.RegionMapPilot.cs`. Lo smoke attraversa tutte le aree, entra nei due edifici e nella zona Vasan, verifica la minaccia e salva otto catture: verde a 1280×720. La build è 0/0. Misura del pilot popolato: circa 26 fps a 1280×720 e 24 fps a 1920×1080 nella finestra di prova, quindi la fluidità richiesta **non è ancora dimostrata**. La maschera di visione locale riduce il costo di quattro cambi di sguardo da circa 114 a 44 ms; una prova di culling del pavimento 8×8 non ha portato beneficio ed è stata rimossa. Dettagli e limiti visivi in `docs/BLACKMARSH_REGION_MAP_PLAN.md`.
 
+**Parte Sim, 11 novembre (Claude), sul branch `region-6b-sim`:**
+- **Scenario:** lo scenario ufficiale usa le tre piante 48×32 del pilot. ID, percorsi, fazioni, `defends` e orari sono invariati.
+- **Scostamenti dal pilot:** il focolare nella casa comune; la lampada della rimessa nella stanza interna; il fuoco dell'approdo spento, perché di notte la caletta resta buia.
+- **Posti di guardia:** spostati accanto agli accessi dei depositi. Nel pilot il custode di presidio non copriva la dispensa, e il predone rubava lo stesso.
+- **Test:** due nuovi, uno sulla raggiungibilità di ogni casella percorribile dal bivio e uno sui posti di guardia. Coordinate di `BlackmarshRegionTests`/`BlackmarshWatchIslandTests` aggiornate.
+- **Orari:** la storia della serata è la stessa, gli orari si spostano di 1–2 minuti. Nel ramo «prima alla caletta» la prima notte un tiro di Furtività diverso fa passare inosservato il furto alla dispensa: custode di guardia e dissuasione arrivano una sera dopo.
+- **Prestazioni:** un giorno simulato passa da 30–60 a 100–210 ms.
+- **Verifica:** 730/730 e build 0/0. Le smoke Blackmarsh, slice, villaggio, viaggio regionale, fixture e pilot sono verdi. Le smoke di presentazione dell'isola e di persistenza regionale falliscono finché Codex non aggiorna le loro coordinate letterali.
+- Dettagli in `docs/BLACKMARSH_REGION.md`.
+
 **Origine:** prova dell'utente del 9 novembre 2026. «Vedo un PNG e una casa e poi cambio mappa, mentre in un gioco vero c'è tanto da vedere: possono passare potenzialmente ore prima di cambiare mappa.» Le mappe attuali, di 20×14 e 18×14 caselle, sono banchi di prova del viaggio, non luoghi.
 
 **Obiettivo:** ogni area diventa un luogo che si esplora a piedi per decine di minuti reali, non un corridoio verso il bivio. Due cose insieme, perché una mappa grande e vuota è peggio di una piccola:

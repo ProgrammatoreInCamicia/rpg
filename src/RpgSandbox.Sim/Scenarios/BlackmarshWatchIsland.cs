@@ -48,15 +48,21 @@ public static class BlackmarshWatchIsland
         public static readonly ActorId Raider = new("bm_isle_raider");
         public const string ShedKey = BlackmarshWatchhouse.Ids.ShedKey;
 
-        public static readonly GridPos HamletExit = new(19, 6);
-        public static readonly GridPos ShedExit = new(0, 6);
-        public static readonly GridPos CoveExit = new(0, 6);
-        public static readonly GridPos HouseDoor = new(7, 6);
-        public static readonly GridPos PantryAccess = new(3, 3);
-        /// <summary>The shed keeps the watchhouse plan: its doors, window and store access are on the same squares.</summary>
-        public static readonly GridPos ShedDoor = BlackmarshWatchhouse.Ids.ShedDoor;
-        public static readonly GridPos InnerDoor = BlackmarshWatchhouse.Ids.InnerDoor;
-        public static readonly GridPos StoreAccess = BlackmarshWatchhouse.Ids.StoreAccess;
-        public static readonly GridPos CacheAccess = new(16, 11);
+        // Region Task 6B: the three 48×32 plans (docs/BLACKMARSH_REGION_LAYOUT_48x32.json).
+        public static readonly GridPos HamletExit = new(47, 16);
+        public static readonly GridPos ShedExit = new(0, 16);
+        public static readonly GridPos CoveExit = new(0, 16);
+        public static readonly GridPos HouseDoor = new(15, 14);
+        public static readonly GridPos PantryAccess = new(11, 12);
+        /// <summary>The shed keeps the watchhouse's arrangement (a locked door into a front room, an inner door to the
+        /// store, a stuck window), on its own squares.</summary>
+        public static readonly GridPos ShedDoor = new(22, 16);
+        public static readonly GridPos InnerDoor = new(26, 16);
+        public static readonly GridPos ShedWindowInside = new(29, 15);
+        public static readonly GridPos ShedWindowOutside = new(30, 15);
+        public static readonly GridPos StoreAccess = new(27, 13);
+        public static readonly GridPos CacheAccess = new(42, 26);
+        /// <summary>The cache's second side, so one standing on the first does not bar every way to it.</summary>
+        public static readonly GridPos CacheAccessNorth = new(43, 25);
     }
 }

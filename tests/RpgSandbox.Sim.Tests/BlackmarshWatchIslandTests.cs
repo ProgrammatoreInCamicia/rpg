@@ -49,18 +49,77 @@ public class BlackmarshWatchIslandTests
     }
 
     [Fact]
-    public void The_shed_keeps_the_plan_of_the_watchhouse()
+    public void The_shed_keeps_the_arrangement_of_the_watchhouse()
     {
-        var old = ScenarioFile.Load(BlackmarshWatchhouse.ScenarioId).Maps.Single();
+        // Region Task 6B: on its own squares now, the shed is still the watchhouse's: a locked door into a front room, an
+        // inner door to the store's room, a stuck window there, and the lamp by the crate.
+        var view = BlackmarshWatchIsland.CreateSession().GetWorldView();
         var shed = ScenarioFile.Load(BlackmarshWatchIsland.ScenarioId).Maps.Single(m => m.Area == ShedArea);
+        var doors = shed.Edges.Where(e => e.Kind == MapEdgeKind.Door).Select(e => e.DoorAt!.Value).Order().ToArray();
+        Assert.Equal(new[] { ShedDoor, InnerDoor }.Order(), doors);
+        var window = Assert.Single(shed.Edges, e => e.Kind == MapEdgeKind.Window);
+        Assert.Equal((ShedWindowInside, ShedWindowOutside), (window.A, window.B));
 
-        // Only the zones change: the old path becomes the fork, the old landing open ground.
-        Assert.Equal(old.Rows.Select(r => r.Replace('P', 'E').Replace('A', '.')[1..]), shed.Rows.Select(r => r[1..]));
-        Assert.Equal(Describe(old.Edges), Describe(shed.Edges));
-        Assert.Equal(old.Obstacles, shed.Obstacles);
-        Assert.Equal(old.Lights, shed.Lights);
-        Assert.Equal(old.Locks, shed.Locks);
-        static string[] Describe(IEnumerable<MapEdgeView> edges) => edges.Select(e => $"{e.A}{e.B}{e.Kind}{e.DoorAt}").Order().ToArray();
+        var map = BlackmarshWatchIsland.CreateSession().Engine.World.Maps[ShedArea];
+        Assert.Equal(Shed, map.ZoneAt(ShedDoor));
+        Assert.Equal(Shed, map.ZoneAt(StoreAccess));
+        Assert.Null(map.ZoneAt(ShedWindowOutside));
+        Assert.True(map.IsClosedDoor(ShedDoor) && map.IsClosedDoor(InnerDoor));
+        var barriers = BlackmarshWatchIsland.CreateSession().Engine.World.Maps[ShedArea].Barriers;
+        Assert.Contains(barriers, b => b.Key == BarrierKey.Door(ShedDoor) && b.Value.Locked && b.Value.Key == ShedKey);
+        Assert.Contains(barriers, b => b.Key == BarrierKey.Window(ShedWindowInside, ShedWindowOutside) && b.Value.Stuck);
+        // The crate is in the inner room, past the inner door, with the lamp beside it.
+        Assert.True(StoreAccess.X > InnerDoor.X && view.Store(ShedStore).Position!.Value.X > InnerDoor.X);
+        Assert.Contains(map.Lights, l => l.At.X > InnerDoor.X);
+    }
+
+    [Fact]
+    public void On_each_large_map_every_walkable_square_is_reached_on_foot_from_the_fork()
+    {
+        // Region Task 6B: 48×32 places with rocks, reeds and buildings, but no pocket cut off: through doors (walking
+        // opens them; the shed's needs the key the player carries), never through walls or a window.
+        var world = BlackmarshWatchIsland.CreateSession().Engine.World;
+        foreach (var (area, exit) in new[] { (Hamlet, HamletExit), (ShedArea, ShedExit), (Cove, CoveExit) })
+        {
+            var map = world.Maps[area];
+            Assert.Equal((48, 32), (map.Width, map.Height));
+            var reached = new HashSet<GridPos> { exit };
+            var queue = new Queue<GridPos>(reached);
+            while (queue.Count > 0)
+            {
+                var here = queue.Dequeue();
+                for (var dy = -1; dy <= 1; dy++)
+                for (var dx = -1; dx <= 1; dx++)
+                {
+                    var next = new GridPos(here.X + dx, here.Y + dy);
+                    if (next != here && map.IsWalkable(next) && map.StepOpen(here, next, sight: false) && reached.Add(next))
+                        queue.Enqueue(next);
+                }
+            }
+            var walkable = Enumerable.Range(0, map.Height).SelectMany(y => Enumerable.Range(0, map.Width).Select(x => new GridPos(x, y)))
+                .Where(map.IsWalkable).ToList();
+            Assert.Empty(walkable.Where(p => !reached.Contains(p)));
+            Assert.True(walkable.Count > 1_000, $"{area}: {walkable.Count} walkable squares");
+        }
+    }
+
+    [Fact]
+    public void Every_guard_post_covers_its_store_without_standing_on_the_way_to_it()
+    {
+        // A guard stands at its place's guard post and covers a store only from beside a square the store is used from
+        // (Covers): a post anywhere else would leave the store guarded in name only.
+        var world = BlackmarshWatchIsland.CreateSession().Engine.World;
+        var checkedPosts = 0;
+        foreach (var store in world.Stores.Values.Where(s => s.Position is not null))
+        {
+            var map = world.Maps[world.Locations[store.Location].Area];
+            if (!map.Posts.TryGetValue((store.Location, PostKind.Guard), out var post))
+                continue;
+            checkedPosts++;
+            Assert.DoesNotContain(post, store.Access);
+            Assert.Contains(store.Access, a => post.IsAdjacentOrSame(a) && map.HasLineOfSight(post, a));
+        }
+        Assert.Equal(2, checkedPosts); // the pantry and the shed's crate
     }
 
     [Fact]
@@ -88,7 +147,7 @@ public class BlackmarshWatchIslandTests
         Assert.Contains(facts, f => f.Kind == "TravelCompleted" && f.Description.StartsWith("Pescatore arriva a Bivio del nucleo"));
         fisher = session.GetWorldView().Actor(Fisher);
         Assert.Equal(CommonHouse, fisher.Location);
-        Assert.Equal(new GridPos(5, 7), fisher.Position);
+        Assert.Equal(new GridPos(12, 15), fisher.Position);
     }
 
     [Fact]
