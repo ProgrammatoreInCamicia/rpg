@@ -6946,3 +6946,29 @@ L'utente ha dato il via a 6B e P4 in parallelo. La mia parte, prima del codice:
 4. **Test.** Riscrivo le coordinate di `BlackmarshRegionTests` e `BlackmarshWatchIslandTests` e rimisuro gli orari della serata (turno e rientro del pescatore, partenza della razzia, rapporto, ritorno con il bottino), più i casi 6A all'approdo. Gli orari possono cambiare, i rami non devono rompersi. Documento i valori nuovi in `docs/BLACKMARSH_REGION.md`.
 5. **Prestazioni Sim.** Misuro un giorno simulato accelerato sull'isola prima e dopo, più `GetPlayerView` e i comandi di movimento.
 6. **Client, tua parte.** Le smoke della regione (presentazione, persistenza, forse viaggio) e i props di `VillageMap.Presentation.cs` usano coordinate letterali della vecchia isola: dopo il mio commit si romperanno finché non le aggiorni. Lo segnalerò nella consegna con l'elenco esatto, e non tocco `game/Scripts`. Se preferisci, posso consegnare su un branch invece che su main: dimmelo prima della consegna.
+
+[CLAUDE — consegna Task 6B, parte Sim, sul branch `region-6b-sim` (e02692b), 11 novembre 2026]
+Non hai risposto sul branch, quindi ho consegnato lì, per tenere `main` verde: con le nuove coordinate due tue smoke falliscono finché non le aggiorni.
+- **Scenario.** Lo scenario ufficiale usa le tre piante 48×32 del pilot: righe, edifici, porte, finestra, depositi (cassa Vasan con due accessi), posti, attori e oggetti a terra. ID, percorsi, fazioni, `defends` e orari sono invariati.
+- **Scostamenti dal pilot**, come da contratto:
+  - focolare 10/20 in casa comune (9,17);
+  - lampada della rimessa nella stanza interna (28,17);
+  - all'approdo resta l'ostacolo in (40,27), ma è un fuoco spento, senza luce.
+- **Correzione importante.** I posti «guardia» del pilot, (13,16) in casa e (26,18) in rimessa, non erano accanto agli accessi dei depositi. Il motore considera coperto un deposito solo da una guardia accanto a una casella d'uso (`Covers`): col pilot il custode di presidio guardava la dispensa, ma il predone rubava lo stesso. I posti ora sono (12,13) e (28,14), e un test lo controlla per ogni deposito.
+- **Ids.** `BlackmarshWatchIsland.Ids` ha le nuove coordinate e la rimessa non condivide più le caselle della watchhouse. Valori:
+  - uscite: nucleo (47,16), rimessa e caletta (0,16);
+  - casa comune: porta (15,14), accesso alla dispensa (11,12);
+  - rimessa: porta (22,16), porta interna (26,16), finestra (29,15)/(30,15), accesso alla cassa (27,13);
+  - cassa Vasan: accessi (42,26) e (43,25).
+- **Test.** Due nuovi: ogni casella percorribile è raggiungibile a piedi dal bivio; ogni posto di guardia copre il suo deposito.
+- **Orari.** La storia della serata è identica e gli orari slittano di 1–2 minuti. Nel ramo «prima alla caletta», la prima notte un tiro di Furtività diverso fa passare inosservato il furto alla dispensa: il custode prende la guardia la sera dopo e la dissuasione arriva il giorno 3. Il 6A all'approdo dà avvertimento alle 19:48 e attacco alle 19:50.
+- **Prestazioni.** Un giorno simulato passa da 30–60 a 100–210 ms.
+
+Tutto in `docs/BLACKMARSH_REGION.md` e nella roadmap.
+**Verifica in worktree pulito:** 730/730, build 0/0, smoke viaggio regione, presentazione fixture, pilot, sei Blackmarsh, slice e villaggio verdi.
+**Da aggiornare da parte tua:**
+- `--region-presentation-smoke` (isola) fallisce con «La porta è troppo lontana»: coordinate letterali in `VillageMap.RegionPresentationSmoke.cs` (righe 28–73 e 196–240);
+- `--region-persistence-smoke` seed fallisce per lo stesso motivo (`VillageMap.RegionPersistenceSmoke.cs` 43–62), e di conseguenza anche il resume;
+- i props e il landmark dell'isola in `VillageMap.Presentation.cs` (66–94) stanno ancora sulle vecchie caselle.
+
+Quando le tue smoke sono verdi sul branch, unisci a `main`, oppure dimmelo e lo faccio io dopo una verifica. Chiedo anche la tua review della parte Sim.
