@@ -25,37 +25,39 @@ public partial class VillageMap
 					"Region did not open at the authored place/time.");
 				await PresentationCapture(outputDir, "hamlet-entry");
 				PresentationCommand(new TorchCommand { Actor = _sim.Player, Lit = true, StowShield = true });
-				PresentationWalk(new GridPos(8, 6));
+				PresentationWalk(new GridPos(16, 14));
 				PresentationDoor(Island.HouseDoor, true);
-				PresentationWalk(new GridPos(6, 6));
-				SliceRequire(!RoofVisibleForSmoke(new GridPos(3, 5)), "Common house did not use the indoor cutaway.");
+				PresentationWalk(new GridPos(13, 14));
+				SliceRequire(!RoofVisibleForSmoke(new GridPos(12, 14)), "Common house did not use the indoor cutaway.");
 				await PresentationCapture(outputDir, "common-house");
-				PresentationWalk(new GridPos(8, 6));
+				PresentationWalk(new GridPos(16, 14));
 				PresentationDoor(Island.HouseDoor, false);
 				await PresentationJourney(Island.ShedFork);
-				PresentationWalk(new GridPos(5, 6));
+				PresentationWalk(new GridPos(21, 16));
 				PresentationDoor(Island.ShedDoor, true);
-				PresentationWalk(new GridPos(8, 6));
+				PresentationWalk(new GridPos(24, 15));
 				FaceForSmoke(-1, -1);
 				SliceRequire(_npcLiveModels.TryGetValue(Island.Fisher, out var workingFisher)
 					&& workingFisher.Style == Paladin3DPrototype.CharacterStyle.Farmer,
 					"The working fisher did not render with his regional appearance.");
+				PresentationWalk(new GridPos(25, 16));
 				PresentationDoor(Island.InnerDoor, true);
-				PresentationWalk(new GridPos(10, 5));
+				PresentationWalk(new GridPos(27, 13));
 				FaceForSmoke(1, 1);
-				SliceRequire(_interiorProps.Count == 1 && _interiorProps[0].Cell == BlackmarshWatchhouse.Ids.Table
+				SliceRequire(_interiorProps.Count == 1 && _interiorProps[0].Cell == new GridPos(25, 15)
 					&& _interiorProps[0].Sprite.Visible, "Shed did not load its own table profile.");
 				SliceRequire(ActorStyle(Island.Fisher) == Paladin3DPrototype.CharacterStyle.Farmer,
 					"The fisher changed appearance when visiting the shed.");
 				await PresentationCapture(outputDir, "shed-interior");
-				PresentationWalk(new GridPos(8, 6));
+				PresentationWalk(new GridPos(25, 16));
 				PresentationDoor(Island.InnerDoor, false);
-				PresentationWalk(new GridPos(5, 6));
+				PresentationWalk(new GridPos(21, 16));
 				PresentationDoor(Island.ShedDoor, false);
 				await PresentationJourney(Island.CoveFork);
-				SliceRequire(_roofTiles.Count == 0 && _interiorProps.Count == 0 && _doorPanels.Count == 0,
-					"Cove inherited buildings, furniture or door picking from the shed.");
-				PresentationWalk(new GridPos(14, 10));
+				SliceRequire(_roofTiles.Count == 0 && _interiorProps.Count == 1
+					&& _interiorProps[0].Cell == new GridPos(40, 27) && _doorPanels.Count == 0,
+					"Cove inherited the shed's building or lost its own hearth landmark.");
+				PresentationWalk(new GridPos(36, 18));
 				await PresentationCapture(outputDir, "cove");
 				await PresentationJourney(Island.HamletFork);
 				for (var lap = 0; lap < 2; lap++)
@@ -63,14 +65,14 @@ public partial class VillageMap
 						? new[] { Island.CoveFork, Island.ShedFork, Island.HamletFork }
 						: new[] { Island.ShedFork, Island.CoveFork, Island.HamletFork })
 						await PresentationJourney(destination);
-				PresentationWalk(new GridPos(8, 6));
+				PresentationWalk(new GridPos(16, 14));
 				FaceForSmoke(-1, 0);
 				SliceRequire(_view.Doors.Single(d => d.At == Island.HouseDoor).Open is { } houseOpen
 					&& PilotDoorOpenForSmoke(Island.HouseDoor) == houseOpen,
 					"The common-house door does not reflect its observed state after NPC routines.");
 				SliceRequire(_view.MapVisibility!.Any(row => row.Contains('1')), "Exploration memory was lost on return.");
 				PresentationDoor(Island.HouseDoor, true);
-				PresentationWalk(new GridPos(6, 6));
+				PresentationWalk(new GridPos(13, 14));
 				FaceForSmoke(-1, 1);
 				SliceRequire(_npcLiveModels.TryGetValue(Island.Fisher, out var fisher)
 					&& fisher.Style == Paladin3DPrototype.CharacterStyle.Farmer,

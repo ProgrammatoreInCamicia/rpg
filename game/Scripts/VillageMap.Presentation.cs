@@ -28,7 +28,7 @@ public partial class VillageMap
 
 	private PresentationProfile PresentationFor(SceneEntry entry, AreaId area)
 	{
-		if (entry == SceneEntry.BlackmarshRegion) return _regionMapPilot
+		if (entry == SceneEntry.BlackmarshRegion) return LargeRegionMap
 			? IslandPilotPresentationFor(area) : IslandPresentationFor(area);
 		var villageFloors = new Dictionary<LocationId, Func<GridPos, FloorLook>>
 		{
@@ -156,7 +156,7 @@ public partial class VillageMap
 
 	private FloorLook FloorFor(char symbol, LocationId? zone, GridPos cell)
 	{
-		if (_regionMapPilot && _view.Map is { } pilotMap)
+		if (LargeRegionMap && _view.Map is { } pilotMap)
 		{
 			if (symbol == '#') return IsMapBoundary(cell, pilotMap)
 				? new(new Color(0.17f, 0.28f, 0.32f), GroundMaterial.Road)

@@ -40,18 +40,19 @@ public partial class VillageMap
 	{
 		var hamlet = NewRegionSmokeSession();
 		RegionCommand(hamlet, new TorchCommand { Actor = hamlet.Player, Lit = true, StowShield = true });
-		RegionWalk(hamlet, new GridPos(8, 6));
+		RegionWalk(hamlet, new GridPos(16, 14));
 		RegionDoor(hamlet, Island.HouseDoor, true);
-		RegionWalk(hamlet, new GridPos(6, 6));
+		RegionWalk(hamlet, new GridPos(13, 14));
 		SaveRegionCase(directory, "hamlet", hamlet);
 
 		var shed = NewRegionSmokeSession();
 		RegionTravel(shed, Island.ShedFork);
-		RegionWalk(shed, new GridPos(5, 6));
+		RegionWalk(shed, new GridPos(21, 16));
 		RegionDoor(shed, Island.ShedDoor, true);
-		RegionWalk(shed, new GridPos(8, 6));
+		RegionWalk(shed, new GridPos(24, 15));
+		RegionWalk(shed, new GridPos(25, 16));
 		RegionDoor(shed, Island.InnerDoor, true);
-		RegionWalk(shed, new GridPos(9, 5));
+		RegionWalk(shed, new GridPos(27, 15));
 		var glass = shed.GetPlayerView().Map!.Edges.Single(edge => edge.Kind == MapEdgeKind.Window);
 		RegionWalk(shed, glass.A);
 		RegionCommand(shed, new BreakGlassCommand { Actor = shed.Player, A = glass.A, B = glass.B });
@@ -59,7 +60,7 @@ public partial class VillageMap
 
 		var cove = NewRegionSmokeSession();
 		RegionTravel(cove, Island.CoveFork);
-		RegionWalk(cove, new GridPos(14, 10));
+		RegionWalk(cove, new GridPos(36, 18));
 		SaveRegionCase(directory, "cove", cove);
 
 		var transit = NewRegionSmokeSession();
@@ -71,7 +72,7 @@ public partial class VillageMap
 			"The transit fixture arrived before saving.");
 		SaveRegionCase(directory, "transit", transit);
 
-		RegionWalk(shed, BlackmarshWatchhouse.Ids.StoreAccess);
+		RegionWalk(shed, Island.StoreAccess);
 		var take = shed.Execute(new TakeFoodCommand { Actor = shed.Player, Store = Island.ShedStore, Amount = 2 });
 		SliceRequire(take.Success && shed.GetPlayerView().Action is not null, take.Message);
 		SaveRegionCase(directory, "action", shed);

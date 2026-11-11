@@ -22,6 +22,7 @@ public partial class VillageMap : Node2D
 	private bool BlackmarshWatchhouseMode => _activeEntry == SceneEntry.BlackmarshWatchhouse;
 	private bool BlackmarshRegionMode => _activeEntry == SceneEntry.BlackmarshRegion;
 	private bool _regionMapPilot;
+	private bool LargeRegionMap => BlackmarshRegionMode && _view.Map is { Width: 48, Height: 32 };
 	private bool _regionGpuVision;
 	private bool CanRetryScene => PlayableSliceMode || BlackmarshWatchhouseMode;
 	private const float TileW = 64f;
@@ -168,6 +169,8 @@ public partial class VillageMap : Node2D
 		_sim.FacePlayer(_entryOptions.Facing.X, _entryOptions.Facing.Y);
 		if (BlackmarshRegionMode) _regionStartingWorld = _sim.GetWorldView();
 		_view = _sim.GetPlayerView();
+		_regionGpuVision = LargeRegionMap && !OS.GetCmdlineUserArgs().Contains("--region-vision-cpu");
+		if (LargeRegionMap) RenderingServer.SetDefaultClearColor(new Color(0.075f, 0.12f, 0.15f));
 		SyncFigureFacing(_view.Facing);
 
 		var benchmarkSessionMs = benchmarkClock?.Elapsed.TotalMilliseconds;
@@ -1476,7 +1479,7 @@ public partial class VillageMap : Node2D
 		}
 		foreach (var (cell, item) in _lit)
 			item.Modulate = Shade(cell);
-		if (_regionMapPilot) ShadeBatchedFloors();
+		if (LargeRegionMap) ShadeBatchedFloors();
 		foreach (var (edge, item) in _edgeLit)
 		{
 			var shadeCell = BuildingShadeCell(edge);
@@ -1627,7 +1630,7 @@ public partial class VillageMap : Node2D
 			var zone = map.Zones.TryGetValue(c, out var floorZone) ? floorZone : (LocationId?)null;
 			var look = FloorFor(c, zone, cell);
 			var shade = (x + y) % 2 == 0 ? 0f : 0.05f;
-			if (_regionMapPilot)
+			if (LargeRegionMap)
 				AddBatchedFloor(cell, c, look, shade);
 			else
 			{
@@ -1640,9 +1643,9 @@ public partial class VillageMap : Node2D
 			}
 			if (c == '#')
 			{
-				if (!_regionMapPilot || !IsMapBoundary(cell, map))
+				if (!LargeRegionMap || !IsMapBoundary(cell, map))
 				{
-					var natural = _regionMapPilot;
+					var natural = LargeRegionMap;
 					var wall = MakeBlock(cell, natural ? new Color(0.39f, 0.40f, 0.38f) : Wall,
 						natural ? 19f + (x * 13 + y * 7) % 12 : WallHeight, _stoneWallTexture);
 					_sorted.AddChild(wall);
@@ -1652,7 +1655,7 @@ public partial class VillageMap : Node2D
 			}
 		}
 
-		if (_regionMapPilot) BuildBatchedFloors();
+		if (LargeRegionMap) BuildBatchedFloors();
 
 		foreach (var store in _sim.GetWorldView().Stores.Where(s => s.Position is not null
 			&& _view.Locations.Any(l => l.Id == s.Location && l.Area == map.Area)))

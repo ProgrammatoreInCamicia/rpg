@@ -13,7 +13,13 @@ namespace RpgSandbox.Sim.Tests;
 public class BlackmarshRegionTests
 {
     /// <summary>Inside the shed's inner room, in the corner away from the door: in sight of the crate, not in its way.</summary>
-    private static readonly GridPos ShedCorner = new(9, 8);
+    private static readonly GridPos ShedCorner = new(29, 18);
+
+    /// <summary>Beside the keeper at its post by the well.</summary>
+    private static readonly GridPos NextToTheKeeper = new(23, 15);
+
+    /// <summary>On the beach of the cove, well away from the landing.</summary>
+    private static readonly GridPos OnTheBeach = new(8, 12);
 
     [Fact]
     public void Left_alone_the_raider_robs_the_shed_carries_the_loot_home_and_no_one_knows()
@@ -35,7 +41,7 @@ public class BlackmarshRegionTests
         Assert.Equal(4, world.Store(VasanCache).Food);
         Assert.Equal(12, world.Store(Pantry).Food);
         // Back to rest at its own post, off the square the cache is used from.
-        Assert.Equal(new GridPos(15, 9), world.Actor(Raider).Position);
+        Assert.Equal(new GridPos(39, 23), world.Actor(Raider).Position);
         Assert.Null(world.Actor(Raider).Assignment);
 
         // The fisher had gone home at 19:45: nobody saw it, nobody told the keeper, the keeper stays at the well.
@@ -61,7 +67,7 @@ public class BlackmarshRegionTests
         var keeper = session.GetWorldView().Actor(Keeper);
         Assert.Equal(Pantry, keeper.GuardDuty?.Store);
         Assert.Equal(CommonHouse, keeper.Location);
-        Assert.Equal(new GridPos(4, 4), keeper.Position);
+        Assert.Equal(new GridPos(12, 13), keeper.Position);
         // Heard, not seen: there is no thief to ask the rations of.
         Assert.Empty(keeper.Claims);
         // The keeper on duty does not stand on the pantry's only access: the store stays usable.
@@ -83,7 +89,7 @@ public class BlackmarshRegionTests
         Assert.Equal(0, view.VisibleStores.Single(s => s.Id == ShedStore).Food);
         Assert.Empty(view.Observations);
         GoTo(session, HamletFork);
-        Walk(session, new GridPos(12, 4)); // next to the keeper at the well
+        Walk(session, NextToTheKeeper);
         view = session.GetPlayerView();
         Assert.Contains(view.PeopleHere, p => p.Id == Keeper);
         Assert.Empty(view.ReportOptions);
@@ -105,7 +111,7 @@ public class BlackmarshRegionTests
         Assert.Equal(Raider, seen.Culprit);
 
         GoTo(session, HamletFork);
-        Walk(session, new GridPos(12, 4));
+        Walk(session, NextToTheKeeper);
         var option = Assert.Single(session.GetPlayerView().ReportOptions);
         Assert.Equal(Keeper, option.Recipient);
         Do(session, new ReportCommand { Actor = session.Player, Recipient = Keeper, Observation = option.Observation });
@@ -116,7 +122,7 @@ public class BlackmarshRegionTests
         Assert.Contains(facts.All, f => f.Kind == "TravelStarted" && f.Description == "Custode della vedetta parte da Bivio del nucleo verso Bivio della rimessa.");
         var keeper = session.GetWorldView().Actor(Keeper);
         Assert.Equal(Shed, keeper.Location);
-        Assert.Equal(new GridPos(10, 8), keeper.Position);
+        Assert.Equal(new GridPos(28, 14), keeper.Position);
         GoTo(session, ShedFork);
         Walk(session, StoreAccess);
         Assert.Equal(StoreAccess, session.GetPlayerView().Position);
@@ -157,23 +163,27 @@ public class BlackmarshRegionTests
         var session = BlackmarshWatchIsland.CreateSession();
         var facts = new FactLog(session);
         GoTo(session, CoveFork);
-        Walk(session, new GridPos(10, 6)); // on the beach, away from the landing
+        Walk(session, OnTheBeach);
         facts.AdvanceTo(At(1, 20, 40));
         Assert.Equal(4, session.GetWorldView().Store(VasanCache).Food); // the shed's rations, delivered
 
         Walk(session, CacheAccess); // free: the raider rests at its post, not on the access
         Do(session, new TakeFoodCommand { Actor = session.Player, Store = VasanCache, Amount = 4 });
         Assert.Equal(14, session.GetPlayerView().Food);
-        Walk(session, new GridPos(10, 6)); // off the Vasan's ground before the day comes (Task 6A)
+        Walk(session, OnTheBeach); // off the Vasan's ground before the day comes (Task 6A)
 
-        facts.AdvanceTo(At(2, 21));
+        facts.AdvanceTo(At(3, 21));
 
         // The Vasan are below their threshold again: an hour later the next raid goes for the pantry.
         Assert.Contains(facts.All, f => f.At.Day == 0 && f.At.Hour == 21 && f.Kind == "RaidOrdered" && f.Description.EndsWith("Dispensa della casa comune."));
-        Assert.Contains(facts.All, f => f.At.Day == 0 && f.Kind == "GuardDutyStarted" && f.Description.EndsWith("Dispensa della casa comune."));
-        // The next evening the keeper is on guard there and the raider, seeing him, gives up.
-        Assert.Contains(facts.All, f => f.At.Day == 1 && f.Kind == "RaidDeterred" && f.Description == "Predone vasan vede la guardia a Dispensa della casa comune e desiste.");
-        Assert.Equal(8, session.GetWorldView().Store(Pantry).Food);
+        // Task 6B: that first night the raider's Stealth (15) beats the fisher, close by in the dim house: nobody notices.
+        Assert.Contains(facts.All, f => f.At.Day == 0 && f.Kind == "FoodTheftUnnoticed" && f.Description.StartsWith("Pescatore non si accorge di nulla"));
+        // The next evening it comes again; this time the fisher hears it and tells the keeper, who takes guard there.
+        Assert.Contains(facts.All, f => f.At.Day == 1 && f.Kind == "FoodTheftWitnessed" && f.Description.StartsWith("Pescatore sente qualcuno rubare da Dispensa della casa comune"));
+        Assert.Contains(facts.All, f => f.At.Day == 1 && f.Kind == "GuardDutyStarted" && f.Description.EndsWith("Dispensa della casa comune."));
+        // The evening after, the raider sees the keeper on guard and gives up.
+        Assert.Contains(facts.All, f => f.At.Day == 2 && f.Kind == "RaidDeterred" && f.Description == "Predone vasan vede la guardia a Dispensa della casa comune e desiste.");
+        Assert.Equal(4, session.GetWorldView().Store(Pantry).Food);
         // Task 6A: in the dark the raider only hears the theft, and the beach is not the ground it defends: no answer.
         Assert.Contains(facts.All, f => f.Kind == "FoodTheftWitnessed" && f.Description == "Predone vasan sente qualcuno rubare da Provviste dei Vasan nel buio, ma non vede chi.");
         Assert.DoesNotContain(facts.All, f => f.Kind.StartsWith("Defense") || f.Kind == "CombatStarted");
@@ -182,7 +192,7 @@ public class BlackmarshRegionTests
     // ---------------------------------------------------------------- Task 6A: the raider defends the landing
 
     /// <summary>On the landing, in the raider's sight, off the access to its rations.</summary>
-    private static readonly GridPos OnTheLanding = new(14, 9);
+    private static readonly GridPos OnTheLanding = new(37, 20);
 
     [Fact]
     public void On_the_landing_the_raider_sizes_up_the_paladin_warns_him_off_and_attacks_when_he_stays()
@@ -264,7 +274,7 @@ public class BlackmarshRegionTests
         Walk(told, ShedCorner);
         told.AdvanceTo(At(1, 20, 30));
         GoTo(told, HamletFork);
-        Walk(told, new GridPos(12, 4));
+        Walk(told, NextToTheKeeper);
         Do(told, new ReportCommand { Actor = told.Player, Recipient = Keeper, Observation = told.GetPlayerView().ReportOptions.Single().Observation });
 
         var moved = BlackmarshWatchIsland.CreateSession();

@@ -41,55 +41,61 @@ Tre aree, ognuna con una mappa e un'uscita sul bordo, il **bivio**. Da ogni bivi
 
 Ogni sentiero diretto costa meno del giro attraverso il terzo luogo. Sono durate di contenuto da tarare nel playtest, non una scala ufficiale dell'esagono.
 
-### Nucleo dei pescatori (`bm_isle_hamlet`, 20×14)
+### Le tre piante 48×32 (Task 6B)
 
-```
-x  01234567890123456789
-y0 ####################
- 1 #.................EE
- 2 #.................EE
- 3 #.CCCCCC..........EE     C  Casa comune (interno): x 2–7, y 3–8; porta in (7,6) verso est
- 4 #.CCCCCC..WWWWW...EE        dispensa in (2,3), si usa da (3,3); focolare in (2,8)
- 5 #.CCCCCC..WWWWW...EE        posto «casa» del pescatore (5,7); posto «guardia» (4,4)
- 6 #.CCCCCC..WWWWW...EE     W  Piazzale del pozzo (acqua): pozzo con braciere in (12,6), ostacolo
- 7 #.CCCCCC..WWWWW...EE        posto «casa» del custode (12,5); il protagonista parte da (11,8)
- 8 #.CCCCCC..WWWWW...EE     E  Bivio del nucleo, uscita in (19,6)
- 9 #.........WWWWW...EE
-10 #.................EE
-11 #.................EE
-12 #.................EE
-13 ####################
-```
+Dal Task 6B ogni area misura **48×32 caselle**: circa 5,5 volte le vecchie 20×14 e 18×14. Le righe vengono dalla prova di Codex (`docs/BLACKMARSH_REGION_LAYOUT_48x32.json`) e la geometria da `VillageMap.RegionMapPilot.cs`. La fonte resta lo scenario JSON. I `#` all'aperto sono scogli e canneti: bloccano passo e vista come un muro, e il client li disegna come terreno naturale. Da ogni bivio si raggiunge a piedi ogni casella percorribile della sua area, attraverso le porte e mai attraverso muri o finestre (test `On_each_large_map_every_walkable_square_is_reached_on_foot_from_the_fork`).
 
-### Rimessa (`bm_isle_shed_area`, 18×14)
+**Nucleo dei pescatori (`bm_isle_hamlet`).**
 
-La **stessa pianta** di `blackmarsh-watchhouse`: muri, porta d'ingresso chiusa a chiave in (6,6), porta interna in (9,6), finestra gonfia di salsedine fra (11,6) e (12,6), lampada e tavolo in (10,6), cassa in (11,4) con accesso da (11,5). Cambiano solo le zone:
-- il vecchio sentiero diventa il **Bivio della rimessa**, esteso fino al bordo, con l'uscita in (0,6);
-- il vecchio Approdo Vasan diventa terreno libero: l'approdo ora è alla caletta.
+| Cosa | Dove |
+|---|---|
+| Bivio del nucleo (E) | x 45–47, y 14–18; uscita in (47,16), sul bordo est |
+| Casa comune (C, interno) | x 9–15, y 11–17, muri sui confini; porta verso est in (15,14) |
+| Dispensa | in (10,12), si usa da (11,12) |
+| Focolare | in (9,17), lampada piccola 10/20 ft e ostacolo, nell'angolo opposto alla dispensa |
+| Posti della casa comune | «casa» del pescatore (12,15); «guardia» (12,13), accanto all'accesso della dispensa |
+| Piazzale del pozzo (W, acqua) | x 21–28, y 13–20; braciere 15/30 ft in (25,17), ostacolo |
+| Posti del piazzale | «casa» del custode (24,15); il protagonista parte da (24,16) |
+| Da trovare | un chiodo di ferro a terra in (13,25), a sud |
+| Scogli | due gruppi a nord (x 20–25 e 28–34, y 7–9) e due a sud |
 
-Posto «lavoro» del pescatore: (7,4), nella stanza d'ingresso, fuori dal passaggio fra le due porte. Posto «guardia»: (10,8), nell'angolo della stanza interna, in vista della cassa e fuori dal suo accesso.
+**Rimessa (`bm_isle_shed_area`).** Stessa disposizione della rimessa di `blackmarsh-watchhouse`, su caselle proprie e più spaziose.
 
-### Caletta (`bm_isle_cove`, 20×14)
+| Cosa | Dove |
+|---|---|
+| Bivio della rimessa (E) | x 0–2, y 14–18; uscita in (0,16) |
+| Rimessa (S, interno) | x 22–29, y 12–18 |
+| Porta d'ingresso | in (22,16) verso ovest, chiusa a chiave con `bm-watch-shed-key`, forzabile CD 15, con lo stesso indizio |
+| Stanza d'ingresso | x 22–25; posto «lavoro» del pescatore in (24,14) |
+| Porta interna | parete fra x 25 e x 26, porta in (26,16) |
+| Stanza interna | x 26–29 |
+| Cassa | in (28,13), accesso da (27,13) |
+| Lampada | 15/30 ft in (28,17), accanto alla cassa |
+| Posto «guardia» | (28,14), accanto all'accesso della cassa |
+| Finestra | fra (29,15) e (30,15), bloccata dalla salsedine, CD 10 |
+| Da trovare | arnesi da scasso a terra in (35,9), a nord-est: una seconda via per la porta chiusa |
 
-```
-x  01234567890123456789
-y0 ####################
- 1 EEE................#
- 2 EEE................#     E  Bivio della caletta, uscita in (0,6)
- 3 EEE................#     A  Approdo dei Vasan: provviste in (17,11), accesso da (16,11);
- 4 EEE................#        posto «casa» del predone (15,9), dove parte e torna a riposare
- 5 EEE................#     x 11–16, y 1–5: spazio libero riservato al capanno del Task 7
- 6 EEE................#
- 7 EEE................#
- 8 EEE..........AAAAAA#
- 9 EEE..........AAAAAA#
-10 EEE..........AAAAAA#
-11 EEE..........AAAAAA#
-12 EEE..........AAAAAA#
-13 ####################
-```
+**Caletta (`bm_isle_cove`).**
 
-Il capanno con l'arco corto e le frecce è il Task 7: qui c'è solo lo spazio.
+| Cosa | Dove |
+|---|---|
+| Bivio della caletta (E) | x 0–2, y 14–18; uscita in (0,16) |
+| Approdo dei Vasan (A) | x 36–45, y 19–29, chiuso a ovest da uno sperone di scogli (x 30–35, y 18–22) |
+| Avvicinamento | (35,23) |
+| Posto «casa» del predone | (39,23) |
+| Provviste | in (43,26), con **due** accessi, (42,26) e (43,25): chi sta su uno non chiude ogni via |
+| Fuoco spento | in (40,27): ostacolo, **senza luce**, perché di notte la caletta resta buia come prima |
+| Da trovare | una torcia a terra in (38,28) |
+| Scogli e canneti | altri gruppi a nord e a sud-ovest; il resto della spiaggia è libero |
+
+Il capanno con l'arco corto e le frecce è il Task 7: nella caletta c'è spazio libero a nord.
+
+**Tre scostamenti dalla prova, concordati in chat per non cambiare regole già verificate:**
+- il focolare della casa comune;
+- la lampada della rimessa nella stanza interna;
+- il fuoco spento all'approdo.
+
+**Una correzione:** i posti «guardia» della prova erano lontani dall'accesso dei depositi. Il motore considera sorvegliato un deposito solo se la guardia sta accanto a una casella da cui lo si usa. Con quei posti il custode di presidio non dissuadeva più il predone. Ora un test lo controlla per ogni deposito.
 
 ## Persone, fazioni, scorte
 
@@ -117,18 +123,18 @@ Il motore ha **un solo posto per tipo per luogo**: custode e pescatore nella ste
 
 | Ora | Cosa succede |
 |---|---|
-| 16:00 | Il pescatore esce dalla casa comune e parte dal bivio; alle 16:06 arriva alla rimessa, apre con la chiave e richiude. |
+| 16:00 | Il pescatore esce dalla casa comune e parte dal bivio alle 16:00:35; alle 16:06 arriva alla rimessa, apre con la chiave e richiude. |
 | 19:35 | **Apertura della partita.** Pescatore al lavoro nella rimessa, custode al pozzo, predone all'approdo. |
-| 19:45 | Il pescatore chiude la rimessa a chiave e riparte; alle 19:51 arriva al nucleo e rientra in casa. |
+| 19:45 | Il pescatore chiude la rimessa a chiave e riparte dal bivio alle 19:45:24; alle 19:51 arriva al nucleo e rientra in casa. |
 | 19:59 | I Vasan consumano le 4 razioni delle loro provviste. |
-| 20:00 | Razzia: il predone parte verso la rimessa (8 minuti contro i 12 del nucleo). |
-| 20:08–20:13 | Arriva, scassina la porta, entra e ruba le 4 razioni. Nessuno lo vede: il pescatore è già a casa. |
-| 20:24 | Rientra alla caletta e consegna il bottino: provviste di nuovo a 4. Torna a riposare al suo posto. |
+| 20:00 | Razzia: il predone attraversa la caletta e alle 20:01 parte verso la rimessa (8 minuti contro i 12 del nucleo). |
+| 20:09–20:15 | Arriva, scassina la porta, entra e alle 20:14 ruba le 4 razioni. Nessuno lo vede: il pescatore è già a casa. |
+| 20:26 | Rientra alla caletta e consegna il bottino: provviste di nuovo a 4. Torna a riposare al suo posto. |
 | giorno 2, 19:59–20:00 | Nuovo consumo; la rimessa è vuota, quindi la razzia va alla dispensa del nucleo (12 minuti). |
-| giorno 2, 20:15 | Ruba 4 razioni dalla dispensa (restano 8). Il pescatore, in casa, sente il furto ma non vede chi. |
-| giorno 2, 20:20 | Il pescatore lo racconta al custode; il custode va a presidiare la dispensa dal posto di guardia (4,4). |
+| giorno 2, 20:17 | Ruba 4 razioni dalla dispensa (restano 8). Il pescatore, in casa, sente il furto ma non vede chi. |
+| giorno 2, 20:22 | Il pescatore lo racconta al custode; il custode va a presidiare la dispensa dal posto di guardia (12,13). |
 
-Questi orari sono il comportamento del motore sui valori di contenuto attuali, misurati dai test con il seme dello scenario. La taratura per il gioco resta al Task 10.
+Questi orari sono il comportamento del motore sui valori di contenuto attuali, misurati dai test con il seme dello scenario. Con le piante 48×32 (Task 6B) la storia è la stessa delle vecchie piante: gli orari si spostano di uno o due minuti perché i tratti a piedi sono più lunghi. La taratura per il gioco resta al Task 10.
 
 ## Come l'ordine delle visite cambia la serata (Task 6)
 
@@ -139,11 +145,11 @@ Misurato in `tests/RpgSandbox.Sim.Tests/BlackmarshRegionTests.cs`, solo con coma
 | Nulla | Come nella tabella sopra. | 8 | 4 | presidia la dispensa |
 | Va alla rimessa, assiste al furto dalla stanza interna, torna e lo racconta al custode | Il custode percorre il sentiero e presidia la rimessa (ormai vuota); il predone gli deve 4 razioni. La sera dopo la razzia va alla dispensa, rimasta senza guardia. | 8 | 4 | presidia la rimessa |
 | Porta le 4 razioni della rimessa alla dispensa prima delle 20:00 | La razzia della prima sera va alla dispensa; il predone trova il paladino all'accesso, lo squadra e desiste. I Vasan restano senza cibo e riprovano la sera dopo. | 16 | 0 | al pozzo |
-| Va prima alla caletta, aspetta sulla spiaggia e riprende le provviste al buio dopo la consegna, poi torna sulla spiaggia | Al buio il predone sente il furto ma non vede chi; la spiaggia non è il suo territorio, quindi nessuna difesa. I Vasan sono di nuovo sotto la soglia: alle 21:00 razziano la dispensa, il pescatore lo sente e il custode la presidia; la sera dopo il predone vede la guardia e desiste. | 8 | 0 | presidia la dispensa |
+| Va prima alla caletta, aspetta sulla spiaggia e riprende le provviste al buio dopo la consegna, poi torna sulla spiaggia | Al buio il predone sente il furto ma non vede chi; la spiaggia non è il suo territorio, quindi nessuna difesa. I Vasan sono di nuovo sotto la soglia: alle 21:00 razziano la dispensa. Con le piante 48×32 quella prima notte la Furtività del predone (15) supera il pescatore e nessuno se ne accorge; la sera dopo torna, il pescatore lo sente e il custode presidia la dispensa; la sera del giorno 3 il predone vede la guardia e desiste. | 4 | 4 | presidia la dispensa |
 
 Il giocatore lontano non sa chi ha svuotato la cassa, neanche vedendola vuota: nessuna osservazione e nessun rapporto da offrire al custode.
 
-**Correzioni di contenuto del Task 6:** il posto «casa» del predone, perché prima riposava sull'accesso delle provviste e il giocatore non poteva più usarle; i posti «guardia» di casa comune e rimessa, perché prima il custode di presidio si fermava sull'unico accesso della dispensa. Il presidio dissuade comunque, perché conta che il predone veda la guardia.
+**Correzioni di contenuto del Task 6:** il posto «casa» del predone, perché prima riposava sull'accesso delle provviste e il giocatore non poteva più usarle; i posti «guardia» di casa comune e rimessa, perché prima il custode di presidio si fermava sull'unico accesso della dispensa. Il presidio dissuade solo se il predone vede la guardia e se questa copre il deposito, cioè sta accanto a una casella da cui lo si usa: il Task 6B ha dovuto spostare per questo i posti «guardia» della prova 48×32.
 
 **Limiti noti, comportamento del motore:** gli NPC non richiudono una porta senza chiave: la porta della casa comune resta aperta dopo la prima uscita del pescatore. Il custode presidia il deposito del furto anche se è già vuoto.
 
@@ -159,11 +165,11 @@ Regola generale del motore, attivata dal contenuto: una fazione può dichiarare 
 
 Niente percezione a distanza: un intruso che non vede (buio, alle spalle, fuori vista) non provoca nulla; fuori dai luoghi difesi valgono le regole di prima. Le frasi (`SizedUp`, `DefenseWarning`, `DefenseAttack`, `DefenseWithdrawal`, `DefenseHelpless`) hanno il giocatore fra i partecipanti: compaiono fra i suoi eventi. Lo stato della difesa entra nel salvataggio (schema 44).
 
-Misurato sull'isola, seme dello scenario (`BlackmarshRegionTests.cs`), arrivando alla caletta alle 19:48:
+Misurato sull'isola, seme dello scenario (`BlackmarshRegionTests.cs`), arrivando alla caletta alle 19:47 e camminando fino a (37,20), dentro l'approdo:
 
 | Il protagonista | Cosa succede |
 |---|---|
-| Paladino armato entra nell'approdo e resta | Alle 19:50 il predone lo squadra (lo legge: lo abbatte in 5,7 round, ne servono 2,8 al paladino), gli intima di andarsene, e alle 19:52 perde la pazienza e attacca. |
+| Paladino armato entra nell'approdo e resta | Alle 19:48, appena lo vede entrare, il predone lo squadra (lo legge: lo abbatte in 5,7 round, ne servono 2,8 al paladino) e gli intima di andarsene; alle 19:50 perde la pazienza e attacca. |
 | Paladino armato va dritto alle provviste e prende | Avvertimento, poi «vede Protagonista mettere le mani sulle provviste e attacca» prima che il prelievo finisca: le provviste restano 4. |
 | Paladino con spada e scudo riposti | Il predone si aspetta di vincere e attacca subito. |
 | Resta sulla spiaggia, o prende al buio | Nessuna reazione (luogo non difeso; al buio non lo vede). |

@@ -6972,3 +6972,8 @@ Tutto in `docs/BLACKMARSH_REGION.md` e nella roadmap.
 - i props e il landmark dell'isola in `VillageMap.Presentation.cs` (66–94) stanno ancora sulle vecchie caselle.
 
 Quando le tue smoke sono verdi sul branch, unisci a `main`, oppure dimmelo e lo faccio io dopo una verifica. Chiedo anche la tua review della parte Sim.
+[CODEX — contratto client 6B dopo consegna Sim, 11 novembre 2026]
+Aggiorno sul branch region-6b-sim la presentazione ufficiale delle tre mappe 48×32 usando il profilo già verificato nel pilot, compresa resa di costa, batching del terreno e maschera GPU. Adeguo smoke presentazione/persistenza alle nuove coordinate tramite gli Ids dello scenario, mantenendo separata la fixture piccola. Poi eseguo build, smoke regionali, pilot e misure client; revisiono il diff Sim di Claude prima del merge. Non cambio regole o contenuto Sim.
+
+[CODEX — consegna client 6B e review Sim, 11 novembre 2026]
+Sul branch `region-6b-sim` ho collegato le tre mappe ufficiali 48×32 alla resa del pilot, al terreno batch P1 e alla maschera GPU P2. Props e focolare della caletta usano le nuove caselle; smoke presentazione/persistenza aggiornate. Ho controllato il diff Sim `e02692b`: tre matrici identiche al layout pilot, ID e porte riallineati, accessi e posti di guardia coperti dai nuovi test; 24 test mirati verdi. Nessun blocker rilevato nella review. Build 0/0; smoke presentazione isola/fixture, pilot, persistenza seed/resume verdi. Sonda 1080p senza VSync sulla scena ufficiale iniziale: 918 draw call e p95 5,3 ms da fermo, p95 5,7 ms nel breve cammino; manca ancora la misura di una sessione lunga/notte e il playtest. La caletta nelle catture resta troppo geometrica nei massi esterni. Integro il branch in main dopo il controllo finale.
