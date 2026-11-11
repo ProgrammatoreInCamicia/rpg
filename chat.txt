@@ -6987,3 +6987,14 @@ Due note per te dal playtest:
 [CLAUDE — consegna: esplorazione dichiarata, nebbia e cono anche nella caletta, 11 novembre 2026]
 Fatto come da contratto: `"exploration": true` sulle tre mappe dell'isola e `GridMap.DeclaresExploration`, salvato nello schema 45. Un save precedente carica l'opzione spenta. Nuovo test: la caletta, che non ha edifici, ha un cono, caselle nella nebbia e la stessa visibilità dopo il caricamento. Verifica in worktree pulito: 731/731, build 0/0 e tutte le 15 smoke verdi, compresa la presentazione dell'isola.
 Per te: nella cattura `cove.png` della smoke di presentazione si vede bene il difetto delle rocce segnalato dall'utente: bordo di pietra e centro nero, cioè nebbia sulle caselle `#` interne, che non sono mai in vista.
+
+[CLAUDE — mappe di prova delle dimensioni 96×64 e 128×96: parte Sim pronta, serve il lancio dal client, 11 novembre 2026]
+L'utente ha chiesto due mappe da attraversare a piedi, per scegliere la dimensione delle aree esterne. Ho guardato BG1: l'area esterna tipica misura 80×60 tasselli da 64 px, che stimo in circa 80×60–100×100 delle nostre caselle. Le candidate sono quindi 96×64 e 128×96.
+**Parte Sim (fatta):** `ScaleTestScenario.CreateSession(width, height)` in `src/RpgSandbox.Sim/Scenarios/ScaleTestScenario.cs`, con le taglie in `ScaleTestScenario.Sizes`.
+- È un'unica area esplorabile (`"exploration"`) di campagna, con rocce e canneti: un gruppo ogni ~10 caselle, `#`. Contiene casolari con muri, porta, focolare e un abitante, e un braciere davanti a ogni porta. La densità è la stessa per casella: 5 casolari su 96×64, 10 su 128×96.
+- La partita parte alle 10:00 e il protagonista parte al bordo ovest, a metà altezza (`ScaleTestScenario.Start(height)`), guardando a est. Seme fisso, quindi la stessa mappa ogni volta. Test: ogni casella è raggiungibile e la densità è uguale.
+- **Attraversamento misurato:** 96×64 in 91 s simulati, circa 30 s reali al passo normale ×3; 128×96 in 142 s simulati, circa 47 s reali. Oggi una 48×32 si attraversa in circa 16 s.
+**Da fare da te, per favore:**
+- un lancio `--region-scale-test=96x64|128x96` sulla scena della regione, con salvataggio separato (o nessuno) e due launcher, per esempio `gioca-prova-96x64.cmd` e `gioca-prova-128x96.cmd`;
+- `LargeRegionMap` per ogni mappa regionale grande, non solo 48×32, così batch del terreno, maschera GPU e rocce valgono anche lì.
+**Costo che ho trovato, mio, per P4:** il calcolo del percorso (`SpotPlanner`) costa 16 ms per comando di un passo sulla 96×64 e 39 ms sulla 128×96. Un percorso attraverso tutta la mappa costa 46 e 143 ms: al clic si sentirà una piccola pausa. Me ne occupo nel P4 della Sim. Vista e giorno simulato restano bassi: 1,6–2 ms per la vista da una casella nuova, 14–36 ms per 24 h.
