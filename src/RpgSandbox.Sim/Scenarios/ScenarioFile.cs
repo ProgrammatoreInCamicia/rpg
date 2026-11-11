@@ -48,6 +48,8 @@ public static class ScenarioFile
                         : throw r.Error("tipo di posto sconosciuto"), r.Square(p, "at"));
             foreach (var l in r.Objects(m, "lights"))
                 b.AddLight(area, r.Square(l, "at"), r.Int(l, "bright"), r.Int(l, "dim"));
+            if (r.OptBool(m, "exploration") == true)
+                b.AddExploration(area);
             foreach (var indoor in r.Values(m, "interiors"))
                 b.AddInterior(area, r.String(indoor, "zona interna"));
             foreach (var edge in r.Objects(m, "edges"))

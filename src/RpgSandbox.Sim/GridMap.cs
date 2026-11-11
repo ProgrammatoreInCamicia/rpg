@@ -24,7 +24,8 @@ internal sealed class GridMap
         IEnumerable<LightSource>? lights = null, IEnumerable<(GridPos At, bool Open)>? doors = null,
         IEnumerable<(LocationId Location, GridPos At)>? exits = null, IEnumerable<(LocationId Location, PostKind Kind, GridPos At)>? posts = null,
         IEnumerable<MapEdgeView>? edges = null, IEnumerable<LocationId>? indoorZones = null,
-        IEnumerable<(BarrierKey Key, Barrier Barrier)>? barriers = null, IEnumerable<(BarrierKey Key, WindowGlass Glass)>? glass = null)
+        IEnumerable<(BarrierKey Key, Barrier Barrier)>? barriers = null, IEnumerable<(BarrierKey Key, WindowGlass Glass)>? glass = null,
+        bool exploration = false)
     {
         if (rows.Count == 0 || rows.Any(r => r.Length != rows[0].Length || r.Length == 0))
             throw new InvalidDataException($"la mappa dell'area '{area}' deve avere righe non vuote e della stessa lunghezza");
@@ -42,6 +43,7 @@ internal sealed class GridMap
         }
         Zones = new SortedDictionary<char, LocationId>(zones.ToDictionary(z => z.Key, z => z.Value));
         _indoorZones = (indoorZones ?? Array.Empty<LocationId>()).ToHashSet();
+        DeclaresExploration = exploration;
         if (_indoorZones.Any(z => !Zones.Values.Contains(z)))
             throw new InvalidDataException($"zona interna sconosciuta nella mappa '{area}'");
         foreach (var edge in edges ?? Array.Empty<MapEdgeView>())
@@ -163,7 +165,14 @@ internal sealed class GridMap
     }
     public IReadOnlyCollection<LocationId> IndoorZones => _indoorZones;
     public HashSet<GridPos> Explored { get; } = new();
-    public bool UsesExploration => _indoorZones.Count > 0;
+    /// <summary>
+    /// Whether the player's sight here is a cone over remembered ground (fog of war): on a map with an interior, or on one
+    /// whose scenario says so (an open map such as the cove has no interior, yet is explored all the same).
+    /// </summary>
+    public bool UsesExploration => _indoorZones.Count > 0 || DeclaresExploration;
+
+    /// <summary>The scenario declared this map explored (`"exploration": true`), whatever its interiors.</summary>
+    public bool DeclaresExploration { get; }
 
     /// <summary>The rows as given, without objects (what the save stores).</summary>
     public IReadOnlyList<string> Rows => Enumerable.Range(0, Height)

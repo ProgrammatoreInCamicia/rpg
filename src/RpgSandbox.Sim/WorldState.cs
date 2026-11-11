@@ -1007,7 +1007,7 @@ internal sealed class WorldState
             world.Maps.Add(m.Area, new GridMap(m.Area, m.Rows, m.Zones,
                 scenario.Stores.Where(s => s.At is not null && world.Locations[s.Location].Area == m.Area)
                     .Select(s => s.At!.Value).Concat(m.Obstacles),
-                m.Lights, m.Doors, m.Exits, m.Posts, m.Edges, m.IndoorZones, m.Barriers(), m.Glass));
+                m.Lights, m.Doors, m.Exits, m.Posts, m.Edges, m.IndoorZones, m.Barriers(), m.Glass, m.Exploration));
         foreach (var m in scenario.Maps) // P4a
             foreach (var (at, item, count) in m.Ground)
                 world.Maps[m.Area].PutOnGround(at, new ItemId(item), count);

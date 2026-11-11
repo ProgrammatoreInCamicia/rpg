@@ -87,6 +87,9 @@ internal sealed record MapDefinition(AreaId Area, IReadOnlyList<string> Rows, IR
     public List<(GridPos At, TrapKind Kind)> Traps { get; } = new();
     public List<MapEdgeView> Edges { get; } = new();
     public List<LocationId> IndoorZones { get; } = new();
+
+    /// <summary>Region: the map is explored (fog of war and a sight cone) even without an interior.</summary>
+    public bool Exploration { get; set; }
     public List<(LocationId Location, GridPos At)> Exits { get; } = new();
     public List<(LocationId Location, PostKind Kind, GridPos At)> Posts { get; } = new();
 }
@@ -308,6 +311,13 @@ public sealed class ScenarioBuilder
         return this;
     }
 
+    /// <summary>Region: the map is explored (fog of war, sight cone) even if it has no interior.</summary>
+    public ScenarioBuilder AddExploration(string areaId)
+    {
+        MapOf(areaId, "exploration").Exploration = true;
+        return this;
+    }
+
     public ScenarioBuilder AddInterior(string areaId, string locationId)
     {
         MapOf(areaId, "interiors").IndoorZones.Add(new LocationId(locationId));
@@ -447,7 +457,7 @@ public sealed class ScenarioBuilder
             try
             {
                 maps[map.Area] = new GridMap(map.Area, map.Rows, map.Zones, storeSquares.Concat(map.Obstacles), map.Lights, map.Doors, map.Exits, map.Posts,
-                    map.Edges, map.IndoorZones, map.Barriers(), map.Glass);
+                    map.Edges, map.IndoorZones, map.Barriers(), map.Glass, map.Exploration);
                 foreach (var (at, item, count) in map.Ground) // P4a
                 {
                     Require(_content.Item(item) is not null && count > 0 && maps[map.Area].IsWalkable(at), $"Ground item '{item}' at {at} is unknown or not on open ground.");

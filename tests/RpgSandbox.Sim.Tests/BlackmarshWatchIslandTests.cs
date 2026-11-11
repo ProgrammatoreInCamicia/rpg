@@ -98,9 +98,29 @@ public class BlackmarshWatchIslandTests
             }
             var walkable = Enumerable.Range(0, map.Height).SelectMany(y => Enumerable.Range(0, map.Width).Select(x => new GridPos(x, y)))
                 .Where(map.IsWalkable).ToList();
-			Assert.All(walkable, p => Assert.Contains(p, reached));
+            Assert.All(walkable, p => Assert.Contains(p, reached));
             Assert.True(walkable.Count > 1_000, $"{area}: {walkable.Count} walkable squares");
         }
+    }
+
+    [Fact]
+    public void The_cove_is_explored_like_the_other_places_though_it_has_no_building()
+    {
+        // Playtest of 11 November: on the cove, with no interior, the player saw the whole map and no fog of war.
+        var session = BlackmarshWatchIsland.CreateSession();
+        GoTo(session, CoveFork);
+        session.FacePlayer(1, 0);
+        var view = session.GetPlayerView();
+        Assert.True(session.Engine.World.Maps[Cove].DeclaresExploration);
+        Assert.Empty(session.Engine.World.Maps[Cove].IndoorZones);
+        Assert.NotNull(view.MapVisibility);
+        var seen = view.MapVisibility!.Sum(r => r.Count(c => c == '2'));
+        var unknown = view.MapVisibility!.Sum(r => r.Count(c => c == '0'));
+        Assert.True(seen > 100 && unknown > 100, $"seen {seen}, unknown {unknown}: a cone over the beach, the rest in the fog");
+
+        var reloaded = session.SaveAndReload();
+        Assert.True(reloaded.Engine.World.Maps[Cove].UsesExploration);
+        Assert.Equal(view.MapVisibility, reloaded.GetPlayerView().MapVisibility);
     }
 
     [Fact]

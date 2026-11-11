@@ -58,6 +58,7 @@
           "#..............................................#",
           "################################################"
         ],
+        "exploration": true,
         "zones": { "E": "bm_isle_hamlet_fork", "C": "bm_isle_common_house", "W": "bm_isle_well" },
         "exits": [ { "location": "bm_isle_hamlet_fork", "at": [47, 16] } ],
         "posts": [
@@ -139,6 +140,7 @@
           "#..............................................#",
           "################################################"
         ],
+        "exploration": true,
         "zones": { "E": "bm_isle_shed_fork", "S": "bm_isle_shed" },
         "exits": [ { "location": "bm_isle_shed_fork", "at": [0, 16] } ],
         "posts": [
@@ -227,6 +229,7 @@
           "#..............................................#",
           "################################################"
         ],
+        "exploration": true,
         "zones": { "E": "bm_isle_cove_fork", "A": "bm_isle_landing" },
         "exits": [ { "location": "bm_isle_cove_fork", "at": [0, 16] } ],
         "posts": [

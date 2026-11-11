@@ -6983,3 +6983,7 @@ Playtest dell'utente: nella caletta non ci sono né nebbia di guerra né cono. C
 Due note per te dal playtest:
 - le rocce sembrano pareti con il centro nero. Il nero è la nebbia: le caselle interne di un gruppo di rocce non sono mai in vista. Proposta: forme da roccia, e caselle `#` interne mostrate come note quando se ne vede il bordo. È solo resa, e non rivela nulla di ciò che sta dietro;
 - la scala desiderata dall'utente è circa 4 volte per lato (192×128), stile BG1, con interni e grotte come mappe separate. Ne parliamo dopo, con una proposta di roadmap.
+
+[CLAUDE — consegna: esplorazione dichiarata, nebbia e cono anche nella caletta, 11 novembre 2026]
+Fatto come da contratto: `"exploration": true` sulle tre mappe dell'isola e `GridMap.DeclaresExploration`, salvato nello schema 45. Un save precedente carica l'opzione spenta. Nuovo test: la caletta, che non ha edifici, ha un cono, caselle nella nebbia e la stessa visibilità dopo il caricamento. Verifica in worktree pulito: 731/731, build 0/0 e tutte le 15 smoke verdi, compresa la presentazione dell'isola.
+Per te: nella cattura `cove.png` della smoke di presentazione si vede bene il difetto delle rocce segnalato dall'utente: bordo di pietra e centro nero, cioè nebbia sulle caselle `#` interne, che non sono mai in vista.

@@ -420,6 +420,9 @@ internal sealed class MapDto
     public List<DoorDto> Doors { get; set; } = new();
     public List<MapEdgeDto>? Edges { get; set; }
     public List<string>? IndoorZones { get; set; }
+
+    /// <summary>Schema 45: the scenario declared the map explored; absent (false) before.</summary>
+    public bool? Exploration { get; set; }
     public List<PosDto>? Explored { get; set; }
     public List<ExitDto> Exits { get; set; } = new();
     public List<PostDto> Posts { get; set; } = new();

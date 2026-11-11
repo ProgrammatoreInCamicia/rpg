@@ -45,6 +45,8 @@ Ogni sentiero diretto costa meno del giro attraverso il terzo luogo. Sono durate
 
 Dal Task 6B ogni area misura **48×32 caselle**: circa 5,5 volte le vecchie 20×14 e 18×14. Le righe vengono dalla prova di Codex (`docs/BLACKMARSH_REGION_LAYOUT_48x32.json`) e la geometria da `VillageMap.RegionMapPilot.cs`. La fonte resta lo scenario JSON. I `#` all'aperto sono scogli e canneti: bloccano passo e vista come un muro, e il client li disegna come terreno naturale. Da ogni bivio si raggiunge a piedi ogni casella percorribile della sua area, attraverso le porte e mai attraverso muri o finestre (test `On_each_large_map_every_walkable_square_is_reached_on_foot_from_the_fork`).
 
+**Esplorazione.** Tutte e tre le mappe la dichiarano (`"exploration": true`, schema di salvataggio 45): sguardo a cono, nebbia di guerra e memoria di ciò che si è visto valgono anche nella caletta, che non ha edifici. Prima l'esplorazione si accendeva solo sulle mappe con un interno, e nella caletta si vedeva tutto (playtest dell'11 novembre).
+
 **Nucleo dei pescatori (`bm_isle_hamlet`).**
 
 | Cosa | Dove |
