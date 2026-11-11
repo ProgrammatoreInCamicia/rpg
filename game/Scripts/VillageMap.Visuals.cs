@@ -59,7 +59,7 @@ public partial class VillageMap
 	private Color FloorColor(char symbol, FloorLook look, float shade, Texture2D? texture) =>
 		texture is null ? look.Color.Darkened(shade)
 		: look.WarmTint ? new Color(0.94f, 0.88f, 0.79f).Darkened(shade * 0.35f)
-		: _regionMapPilot && symbol == '.' ? look.Color.Darkened(shade * 0.5f)
+		: LargeRegionMap && symbol == '.' ? look.Color.Darkened(shade * 0.5f)
 		: Colors.White.Darkened(shade * 0.5f);
 
 	private static Vector2[] FloorUv(Texture2D texture, GridPos cell)

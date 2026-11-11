@@ -98,7 +98,7 @@ public class BlackmarshWatchIslandTests
             }
             var walkable = Enumerable.Range(0, map.Height).SelectMany(y => Enumerable.Range(0, map.Width).Select(x => new GridPos(x, y)))
                 .Where(map.IsWalkable).ToList();
-            Assert.Empty(walkable.Where(p => !reached.Contains(p)));
+			Assert.All(walkable, p => Assert.Contains(p, reached));
             Assert.True(walkable.Count > 1_000, $"{area}: {walkable.Count} walkable squares");
         }
     }
